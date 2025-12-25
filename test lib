@@ -66,8 +66,8 @@ TDS:Place("DJ Booth", 9.233, 1.00, 19.034) -- 16
 TDS:Upgrade(16)
 TDS:Upgrade(16)
 TDS:Upgrade(16)
-TDS:SetOption(16, "", "Green")
-TDS:Ability(16, "Beat-Drop", true)
+TDS:SetOption(16, "Track", "Green")
+TDS:Ability(16, "Drop-The-Beat", true)
 
 TDS:Upgrade(1)
 TDS:Upgrade(2)
