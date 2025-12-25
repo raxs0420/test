@@ -1,0 +1,153 @@
+-- [[ CONFIGURATION ]]
+_G.AutoStrat = true
+_G.AutoSkip = true
+_G.AutoSnowballs = true
+
+-- [[ WEBHOOK SETTINGS ]]
+_G.SendWebhook = false -- Set to true to enable notifications
+_G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
+
+-- [[ INITIALIZE LIBRARY ]]
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua"))()
+
+-- [[ START STRATEGY ]]
+TDS:Loadout("Scout", "Accelerator", "Dj", "Ranger", "Turret")
+TDS:Mode("Frost")
+TDS:GameInfo("Summer Castle", {})
+
+TDS:Place("Scout", 12.553, 1.00, 24.012) -- 1
+TDS:Place("Scout", 15.681, 1.00, 24.016) -- 2
+TDS:Place("Scout", 18.808, 1.00, 24.016) -- 3
+TDS:Place("Scout", 17.315, 1.00, 26.689) -- 4
+TDS:Place("Scout", 14.140, 1.00, 26.741) -- 5
+TDS:Place("Scout", 21.872, 1.00, 24.097) -- 6
+TDS:Place("Scout", 20.332, 1.00, 26.822) -- 7
+TDS:Place("Scout", 9.454, 1.00, 23.949) -- 8
+TDS:Place("Scout", 6.403, 1.00, 23.965) -- 9
+TDS:Place("Scout", 10.894, 1.00, 26.673) -- 10
+TDS:Place("Scout", 7.809, 1.00, 26.706) -- 11
+TDS:Place("Scout", 9.398, 1.00, 29.325) -- 12
+TDS:Place("Scout", 6.273, 1.00, 29.322) -- 13
+TDS:Place("Scout", 12.452, 1.00, 29.299) -- 14
+TDS:Place("Scout", 15.824, 1.00, 29.357) -- 15
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+
+TDS:Place("DJ Booth", 9.233, 1.00, 19.034) -- 16
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:SetTower("Track", "Green", 9.233, 19.034, 90)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+
+TDS:Place("Ranger", 11.381, 1.00, 9.012) -- 17
+TDS:Place("Ranger", 13.968, 1.00, 7.068) -- 18
+TDS:Place("Ranger", 8.553, 1.00, 8.006) -- 19
+TDS:Place("Ranger", 10.961, 1.00, 6.009) -- 20
+TDS:Place("Ranger", 5.544, 1.00, 6.967) -- 21
+TDS:Place("Ranger", 8.076, 1.00, 4.762) -- 22
+TDS:Place("Ranger", 3.112, 1.00, 5.197) -- 23
+
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+
+TDS:Place("Accelerator", 15.031, 1.00, 10.048) -- 24
+TDS:Place("Accelerator", 17.402, 1.00, 7.768) -- 25
+TDS:Place("Accelerator", 17.978, 1.00, 10.741) -- 26
+TDS:SetTarget("Last", 17.978, 10.741, 320)
+TDS:SetTarget("Last", 15.031, 10.048, 320)
+TDS:SetTarget("Last", 17.402, 7.768, 320)
+
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
