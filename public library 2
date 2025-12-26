@@ -17,6 +17,9 @@ TDS:GameInfo("Summer Castle", {
     Glass = true,
 })  -- You can add more modifiers if you wanna (just use right name/Id)
 
+TDS:UnlockTimeScale()  -- Delete whole line to deactivate auto time-scale
+TDS:TimeScale(2)  -- Number = speed (0,0.5,1,1.5,2)
+
 TDS:Place("Cowboy", 12.472, 0.973, 24.025)
 TDS:Upgrade(1)
 TDS:Upgrade(1)
@@ -279,6 +282,16 @@ TDS:SetTarget(18, "Last")
 TDS:SetTarget(19, "Last")
 TDS:SetTarget(20, "Last")
 TDS:SetTarget(21, "Last")
+TDS:SetTarget(22, "Last")
+TDS:SetTarget(23, "Last")
+TDS:SetTarget(24, "Last")
+TDS:SetTarget(25, "Last")
+TDS:SetTarget(26, "Last")
+TDS:SetTarget(27, "Last")
+TDS:SetTarget(28, "Last")
+TDS:SetTarget(29, "Last")
+TDS:SetTarget(30, "Last")
+TDS:SetTarget(31, "Last")
 
 TDS:Place("Minigunner", 7.115, 0.962, 19.057)
 TDS:Place("Minigunner", 4.061, 0.958, 19.061)
@@ -312,6 +325,8 @@ TDS:Upgrade(39)
 TDS:Upgrade(40)
 TDS:Upgrade(40)
 
+TDS:SetOption(1, "Track", "Purple")
+
 TDS:Upgrade(31)
 TDS:Upgrade(31)
 TDS:Upgrade(32)
@@ -332,6 +347,8 @@ TDS:Upgrade(39)
 TDS:Upgrade(39)
 TDS:Upgrade(40)
 TDS:Upgrade(40)
+
+TDS:SetOption(1, "Track", "Red")
 
 TDS:Place("Minigunner", -2.166, 0.923, 15.428)
 TDS:Upgrade(41)
