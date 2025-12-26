@@ -16,7 +16,7 @@ TDS:Mode("Frost")
 TDS:GameInfo("Summer Castle", {
     Glass = true,
     Committed = true
-})  -- You can add more modifiers if you wanna (just use right name)
+})  -- You can add more modifiers if you wanna (just use right name/Id)
 
 TDS:Place("Cowboy", 12.472, 0.973, 24.025)
 TDS:Upgrade(1)
