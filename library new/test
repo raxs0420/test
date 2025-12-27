@@ -1,7 +1,7 @@
 -- [[ CONFIGURATION ]]
 _G.AutoStrat = true
 _G.AutoSnowballs = true
-
+_G.AntiLag = true
 -- [[ WEBHOOK SETTINGS ]]
 _G.SendWebhook = false -- Set to true to enable notifications
 _G.Webhook = "WEBHOOK HERE" 
