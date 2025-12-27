@@ -1,13 +1,7 @@
-- [[ CONFIGURATION ]]
-_G.AutoStrat = false
-_G.AutoSnowballs = false
-_G.AntiLag = falae
+
 
 -- [[ INITIALIZE LIBRARY ]]
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved.lua"))()
-
--- [[ START STRATEGY ]]
-TDS:Loadout("Shotgunner", "Spotlight Tech", "Commander", "Ranger", "Accelerator")
 
 
 TDS:Place("Shotgunner", -8.757, 6.450, -14.754) -- 1
