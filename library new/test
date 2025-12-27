@@ -7,7 +7,7 @@ _G.SendWebhook = false -- Set to true to enable notifications
 _G.Webhook = "WEBHOOK HERE" 
 
 -- [[ INITIALIZE LIBRARY ]]
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved"))()
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved.lua"))()
 
 -- [[ START STRATEGY ]]
 TDS:Loadout("Scout", "Accelerator", "DJ Booth", "Ranger", "Turret")
@@ -23,7 +23,7 @@ TDS:GameInfo("Summer Castle", {
 TDS:UnlockTimeScale()  -- Delete whole line to deactivate auto time-scale
 TDS:TimeScale(2)  -- Number = speed (0,0.5,1,1.5,2)
 
-TDS:autoskip(true)
+TDS:autoskip(true) 
 
 TDS:Place("Scout", 12.553, 1.00, 24.012) -- 1
 TDS:Place("Scout", 15.681, 1.00, 24.016) -- 2
