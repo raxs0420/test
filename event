@@ -1,7 +1,7 @@
 - [[ CONFIGURATION ]]
-_G.AutoStrat = true
-_G.AutoSnowballs = true
-_G.AntiLag = true
+_G.AutoStrat = false
+_G.AutoSnowballs = false
+_G.AntiLag = falae
 
 -- [[ INITIALIZE LIBRARY ]]
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved.lua"))()
