@@ -1,7 +1,7 @@
 
 
 -- [[ INITIALIZE LIBRARY ]]
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved.lua"))()
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua"))()
 
 
 TDS:Place("Shotgunner", -8.757, 6.450, -14.754) -- 1
