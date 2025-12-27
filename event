@@ -1,4 +1,4 @@
-
+_G.AntiLag = true
 
 -- [[ INITIALIZE LIBRARY ]]
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua"))()
