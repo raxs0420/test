@@ -68,29 +68,37 @@ if game_state == "GAME" then
     end)
 end
 
-function TDS:ItemUse(Item_Name, req_wave)
+function TDS:UseItem(Item_Name)
+    if game_state ~= "GAME" then
+        warn("Cannot use item outside of game.")
+        return false
+    end
+
     local item_id = nil
     for id, name in pairs(ItemNames) do
-        if name == Item_Name or id == Item_Name then
+        if name == Item_Name then
             item_id = id
             break
         end
     end
-    
+
     if not item_id then
-        warn("Item not found: " .. tostring(Item_Name))
+        warn("Item not found: " .. Item_Name)
         return false
     end
-    
-    -- Check wave requirement
-    local current_wave = -- get current wave from game
-    if current_wave < req_wave then
+
+    -- Assuming the server expects a specific remote event/function to activate items
+    local success, res = pcall(function()
+        return remote_func:InvokeServer("UseItem", item_id)
+    end)
+
+    if success and check_res_ok(res) then
+        print("Used item: " .. Item_Name)
+        return true
+    else
+        warn("Failed to use item: " .. Item_Name)
         return false
     end
-    
-    -- Fire remote to use item
-    remote_event:FireServer("UseItem", item_id)
-    return true
 end
 
 -- // check if remote returned valid
