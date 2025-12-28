@@ -1,6 +1,6 @@
 -- Create ScreenGui
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TowerPlacementRecorderGui"
+screenGui.Name = "TowerDoubleClickRecorderGui"
 screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
 -- Create Control Frame
@@ -10,27 +10,23 @@ frame.Position = UDim2.new(0, 10, 0, 10)
 frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 frame.Parent = screenGui
 
--- Status TextBox
+-- Console Output TextBox
 local console = Instance.new("TextBox")
 console.Size = UDim2.new(1, -20, 0, 100)
 console.Position = UDim2.new(0, 10, 0, 10)
-console.Text = "Tower placements:\n"
+console.Text = "Double click tower placements:\n"
 console.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 console.TextColor3 = Color3.new(1, 1, 1)
 console.ClearTextOnFocus = false
 console.MultiLine = true
 console.Parent = frame
 
--- Button to simulate tower placement (for testing)
-local placeTowerButton = Instance.new("TextButton")
-placeTowerButton.Size = UDim2.new(1, -20, 0, 40)
-placeTowerButton.Position = UDim2.new(0, 10, 0, 115)
-placeTowerButton.Text = "Simulate Tower Placement"
-placeTowerButton.Parent = frame
+local lastClickTime = 0
+local doubleClickThreshold = 0.3 -- seconds
 
 local function updateConsole(text)
     console.Text = console.Text .. text .. "\n"
-    -- Keep the last few lines
+    -- Keep last 20 lines
     local lines = string.split(console.Text, "\n")
     if #lines > 20 then
         lines = table.move(lines, #lines - 19, #lines, 1, {})
@@ -38,24 +34,41 @@ local function updateConsole(text)
     end
 end
 
--- Function to record a tower placement
-local function recordTowerPlacement(position)
+local function recordTowerAtPosition(position)
     local logText = string.format("Tower placed at: %.2f, %.2f, %.2f", position.X, position.Y, position.Z)
     print(logText)
     updateConsole(logText)
 end
 
--- For testing: simulate tower placement
-placeTowerButton.MouseButton1Click:Connect(function()
-    -- Example: randomly generate a position
-    local position = Vector3.new(math.random(0, 100), 0, math.random(0, 100))
-    recordTowerPlacement(position)
-end)
+local function onMouseClick()
+    local player = game.Players.LocalPlayer
+    local mouse = player:GetMouse()
+    local currentTime = tick()
+    if currentTime - lastClickTime <= doubleClickThreshold then
+        -- Double click detected
+        local hitPosition = mouse.Hit.p
+        -- Call your tower placement logic here
+        -- Replace the following with your actual tower placement code
+        -- Example: PlaceTower(hitPosition)
+        -- For now, we just record the placement
+        recordTowerAtPosition(hitPosition)
+        lastClickTime = 0 -- reset
+    else
+        lastClickTime = currentTime
+    end
+end
 
--- In your game, replace the above with actual placement detection
--- For example, if towers are placed via a function, hook into that function:
--- Example:
--- function PlaceTower(position)
---     -- existing placement code
---     recordTowerPlacement(position)
--- end
+local function startDoubleClickDetection()
+    local player = game.Players.LocalPlayer
+    local mouse = player:GetMouse()
+    local conn = mouse.Button1Down:Connect(function()
+        onMouseClick()
+    end)
+    -- Store connection if you need to disconnect later
+    return conn
+end
+
+local connection = startDoubleClickDetection()
+
+-- If you want to stop detection later, call:
+-- connection:Disconnect()
