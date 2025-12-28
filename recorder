@@ -1,82 +1,22 @@
--- Create ScreenGui
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TowerDoubleClickRecorderGui"
-screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TowerPlacementEvent = ReplicatedStorage:WaitForChild("TowerPlacementEvent")
 
--- Create Control Frame
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 250, 0, 200)
-frame.Position = UDim2.new(0, 10, 0, 10)
-frame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-frame.Parent = screenGui
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
 
--- Console Output TextBox
-local console = Instance.new("TextBox")
-console.Size = UDim2.new(1, -20, 0, 120)
-console.Position = UDim2.new(0, 10, 0, 10)
-console.Text = "Double click tower placements:\n"
-console.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-console.TextColor3 = Color3.new(1, 1, 1)
-console.ClearTextOnFocus = false
-console.MultiLine = true
-console.Parent = frame
+local function sendTowerPlacement()
+    local hitPosition = mouse.Hit.p
+    -- Send data to server
+    TowerPlacementEvent:FireServer(hitPosition)
+    
+    -- Optional: log locally
+    print(string.format("Sent tower placement at: %.2f, %.2f, %.2f", hitPosition.X, hitPosition.Y, hitPosition.Z))
+end
 
--- Copy Button
-local copyButton = Instance.new("TextButton")
-copyButton.Size = UDim2.new(1, -20, 0, 30)
-copyButton.Position = UDim2.new(0, 10, 0, 135)
-copyButton.Text = "Copy Logs"
-copyButton.Parent = frame
-
-local function updateConsole(text)
-    console.Text = console.Text .. text .. "\n"
-    -- Keep last 20 lines
-    local lines = string.split(console.Text, "\n")
-    if #lines > 20 then
-        lines = table.move(lines, #lines - 19, #lines, 1, {})
-        console.Text = table.concat(lines, "\n")
+-- Example: bind to a key press to send placement
+game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.P then -- Press P to send placement
+        sendTowerPlacement()
     end
-end
-
-local function recordTowerAtPosition(position)
-    local logText = string.format("Tower placed at: %.2f, %.2f, %.2f", position.X, position.Y, position.Z)
-    print(logText)
-    updateConsole(logText)
-end
-
-local lastClickTime = 0
-local doubleClickThreshold = 0.3 -- seconds
-
-local function onMouseClick()
-    local player = game.Players.LocalPlayer
-    local mouse = player:GetMouse()
-    local currentTime = tick()
-    if currentTime - lastClickTime <= doubleClickThreshold then
-        -- Double click detected
-        local hitPosition = mouse.Hit.p
-        -- Call your tower placement logic here
-        -- Replace with actual placement code if available
-        -- For now, just log the placement
-        recordTowerAtPosition(hitPosition)
-        lastClickTime = 0 -- reset
-    else
-        lastClickTime = currentTime
-    end
-end
-
-local function startDoubleClickDetection()
-    local player = game.Players.LocalPlayer
-    local mouse = player:GetMouse()
-    local conn = mouse.Button1Down:Connect(function()
-        onMouseClick()
-    end)
-    return conn
-end
-
-local connection = startDoubleClickDetection()
-
--- Button functionality to copy logs
-copyButton.MouseButton1Click:Connect(function()
-    -- Copy console text to clipboard
-    setclipboard(console.Text)
 end)
