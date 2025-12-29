@@ -4,12 +4,6 @@ _G.AutoStrat = true
 -- [[ INITIALIZE LIBRARY ]]
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/test%20imp.lua"))()
 
--- [[ START STRATEGY ]]
-TDS:Mode("Hardcore")
-TDS:GameInfo("Wrecked Battlefield II", {
-    Glass = false,
-})
-
 TDS:Place("Shotgunner", -37.588, 1.964, -6.094) -- 1
 TDS:Place("Shotgunner", -24.005, 1.704, -5.337) -- 2
 TDS:Upgrade(1)
