@@ -497,7 +497,8 @@ local function do_set_option(t_obj, opt_name, opt_val, req_wave)
     end
 end
 
-local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
+local function do_activate_ability(t_obj, ab_name, ab_data, is_looping, idx, req_wave)
+    -- Adjust parameters if ab_data is boolean (indicating is_looping)
     if type(ab_data) == "boolean" then
         is_looping = ab_data
         ab_data = nil
@@ -535,16 +536,14 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
                     end
                 end
 
-                return remote_func:InvokeServer(
-                    "Troops",
-                    "Abilities",
-                    "Activate",
-                    {
-                        Troop = t_obj,
-                        Name = ab_name,
-                        Data = data
-                    }
-                )
+                -- Use TDS:Ability with idx, ab_name, data, is_looping, req_wave
+                -- Assuming TDS:Ability returns a result similar to remote_func:InvokeServer
+                local ability_result = TDS:Ability(idx, ab_name, data, is_looping, req_wave)
+
+                -- If TDS:Ability is not available or you want to keep the original remote call, you can fallback or combine
+                -- For now, we assume TDS:Ability replaces the remote call
+
+                return ability_result
             end)
 
             if ok and check_res_ok(res) then
@@ -554,6 +553,20 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
             task.wait(0.25)
         end
     end
+
+    if is_looping then
+        local active = true
+        task.spawn(function()
+            while active do
+                attempt()
+                task.wait(1)
+            end
+        end)
+        return function() active = false end
+    end
+
+    return attempt()
+end
 
     if is_looping then
         local active = true
