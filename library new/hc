@@ -5,8 +5,11 @@ _G.AutoStrat = true
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved.lua"))()
 
 -- [[ START STRATEGY ]]
+TDS:Loadout("Ranger", "Military Base", "Mercenary Base", "Engineer", "Accelerator")
 TDS:Mode("Hardcore")
-TDS:GameInfo("Wrecked Battlefield", {})
+TDS:GameInfo("Wrecked Battlefield", {
+    Glass = false,
+})
 
 TDS:Place("Military Base", 1.811, 1.000, 42.016) -- 1
 TDS:Upgrade(1)
@@ -26,6 +29,7 @@ TDS:Upgrade(5)
 
 TDS:Place("Engineer", 12.624, 1.000, -22.846) -- 6
 TDS:Upgrade(6)
+TDS:VoteSkip(12)
 TDS:Upgrade(6)
 
 TDS:Upgrade(1)
