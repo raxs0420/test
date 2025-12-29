@@ -1,12 +1,12 @@
 -- [[ CONFIGURATION ]]
 _G.AutoStrat = true
 
--- [[ START STRATEGY ]]
-TDS:Mode("hardcore")
-TDS:GameInfo("Wrecked Battlefild", {})
-
 -- [[ INITIALIZE LIBRARY ]]
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved.lua"))()
+
+-- [[ START STRATEGY ]]
+TDS:Mode("Hardcore")
+TDS:GameInfo("Wrecked Battlefild", {})
 
 TDS:Place("Military Base", 1.811, 1.000, 42.016) -- 1
 TDS:Upgrade(1)
