@@ -929,123 +929,179 @@ local function start_back_to_lobby()
     end)
 end
 
--- Modified anti-lag: disable rendering and particle emission instead of destroying objects
+-- Anti-lag: improved version (replace existing make_invisible / start_anti_lag in your file with this)
+
+local RunService = game:GetService("RunService")
+local anti_lag_running = false
+local anti_lag_connections = {}
+
+-- safe setter (don't rely on rawget)
+local function safe_set_property(obj, prop, value)
+    pcall(function()
+        -- some properties may error on read; pcall the write to be safe
+        obj[prop] = value
+    end)
+end
+
+-- stop any playing animation tracks under the root
+local function stop_playing_tracks(root)
+    pcall(function()
+        for _, descendant in ipairs(root:GetDescendants()) do
+            if descendant:IsA("Humanoid") then
+                pcall(function()
+                    for _, track in ipairs(descendant:GetPlayingAnimationTracks()) do
+                        pcall(function() track:Stop() end)
+                    end
+                end)
+            elseif descendant:IsA("Animator") then
+                pcall(function()
+                    -- Animator doesn't directly expose GetPlayingAnimationTracks,
+                    -- but animator is typically parented to a Humanoid; we attempt to stop any
+                    -- tracks found on parent humanoid as well
+                    local parent = descendant.Parent
+                    if parent and parent:IsA("Humanoid") then
+                        for _, track in ipairs(parent:GetPlayingAnimationTracks()) do
+                            pcall(function() track:Stop() end)
+                        end
+                    end
+                end)
+            end
+        end
+    end)
+end
+
+-- make a descendant invisible / non-collidable / disable emitters / disable GUIs
+local function make_invisible(root)
+    pcall(function()
+        -- If obj is a BasePart
+        if root:IsA("BasePart") then
+            -- prefer LocalTransparencyModifier where available, but don't error if not
+            pcall(function()
+                if rawget and type(rawget) == "function" then
+                    -- rawget will error on userdata in many contexts; wrap safely
+                    -- we simply attempt to set LocalTransparencyModifier, fallback to Transparency
+                    safe_set_property(root, "LocalTransparencyModifier", 1)
+                else
+                    safe_set_property(root, "Transparency", 1)
+                end
+            end)
+            safe_set_property(root, "CanCollide", false)
+            safe_set_property(root, "CastShadow", false)
+        end
+
+        if root:IsA("MeshPart") then
+            pcall(function() safe_set_property(root, "LocalTransparencyModifier", 1) end)
+        end
+
+        if root:IsA("Decal") or root:IsA("Texture") then
+            safe_set_property(root, "Transparency", 1)
+        end
+
+        if root:IsA("ParticleEmitter") or root:IsA("Trail") or root:IsA("Beam") then
+            safe_set_property(root, "Enabled", false)
+        end
+
+        if root:IsA("Attachment") then
+            -- attachments are harmless, children handled above
+        end
+
+        if root:IsA("BillboardGui") or root:IsA("SurfaceGui") or root:IsA("ScreenGui") then
+            safe_set_property(root, "Enabled", false)
+        end
+
+        if root:IsA("PointLight") or root:IsA("SpotLight") or root:IsA("SurfaceLight") then
+            safe_set_property(root, "Enabled", false)
+        end
+
+        if root:IsA("Accessory") then
+            for _, p in ipairs(root:GetDescendants()) do
+                if p:IsA("BasePart") then
+                    safe_set_property(p, "Transparency", 1)
+                    safe_set_property(p, "CanCollide", false)
+                end
+            end
+        end
+    end)
+end
+
+-- main worker: runs continuously, checks _G.AntiLag and applies changes
 local function start_anti_lag()
     if anti_lag_running then return end
     anti_lag_running = true
 
-    -- Helper: safely set properties without throwing errors to console
-    local function safe_set_property(obj, prop, value)
-        pcall(function()
-            if obj and obj[prop] ~= nil then
-                obj[prop] = value
-            end
-        end)
+    -- disconnect any old connections
+    for _, c in ipairs(anti_lag_connections) do
+        pcall(function() c:Disconnect() end)
     end
+    anti_lag_connections = {}
 
-    -- Helper: make a model/tree invisible and non-collidable on the client
-    local function make_invisible(root)
-        -- iterate descendants and change visual/physics properties where applicable
-        for _, descendant in ipairs(root:GetDescendants()) do
+    -- apply immediately to new descendants when _G.AntiLag is on
+    table.insert(anti_lag_connections, workspace.DescendantAdded:Connect(function(desc)
+        if _G.AntiLag then
             pcall(function()
-                -- BasePart (Parts, MeshParts, etc.)
-                if descendant:IsA("BasePart") then
-                    -- Prefer LocalTransparencyModifier if present (doesn't replicate to server)
-                    if rawget(descendant, "LocalTransparencyModifier") ~= nil then
-                        safe_set_property(descendant, "LocalTransparencyModifier", 1)
-                    else
-                        safe_set_property(descendant, "Transparency", 1)
-                    end
-                    safe_set_property(descendant, "CanCollide", false)
-                    -- Avoid shadows for extra FPS gain
-                    safe_set_property(descendant, "CastShadow", false)
-                end
-
-                -- Meshes / Special visuals
-                if descendant:IsA("MeshPart") then
-                    safe_set_property(descendant, "LocalTransparencyModifier", 1)
-                end
-
-                -- Decals / Textures
-                if descendant:IsA("Decal") or descendant:IsA("Texture") then
-                    safe_set_property(descendant, "Transparency", 1)
-                end
-
-                -- Particle-like objects
-                if descendant:IsA("ParticleEmitter") or descendant:IsA("Trail") or descendant:IsA("Beam") then
-                    safe_set_property(descendant, "Enabled", false)
-                end
-
-                -- Effects / attachments: try to disable or make invisible where possible
-                if descendant:IsA("Attachment") then
-                    -- attachments themselves don't render, but their children might
-                end
-
-                -- GUIs parented to world (BillboardGui / SurfaceGui)
-                if descendant:IsA("BillboardGui") or descendant:IsA("SurfaceGui") or descendant:IsA("ScreenGui") then
-                    safe_set_property(descendant, "Enabled", false)
-                end
-
-                -- Light sources
-                if descendant:IsA("PointLight") or descendant:IsA("SpotLight") or descendant:IsA("SurfaceLight") then
-                    safe_set_property(descendant, "Enabled", false)
-                end
-
-                -- Special-case humanoid visuals (try to hide accessories)
-                if descendant:IsA("Accessory") then
-                    for _, p in ipairs(descendant:GetDescendants()) do
-                        if p:IsA("BasePart") then
-                            safe_set_property(p, "Transparency", 1)
-                            safe_set_property(p, "CanCollide", false)
-                        end
-                    end
+                make_invisible(desc)
+                -- stop animations on newly added objects/humanoids
+                if desc:IsA("Model") or desc:IsA("Humanoid") or desc:IsA("Animator") then
+                    stop_playing_tracks(desc)
                 end
             end)
         end
-    end
+    end))
 
     task.spawn(function()
-        while _G.AntiLag do
-            local towers_folder = workspace:FindFirstChild("Towers")
-            local client_units = workspace:FindFirstChild("ClientUnits")
-            local enemies = workspace:FindFirstChild("NPCs")
+        while true do
+            if _G.AntiLag then
+                pcall(function()
+                    local folders = {
+                        workspace:FindFirstChild("Towers"),
+                        workspace:FindFirstChild("ClientUnits"),
+                        workspace:FindFirstChild("NPCs")
+                    }
 
-            -- Wrap each big operation in pcall to avoid any errors being printed
-            pcall(function()
-                if towers_folder then
-                    for _, tower in ipairs(towers_folder:GetChildren()) do
-                        make_invisible(tower)
+                    -- broad sweep: process each folder and their descendants
+                    for _, folder in ipairs(folders) do
+                        if folder then
+                            for _, obj in ipairs(folder:GetDescendants()) do
+                                make_invisible(obj)
+                            end
+                            -- stop animations inside the folder
+                            stop_playing_tracks(folder)
+                        end
                     end
-                end
-            end)
 
-            pcall(function()
-                if client_units then
-                    for _, unit in ipairs(client_units:GetChildren()) do
-                        make_invisible(unit)
+                    -- additional workspace-wide cleanup for things not inside those folders
+                    for _, obj in ipairs(workspace:GetDescendants()) do
+                        if obj:IsA("Decal") or obj:IsA("Texture") then
+                            safe_set_property(obj, "Transparency", 1)
+                        elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
+                            safe_set_property(obj, "Enabled", false)
+                        elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
+                            safe_set_property(obj, "Enabled", false)
+                        end
                     end
-                end
-            end)
 
-            pcall(function()
-                if enemies then
-                    for _, npc in ipairs(enemies:GetChildren()) do
-                        make_invisible(npc)
-                    end
-                end
-            end)
+                    -- stop animations that might be on world models not under above folders
+                    stop_playing_tracks(workspace)
 
-            -- Lower frequency to reduce overhead (once per second)
-            task.wait(1)
+                    -- best-effort: try to disable 3D rendering (may not work in all clients/exploits)
+                    pcall(function() RunService:Set3dRenderingEnabled(false) end)
+                end)
+            else
+                -- when the user disables AntiLag, we attempt to re-enable 3D rendering (best-effort)
+                pcall(function() RunService:Set3dRenderingEnabled(true) end)
+            end
+
+            task.wait(1) -- frequency: once per second
         end
-
-        anti_lag_running = false
     end)
 end
+
+-- start the worker (it will only act if _G.AntiLag is true)
+start_anti_lag()
+
 
 start_back_to_lobby()
 start_auto_skip()
 start_auto_snowballs()
-start_anti_lag()
 
 return TDS
