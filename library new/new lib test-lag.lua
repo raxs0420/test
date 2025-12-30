@@ -929,7 +929,7 @@ local function start_back_to_lobby()
     end)
 end
 
--- Anti-lag: improved version (replace existing make_invisible / start_anti_lag in your file with this)
+  -- Anti-lag: improved version, but keep player UI visible (replace existing anti-lag section)
 
 local RunService = game:GetService("RunService")
 local anti_lag_running = false
@@ -938,7 +938,6 @@ local anti_lag_connections = {}
 -- safe setter (don't rely on rawget)
 local function safe_set_property(obj, prop, value)
     pcall(function()
-        -- some properties may error on read; pcall the write to be safe
         obj[prop] = value
     end)
 end
@@ -955,9 +954,6 @@ local function stop_playing_tracks(root)
                 end)
             elseif descendant:IsA("Animator") then
                 pcall(function()
-                    -- Animator doesn't directly expose GetPlayingAnimationTracks,
-                    -- but animator is typically parented to a Humanoid; we attempt to stop any
-                    -- tracks found on parent humanoid as well
                     local parent = descendant.Parent
                     if parent and parent:IsA("Humanoid") then
                         for _, track in ipairs(parent:GetPlayingAnimationTracks()) do
@@ -971,29 +967,32 @@ local function stop_playing_tracks(root)
 end
 
 -- make a descendant invisible / non-collidable / disable emitters / disable GUIs
+-- NOTE: preserves anything under the local player's PlayerGui so HUD/UI stays visible
 local function make_invisible(root)
     pcall(function()
+        -- if PlayerGui is present and this object is part of it, skip it (keep UI visible)
+        if player_gui and root:IsDescendantOf(player_gui) then
+            return
+        end
+
         -- If obj is a BasePart
         if root:IsA("BasePart") then
-            -- prefer LocalTransparencyModifier where available, but don't error if not
+            -- prefer LocalTransparencyModifier where available, fallback to Transparency
             pcall(function()
-                if rawget and type(rawget) == "function" then
-                    -- rawget will error on userdata in many contexts; wrap safely
-                    -- we simply attempt to set LocalTransparencyModifier, fallback to Transparency
-                    safe_set_property(root, "LocalTransparencyModifier", 1)
-                else
-                    safe_set_property(root, "Transparency", 1)
-                end
+                safe_set_property(root, "LocalTransparencyModifier", 1)
             end)
+            safe_set_property(root, "Transparency", 1)
             safe_set_property(root, "CanCollide", false)
             safe_set_property(root, "CastShadow", false)
         end
 
         if root:IsA("MeshPart") then
             pcall(function() safe_set_property(root, "LocalTransparencyModifier", 1) end)
+            safe_set_property(root, "Transparency", 1)
         end
 
         if root:IsA("Decal") or root:IsA("Texture") then
+            -- skip decals/textures that are part of PlayerGui (above check) — otherwise hide
             safe_set_property(root, "Transparency", 1)
         end
 
@@ -1002,10 +1001,18 @@ local function make_invisible(root)
         end
 
         if root:IsA("Attachment") then
-            -- attachments are harmless, children handled above
+            -- attachments themselves are harmless; children handled separately
         end
 
-        if root:IsA("BillboardGui") or root:IsA("SurfaceGui") or root:IsA("ScreenGui") then
+        -- World GUIs (BillboardGui/SurfaceGui) may be used for both world and HUD.
+        -- We only disable them when they are NOT part of PlayerGui.
+        if (root:IsA("BillboardGui") or root:IsA("SurfaceGui")) and not (player_gui and root:IsDescendantOf(player_gui)) then
+            safe_set_property(root, "Enabled", false)
+        end
+
+        -- ScreenGui should almost always be part of PlayerGui; skip anything in PlayerGui above.
+        -- If a ScreenGui exists in workspace (rare), we disable it.
+        if root:IsA("ScreenGui") and not (player_gui and root:IsDescendantOf(player_gui)) then
             safe_set_property(root, "Enabled", false)
         end
 
@@ -1039,6 +1046,7 @@ local function start_anti_lag()
     table.insert(anti_lag_connections, workspace.DescendantAdded:Connect(function(desc)
         if _G.AntiLag then
             pcall(function()
+                -- skip processing UI under PlayerGui (make_invisible already checks PlayerGui)
                 make_invisible(desc)
                 -- stop animations on newly added objects/humanoids
                 if desc:IsA("Model") or desc:IsA("Humanoid") or desc:IsA("Animator") then
@@ -1071,24 +1079,33 @@ local function start_anti_lag()
 
                     -- additional workspace-wide cleanup for things not inside those folders
                     for _, obj in ipairs(workspace:GetDescendants()) do
+                        -- skip any object in PlayerGui (make_invisible will early-return)
                         if obj:IsA("Decal") or obj:IsA("Texture") then
                             safe_set_property(obj, "Transparency", 1)
                         elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") then
                             safe_set_property(obj, "Enabled", false)
                         elseif obj:IsA("BillboardGui") or obj:IsA("SurfaceGui") then
-                            safe_set_property(obj, "Enabled", false)
+                            if not (player_gui and obj:IsDescendantOf(player_gui)) then
+                                safe_set_property(obj, "Enabled", false)
+                            end
+                        elseif obj:IsA("ScreenGui") then
+                            if not (player_gui and obj:IsDescendantOf(player_gui)) then
+                                safe_set_property(obj, "Enabled", false)
+                            end
                         end
                     end
 
                     -- stop animations that might be on world models not under above folders
                     stop_playing_tracks(workspace)
 
-                    -- best-effort: try to disable 3D rendering (may not work in all clients/exploits)
-                    pcall(function() RunService:Set3dRenderingEnabled(false) end)
+                    -- Removed global RunService:Set3dRenderingEnabled(false) to avoid interfering with UI in some clients.
+                    -- If you still want the hard toggle, uncomment the next line (may hide UI in some environments):
+                    -- pcall(function() RunService:Set3dRenderingEnabled(false) end)
                 end)
             else
-                -- when the user disables AntiLag, we attempt to re-enable 3D rendering (best-effort)
-                pcall(function() RunService:Set3dRenderingEnabled(true) end)
+                -- when the user disables AntiLag, no global UI changes are attempted here.
+                -- If you had previously toggled Set3dRenderingEnabled(false) and want to enable it back, call:
+                -- pcall(function() RunService:Set3dRenderingEnabled(true) end)
             end
 
             task.wait(1) -- frequency: once per second
