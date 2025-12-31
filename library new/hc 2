@@ -1,1 +1,135 @@
 
+-- [[ INITIALIZE LIBRARY ]]
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved-testlag.lua"))()
+TDS:Loadout("Ranger", "Military Base", "Mercenary Base", "Engineer", "Accelerator")
+
+TDS:Place("Military Base", 1.41231, 1.96247, 42.04029) -- 1
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Place("Military Base", 8.23453, 1.96248, 35.03933) -- 2
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Place("Military Base", 13.48090, 2.07529, 27.50543) -- 3
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Place("Military Base", 24.39087, 2.07529, 24.86716) -- 4
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Place("Military Base", 26.52592, 2.07530, 12.27794) -- 5
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+
+TDS:Place("Engineer", 11.76205, 2.11050, -22.59248) -- 6
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+
+TDS:Place("Mercanery Base", 3.12251, 0.97499, -42.03828) -- 7
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Place("Mercanery Base", -3.76082, 2.09181, -39.95605) -- 8
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Place("Mercanery Base", -2.46285, 0.97499, -35.20661) -- 9
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+
+TDS:Place("Ranger", 10.12875, 9.50994, 1.07835) -- 10
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Place("Ranger", 7.17585, 9.50994, 0.19967) -- 11
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Place("Ranger", 8.63532, 9.50994, -2.55560) -- 12
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+TDS:Place("Ranger", -2.19309, 7.84645, -0.77728) -- 13
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+TDS:Place("Ranger", -3.65881, 8.19646, 2.82809) -- 14
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Place("Ranger", -6.09527, 8.19637, 1.05366) -- 15
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Place("Ranger", -5.31988, 8.19633, -1.91195) -- 16
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+
+TDS:Place("Engineer", 9.89313, 4.71051, 30.13866) -- 17
+
+TDS:Sell(6)
+
+TDS:Place("Engineer", 4.43598, 4.71050, 13.24753) -- 17
+TDS:Place("Engineer", 1.49422, 4.71050, 13.97187) -- 18
+TDS:Place("Engineer", 3.72563, 4.71050, 16.20740) -- 19
+TDS:Place("Engineer", -0.80484, 4.94998, 15.02018) -- 20
+TDS:Place("Engineer", 0.61496, 4.71050, 17.22448) -- 21
+
+TDS:Loadout("Turret", "Commander", "Warlock", "Spotlight Tech", "Warlock")
+
+TDS:Place("Commander", 1.79098, 5.60222, 3.33764) -- 22
+TDS:Place("Commander", 4.83401, 5.60222, 2.87727) -- 23
+TDS:Place("Commander", -1.28494, 5.60222, 4.30821) -- 24
+
+
+TDS:Place("Turret", -1.82984, 4.59121, 0.89518) -- 28
+TDS:Place("Turret", 2.07835, 4.59122, -0.16072) -- 29
+TDS:Place("Turret", -0.78303, 4.59123, -2.97487) -- 30
+TDS:Place("Spotlight Tech", 13.45199, 11.17105, -0.88009) -- 31
+
+TDS:Sell(1)
+TDS:Sell(1)
+TDS:Sell(1)
+TDS:Sell(1)
+TDS:Sell(1)
+
+TDS:Place("Warlock", 21.54690, 2.23387, 18.56862) -- 32
+TDS:Place("Warlock", 19.01959, 2.23387, 20.88941) -- 33
+TDS:Place("Warlock", 18.20207, 2.34995, 17.69976) -- 34
+TDS:Place("Warlock", 20.25709, 2.23387, 15.74780) -- 35
+TDS:Place("Warlock", 10.75951, 1.82496, 5.78389) -- 36
+
+TDS:Loadout("Hacker", "Military Base", "Mercenary Base", "Engineer", "Accelerator")
+
+TDS:Place("Hacker", 8.14449, 4.95107, 14.35497) -- 37
+TDS:Place("Hacker", -5.37844, 4.70361, -4.05299) -- 38
+
+
+
+
+
+
+
+
+
+
+
+
