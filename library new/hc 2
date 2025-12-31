@@ -1,4 +1,3 @@
-
 -- [[ INITIALIZE LIBRARY ]]
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved-testlag.lua"))()
 TDS:Loadout("Ranger", "Military Base", "Mercenary Base", "Engineer", "Accelerator")
