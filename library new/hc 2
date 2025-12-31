@@ -88,22 +88,32 @@ TDS:Place("Engineer", 9.89313, 4.71051, 30.13866) -- 17
 
 TDS:Sell(6)
 
-TDS:Place("Engineer", 4.43598, 4.71050, 13.24753) -- 17
-TDS:Place("Engineer", 1.49422, 4.71050, 13.97187) -- 18
-TDS:Place("Engineer", 3.72563, 4.71050, 16.20740) -- 19
-TDS:Place("Engineer", -0.80484, 4.94998, 15.02018) -- 20
-TDS:Place("Engineer", 0.61496, 4.71050, 17.22448) -- 21
+TDS:Place("Engineer", 5.041, 3.593, 12.883) -- 17
+TDS:Place("Engineer", 2.868, 3.591, 13.831) -- 18
+TDS:Place("Engineer", 5.165, 3.591, 15.940) -- 19
+TDS:Place("Engineer", -0.785, 4.485, 14.920) -- 20
+TDS:Place("Engineer", 2.274, 3.593, 17.165) -- 21
+TDS:Place("Accelerator", 5.119, 0.969, 9.723) -- 22
+TDS:Place("Accelerator", 2.201, 0.958, 11.766) -- 23
+TDS:Place("Accelerator", -0.738, 0.933, 12.689) -- 24
+TDS:Place("Accelerator", -3.771, 0.933, 13.738) -- 25
+TDS:Place("Accelerator", 3.579, 0.945, 5.504) -- 26
+TDS:Place("Accelerator", 6.813, 0.969, 4.456) -- 27
+TDS:Place("Accelerator", 0.742, 0.933, 6.604) -- 28
+TDS:Place("Accelerator", -2.255, 0.969, 6.542) -- 29
+
+
 
 TDS:Loadout("Turret", "Commander", "Warlock", "Spotlight Tech", "Warlock")
 
-TDS:Place("Commander", 1.79098, 5.60222, 3.33764) -- 22
-TDS:Place("Commander", 4.83401, 5.60222, 2.87727) -- 23
-TDS:Place("Commander", -1.28494, 5.60222, 4.30821) -- 24
+TDS:Place("Commander", 1.791, 3.585, 3.386) -- 30
+TDS:Place("Commander", 4.170, 3.585, 2.737) -- 31
+TDS:Place("Commander", -1.785, 4.340, 4.367) -- 32
 
+TDS:Place("Turret", -1.688, 3.530, 0.881) -- 33
+TDS:Place("Turret", 2.293, 3.530, -0.098) --
+TDS:Place("Turret", -0.571, 3.405, -3.001) -- 35
 
-TDS:Place("Turret", -1.82984, 4.59121, 0.89518) -- 28
-TDS:Place("Turret", 2.07835, 4.59122, -0.16072) -- 29
-TDS:Place("Turret", -0.78303, 4.59123, -2.97487) -- 30
 TDS:Place("Spotlight Tech", 13.45199, 11.17105, -0.88009) -- 31
 
 TDS:Sell(1)
