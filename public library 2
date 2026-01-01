@@ -129,7 +129,7 @@ TDS:Upgrade(20)
 TDS:Upgrade(21)
 TDS:Upgrade(21)
 
-TDS:AutoChain(19,20,21)
+TDS:AutoChain(19, 20, 21)
 
 TDS:Place("Minigunner", 8.970, 0.925, 10.813)
 TDS:Place("Minigunner", 6.076, 0.915, 9.821)
