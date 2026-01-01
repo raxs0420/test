@@ -904,16 +904,23 @@ function TDS:AutoChain(...)
         local i = 1
         while running do
             local idx = tower_indices[i]
-            local tower = self.placed_towers[idx]
+            local tower = TDS.placed_towers[idx]
 
             if tower then
-                do_activate_ability(tower, "Call to Arms")
+                do_activate_ability(tower, "Call Of Arms")
             end
 
-            if local_player.TimescaleTickets.Value >= 1 then
-                task.wait(5.5)
+            local hotbar = player_gui.ReactUniversalHotbar.Frame
+            local timescale = hotbar:FindFirstChild("timescale")
+
+            if timescale then
+                if timescale:FindFirstChild("Lock") then
+                    task.wait(10.5)
+                else
+                    task.wait(5.5)
+                end
             else
-                task.wait(10.5) 
+                task.wait(10.5)
             end
 
             i += 1
