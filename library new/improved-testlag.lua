@@ -1181,9 +1181,21 @@ local function start_anti_afk()
     end)
 end
 
+local function start_rejoin_on_disconnect()
+    task.spawn(function()
+        game.Players.PlayerRemoving:connect(function (plr)
+            if plr == game.Players.LocalPlayer then
+                game:GetService('TeleportService'):Teleport(3260590327, plr)
+            end
+        end)
+    end)
+end
+
+
 start_back_to_lobby()
 start_auto_skip()
 start_auto_snowballs()
 start_anti_afk()
+start_rejoin_on_disconnect()
 
 return TDS
