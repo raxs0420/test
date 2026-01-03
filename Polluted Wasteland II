@@ -1,6 +1,10 @@
-_G.AutoStrat = true
-_G.AntiLag = true
+-- [[ CONFIGURATION ]]
 _G.AutoPickups = true
+_G.AntiLag = true
+
+-- [[ WEBHOOK SETTINGS ]]
+_G.SendWebhook = false -- Set to true to enable notifications
+_G.Webhook = "WEBHOOK HERE" 
 
 
 -- [[ INITIALIZE LIBRARY ]]
