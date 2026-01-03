@@ -787,16 +787,37 @@ function TDS:Loadout(...)
     return true
 end
 
--- ingame
 function TDS:TeleportToLobby()
     send_to_lobby()
 end
 
-function TDS:VoteSkip(req_wave)
-    if req_wave then
-        repeat task.wait(0.1) until get_current_wave() >= req_wave
-    end
-    run_vote_skip()
+function TDS:VoteSkip(start_wave, end_wave)
+    task.spawn(function()
+        local current_wave = get_current_wave()
+        start_wave = current_wave or start_wave
+        end_wave = end_wave or start_wave
+
+        for wave = start_wave, end_wave do
+            repeat
+                task.wait(0.5)
+            until get_current_wave() >= wave
+
+            local skip_done = false
+            while not skip_done do
+                local skip_visible = player_gui:FindFirstChild("ReactOverridesVote")
+                    and player_gui.ReactOverridesVote:FindFirstChild("Frame")
+                    and player_gui.ReactOverridesVote.Frame:FindFirstChild("votes")
+                    and player_gui.ReactOverridesVote.Frame.votes:FindFirstChild("vote", true)
+
+                if skip_visible and skip_visible.Position == UDim2.new(0.5, 0, 0.5, 0) then
+                    run_vote_skip()
+                    skip_done = true
+                else
+                    task.wait(0.2)
+                end
+            end
+        end
+    end)
 end
 
 function TDS:GameInfo(name, list)
@@ -804,10 +825,16 @@ function TDS:GameInfo(name, list)
     if game_state ~= "GAME" then return false end
 
     local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
+    if not (vote_gui and vote_gui.Enabled and vote_gui:WaitForChild("Frame", 5)) then return end
 
-    if vote_gui and vote_gui.Enabled and vote_gui:WaitForChild("Frame", 5) then
-        cast_modifier_vote(list)
+    cast_modifier_vote(list)
+
+    if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
+        select_map_override(name, "vip")
+    elseif is_map_available(name) then
         select_map_override(name)
+    else
+        teleport_service:Teleport(3260590327, local_player)
     end
 end
 
@@ -824,6 +851,9 @@ function TDS:StartGame()
 end
 
 function TDS:Ready()
+    if game_state ~= "GAME" then
+        return false 
+    end
     match_ready_up()
 end
 
@@ -908,30 +938,31 @@ function TDS:Sell(idx, req_wave)
     end
     local t = self.placed_towers[idx]
     if t and do_sell_tower(t) then
-        table.remove(self.placed_towers, idx)
         return true
     end
     return false
 end
 
 function TDS:SellAll(req_wave)
-    if req_wave then
-        repeat task.wait(0.5) until get_current_wave() >= req_wave
-    end
+    task.spawn(function()
+        if req_wave then
+            repeat task.wait(0.5) until get_current_wave() >= req_wave
+        end
 
-    local towers_copy = {unpack(self.placed_towers)}
-    for idx, t in ipairs(towers_copy) do
-        if do_sell_tower(t) then
-            for i, orig_t in ipairs(self.placed_towers) do
-                if orig_t == t then
-                    table.remove(self.placed_towers, i)
-                    break
+        local towers_copy = {unpack(self.placed_towers)}
+        for idx, t in ipairs(towers_copy) do
+            if do_sell_tower(t) then
+                for i, orig_t in ipairs(self.placed_towers) do
+                    if orig_t == t then
+                        table.remove(self.placed_towers, i)
+                        break
+                    end
                 end
             end
         end
-    end
 
-    return true
+        return true
+    end)
 end
 
 function TDS:Ability(idx, name, data, loop)
@@ -989,36 +1020,6 @@ function TDS:SetOption(idx, name, val, req_wave)
     return false
 end
 
---[[
-    AUTO SKIP CONTROL
-    
-    Usage:
-        TDS:autoskip(true)   -- Enable auto skip
-        TDS:autoskip(false)  -- Disable auto skip
-    
-    Returns:
-        boolean - Current state of auto skip after the operation
-]]
-function TDS:autoskip(enable)
-    if enable == true then
-        _G.AutoSkip = true
-        start_auto_skip()
-        return true
-    elseif enable == false then
-        _G.AutoSkip = false
-        -- auto_skip_running will be set to false by the loop when it exits
-        return false
-    else
-        -- If no argument provided, return current state
-        return _G.AutoSkip or false
-    end
-end
-
--- Alias for convenience (lowercase version)
-function TDS:AutoSkip(enable)
-    return self:autoskip(enable)
-end
-
 -- // misc utility
 local function is_void_charm(obj)
     return math.abs(obj.Position.Y) > 999999
@@ -1061,6 +1062,28 @@ local function start_auto_pickups()
     end)
 end
 
+local function start_auto_skip()
+    if auto_skip_running or not _G.AutoSkip then return end
+    auto_skip_running = true
+
+    task.spawn(function()
+        while _G.AutoSkip do
+            local skip_visible =
+                player_gui:FindFirstChild("ReactOverridesVote")
+                and player_gui.ReactOverridesVote:FindFirstChild("Frame")
+                and player_gui.ReactOverridesVote.Frame:FindFirstChild("votes")
+                and player_gui.ReactOverridesVote.Frame.votes:FindFirstChild("vote")
+
+            if skip_visible and skip_visible.Position == UDim2.new(0.5, 0, 0.5, 0) then
+                run_vote_skip()
+            end
+
+            task.wait(1)
+        end
+
+        auto_skip_running = false
+    end)
+end
 
 local function start_back_to_lobby()
     if back_to_lobby_running then return end
@@ -1077,128 +1100,42 @@ local function start_back_to_lobby()
     end)
 end
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local workspace = workspace
-local player = Players.LocalPlayer
-
-_G = _G or {}
-_G.AntiLag = _G.AntiLag ~= false -- default true
-
-local connections = {}
-local running = false
-
-local function safe(fn, ...) local ok, _ = pcall(fn, ...) return ok end
-
-local function stopTracks(humanoid)
-    if not humanoid then return end
-    pcall(function()
-        for _, t in ipairs(humanoid:GetPlayingAnimationTracks()) do pcall(function() t:Stop(0) end) end
-    end)
-end
-
-local function guardAnimatorOn(humanoid)
-    if not humanoid then return end
-    stopTracks(humanoid)
-    for _, d in ipairs(humanoid:GetDescendants()) do
-        if d:IsA("Animator") then
-            table.insert(connections, d.AnimationPlayed:Connect(function(track) if _G.AntiLag and track then pcall(function() track:Stop(0) end) end end))
-        end
-    end
-    table.insert(connections, humanoid.DescendantAdded:Connect(function(d)
-        if _G.AntiLag and d and d:IsA("Animator") then
-            table.insert(connections, d.AnimationPlayed:Connect(function(track) if _G.AntiLag and track then pcall(function() track:Stop(0) end) end end))
-        end
-    end))
-end
-
-local function disableRendering(inst)
-    if not inst or not inst.Parent then return end
-    if inst:IsA("Model") then
-        local h = inst:FindFirstChildOfClass("Humanoid")
-        if h then guardAnimatorOn(h) end
-    end
-    if inst:IsA("BasePart") then
-        safe(function() inst.LocalTransparencyModifier = 1 end)
-        if inst.CastShadow ~= nil then safe(function() inst.CastShadow = false end) end
-        if inst.CanCollide ~= nil then safe(function() inst.CanCollide = false end) end
-    end
-    if inst:IsA("ParticleEmitter") or inst:IsA("Trail") or inst:IsA("Beam")
-    or inst:IsA("Smoke") or inst:IsA("Fire") or inst:IsA("Sparkles") or inst:IsA("Explosion") then
-        if inst.Enabled ~= nil then safe(function() inst.Enabled = false end) end
-    end
-    if inst:IsA("PointLight") or inst:IsA("SpotLight") or inst:IsA("SurfaceLight") or inst:IsA("DirectionalLight") then
-        if inst.Enabled ~= nil then safe(function() inst.Enabled = false end) end
-    end
-    if inst:IsA("Sound") then
-        safe(function() if inst.Playing then pcall(function() inst:Pause() end) end end)
-        if inst.Volume ~= nil then safe(function() inst.Volume = 0 end) end
-    end
-    for _, c in ipairs(inst:GetDescendants()) do
-        disableRendering(c)
-    end
-end
-
-local function watchFolder(name)
-    local f = workspace:FindFirstChild(name)
-    if f then
-        for _, c in ipairs(f:GetChildren()) do disableRendering(c) end
-        table.insert(connections, f.ChildAdded:Connect(function(c) if _G.AntiLag then disableRendering(c) end end))
-        table.insert(connections, f.DescendantAdded:Connect(function(d) if _G.AntiLag then disableRendering(d) end end))
-    else
-        table.insert(connections, workspace.ChildAdded:Connect(function(c) if c.Name == name and _G.AntiLag then watchFolder(name) end end))
-    end
-end
-
-local function applyLighting()
-    local L = game:GetService("Lighting")
-    safe(function() L.Brightness = 0.7 L.Ambient = Color3.new(0.7,0.7,0.7) L.OutdoorAmbient = Color3.new(0.7,0.7,0.7) L.FogStart = 0 L.FogEnd = 1e6 end)
-    for _, e in ipairs(L:GetDescendants()) do
-        if e.Enabled ~= nil and (e:IsA("BloomEffect") or e:IsA("SunRaysEffect") or e:IsA("BlurEffect") or e:IsA("ColorCorrectionEffect") or e:IsA("DepthOfFieldEffect")) then
-            safe(function() e.Enabled = false end)
-        end
-    end
-end
-
 local function start_anti_lag()
-    if running then return end
-    running = true
+    if anti_lag_running then return end
+    anti_lag_running = true
+
     task.spawn(function()
-        applyLighting()
-        for _, name in ipairs({"Towers","ClientUnits","NPCs"}) do watchFolder(name) end
-        table.insert(connections, workspace.DescendantAdded:Connect(function(d) if _G.AntiLag then disableRendering(d) end end))
-        table.insert(connections, player.CharacterAdded:Connect(function(c) if _G.AntiLag then local h=c:FindFirstChildOfClass("Humanoid") if h then guardAnimatorOn(h) end end end))
-        local acc = 0
-        local hb
-        hb = RunService.Heartbeat:Connect(function(dt)
-            if not _G.AntiLag then
-                hb:Disconnect()
-                return
-            end
-            acc = acc + dt
-            if acc >= 0.5 then
-                acc = 0
-                for _, name in ipairs({"Towers","ClientUnits","NPCs"}) do
-                    local f = workspace:FindFirstChild(name)
-                    if f then for _, c in ipairs(f:GetChildren()) do safe(function() disableRendering(c) end) end end
+        while _G.AntiLag do
+            local towers_folder = workspace:FindFirstChild("Towers")
+            local client_units = workspace:FindFirstChild("ClientUnits")
+            local enemies = workspace:FindFirstChild("NPCs")
+
+            if towers_folder then
+                for _, tower in ipairs(towers_folder:GetChildren()) do
+                    local anims = tower:FindFirstChild("Animations")
+                    local weapon = tower:FindFirstChild("Weapon")
+                    local projectiles = tower:FindFirstChild("Projectiles")
+                    
+                    if anims then anims:Destroy() end
+                    if projectiles then projectiles:Destroy() end
+                    if weapon then weapon:Destroy() end
                 end
             end
-        end)
-        table.insert(connections, hb)
+            if client_units then
+                for _, unit in ipairs(client_units:GetChildren()) do
+                    unit:Destroy()
+                end
+            end
+            if enemies then
+                for _, npc in ipairs(enemies:GetChildren()) do
+                    npc:Destroy()
+                end
+            end
+            task.wait(0.5)
+        end
+        anti_lag_running = false
     end)
 end
-
-local function stop_anti_lag()
-    _G.AntiLag = false
-    running = false
-    for _, c in ipairs(connections) do safe(function() c:Disconnect() end) end
-    connections = {}
-end
-
-_G.start_anti_lag = start_anti_lag
-_G.stop_anti_lag = stop_anti_lag
-
-if _G.AntiLag then start_anti_lag() end
 
 local function start_anti_afk()
     local Players = game:GetService("Players")
@@ -1238,10 +1175,10 @@ local function start_rejoin_on_disconnect()
     end)
 end
 
-
 start_back_to_lobby()
 start_auto_skip()
 start_auto_pickups()
+start_anti_lag()
 start_anti_afk()
 start_rejoin_on_disconnect()
 
