@@ -648,23 +648,24 @@ function TDS:Mode(difficulty)
     local res
         repeat
             local ok, result = pcall(function()
-                if difficulty == "Hardcore" then
-                    return remote:InvokeServer("Multiplayer", "v2:start", {
-                        mode = "hardcore",
+                local mode = TDS.matchmaking_map[difficulty]
+
+                local payload
+
+                if mode then
+                    payload = {
+                        mode = mode,
                         count = 1
-                    })
-                elseif difficulty == "Pizza Party" then
-                    return remote:InvokeServer("Multiplayer", "v2:start", {
-                        mode = "halloween",
-                        count = 1
-                    })
+                    }
                 else
-                    return remote:InvokeServer("Multiplayer", "v2:start", {
+                    payload = {
                         difficulty = difficulty,
                         mode = "survival",
                         count = 1
-                    })
+                    }
                 end
+
+                return remote:InvokeServer("Multiplayer", "v2:start", payload)
             end)
 
             if ok and check_res_ok(result) then
