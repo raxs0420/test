@@ -1062,6 +1062,14 @@ local function start_auto_pickups()
     end)
 end
 
+local player_gui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+local auto_skip_running = false
+_G.AutoSkip = _G.AutoSkip or false
+
+local function run_vote_skip()
+    -- Your skip voting logic
+end
+
 local function start_auto_skip()
     if auto_skip_running or not _G.AutoSkip then return end
     auto_skip_running = true
@@ -1077,12 +1085,27 @@ local function start_auto_skip()
             if skip_visible and skip_visible.Position == UDim2.new(0.5, 0, 0.5, 0) then
                 run_vote_skip()
             end
-
             task.wait(1)
         end
-
         auto_skip_running = false
     end)
+end
+
+-- Simple TDS table
+TDS = TDS or {}
+TDS.AutoSkip = function(state)
+    if state == nil then
+        _G.AutoSkip = not _G.AutoSkip
+    else
+        _G.AutoSkip = state
+    end
+    
+    if _G.AutoSkip then
+        start_auto_skip()
+    end
+    
+    print("AutoSkip:", _G.AutoSkip and "ON" or "OFF")
+    return _G.AutoSkip
 end
 
 local function start_back_to_lobby()
