@@ -1062,154 +1062,51 @@ local function start_auto_pickups()
     end)
 end
 
--- Function to actually click the skip button
-local function run_vote_skip()
-    -- First, let's find the skip button again to make sure it's still there
-    local skip_button = player_gui:FindFirstChild("ReactOverridesVote")
-        and player_gui.ReactOverridesVote:FindFirstChild("Frame")
-        and player_gui.ReactOverridesVote.Frame:FindFirstChild("votes")
-        and player_gui.ReactOverridesVote.Frame.votes:FindFirstChild("vote")
-    
-    if skip_button then
-        -- Try different methods to click the button
-        -- Method 1: Fire click event if it's a TextButton/ImageButton
-        if skip_button:IsA("TextButton") or skip_button:IsA("ImageButton") then
-            skip_button:FireEvent("MouseButton1Click")
-            skip_button:FireEvent("Activated")
-            print("Clicked skip button via FireEvent")
-        
-        -- Method 2: If there's a ClickDetector
-        elseif skip_button:FindFirstChildOfClass("ClickDetector") then
-            fireclickdetector(skip_button:FindFirstChildOfClass("ClickDetector"))
-            print("Clicked skip button via ClickDetector")
-        
-        -- Method 3: Try to simulate mouse click
-        elseif skip_button:IsA("GuiObject") then
-            -- Try to call the callback if it exists
-            local success, errorMsg = pcall(function()
-                if skip_button.Activated then
-                    skip_button.Activated:Fire()
-                end
-            end)
-            print("Attempted to activate skip button")
-        end
-        
-        -- Add a small delay to avoid rapid clicking
-        task.wait(0.5)
-    else
-        print("Skip button not found when trying to click")
-    end
-end
-
--- Debug function to check if we can find the button
-local function debug_find_skip_button()
-    local reactOverrides = player_gui:FindFirstChild("ReactOverridesVote")
-    print("ReactOverridesVote exists:", reactOverrides ~= nil)
-    
-    if reactOverrides then
-        local frame = reactOverrides:FindFirstChild("Frame")
-        print("Frame exists:", frame ~= nil)
-        
-        if frame then
-            local votes = frame:FindFirstChild("votes")
-            print("votes exists:", votes ~= nil)
-            
-            if votes then
-                local vote = votes:FindFirstChild("vote")
-                print("vote button exists:", vote ~= nil)
-                
-                if vote then
-                    print("Vote button class:", vote.ClassName)
-                    print("Vote button position:", vote.Position)
-                end
-            end
-        end
-    end
-end
-
--- Auto-skip loop function
 local function start_auto_skip()
     if auto_skip_running or not _G.AutoSkip then return end
     auto_skip_running = true
-    print("Starting auto-skip loop...")
 
     task.spawn(function()
-        local checkCount = 0
         while _G.AutoSkip do
-            checkCount = checkCount + 1
-            
-            -- Debug every 10 checks
-            if checkCount % 10 == 0 then
-                print("Auto-skip is running... Check #" .. checkCount)
-                debug_find_skip_button()
-            end
-            
-            local skip_visible = player_gui:FindFirstChild("ReactOverridesVote")
+            local skip_visible =
+                player_gui:FindFirstChild("ReactOverridesVote")
                 and player_gui.ReactOverridesVote:FindFirstChild("Frame")
                 and player_gui.ReactOverridesVote.Frame:FindFirstChild("votes")
                 and player_gui.ReactOverridesVote.Frame.votes:FindFirstChild("vote")
 
-            if skip_visible then
-                print("Found skip button! Position:", skip_visible.Position)
-                
-                -- Check if the position matches OR if it's just visible (remove the position check if it's too strict)
-                if skip_visible.Position == UDim2.new(0.5, 0, 0.5, 0) then
-                    print("Position matches! Attempting to click...")
-                    run_vote_skip()
-                else
-                    print("Position doesn't match. Current:", skip_visible.Position)
-                end
-            else
-                if checkCount % 5 == 0 then
-                    print("Skip button not visible")
-                end
+            if skip_visible and skip_visible.Position == UDim2.new(0.5, 0, 0.5, 0) then
+                run_vote_skip()
             end
 
             task.wait(1)
         end
-        print("Auto-skip loop stopped")
+
         auto_skip_running = false
     end)
 end
 
--- Simple TDS table
-TDS = TDS or {}
+local TDS = {}
 
 function TDS.AutoSkip(state)
     if state == nil then
-        _G.AutoSkip = not _G.AutoSkip
+        
+        _G.AutoSkip = not (_G.AutoSkip or false)
     else
+        
         _G.AutoSkip = state
     end
     
+    
     if _G.AutoSkip then
-        print("AutoSkip: ON - Starting...")
         start_auto_skip()
-    else
-        print("AutoSkip: OFF - Stopping...")
     end
     
-    -- Debug current GUI structure
-    print("\nDebugging GUI structure:")
-    debug_find_skip_button()
+    print("AutoSkip: " .. (_G.AutoSkip and "Enabled" or "Disabled"))
     
     return _G.AutoSkip
 end
 
--- Add a debug function
-function TDS.Debug()
-    debug_find_skip_button()
-    print("AutoSkip running:", auto_skip_running)
-    print("_G.AutoSkip:", _G.AutoSkip)
-end
-
--- Test function to manually trigger skip
-function TDS.TestSkip()
-    print("Manually testing skip...")
-    run_vote_skip()
-end
-
-print("TDS AutoSkip module loaded. Use TDS:AutoSkip(true) to enable")
+_G.AutoSkip = _G.AutoSkip or false
 
 local function start_back_to_lobby()
     if back_to_lobby_running then return end
