@@ -56,6 +56,16 @@ local ItemNames = {
     ["17429541513"] = "Barricade(s)",
 }
 
+local TDS = {
+    placed_towers = {},
+    active_strat = true,
+    matchmaking_map = {
+        ["Hardcore"] = "hardcore",
+        ["Pizza Party"] = "halloween",
+        ["Polluted"] = "polluted"
+    }
+}
+
 -- // currency tracking
 local start_coins, current_total_coins, start_gems, current_total_gems = 0, 0, 0, 0
 if game_state == "GAME" then
