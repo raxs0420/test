@@ -346,16 +346,44 @@ local function select_map_override(map_id)
 end
 
 local function cast_modifier_vote(mods_table)
+    print("Attempting to cast vote with modifiers:", #mods_table, "modifiers")
+    
+    -- Check what modifiers we're sending
+    for modName, value in pairs(mods_table) do
+        print("Modifier:", modName, "=", value)
+    end
+    
     local bulk_modifiers = replicated_storage:WaitForChild("Network"):WaitForChild("Modifiers"):WaitForChild("RF:BulkVoteModifiers")
-    local selected_mods = mods_table or {
-        HiddenEnemies = true, Glass = true, ExplodingEnemies = true,
-        Limitation = true, Committed = true, HealthyEnemies = true,
-        SpeedyEnemies = true, Quarantine = true, Fog = true,
-        FlyingEnemies = true, Broke = true, Jailed = true, Inflation = true
+    
+    -- Try with fewer modifiers first
+    local limited_mods = {
+        Glass = true,
+        ExplodingEnemies = true,
+        -- Start with just 2-3 modifiers
     }
-
+    
+    -- Or use the provided table but remove potentially problematic ones
+    local safe_mods = {}
+    local allowed_mods = {
+        "HiddenEnemies", "Glass", "ExplodingEnemies", "Limitation", 
+        "Committed", "HealthyEnemies", "FlyingEnemies", "Fog", 
+        "Broke", "Quarantine", "Jailed", "Inflation"
+    }
+    
+    for _, modName in ipairs(allowed_mods) do
+        if mods_table[modName] then
+            safe_mods[modName] = true
+        end
+    end
+    
+    print("Sending safe modifiers:")
+    for modName, value in pairs(safe_mods) do
+        print("  " .. modName)
+    end
+    
     pcall(function()
-        bulk_modifiers:InvokeServer(selected_mods)
+        bulk_modifiers:InvokeServer(safe_mods)
+        print("Vote cast successfully!")
     end)
 end
 
