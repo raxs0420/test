@@ -1,4 +1,7 @@
 _G.AutoStrat = true
+_G.AntiLag = true
+_G.AutoPickups = true
+
 
 -- [[ INITIALIZE LIBRARY ]]
 local TDS =
@@ -6,7 +9,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/he
 TDS:Mode("Polluted")
 TDS:Loadout("Cowboy", "Commander", "DJ Booth", "Spotlight Tech", "Warlock")
 
-TDS:StartGame()
+TDS:Ready()
 
 TDS:Place("Cowboy", 9.6537085, 95, -11.2490854) -- 1
 TDS:Upgrade(1)
