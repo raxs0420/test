@@ -8,7 +8,6 @@ local file_name = "Strat.txt"
 local placement_count = 0
 local last_action_time = tick()
 local towers_list = {} 
-local pending_placement = nil
 _G.record_strat = false
 
 local screen_gui = Instance.new("ScreenGui")
@@ -18,7 +17,7 @@ screen_gui.Parent = player_gui
 
 local main_frame = Instance.new("Frame", screen_gui)
 main_frame.Name = "main_frame"
-main_frame.Size = UDim2.new(0, 300, 0, 350) -- Reduced height
+main_frame.Size = UDim2.new(0, 300, 0, 350)
 main_frame.Position = UDim2.new(0.35, 0, 0.3, 0)
 main_frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 main_frame.Active = true
@@ -82,7 +81,7 @@ Instance.new("UICorner", close_btn)
 
 local log_box = Instance.new("ScrollingFrame", main_frame)
 log_box.Name = "log_box"
-log_box.Size = UDim2.new(0.9, 0, 0.7, 0) -- Increased height for more logs
+log_box.Size = UDim2.new(0.9, 0, 0.7, 0)
 log_box.Position = UDim2.new(0.05, 0, 0.15, 0)
 log_box.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 log_box.ScrollBarThickness = 4
@@ -91,10 +90,9 @@ log_box.CanvasSize = UDim2.new(0, 0, 0, 0)
 local log_layout = Instance.new("UIListLayout", log_box)
 log_layout.Padding = UDim.new(0, 2)
 
--- Combined Start/Stop Button
 local record_btn = Instance.new("TextButton", main_frame)
 record_btn.Name = "record_btn"
-record_btn.Size = UDim2.new(0.42, 0, 0.1, 0) -- Smaller height
+record_btn.Size = UDim2.new(0.42, 0, 0.1, 0)
 record_btn.Position = UDim2.new(0.05, 0, 0.87, 0)
 record_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
 record_btn.Text = "START"
@@ -103,10 +101,9 @@ record_btn.TextColor3 = Color3.new(1, 1, 1)
 record_btn.TextScaled = true
 Instance.new("UICorner", record_btn)
 
--- Copy Button
 local copy_btn = Instance.new("TextButton", main_frame)
 copy_btn.Name = "copy_btn"
-copy_btn.Size = UDim2.new(0.42, 0, 0.1, 0) -- Same size as record button
+copy_btn.Size = UDim2.new(0.42, 0, 0.1, 0)
 copy_btn.Position = UDim2.new(0.53, 0, 0.87, 0)
 copy_btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
 copy_btn.Text = "COPY"
@@ -143,21 +140,40 @@ local function record_action(command_str)
     end
 end
 
+-- Store pending placements to track tower IDs
+local pending_placements = {}
+
 workspace_service.Towers.ChildAdded:Connect(function(tower)
     if not _G.record_strat then return end
     
-    task.wait(0.1) 
+    task.wait(0.1)
     
-    placement_count = placement_count + 1
-    towers_list[tower] = placement_count
-    tower.Name = tostring(placement_count) 
-
-    if pending_placement then
-        local p = pending_placement
-        local x, y, z = math.floor(p.Pos.X * 100) / 100, math.floor(p.Pos.Y * 100) / 100, math.floor(p.Pos.Z * 100) / 100
-        record_action(string.format("TDS:Place(\"%s\", %.2f, %.2f, %.2f)", p.Type, x, y, z))
-        add_log(string.format("placed: %s at (%.1f, %.1f, %.1f)", p.Type, x, y, z))
-        pending_placement = nil
+    -- Find which pending placement this belongs to
+    local placement_data = nil
+    for _, data in pairs(pending_placements) do
+        if not data.processed then
+            placement_data = data
+            break
+        end
+    end
+    
+    if placement_data then
+        placement_count = placement_count + 1
+        towers_list[tower] = placement_count
+        tower.Name = tostring(placement_count)
+        
+        -- Mark this placement as processed
+        placement_data.processed = true
+        placement_data.tower_id = placement_count
+        
+        -- Log and record the placement
+        local x, y, z = math.floor(placement_data.pos.X * 100) / 100, 
+                       math.floor(placement_data.pos.Y * 100) / 100, 
+                       math.floor(placement_data.pos.Z * 100) / 100
+        record_action(string.format("TDS:Place(\"%s\", %.2f, %.2f, %.2f)", 
+            placement_data.tower_type, x, y, z))
+        add_log(string.format("placed: %s at (%.1f, %.1f, %.1f) [ID: %d]", 
+            placement_data.tower_type, x, y, z, placement_count))
     end
 end)
 
@@ -170,20 +186,22 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
     if _G.record_strat and (method == "InvokeServer" or method == "FireServer") then
         local action_name = tostring(args[2]) 
 
-        -- PLACE
+        -- PLACE - Only store the placement data, don't log it yet
         if action_name:find("Pl") and action_name:find("ce") then
             local tower_type = tostring(args[4])
             local place_data = args[3]
             
             if type(place_data) == "table" and place_data.Position then
-                pending_placement = {
-                    Type = tower_type,
-                    Pos = place_data.Position
-                }
-                local x, y, z = math.floor(place_data.Position.X * 100) / 100, 
-                               math.floor(place_data.Position.Y * 100) / 100, 
-                               math.floor(place_data.Position.Z * 100) / 100
-                add_log(string.format("placing: %s at (%.1f, %.1f, %.1f)", tower_type, x, y, z))
+                -- Store placement data for when the tower is actually created
+                table.insert(pending_placements, {
+                    tower_type = tower_type,
+                    pos = place_data.Position,
+                    processed = false,
+                    tower_id = nil
+                })
+                
+                -- Just show a preview message without coordinates
+                add_log(string.format("placing: %s...", tower_type))
             end
 
         -- UPGRADE
@@ -286,13 +304,25 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
     return old_namecall(self, ...)
 end)
 
--- Combined Start/Stop button functionality
+-- Clean up old pending placements periodically
+game:GetService("RunService").Heartbeat:Connect(function()
+    -- Remove processed placements older than 5 seconds
+    local current_time = tick()
+    for i = #pending_placements, 1, -1 do
+        local placement = pending_placements[i]
+        if placement.processed and (current_time - (placement.process_time or 0)) > 5 then
+            table.remove(pending_placements, i)
+        end
+    end
+end)
+
 record_btn.MouseButton1Click:Connect(function()
     if not _G.record_strat then
         -- START RECORDING
         _G.record_strat = true
         placement_count = 0
         towers_list = {}
+        pending_placements = {} -- Clear pending placements
         last_action_time = tick()
         
         for _, child in ipairs(log_box:GetChildren()) do
@@ -336,7 +366,6 @@ TDS:GameInfo("Wrecked Battlefield", {}) -- Change this to the Map you want
     end
 end)
 
--- Copy button functionality
 copy_btn.MouseButton1Click:Connect(function()
     if readfile then
         local success, content = pcall(function()
@@ -348,7 +377,6 @@ copy_btn.MouseButton1Click:Connect(function()
                 setclipboard(content)
                 add_log("Script copied to clipboard!")
                 
-                -- Visual feedback
                 local originalColor = copy_btn.BackgroundColor3
                 copy_btn.BackgroundColor3 = Color3.fromRGB(39, 174, 96)
                 copy_btn.Text = "COPIED!"
