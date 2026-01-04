@@ -843,12 +843,10 @@ function TDS:GameInfo(name, list)
     elseif is_map_available(name) then
         select_map_override(name)
     else
-        -- Map not available - go back to lobby instead of teleporting
-        print("Map '" .. name .. "' not available. Returning to lobby...")
-        send_to_lobby()
-        return "MAP_NOT_FOUND"  -- Optional: return a status code
+        teleport_service:Teleport(3260590327, local_player)
     end
 end
+
 
 function TDS:UnlockTimeScale()
     unlock_speed_tickets()
