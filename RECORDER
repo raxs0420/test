@@ -341,7 +341,7 @@ _G.SendWebhook = false -- Set to true to enable notifications
 _G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
 
 -- INITIALIZE LIBRARY 
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua"))()
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
 -- START STRATEGY 
 TDS:Loadout("Mercenary Base", "Military Base", "Engineer", "Ranger", "Accelerator") -- Change this to the loadout you are using
