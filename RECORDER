@@ -166,7 +166,7 @@ workspace_service.Towers.ChildAdded:Connect(function(tower)
         local y = math.floor(placement_data.pos.Y * 100000) / 100000
         local z = math.floor(placement_data.pos.Z * 100000) / 100000
         
-        record_action(string.format("TDS:Place(\"%s\", %.5f, %.5f, %.5f)", 
+        record_action(string.format("TDS:Place(\"%s\", %.5f, %.5f, %.5f) [ID: %d]", 
             placement_data.tower_type, x, y, z))
         add_log(string.format("placed: %s at (%.5f, %.5f, %.5f) [ID: %d]", 
             placement_data.tower_type, x, y, z, placement_count))
