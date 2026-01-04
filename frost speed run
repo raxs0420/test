@@ -7,7 +7,7 @@ _G.SendWebhook = false -- Set to true to enable notifications
 _G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
 
 -- [[ INITIALIZE LIBRARY ]]
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/improved-testlag.lua"))()
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
 -- [[ START STRATEGY ]]
 TDS:Loadout("Scout", "Accelerator", "Mercenary Base", "Hacker", "Warlock")
