@@ -128,6 +128,13 @@ local function add_log(msg)
     log_box.CanvasPosition = Vector2.new(0, log_box.CanvasSize.Y.Offset)
 end
 
+local function record_action(command_str)
+    if not _G.record_strat then return end
+    if appendfile then
+        appendfile(file_name, command_str .. "\n")
+    end
+end
+
 -- Store pending placements to track tower IDs
 local pending_placements = {}
 
@@ -154,10 +161,11 @@ workspace_service.Towers.ChildAdded:Connect(function(tower)
         placement_data.processed = true
         placement_data.tower_id = placement_count
         
-        -- Log and record the placement
-        local x, y, z = math.floor(placement_data.pos.X * 100) / 100, 
-                       math.floor(placement_data.pos.Y * 100) / 100, 
-                       math.floor(placement_data.pos.Z * 100) / 100
+        -- Log and record the placement with 5 decimal precision
+        local x = math.floor(placement_data.pos.X * 100000) / 100000
+        local y = math.floor(placement_data.pos.Y * 100000) / 100000
+        local z = math.floor(placement_data.pos.Z * 100000) / 100000
+        
         record_action(string.format("TDS:Place(\"%s\", %.5f, %.5f, %.5f)", 
             placement_data.tower_type, x, y, z))
         add_log(string.format("placed: %s at (%.5f, %.5f, %.5f) [ID: %d]", 
@@ -185,10 +193,11 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                     tower_type = tower_type,
                     pos = place_data.Position,
                     processed = false,
-                    tower_id = nil
+                    tower_id = nil,
+                    process_time = tick()
                 })
                 
-                -- Just show a preview message without coordinates
+                -- Just show a preview message
                 add_log(string.format("placing: %s...", tower_type))
             end
 
@@ -284,8 +293,8 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
             end
 
         elseif action_name == "Skip" then
-            record_action(string.format("TDS:VoteSkip()", tower_id))
-            task.spawn(function() add_log("skipped wave: " .. tostring(tower_id)) end)
+            record_action("TDS:Skip()")
+            task.spawn(function() add_log("skipped wave") end)
         end
     end
 
@@ -298,7 +307,7 @@ game:GetService("RunService").Heartbeat:Connect(function()
     local current_time = tick()
     for i = #pending_placements, 1, -1 do
         local placement = pending_placements[i]
-        if placement.processed and (current_time - (placement.process_time or 0)) > 2 then
+        if placement.processed and (current_time - (placement.process_time or 0)) > 5 then
             table.remove(pending_placements, i)
         end
     end
@@ -332,7 +341,7 @@ _G.SendWebhook = false -- Set to true to enable notifications
 _G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
 
 -- INITIALIZE LIBRARY 
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua"))()
 
 -- START STRATEGY 
 TDS:Loadout("Mercenary Base", "Military Base", "Engineer", "Ranger", "Accelerator") -- Change this to the loadout you are using
@@ -340,7 +349,7 @@ TDS:Mode("Hardcore") -- Change this to the gamemode you're playing
 TDS:GameInfo("Wrecked Battlefield", {}) -- Change this to the Map you want
 
 -- START STRATEGY
-        ]]
+]]
 
             writefile(file_name, config_content)
         end
