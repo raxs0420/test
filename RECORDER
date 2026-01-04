@@ -6,7 +6,6 @@ local user_input_service = game:GetService("UserInputService")
 
 local file_name = "Strat.txt"
 local placement_count = 0
-local last_action_time = tick()
 local towers_list = {} 
 _G.record_strat = false
 
@@ -128,10 +127,11 @@ local function add_log(msg)
     log_box.CanvasPosition = Vector2.new(0, log_box.CanvasSize.Y.Offset)
 end
 
-local function record_action(command_str)
+local function record_action(command_str, tower_id)
     if not _G.record_strat then return end
     if appendfile then
-        appendfile(file_name, command_str .. "\n")
+        local commented_line = command_str .. " -- index " .. tower_id
+        appendfile(file_name, commented_line .. "\n")
     end
 end
 
@@ -145,9 +145,11 @@ workspace_service.Towers.ChildAdded:Connect(function(tower)
     
     -- Find which pending placement this belongs to
     local placement_data = nil
-    for _, data in pairs(pending_placements) do
+    for i = 1, #pending_placements do
+        local data = pending_placements[i]
         if not data.processed then
             placement_data = data
+            table.remove(pending_placements, i) -- Remove it from the queue
             break
         end
     end
@@ -157,17 +159,13 @@ workspace_service.Towers.ChildAdded:Connect(function(tower)
         towers_list[tower] = placement_count
         tower.Name = tostring(placement_count)
         
-        -- Mark this placement as processed
-        placement_data.processed = true
-        placement_data.tower_id = placement_count
-        
         -- Log and record the placement with 5 decimal precision
         local x = math.floor(placement_data.pos.X * 100000) / 100000
         local y = math.floor(placement_data.pos.Y * 100000) / 100000
         local z = math.floor(placement_data.pos.Z * 100000) / 100000
         
-        record_action(string.format("TDS:Place(\"%s\", %.5f, %.5f, %.5f) [ID: %d]", 
-            placement_data.tower_type, x, y, z))
+        record_action(string.format("TDS:Place(\"%s\", %.5f, %.5f, %.5f)", 
+            placement_data.tower_type, x, y, z), placement_count)
         add_log(string.format("placed: %s at (%.5f, %.5f, %.5f) [ID: %d]", 
             placement_data.tower_type, x, y, z, placement_count))
     end
@@ -182,7 +180,7 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
     if _G.record_strat and (method == "InvokeServer" or method == "FireServer") then
         local action_name = tostring(args[2]) 
 
-        -- PLACE - Only store the placement data, don't log it yet
+        -- PLACE - Only store the placement data
         if action_name:find("Pl") and action_name:find("ce") then
             local tower_type = tostring(args[4])
             local place_data = args[3]
@@ -192,13 +190,9 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                 table.insert(pending_placements, {
                     tower_type = tower_type,
                     pos = place_data.Position,
-                    processed = false,
-                    tower_id = nil,
-                    process_time = tick()
+                    processed = false
                 })
-                
-                -- Just show a preview message
-                add_log(string.format("placing: %s...", tower_type))
+                -- No "placing..." message shown
             end
 
         -- UPGRADE
@@ -207,8 +201,8 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
             if action_data and action_data.Troop then
                 local tower_id = towers_list[action_data.Troop]
                 if tower_id then
-                    record_action(string.format("TDS:Upgrade(%d)", tower_id))
-                    task.spawn(function() add_log("upgraded: " .. tostring(tower_id)) end)
+                    record_action(string.format("TDS:Upgrade(%d)", tower_id), tower_id)
+                    add_log("upgraded: " .. tostring(tower_id))
                 end
             end
 
@@ -218,11 +212,9 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
             if action_data and action_data.Troop then
                 local tower_id = towers_list[action_data.Troop]
                 if tower_id then
-                    record_action(string.format("TDS:Sell(%d)", tower_id))
-                    task.spawn(function() 
-                        add_log("sold: " .. tostring(tower_id))
-                        towers_list[action_data.Troop] = nil 
-                    end)
+                    record_action(string.format("TDS:Sell(%d)", tower_id), tower_id)
+                    add_log("sold: " .. tostring(tower_id))
+                    towers_list[action_data.Troop] = nil 
                 end
             end
 
@@ -245,11 +237,9 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                     tostring(tower_id), 
                     ability_name, 
                     formatted_data
-                ))
+                ), tower_id)
 
-                task.spawn(function()
-                    add_log(string.format("Ability: %s (ID %s)", ability_name, tostring(tower_id)))
-                end)
+                add_log(string.format("Ability: %s (ID %s)", ability_name, tostring(tower_id)))
             end
 
         -- TARGET
@@ -264,11 +254,9 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                 record_action(string.format("TDS:SetTarget(%s, \"%s\")", 
                     tostring(tower_id), 
                     target_value
-                ))
+                ), tower_id)
 
-                task.spawn(function()
-                    add_log(string.format("set targeting: tower %s to %s", tostring(tower_id), target_value))
-                end)
+                add_log(string.format("set targeting: tower %s to %s", tostring(tower_id), target_value))
             end
 
         -- OPTION
@@ -285,32 +273,19 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                     tostring(tower_id), 
                     tostring(opt_name), 
                     tostring(primary_val)
-                ))
+                ), tower_id)
 
-                task.spawn(function()
-                    add_log(string.format("set option: tower %s value %s to %s", tostring(tower_id), opt_name, primary_val))
-                end)
+                add_log(string.format("set option: tower %s value %s to %s", tostring(tower_id), opt_name, primary_val))
             end
 
         elseif action_name == "Skip" then
-            record_action("TDS:Skip()")
-            task.spawn(function() add_log("skipped wave") end)
+            -- Skip doesn't have a tower ID, so we use 0 or leave it without index
+            record_action("TDS:Skip()", 0)
+            add_log("skipped wave")
         end
     end
 
     return old_namecall(self, ...)
-end)
-
--- Clean up old pending placements periodically
-game:GetService("RunService").Heartbeat:Connect(function()
-    -- Remove processed placements older than 5 seconds
-    local current_time = tick()
-    for i = #pending_placements, 1, -1 do
-        local placement = pending_placements[i]
-        if placement.processed and (current_time - (placement.process_time or 0)) > 5 then
-            table.remove(pending_placements, i)
-        end
-    end
 end)
 
 record_btn.MouseButton1Click:Connect(function()
@@ -320,7 +295,6 @@ record_btn.MouseButton1Click:Connect(function()
         placement_count = 0
         towers_list = {}
         pending_placements = {} -- Clear pending placements
-        last_action_time = tick()
         
         for _, child in ipairs(log_box:GetChildren()) do
             if child:IsA("TextLabel") then child:Destroy() end
