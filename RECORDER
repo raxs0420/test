@@ -18,7 +18,7 @@ screen_gui.Parent = player_gui
 
 local main_frame = Instance.new("Frame", screen_gui)
 main_frame.Name = "main_frame"
-main_frame.Size = UDim2.new(0, 300, 0, 400)
+main_frame.Size = UDim2.new(0, 300, 0, 350) -- Reduced height
 main_frame.Position = UDim2.new(0.35, 0, 0.3, 0)
 main_frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 main_frame.Active = true
@@ -82,7 +82,7 @@ Instance.new("UICorner", close_btn)
 
 local log_box = Instance.new("ScrollingFrame", main_frame)
 log_box.Name = "log_box"
-log_box.Size = UDim2.new(0.9, 0, 0.6, 0)
+log_box.Size = UDim2.new(0.9, 0, 0.7, 0) -- Increased height for more logs
 log_box.Position = UDim2.new(0.05, 0, 0.15, 0)
 log_box.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 log_box.ScrollBarThickness = 4
@@ -91,27 +91,29 @@ log_box.CanvasSize = UDim2.new(0, 0, 0, 0)
 local log_layout = Instance.new("UIListLayout", log_box)
 log_layout.Padding = UDim.new(0, 2)
 
-local start_btn = Instance.new("TextButton", main_frame)
-start_btn.Name = "start_btn"
-start_btn.Size = UDim2.new(0.42, 0, 0.12, 0)
-start_btn.Position = UDim2.new(0.05, 0, 0.82, 0)
-start_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-start_btn.Text = "START"
-start_btn.Font = Enum.Font.GothamBold
-start_btn.TextColor3 = Color3.new(1, 1, 1)
-start_btn.TextScaled = true
-Instance.new("UICorner", start_btn)
+-- Combined Start/Stop Button
+local record_btn = Instance.new("TextButton", main_frame)
+record_btn.Name = "record_btn"
+record_btn.Size = UDim2.new(0.42, 0, 0.1, 0) -- Smaller height
+record_btn.Position = UDim2.new(0.05, 0, 0.87, 0)
+record_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+record_btn.Text = "START"
+record_btn.Font = Enum.Font.GothamBold
+record_btn.TextColor3 = Color3.new(1, 1, 1)
+record_btn.TextScaled = true
+Instance.new("UICorner", record_btn)
 
-local stop_btn = Instance.new("TextButton", main_frame)
-stop_btn.Name = "stop_btn"
-stop_btn.Size = UDim2.new(0.42, 0, 0.12, 0)
-stop_btn.Position = UDim2.new(0.53, 0, 0.82, 0)
-stop_btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-stop_btn.Text = "STOP"
-stop_btn.Font = Enum.Font.GothamBold
-stop_btn.TextColor3 = Color3.new(1, 1, 1)
-stop_btn.TextScaled = true
-Instance.new("UICorner", stop_btn)
+-- Copy Button
+local copy_btn = Instance.new("TextButton", main_frame)
+copy_btn.Name = "copy_btn"
+copy_btn.Size = UDim2.new(0.42, 0, 0.1, 0) -- Same size as record button
+copy_btn.Position = UDim2.new(0.53, 0, 0.87, 0)
+copy_btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+copy_btn.Text = "COPY"
+copy_btn.Font = Enum.Font.GothamBold
+copy_btn.TextColor3 = Color3.new(1, 1, 1)
+copy_btn.TextScaled = true
+Instance.new("UICorner", copy_btn)
 
 local function add_log(msg)
     local log_item = Instance.new("TextLabel", log_box)
@@ -123,6 +125,7 @@ local function add_log(msg)
     log_item.Font = Enum.Font.Code
     log_item.TextSize = 10
     log_item.TextXAlignment = Enum.TextXAlignment.Left
+    log_item.TextWrapped = true
     
     log_box.CanvasSize = UDim2.new(0, 0, 0, log_layout.AbsoluteContentSize.Y)
     log_box.CanvasPosition = Vector2.new(0, log_box.CanvasSize.Y.Offset)
@@ -151,8 +154,9 @@ workspace_service.Towers.ChildAdded:Connect(function(tower)
 
     if pending_placement then
         local p = pending_placement
-        record_action(string.format("TDS:Place(\"%s\", %.2f, %.2f, %.2f)", p.Type, p.Pos.X, p.Pos.Y, p.Pos.Z))
-        add_log("placed: " .. p.Type)
+        local x, y, z = math.floor(p.Pos.X * 100) / 100, math.floor(p.Pos.Y * 100) / 100, math.floor(p.Pos.Z * 100) / 100
+        record_action(string.format("TDS:Place(\"%s\", %.2f, %.2f, %.2f)", p.Type, x, y, z))
+        add_log(string.format("placed: %s at (%.1f, %.1f, %.1f)", p.Type, x, y, z))
         pending_placement = nil
     end
 end)
@@ -176,6 +180,10 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                     Type = tower_type,
                     Pos = place_data.Position
                 }
+                local x, y, z = math.floor(place_data.Position.X * 100) / 100, 
+                               math.floor(place_data.Position.Y * 100) / 100, 
+                               math.floor(place_data.Position.Z * 100) / 100
+                add_log(string.format("placing: %s at (%.1f, %.1f, %.1f)", tower_type, x, y, z))
             end
 
         -- UPGRADE
@@ -232,7 +240,6 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
         -- TARGET
         elseif action_name == "Target" then
             local action_data = args[4]
-            print("asgas")
             
             if type(action_data) == "table" and action_data.Target then
                 local target_value = tostring(action_data.Target)
@@ -279,19 +286,25 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
     return old_namecall(self, ...)
 end)
 
-start_btn.MouseButton1Click:Connect(function()
-    _G.record_strat = true
-    placement_count = 0
-    towers_list = {}
-    last_action_time = tick()
-    
-    for _, child in ipairs(log_box:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
-    end
-    
-    add_log("--- recording started ---")
-    if writefile then 
-        local config_content = [[-- CONFIGURATION 
+-- Combined Start/Stop button functionality
+record_btn.MouseButton1Click:Connect(function()
+    if not _G.record_strat then
+        -- START RECORDING
+        _G.record_strat = true
+        placement_count = 0
+        towers_list = {}
+        last_action_time = tick()
+        
+        for _, child in ipairs(log_box:GetChildren()) do
+            if child:IsA("TextLabel") then child:Destroy() end
+        end
+        
+        add_log("--- recording started ---")
+        record_btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+        record_btn.Text = "STOP"
+        
+        if writefile then 
+            local config_content = [[-- CONFIGURATION 
 _G.AutoStrat = true
 _G.AutoSkip = false -- Change this to true if you want it to auto skip all waves
 _G.AutoPickups = false -- Change this to true if you want it to automatically collect Snowballs
@@ -301,7 +314,7 @@ _G.SendWebhook = false -- Set to true to enable notifications
 _G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
 
 -- INITIALIZE LIBRARY 
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/DuxiiT/auto-strat/refs/heads/main/Library.lua"))()
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
 -- START STRATEGY 
 TDS:Loadout("Mercenary Base", "Military Base", "Engineer", "Ranger", "Accelerator") -- Change this to the loadout you are using
@@ -311,13 +324,47 @@ TDS:GameInfo("Wrecked Battlefield", {}) -- Change this to the Map you want
 -- START STRATEGY
         ]]
 
-        writefile(file_name, config_content)
+            writefile(file_name, config_content)
+        end
+    else
+        -- STOP RECORDING
+        _G.record_strat = false
+        record_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+        record_btn.Text = "START"
+        add_log("--- recording stopped ---")
+        add_log("Use COPY button to copy script")
     end
 end)
 
-stop_btn.MouseButton1Click:Connect(function()
-    _G.record_strat = false
-    add_log("--- recording stopped ---")
+-- Copy button functionality
+copy_btn.MouseButton1Click:Connect(function()
+    if readfile then
+        local success, content = pcall(function()
+            return readfile(file_name)
+        end)
+        
+        if success and content then
+            if setclipboard then
+                setclipboard(content)
+                add_log("Script copied to clipboard!")
+                
+                -- Visual feedback
+                local originalColor = copy_btn.BackgroundColor3
+                copy_btn.BackgroundColor3 = Color3.fromRGB(39, 174, 96)
+                copy_btn.Text = "COPIED!"
+                
+                task.wait(0.5)
+                copy_btn.BackgroundColor3 = originalColor
+                copy_btn.Text = "COPY"
+            else
+                add_log("Clipboard not available!")
+            end
+        else
+            add_log("No script to copy!")
+        end
+    else
+        add_log("File functions not available!")
+    end
 end)
 
 close_btn.MouseButton1Click:Connect(function()
@@ -325,4 +372,4 @@ close_btn.MouseButton1Click:Connect(function()
     screen_gui:Destroy()
 end)
 
-add_log("recorder Ready")
+add_log("Strat Recorder Ready")
