@@ -127,15 +127,13 @@ local function add_log(msg)
     log_box.CanvasPosition = Vector2.new(0, log_box.CanvasSize.Y.Offset)
 end
 
-local function record_action(command_str, tower_id)
+local function record_action(command_str)
     if not _G.record_strat then return end
     if appendfile then
-        local commented_line = command_str .. " -- index " .. tower_id
-        appendfile(file_name, commented_line .. "\n")
+        appendfile(file_name, command_str .. "\n")
     end
 end
 
--- Store pending placements to track tower IDs
 local pending_placements = {}
 
 workspace_service.Towers.ChildAdded:Connect(function(tower)
@@ -143,13 +141,12 @@ workspace_service.Towers.ChildAdded:Connect(function(tower)
     
     task.wait(0.1)
     
-    -- Find which pending placement this belongs to
     local placement_data = nil
     for i = 1, #pending_placements do
         local data = pending_placements[i]
         if not data.processed then
             placement_data = data
-            table.remove(pending_placements, i) -- Remove it from the queue
+            table.remove(pending_placements, i)
             break
         end
     end
@@ -159,19 +156,16 @@ workspace_service.Towers.ChildAdded:Connect(function(tower)
         towers_list[tower] = placement_count
         tower.Name = tostring(placement_count)
         
-        -- Log and record the placement with 5 decimal precision
         local x = math.floor(placement_data.pos.X * 100000) / 100000
         local y = math.floor(placement_data.pos.Y * 100000) / 100000
         local z = math.floor(placement_data.pos.Z * 100000) / 100000
         
         record_action(string.format("TDS:Place(\"%s\", %.5f, %.5f, %.5f)", 
-            placement_data.tower_type, x, y, z), placement_count)
-        add_log(string.format("placed: %s at (%.5f, %.5f, %.5f) [ID: %d]", 
-            placement_data.tower_type, x, y, z, placement_count))
+            placement_data.tower_type, x, y, z))
+        add_log(string.format("placed %s %d", placement_data.tower_type, placement_count))
     end
 end)
 
--- METAMETHOD HOOK
 local old_namecall
 old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
@@ -180,45 +174,39 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
     if _G.record_strat and (method == "InvokeServer" or method == "FireServer") then
         local action_name = tostring(args[2]) 
 
-        -- PLACE - Only store the placement data
         if action_name:find("Pl") and action_name:find("ce") then
             local tower_type = tostring(args[4])
             local place_data = args[3]
             
             if type(place_data) == "table" and place_data.Position then
-                -- Store placement data for when the tower is actually created
                 table.insert(pending_placements, {
                     tower_type = tower_type,
                     pos = place_data.Position,
                     processed = false
                 })
-                -- No "placing..." message shown
             end
 
-        -- UPGRADE
         elseif action_name == "Upgrade" then
             local action_data = args[4]
             if action_data and action_data.Troop then
                 local tower_id = towers_list[action_data.Troop]
                 if tower_id then
-                    record_action(string.format("TDS:Upgrade(%d)", tower_id), tower_id)
-                    add_log("upgraded: " .. tostring(tower_id))
+                    record_action(string.format("TDS:Upgrade(%d)", tower_id))
+                    add_log("upgraded " .. tower_id)
                 end
             end
 
-        -- SELL
         elseif action_name == "Sell" then
             local action_data = args[3]
             if action_data and action_data.Troop then
                 local tower_id = towers_list[action_data.Troop]
                 if tower_id then
-                    record_action(string.format("TDS:Sell(%d)", tower_id), tower_id)
-                    add_log("sold: " .. tostring(tower_id))
+                    record_action(string.format("TDS:Sell(%d)", tower_id))
+                    add_log("sold " .. tower_id)
                     towers_list[action_data.Troop] = nil 
                 end
             end
 
-        -- ABILITIES
         elseif action_name == "Abilities" then
             local action_data = args[4]
             if action_data and type(action_data) == "table" then
@@ -234,15 +222,11 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                 formatted_data = formatted_data:gsub(", $", "") .. "}"
 
                 record_action(string.format("TDS:Ability(%s, \"%s\", %s)", 
-                    tostring(tower_id), 
-                    ability_name, 
-                    formatted_data
-                ), tower_id)
+                    tower_id, ability_name, formatted_data))
 
-                add_log(string.format("Ability: %s (ID %s)", ability_name, tostring(tower_id)))
+                add_log("ability " .. ability_name .. " " .. tower_id)
             end
 
-        -- TARGET
         elseif action_name == "Target" then
             local action_data = args[4]
             
@@ -252,14 +236,11 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                 local tower_id = towers_list[troop_instance] or "Unknown"
 
                 record_action(string.format("TDS:SetTarget(%s, \"%s\")", 
-                    tostring(tower_id), 
-                    target_value
-                ), tower_id)
+                    tower_id, target_value))
 
-                add_log(string.format("set targeting: tower %s to %s", tostring(tower_id), target_value))
+                add_log("target " .. tower_id .. " " .. target_value)
             end
 
-        -- OPTION
         elseif action_name == "Option" or action_name == "Target" then
             local action_data = args[4]
             
@@ -270,18 +251,14 @@ old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
                 local opt_name = action_data.Name or "Targeting"
 
                 record_action(string.format("TDS:SetOption(%s, \"%s\", \"%s\")", 
-                    tostring(tower_id), 
-                    tostring(opt_name), 
-                    tostring(primary_val)
-                ), tower_id)
+                    tower_id, opt_name, primary_val))
 
-                add_log(string.format("set option: tower %s value %s to %s", tostring(tower_id), opt_name, primary_val))
+                add_log("option " .. tower_id .. " " .. opt_name .. " " .. primary_val)
             end
 
         elseif action_name == "Skip" then
-            -- Skip doesn't have a tower ID, so we use 0 or leave it without index
-            record_action("TDS:Skip()", 0)
-            add_log("skipped wave")
+            record_action("TDS:Skip()")
+            add_log("skipped")
         end
     end
 
@@ -290,50 +267,35 @@ end)
 
 record_btn.MouseButton1Click:Connect(function()
     if not _G.record_strat then
-        -- START RECORDING
         _G.record_strat = true
         placement_count = 0
         towers_list = {}
-        pending_placements = {} -- Clear pending placements
+        pending_placements = {}
         
         for _, child in ipairs(log_box:GetChildren()) do
             if child:IsA("TextLabel") then child:Destroy() end
         end
         
-        add_log("--- recording started ---")
+        add_log("recording started")
         record_btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
         record_btn.Text = "STOP"
         
         if writefile then 
-            local config_content = [[-- CONFIGURATION 
-_G.AutoStrat = true
-_G.AutoSkip = false -- Change this to true if you want it to auto skip all waves
-_G.AutoPickups = false -- Change this to true if you want it to automatically collect Snowballs
+            local config_content = [[local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
--- WEBHOOK SETTINGS 
-_G.SendWebhook = false -- Set to true to enable notifications
-_G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
+TDS:Loadout("Mercenary Base", "Military Base", "Engineer", "Ranger", "Accelerator")
+TDS:Mode("Hardcore")
+TDS:GameInfo("Wrecked Battlefield", {})
 
--- INITIALIZE LIBRARY 
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
-
--- START STRATEGY 
-TDS:Loadout("Mercenary Base", "Military Base", "Engineer", "Ranger", "Accelerator") -- Change this to the loadout you are using
-TDS:Mode("Hardcore") -- Change this to the gamemode you're playing
-TDS:GameInfo("Wrecked Battlefield", {}) -- Change this to the Map you want
-
--- START STRATEGY
 ]]
 
             writefile(file_name, config_content)
         end
     else
-        -- STOP RECORDING
         _G.record_strat = false
         record_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
         record_btn.Text = "START"
-        add_log("--- recording stopped ---")
-        add_log("Use COPY button to copy script")
+        add_log("recording stopped")
     end
 end)
 
@@ -346,23 +308,23 @@ copy_btn.MouseButton1Click:Connect(function()
         if success and content then
             if setclipboard then
                 setclipboard(content)
-                add_log("Script copied to clipboard!")
+                add_log("copied")
                 
                 local originalColor = copy_btn.BackgroundColor3
                 copy_btn.BackgroundColor3 = Color3.fromRGB(39, 174, 96)
-                copy_btn.Text = "COPIED!"
+                copy_btn.Text = "COPIED"
                 
                 task.wait(0.5)
                 copy_btn.BackgroundColor3 = originalColor
                 copy_btn.Text = "COPY"
             else
-                add_log("Clipboard not available!")
+                add_log("no clipboard")
             end
         else
-            add_log("No script to copy!")
+            add_log("no script")
         end
     else
-        add_log("File functions not available!")
+        add_log("no file")
     end
 end)
 
@@ -371,4 +333,4 @@ close_btn.MouseButton1Click:Connect(function()
     screen_gui:Destroy()
 end)
 
-add_log("Strat Recorder Ready")
+add_log("ready")
