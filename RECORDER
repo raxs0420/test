@@ -128,18 +128,6 @@ local function add_log(msg)
     log_box.CanvasPosition = Vector2.new(0, log_box.CanvasSize.Y.Offset)
 end
 
-local function record_action(command_str)
-    if not _G.record_strat then return end
-    local current_time = tick()
-    local time_diff = current_time - last_action_time
-    last_action_time = current_time
-    
-    local wait_line = string.format("task.wait(%.2f)\n", time_diff)
-    if appendfile then
-        appendfile(file_name, wait_line .. command_str .. "\n")
-    end
-end
-
 -- Store pending placements to track tower IDs
 local pending_placements = {}
 
@@ -172,7 +160,7 @@ workspace_service.Towers.ChildAdded:Connect(function(tower)
                        math.floor(placement_data.pos.Z * 100) / 100
         record_action(string.format("TDS:Place(\"%s\", %.2f, %.2f, %.2f)", 
             placement_data.tower_type, x, y, z))
-        add_log(string.format("placed: %s at (%.1f, %.1f, %.1f) [ID: %d]", 
+        add_log(string.format("placed: %s at (%.5f, %.5f, %.5f) [ID: %d]", 
             placement_data.tower_type, x, y, z, placement_count))
     end
 end)
