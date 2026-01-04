@@ -1,4 +1,5 @@
 -- [[ CONFIGURATION ]]
+_G.AutoStrat = true
 _G.AutoPickups = true
 _G.AntiLag = true
 
