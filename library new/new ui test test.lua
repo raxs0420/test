@@ -769,54 +769,78 @@ function TDS:Loadout(...)
         end
     end
 
-    -- NEW: RETRY LOGIC
-    local maxAttempts = 10
-    local attempt = 1
-    local success = false
+    -- NEW: PER-TOWER RETRY LOGIC
+    local maxAttemptsPerTower = 5 -- Maximum retry attempts for each individual tower
+    local allEquipped = true
+    local failedTowers = {}
     
-    while attempt <= maxAttempts do
-        print(("TDS:Loadout - Attempt %d/%d"):format(attempt, maxAttempts))
-        
-        local allEquipped = true
-        local failedTowers = {}
-        
-        -- Equip towers one-by-one. Use pcall around each invocation so one failure doesn't stop the rest.
-        for _, tower_name in ipairs(towers) do
-            if tower_name and tower_name ~= "" then
+    print(("TDS:Loadout - Equipping %d towers"):format(#towers))
+    
+    -- Process each tower with individual retry logic
+    for _, tower_name in ipairs(towers) do
+        if tower_name and tower_name ~= "" then
+            local towerEquipped = false
+            local attempts = 0
+            
+            while not towerEquipped and attempts < maxAttemptsPerTower do
+                attempts = attempts + 1
+                
                 local ok, err = pcall(function()
                     -- remote:InvokeServer expects ("Inventory", "Equip", "tower", tower_name) in the original code
                     remote:InvokeServer("Inventory", "Equip", "tower", tower_name)
                 end)
-                if not ok then
-                    allEquipped = false
-                    table.insert(failedTowers, {name = tower_name, error = err})
-                    warn(("TDS:Loadout - failed to equip %s: %s"):format(tostring(tower_name), tostring(err)))
+                
+                if ok then
+                    towerEquipped = true
+                    if attempts > 1 then
+                        print(("TDS:Loadout - ✓ %s equipped after %d attempts"):format(tostring(tower_name), attempts))
+                    else
+                        print(("TDS:Loadout - ✓ %s equipped"):format(tostring(tower_name)))
+                    end
                 else
-                    print(("TDS:Loadout - successfully equipped %s"):format(tostring(tower_name)))
+                    if attempts < maxAttemptsPerTower then
+                        -- Only warn if we're going to retry
+                        warn(("TDS:Loadout - attempt %d/%d failed for %s: %s"):format(
+                            attempts, maxAttemptsPerTower, tostring(tower_name), tostring(err)
+                        ))
+                        -- Wait before retrying this specific tower
+                        task.wait(1)
+                    else
+                        -- Final failure
+                        warn(("TDS:Loadout - ✗ %s failed after %d attempts: %s"):format(
+                            tostring(tower_name), maxAttemptsPerTower, tostring(err)
+                        ))
+                        allEquipped = false
+                        table.insert(failedTowers, {
+                            name = tower_name,
+                            error = err,
+                            attempts = attempts
+                        })
+                    end
                 end
-                -- small delay between equips to emulate original behavior / prevent flooding
-                task.wait(0.3)
             end
-        end
-        
-        if allEquipped then
-            success = true
-            print("TDS:Loadout - All towers equipped successfully!")
-            break
-        else
-            print(("TDS:Loadout - %d towers failed to equip. Retrying in 3 seconds..."):format(#failedTowers))
-            for _, failed in ipairs(failedTowers) do
-                print(("  - %s: %s"):format(failed.name, failed.error))
+            
+            -- Small delay between different towers (only if the current one succeeded or final failed)
+            if towerEquipped and attempts < maxAttemptsPerTower then
+                task.wait(0.5) -- Shorter delay if succeeded quickly
+            elseif towerEquipped then
+                task.wait(1.0) -- Longer delay if took multiple attempts
             end
-            task.wait(3) -- Wait before retrying
-            attempt = attempt + 1
         end
     end
     
-    if success then
+    -- Final result
+    if allEquipped then
+        print("TDS:Loadout - All towers equipped successfully!")
         return true
     else
-        return false, ("Failed to equip all towers after %d attempts"):format(maxAttempts)
+        local errorMsg = ("Failed to equip %d towers: "):format(#failedTowers)
+        for i, failed in ipairs(failedTowers) do
+            errorMsg = errorMsg .. ("\n  - %s: %s (attempts: %d)"):format(
+                failed.name, failed.error, failed.attempts
+            )
+        end
+        return false, errorMsg
     end
 end
 
