@@ -1,0 +1,374 @@
+-- [[ CONFIGURATION ]]
+_G.AutoPickups = true
+_G.AntiLag = true
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Mode("Badlands")
+TDS:Loadout("Cowboy", "Minigunner", "DJ Booth", "Accelerator", "Commander")
+
+TDS:Ready()
+
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 1
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 2
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 3
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 4
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 5
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 6
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 7
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 8
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 9
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Place("Cowboy", -5.80323, 60, 5.61905) -- 10
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+
+TDS:Place("DJ Booth", -5.30671, 60, -4.85073) -- 11
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+
+TDS:SetOption(11, "Track", "Green")
+TDS:Ability(11, "Drop The Beat", {Nill} , true)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+
+TDS:Place("Commander", -5.30671, 60, -4.85073) -- 12
+TDS:Place("Commander", -5.30671, 60, -4.85073) -- 13
+TDS:Place("Commander", -5.30671, 60, -4.85073) -- 14
+
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+
+TDS:AutoChain(12, 13, 14)
+
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 15
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 16
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 17
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 18
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 19
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 20
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 21
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 22
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 23
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 24
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 25
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+
+TDS:Place("Minigunner", -5.02210, 60, 0.72128) -- 26
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+
+TDS:Loadout("Freezer", "Minigunner", "Ranger", "Accelerator", "Turret")
+
+TDS:Place("Turret", -5.02210, 60, 0.72128) -- 27
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+
+TDS:Place("Turret", -5.02210, 60, 0.72128) -- 28
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+
+TDS:Place("Turret", -5.02210, 60, 0.72128) -- 29
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+
+TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 30
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+
+TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 31
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+
+TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 32
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+
+TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 33
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+
+TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 34
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+
+TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 35
+TDS:Upgrade(35)
+TDS:Upgrade(35)
+TDS:Upgrade(35)
+TDS:Upgrade(35)
+
+TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 36
+TDS:Upgrade(36)
+TDS:Upgrade(36)
+TDS:Upgrade(36)
+TDS:Upgrade(36)
+
+TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 37
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+
+TDS:Place("Freezer", 0.57409, 60, -13.55563) -- 38
+TDS:SetTarget(38, "Random")
+TDS:Upgrade(38)
+TDS:Upgrade(38)
+TDS:Upgrade(38)
+TDS:Upgrade(38)
+
+TDS:Place("Freezer", 0.57409, 60, -13.55563) -- 39
+TDS:SetTarget(39, "Random")
+TDS:Upgrade(39)
+TDS:Upgrade(39)
+TDS:Upgrade(39)
+TDS:Upgrade(39)
+
+TDS:Place("Freezer", -22.36131, 60, -14.27654) -- 40
+TDS:SetTarget(40, "Random")
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+
+TDS:Place("Freezer", 24.24390, 60, -8.44377) -- 41
+TDS:SetTarget(41, "Random")
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+
+TDS:Place("Freezer", 24.24390, 60, -8.44377) -- 42
+TDS:SetTarget(42, "Random")
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+
+TDS:Place("Freezer", -22.36131, 60, -14.27654) -- 43
+TDS:SetTarget(43, "Random")
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+
+TDS:Place("Freezer", -5.88706, 60, 12.48912) -- 44
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+
+TDS:Place("Freezer", 0.18120, 60, 12.50628) -- 45
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+
+TDS:Place("Freezer", -5.81190, 60, 15.53130) -- 46
+TDS:SetTarget(46, "Random")
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+
+
+TDS:Upgrade(30)
+TDS:Upgrade(31)
+TDS:Upgrade(32)
+TDS:Upgrade(33)
+TDS:Upgrade(34)
+TDS:Upgrade(35)
+TDS:Upgrade(36)
+TDS:Upgrade(37)
+
+TDS:Sell(1)
+TDS:Sell(2)
+TDS:Sell(3)
+
+TDS:SetOption(11, "Track", "Red")
+
+TDS:Place("Ranger", -8.04783, 60, -2.29369) -- 47
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+
+TDS:Place("Ranger", -8.04783, 60, -2.29369) -- 48
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+
+TDS:Place("Ranger", -8.04783, 60, -2.29369) -- 49
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+
+TDS:Place("Ranger", -8.04783, 60, -2.29369) -- 50
+TDS:Upgrade(50)
+TDS:Upgrade(50)
+TDS:Upgrade(50)
+TDS:Upgrade(50)
+
+TDS:Place("Ranger", -8.04783, 60, -2.29369) -- 51
+TDS:Upgrade(51)
+TDS:Upgrade(51)
+TDS:Upgrade(51)
+TDS:Upgrade(51)
+
+TDS:Place("Ranger", -8.04783, 60, -2.29369) -- 52
+TDS:Upgrade(52)
+TDS:Upgrade(52)
+TDS:Upgrade(52)
+TDS:Upgrade(52)
+
+TDS:Place("Ranger", -8.04783, 60, -2.29369) -- 53
+TDS:Upgrade(53)
+TDS:Upgrade(53)
+TDS:Upgrade(53)
+TDS:Upgrade(53)
+
+
+
+
+
+
