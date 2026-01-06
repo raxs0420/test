@@ -177,7 +177,7 @@ TDS:Upgrade(25)
 TDS:Upgrade(26)
 TDS:Upgrade(26)
 
-TDS:Loadout("Freezer", "Minigunner", "Ranger", "Accelerator", "Turret")
+TDS:Loadout("Freezer", "Turret", "Ranger", "Accelerator", "Minigunner")
 
 TDS:Place("Turret", -5.02210, 60, 0.72128) -- 27
 TDS:Upgrade(27)
