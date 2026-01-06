@@ -795,7 +795,7 @@ function TDS:Loadout(...)
                     print(("TDS:Loadout - successfully equipped %s"):format(tostring(tower_name)))
                 end
                 -- small delay between equips to emulate original behavior / prevent flooding
-                task.wait(0.2)
+                task.wait(0.3)
             end
         end
         
