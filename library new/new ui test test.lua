@@ -68,6 +68,7 @@ local TDS = {
     matchmaking_map = {
         ["Hardcore"] = "hardcore",
         ["Pizza Party"] = "halloween",
+        ["Badlands"] = "badlands",
         ["Polluted"] = "polluted"
     }
 }
