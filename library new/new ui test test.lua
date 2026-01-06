@@ -781,7 +781,7 @@ function TDS:Loadout(...)
                 warn(("TDS:Loadout - failed to equip %s: %s"):format(tostring(tower_name), tostring(err)))
             end
             -- small delay between equips to emulate original behavior / prevent flooding
-            task.wait(0.5)
+            task.wait(1.5)
         end
     end
 
