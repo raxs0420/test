@@ -1,0 +1,489 @@
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+-- TDS Loadout UI with drag prevention fix
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
+
+-- Destroy existing UI if any
+if PlayerGui:FindFirstChild("TDS_LoadoutUI") then
+    PlayerGui.TDS_LoadoutUI:Destroy()
+end
+
+-- Create UI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "TDS_LoadoutUI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+-- Main Frame
+local Frame = Instance.new("Frame")
+Frame.Name = "MainFrame"
+Frame.Size = UDim2.new(0, 280, 0, 320)
+Frame.Position = UDim2.new(0.5, -140, 0.5, -160)
+Frame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+Frame.BorderSizePixel = 0
+Frame.Parent = ScreenGui
+
+local Corner = Instance.new("UICorner")
+Corner.CornerRadius = UDim.new(0, 8)
+Corner.Parent = Frame
+
+-- Title Bar with draggable area
+local TitleBar = Instance.new("Frame")
+TitleBar.Name = "TitleBar"
+TitleBar.Size = UDim2.new(1, 0, 0, 30)
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
+TitleBar.Parent = Frame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -60, 1, 0)
+Title.Position = UDim2.new(0, 8, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "TDS LOADOUT"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 14
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+-- Selected Count Display
+local CountDisplay = Instance.new("TextLabel")
+CountDisplay.Name = "CountDisplay"
+CountDisplay.Size = UDim2.new(0, 45, 0, 25)
+CountDisplay.Position = UDim2.new(1, -85, 0, 2)
+CountDisplay.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+CountDisplay.Text = "0/5"
+CountDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
+CountDisplay.TextSize = 12
+CountDisplay.Font = Enum.Font.GothamBold
+CountDisplay.Parent = TitleBar
+
+local CountCorner = Instance.new("UICorner")
+CountCorner.CornerRadius = UDim.new(0, 4)
+CountCorner.Parent = CountDisplay
+
+-- Minimize Button
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
+MinimizeButton.Position = UDim2.new(1, -32, 0, 2)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+MinimizeButton.Text = "_"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.TextSize = 16
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.Parent = TitleBar
+
+local MinimizeCorner = Instance.new("UICorner")
+MinimizeCorner.CornerRadius = UDim.new(0, 4)
+MinimizeCorner.Parent = MinimizeButton
+
+-- Reopen button (hidden initially)
+local ReopenButton = Instance.new("TextButton")
+ReopenButton.Name = "ReopenButton"
+ReopenButton.Size = UDim2.new(0, 50, 0, 30)
+ReopenButton.Position = UDim2.new(0, 10, 0, 10)
+ReopenButton.BackgroundColor3 = Color3.fromRGB(60, 100, 200)
+ReopenButton.Text = "LOADOUT"
+ReopenButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ReopenButton.TextSize = 12
+ReopenButton.Font = Enum.Font.GothamBold
+ReopenButton.Visible = false
+ReopenButton.Parent = ScreenGui
+
+local ReopenCorner = Instance.new("UICorner")
+ReopenCorner.CornerRadius = UDim.new(0, 6)
+ReopenCorner.Parent = ReopenButton
+
+-- Available Towers Frame
+local AvailableFrame = Instance.new("Frame")
+AvailableFrame.Name = "AvailableFrame"
+AvailableFrame.Size = UDim2.new(1, -16, 0, 190)
+AvailableFrame.Position = UDim2.new(0, 8, 0, 36)
+AvailableFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+AvailableFrame.BorderSizePixel = 0
+AvailableFrame.Parent = Frame
+
+local AvailableCorner = Instance.new("UICorner")
+AvailableCorner.CornerRadius = UDim.new(0, 6)
+AvailableCorner.Parent = AvailableFrame
+
+-- Search Box
+local SearchBox = Instance.new("TextBox")
+SearchBox.Name = "SearchBox"
+SearchBox.Size = UDim2.new(1, -8, 0, 24)
+SearchBox.Position = UDim2.new(0, 4, 0, 4)
+SearchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+SearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+SearchBox.PlaceholderText = "Search..."
+SearchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+SearchBox.Text = ""
+SearchBox.TextSize = 12
+SearchBox.Font = Enum.Font.Gotham
+SearchBox.ClearTextOnFocus = false
+SearchBox.Parent = AvailableFrame
+
+local SearchCorner = Instance.new("UICorner")
+SearchCorner.CornerRadius = UDim.new(0, 4)
+SearchCorner.Parent = SearchBox
+
+-- Scrolling frame for towers
+local TowersScroll = Instance.new("ScrollingFrame")
+TowersScroll.Name = "TowersScroll"
+TowersScroll.Size = UDim2.new(1, -8, 1, -34)
+TowersScroll.Position = UDim2.new(0, 4, 0, 32)
+TowersScroll.BackgroundTransparency = 1
+TowersScroll.ScrollBarThickness = 4
+TowersScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+TowersScroll.Parent = AvailableFrame
+
+-- Button Frame
+local ButtonFrame = Instance.new("Frame")
+ButtonFrame.Name = "ButtonFrame"
+ButtonFrame.Size = UDim2.new(1, -16, 0, 80)
+ButtonFrame.Position = UDim2.new(0, 8, 0, 232)
+ButtonFrame.BackgroundTransparency = 1
+ButtonFrame.Parent = Frame
+
+-- Clear Button
+local ClearButton = Instance.new("TextButton")
+ClearButton.Name = "ClearButton"
+ClearButton.Size = UDim2.new(0.4, -4, 0, 30)
+ClearButton.Position = UDim2.new(0, 0, 0, 0)
+ClearButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+ClearButton.Text = "CLEAR"
+ClearButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ClearButton.TextSize = 12
+ClearButton.Font = Enum.Font.GothamBold
+ClearButton.Parent = ButtonFrame
+
+local ClearCorner = Instance.new("UICorner")
+ClearCorner.CornerRadius = UDim.new(0, 6)
+ClearCorner.Parent = ClearButton
+
+-- Equip Button
+local EquipButton = Instance.new("TextButton")
+EquipButton.Name = "EquipButton"
+EquipButton.Size = UDim2.new(0.6, -4, 0, 30)
+EquipButton.Position = UDim2.new(0.4, 4, 0, 0)
+EquipButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+EquipButton.Text = "EQUIP (0)"
+EquipButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+EquipButton.TextSize = 13
+EquipButton.Font = Enum.Font.GothamBold
+EquipButton.Parent = ButtonFrame
+
+local EquipCorner = Instance.new("UICorner")
+EquipCorner.CornerRadius = UDim.new(0, 6)
+EquipCorner.Parent = EquipButton
+
+-- Status Label
+local Status = Instance.new("TextLabel")
+Status.Name = "Status"
+Status.Size = UDim2.new(1, -16, 0, 40)
+Status.Position = UDim2.new(0, 8, 0, 272)
+Status.BackgroundTransparency = 1
+Status.Text = "Select up to 5 towers\nClick tower to select/deselect"
+Status.TextColor3 = Color3.fromRGB(200, 200, 200)
+Status.TextSize = 11
+Status.Font = Enum.Font.Gotham
+Status.TextWrapped = true
+Status.TextYAlignment = Enum.TextYAlignment.Top
+Status.Parent = Frame
+
+-- Variables
+local towers = {}
+local allTowers = {
+    "Scout" , "Sniper" , "Paintballer" , "Demoman" , "Hunter" , "Soldier" , "Militant" , "Freezer" , "Assassin" , "Shotgunner" , "Pyromancer" , "Ace Pilot" , "Medic" , "Farm" , "Rocketeer" , "Trapper" , "Military Base" , "Crook Boss" , "Electroshocker" , "Commander" , "Warden" , "Cowboy" , "DJ Booth" , "Minigunner" , "Ranger" , "Pursuit" , "Gatling Gun" , "Turret" , "Mortar" , "Mercenary Base" , "Brawler" , "Necromancer" , "Accelerator" , "Engineer" , "Hacker" , "Gladiator" , "Commando" , "Slasher" , "Frost Blaster" , "Archer" , "Swarmer" , "Toxic Gunner" , "Sledger" , "Executioner" , "Elf Camp" , "Jester" , "Cryomancer" , "Hallow Punk" , "Biologist" , "Harvester" , "Snowballer" , "Elementalist" , "Firework Technician" , "Warlock" , "Spotlight Tech"
+}
+
+-- Store button references
+local towerButtons = {}
+
+-- Drag tracking variable
+local isDraggingUI = false
+
+-- Function to update count display
+local function updateCountDisplay()
+    local count = #towers
+    CountDisplay.Text = string.format("%d/5", count)
+    
+    if count > 0 then
+        EquipButton.BackgroundColor3 = Color3.fromRGB(60, 100, 200)
+        EquipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        EquipButton.Text = string.format("EQUIP (%d)", count)
+        Status.Text = string.format("Selected: %d/5\nClick towers to select/deselect", count)
+    else
+        EquipButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
+        EquipButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+        EquipButton.Text = "EQUIP (0)"
+        Status.Text = "Select up to 5 towers\nClick tower to select/deselect"
+    end
+end
+
+-- Function to update status with color
+local function updateStatus(message, color)
+    Status.Text = string.format("Selected: %d/5\n%s", #towers, message)
+    if color then
+        Status.TextColor3 = color
+    else
+        Status.TextColor3 = Color3.fromRGB(200, 200, 200)
+    end
+end
+
+-- Function to create tower buttons
+local function createTowerButton(towerName, index, isEven)
+    local towerBtn = Instance.new("TextButton")
+    towerBtn.Name = "TowerBtn_" .. towerName
+    towerBtn.Size = UDim2.new(1, -8, 0, 26)
+    towerBtn.Position = UDim2.new(0, 4, 0, (index-1) * 28)
+    towerBtn.BackgroundColor3 = isEven and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(35, 35, 50)
+    towerBtn.Text = towerName
+    towerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    towerBtn.TextSize = 11
+    towerBtn.Font = Enum.Font.Gotham
+    towerBtn.AutoButtonColor = false
+    towerBtn.Parent = TowersScroll
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 4)
+    corner.Parent = towerBtn
+    
+    local originalColor = towerBtn.BackgroundColor3
+    towerButtons[towerName] = towerBtn
+    
+    -- Check if already selected
+    for _, selectedTower in ipairs(towers) do
+        if selectedTower == towerName then
+            towerBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 70) -- Green for selected
+            break
+        end
+    end
+    
+    -- Click handler
+    towerBtn.MouseButton1Click:Connect(function()
+        -- Don't select if we're dragging the UI
+        if isDraggingUI then
+            return
+        end
+        
+        local alreadySelected = false
+        local selectedIndex = 0
+        
+        for i, selectedTower in ipairs(towers) do
+            if selectedTower == towerName then
+                alreadySelected = true
+                selectedIndex = i
+                break
+            end
+        end
+        
+        if alreadySelected then
+            -- Remove from selection
+            table.remove(towers, selectedIndex)
+            towerBtn.BackgroundColor3 = originalColor
+            updateStatus(towerName .. " removed", Color3.fromRGB(255, 150, 150))
+        else
+            -- Add to selection
+            if #towers >= 5 then
+                updateStatus("Max 5 reached! Remove some first", Color3.fromRGB(255, 100, 100))
+                towerBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
+                task.wait(0.5)
+                towerBtn.BackgroundColor3 = originalColor
+                return
+            end
+            
+            table.insert(towers, towerName)
+            towerBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 70) -- Green for selected
+            updateStatus(towerName .. " added", Color3.fromRGB(100, 255, 100))
+        end
+        
+        updateCountDisplay()
+    end)
+    
+    -- Hover effects
+    towerBtn.MouseEnter:Connect(function()
+        if towerBtn.BackgroundColor3 ~= Color3.fromRGB(70, 130, 70) then
+            towerBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+        end
+    end)
+    
+    towerBtn.MouseLeave:Connect(function()
+        local isSelected = false
+        for _, selectedTower in ipairs(towers) do
+            if selectedTower == towerName then
+                isSelected = true
+                break
+            end
+        end
+        
+        if isSelected then
+            towerBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 70)
+        else
+            towerBtn.BackgroundColor3 = originalColor
+        end
+    end)
+end
+
+-- Function to populate towers with search filtering
+local function populateTowers(searchText)
+    TowersScroll:ClearAllChildren()
+    
+    local filteredTowers = {}
+    if searchText and searchText ~= "" then
+        local searchLower = string.lower(searchText)
+        for _, tower in ipairs(allTowers) do
+            if string.lower(tower):find(searchLower) then
+                table.insert(filteredTowers, tower)
+            end
+        end
+    else
+        filteredTowers = allTowers
+    end
+    
+    TowersScroll.CanvasSize = UDim2.new(0, 0, 0, #filteredTowers * 28)
+    
+    for i, towerName in ipairs(filteredTowers) do
+        createTowerButton(towerName, i, i % 2 == 0)
+    end
+end
+
+-- Button events
+ClearButton.MouseButton1Click:Connect(function()
+    -- Don't clear if we're dragging the UI
+    if isDraggingUI then
+        return
+    end
+    
+    towers = {}
+    for towerName, btn in pairs(towerButtons) do
+        if btn and btn:IsA("TextButton") then
+            btn.BackgroundColor3 = Color3.fromRGB(40, 40, 55)
+        end
+    end
+    updateCountDisplay()
+    updateStatus("All cleared", Color3.fromRGB(255, 150, 150))
+end)
+
+EquipButton.MouseButton1Click:Connect(function()
+    -- Don't equip if we're dragging the UI
+    if isDraggingUI then
+        return
+    end
+    
+    if #towers == 0 then
+        updateStatus("No towers selected", Color3.fromRGB(255, 100, 100))
+        return
+    end
+    
+    updateStatus("Equipping...", Color3.fromRGB(255, 255, 100))
+    
+    if TDS and TDS.Loadout then
+        local success, errorMsg = TDS:Loadout(towers)
+        
+        if success then
+            updateStatus("Equipped successfully!", Color3.fromRGB(100, 255, 100))
+            EquipButton.Text = "✓ DONE"
+            EquipButton.BackgroundColor3 = Color3.fromRGB(70, 170, 70)
+            task.wait(1.5)
+            updateCountDisplay()
+        else
+            updateStatus("Error: " .. (errorMsg or "unknown"), Color3.fromRGB(255, 100, 100))
+            EquipButton.Text = "✗ ERROR"
+            EquipButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+            task.wait(1.5)
+            updateCountDisplay()
+        end
+    else
+        updateStatus("TDS:Loadout() not found!", Color3.fromRGB(255, 100, 100))
+    end
+end)
+
+-- Minimize/Reopen functionality
+MinimizeButton.MouseButton1Click:Connect(function()
+    -- Don't minimize if we're dragging the UI
+    if isDraggingUI then
+        return
+    end
+    
+    Frame.Visible = false
+    ReopenButton.Visible = true
+end)
+
+ReopenButton.MouseButton1Click:Connect(function()
+    -- Don't reopen if we're dragging the reopen button
+    if isDraggingUI then
+        return
+    end
+    
+    Frame.Visible = true
+    ReopenButton.Visible = false
+end)
+
+-- Search functionality
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+    populateTowers(SearchBox.Text)
+end)
+
+-- DRAGGING for PC and Mobile
+local dragStart, frameStart
+
+-- Make TitleBar draggable
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingUI = true
+        dragStart = input.Position
+        frameStart = Frame.Position
+    end
+end)
+
+-- Make ReopenButton draggable
+ReopenButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingUI = true
+        dragStart = input.Position
+        frameStart = ReopenButton.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if isDraggingUI and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        
+        -- Move whichever element is being dragged
+        if Frame.Visible then
+            Frame.Position = UDim2.new(
+                frameStart.X.Scale,
+                frameStart.X.Offset + delta.X,
+                frameStart.Y.Scale,
+                frameStart.Y.Offset + delta.Y
+            )
+        else
+            ReopenButton.Position = UDim2.new(
+                frameStart.X.Scale,
+                frameStart.X.Offset + delta.X,
+                frameStart.Y.Scale,
+                frameStart.Y.Offset + delta.Y
+            )
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+        isDraggingUI = false
+    end
+end)
+
+-- Initialize
+populateTowers("")
+updateCountDisplay()
+
+print("✅ TDS Loadout UI loaded!")
+print("📌 Drag title bar to move")
+print("📌 Use '_' button to minimize")
+print("📌 Won't select/minimize/reopen while dragging")
