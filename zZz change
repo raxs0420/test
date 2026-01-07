@@ -1,6 +1,5 @@
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
--- TDS Loadout UI with drag prevention fix
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local Players = game:GetService("Players")
@@ -8,7 +7,6 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local UserInputService = game:GetService("UserInputService")
 
--- Destroy existing UI if any
 if PlayerGui:FindFirstChild("TDS_LoadoutUI") then
     PlayerGui.TDS_LoadoutUI:Destroy()
 end
@@ -32,7 +30,6 @@ local Corner = Instance.new("UICorner")
 Corner.CornerRadius = UDim.new(0, 8)
 Corner.Parent = Frame
 
--- Title Bar with draggable area
 local TitleBar = Instance.new("Frame")
 TitleBar.Name = "TitleBar"
 TitleBar.Size = UDim2.new(1, 0, 0, 30)
@@ -51,7 +48,6 @@ Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TitleBar
 
--- Selected Count Display
 local CountDisplay = Instance.new("TextLabel")
 CountDisplay.Name = "CountDisplay"
 CountDisplay.Size = UDim2.new(0, 45, 0, 25)
@@ -67,7 +63,6 @@ local CountCorner = Instance.new("UICorner")
 CountCorner.CornerRadius = UDim.new(0, 4)
 CountCorner.Parent = CountDisplay
 
--- Minimize Button
 local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Size = UDim2.new(0, 25, 0, 25)
 MinimizeButton.Position = UDim2.new(1, -32, 0, 2)
@@ -82,7 +77,6 @@ local MinimizeCorner = Instance.new("UICorner")
 MinimizeCorner.CornerRadius = UDim.new(0, 4)
 MinimizeCorner.Parent = MinimizeButton
 
--- Reopen button (hidden initially)
 local ReopenButton = Instance.new("TextButton")
 ReopenButton.Name = "ReopenButton"
 ReopenButton.Size = UDim2.new(0, 50, 0, 30)
@@ -99,7 +93,6 @@ local ReopenCorner = Instance.new("UICorner")
 ReopenCorner.CornerRadius = UDim.new(0, 6)
 ReopenCorner.Parent = ReopenButton
 
--- Available Towers Frame
 local AvailableFrame = Instance.new("Frame")
 AvailableFrame.Name = "AvailableFrame"
 AvailableFrame.Size = UDim2.new(1, -16, 0, 190)
@@ -112,7 +105,6 @@ local AvailableCorner = Instance.new("UICorner")
 AvailableCorner.CornerRadius = UDim.new(0, 6)
 AvailableCorner.Parent = AvailableFrame
 
--- Search Box
 local SearchBox = Instance.new("TextBox")
 SearchBox.Name = "SearchBox"
 SearchBox.Size = UDim2.new(1, -8, 0, 24)
@@ -131,7 +123,6 @@ local SearchCorner = Instance.new("UICorner")
 SearchCorner.CornerRadius = UDim.new(0, 4)
 SearchCorner.Parent = SearchBox
 
--- Scrolling frame for towers
 local TowersScroll = Instance.new("ScrollingFrame")
 TowersScroll.Name = "TowersScroll"
 TowersScroll.Size = UDim2.new(1, -8, 1, -34)
@@ -141,7 +132,6 @@ TowersScroll.ScrollBarThickness = 4
 TowersScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 TowersScroll.Parent = AvailableFrame
 
--- Button Frame
 local ButtonFrame = Instance.new("Frame")
 ButtonFrame.Name = "ButtonFrame"
 ButtonFrame.Size = UDim2.new(1, -16, 0, 80)
@@ -149,7 +139,6 @@ ButtonFrame.Position = UDim2.new(0, 8, 0, 232)
 ButtonFrame.BackgroundTransparency = 1
 ButtonFrame.Parent = Frame
 
--- Clear Button
 local ClearButton = Instance.new("TextButton")
 ClearButton.Name = "ClearButton"
 ClearButton.Size = UDim2.new(0.4, -4, 0, 30)
@@ -165,7 +154,6 @@ local ClearCorner = Instance.new("UICorner")
 ClearCorner.CornerRadius = UDim.new(0, 6)
 ClearCorner.Parent = ClearButton
 
--- Equip Button
 local EquipButton = Instance.new("TextButton")
 EquipButton.Name = "EquipButton"
 EquipButton.Size = UDim2.new(0.6, -4, 0, 30)
@@ -181,7 +169,6 @@ local EquipCorner = Instance.new("UICorner")
 EquipCorner.CornerRadius = UDim.new(0, 6)
 EquipCorner.Parent = EquipButton
 
--- Status Label
 local Status = Instance.new("TextLabel")
 Status.Name = "Status"
 Status.Size = UDim2.new(1, -16, 0, 40)
@@ -195,19 +182,16 @@ Status.TextWrapped = true
 Status.TextYAlignment = Enum.TextYAlignment.Top
 Status.Parent = Frame
 
--- Variables
+-- TOWERS 
 local towers = {}
 local allTowers = {
     "Scout" , "Sniper" , "Paintballer" , "Demoman" , "Hunter" , "Soldier" , "Militant" , "Freezer" , "Assassin" , "Shotgunner" , "Pyromancer" , "Ace Pilot" , "Medic" , "Farm" , "Rocketeer" , "Trapper" , "Military Base" , "Crook Boss" , "Electroshocker" , "Commander" , "Warden" , "Cowboy" , "DJ Booth" , "Minigunner" , "Ranger" , "Pursuit" , "Gatling Gun" , "Turret" , "Mortar" , "Mercenary Base" , "Brawler" , "Necromancer" , "Accelerator" , "Engineer" , "Hacker" , "Gladiator" , "Commando" , "Slasher" , "Frost Blaster" , "Archer" , "Swarmer" , "Toxic Gunner" , "Sledger" , "Executioner" , "Elf Camp" , "Jester" , "Cryomancer" , "Hallow Punk" , "Biologist" , "Harvester" , "Snowballer" , "Elementalist" , "Firework Technician" , "Warlock" , "Spotlight Tech"
 }
 
--- Store button references
 local towerButtons = {}
 
--- Drag tracking variable
 local isDraggingUI = false
 
--- Function to update count display
 local function updateCountDisplay()
     local count = #towers
     CountDisplay.Text = string.format("%d/5", count)
@@ -225,7 +209,7 @@ local function updateCountDisplay()
     end
 end
 
--- Function to update status with color
+-- Colored buttons
 local function updateStatus(message, color)
     Status.Text = string.format("Selected: %d/5\n%s", #towers, message)
     if color then
@@ -235,7 +219,6 @@ local function updateStatus(message, color)
     end
 end
 
--- Function to create tower buttons
 local function createTowerButton(towerName, index, isEven)
     local towerBtn = Instance.new("TextButton")
     towerBtn.Name = "TowerBtn_" .. towerName
@@ -256,7 +239,7 @@ local function createTowerButton(towerName, index, isEven)
     local originalColor = towerBtn.BackgroundColor3
     towerButtons[towerName] = towerBtn
     
-    -- Check if already selected
+    -- Check if selected 
     for _, selectedTower in ipairs(towers) do
         if selectedTower == towerName then
             towerBtn.BackgroundColor3 = Color3.fromRGB(70, 130, 70) -- Green for selected
@@ -264,7 +247,7 @@ local function createTowerButton(towerName, index, isEven)
         end
     end
     
-    -- Click handler
+    -- Clicking checker 
     towerBtn.MouseButton1Click:Connect(function()
         -- Don't select if we're dragging the UI
         if isDraggingUI then
@@ -288,7 +271,7 @@ local function createTowerButton(towerName, index, isEven)
             towerBtn.BackgroundColor3 = originalColor
             updateStatus(towerName .. " removed", Color3.fromRGB(255, 150, 150))
         else
-            -- Add to selection
+            
             if #towers >= 5 then
                 updateStatus("Max 5 reached! Remove some first", Color3.fromRGB(255, 100, 100))
                 towerBtn.BackgroundColor3 = Color3.fromRGB(255, 80, 80)
@@ -305,7 +288,6 @@ local function createTowerButton(towerName, index, isEven)
         updateCountDisplay()
     end)
     
-    -- Hover effects
     towerBtn.MouseEnter:Connect(function()
         if towerBtn.BackgroundColor3 ~= Color3.fromRGB(70, 130, 70) then
             towerBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
@@ -352,7 +334,6 @@ local function populateTowers(searchText)
     end
 end
 
--- Button events
 ClearButton.MouseButton1Click:Connect(function()
     -- Don't clear if we're dragging the UI
     if isDraggingUI then
@@ -403,7 +384,7 @@ EquipButton.MouseButton1Click:Connect(function()
     end
 end)
 
--- Minimize/Reopen functionality
+-- Close/Open
 MinimizeButton.MouseButton1Click:Connect(function()
     -- Don't minimize if we're dragging the UI
     if isDraggingUI then
@@ -424,15 +405,13 @@ ReopenButton.MouseButton1Click:Connect(function()
     ReopenButton.Visible = false
 end)
 
--- Search functionality
+-- Search bar
 SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
     populateTowers(SearchBox.Text)
 end)
 
--- DRAGGING for PC and Mobile
 local dragStart, frameStart
 
--- Make TitleBar draggable
 TitleBar.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
         isDraggingUI = true
@@ -441,7 +420,6 @@ TitleBar.InputBegan:Connect(function(input)
     end
 end)
 
--- Make ReopenButton draggable
 ReopenButton.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
         isDraggingUI = true
@@ -454,7 +432,6 @@ UserInputService.InputChanged:Connect(function(input)
     if isDraggingUI and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
         
-        -- Move whichever element is being dragged
         if Frame.Visible then
             Frame.Position = UDim2.new(
                 frameStart.X.Scale,
@@ -482,8 +459,3 @@ end)
 -- Initialize
 populateTowers("")
 updateCountDisplay()
-
-print("✅ TDS Loadout UI loaded!")
-print("📌 Drag title bar to move")
-print("📌 Use '_' button to minimize")
-print("📌 Won't select/minimize/reopen while dragging")
