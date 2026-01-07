@@ -245,7 +245,7 @@ TDS:SetOption(21, "Unit 1", "Riot Guard", 40)
 TDS:SetOption(21, "Unit 2", "Riot Guard", 40)
 TDS:SetOption(21, "Unit 3", "Riot Guard", 40)
 
-TDS:Loadout("Turret", "Accelerator", "Mercenary Base", "Hacker", "Warlock")
+TDS:Loadout("Turret", "Accelerator", "Mercenary Base", "Commander", "Turret")
 
 TDS:Place("Turret", -9.51527023, 60, -0.76658535) -- 25
 TDS:Upgrade(34)
@@ -265,3 +265,22 @@ TDS:Upgrade(36)
 TDS:Upgrade(36)
 TDS:Upgrade(36)
 TDS:Upgrade(36)
+
+TDS:Place("Commander", -5.30671, 60, -4.85073) -- 37
+TDS:Place("Commander", -5.30671, 60, -4.85073) -- 38
+TDS:Place("Commander", -5.30671, 60, -4.85073) -- 39
+
+TDS:Upgrade(37)
+TDS:Upgrade(38)
+TDS:Upgrade(39)
+TDS:Upgrade(37)
+TDS:Upgrade(38)
+TDS:Upgrade(39)
+TDS:Upgrade(37)
+TDS:Upgrade(38)
+TDS:Upgrade(39)
+TDS:Upgrade(37)
+TDS:Upgrade(38)
+TDS:Upgrade(39)
+
+TDS:AutoChain(37, 38, 39)
