@@ -804,7 +804,7 @@ function TDS:Loadout(...)
                             attempts, maxAttemptsPerTower, tostring(tower_name), tostring(err)
                         ))
                         -- Wait before retrying this specific tower
-                        task.wait(1)
+                        task.wait(1.0)
                     else
                         -- Final failure
                         warn(("TDS:Loadout - ✗ %s failed after %d attempts: %s"):format(
@@ -822,9 +822,9 @@ function TDS:Loadout(...)
             
             -- Small delay between different towers (only if the current one succeeded or final failed)
             if towerEquipped and attempts < maxAttemptsPerTower then
-                task.wait(0.5) -- Shorter delay if succeeded quickly
+                task.wait(1.0) -- Shorter delay if succeeded quickly
             elseif towerEquipped then
-                task.wait(1.0) -- Longer delay if took multiple attempts
+                task.wait(2.0) -- Longer delay if took multiple attempts
             end
         end
     end
