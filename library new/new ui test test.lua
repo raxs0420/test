@@ -1288,10 +1288,6 @@ end
 
 task.spawn(function()
     while true do
-        if _G.AutoPickups and not auto_pickups_running then
-            start_auto_pickups()
-        end
-        
         if _G.AutoSkip and not auto_skip_running then
             start_auto_skip()
         end
@@ -1312,6 +1308,8 @@ task.spawn(function()
     end
 end)
 
+
+start_auto_pickups()
 start_back_to_lobby()
 start_anti_afk()
 start_rejoin_on_disconnect()
