@@ -68,7 +68,6 @@ local TDS = {
     matchmaking_map = {
         ["Hardcore"] = "hardcore",
         ["Pizza Party"] = "halloween",
-        ["Badlands"] = "badlands",
         ["Polluted"] = "polluted"
     }
 }
@@ -769,79 +768,23 @@ function TDS:Loadout(...)
         end
     end
 
-    -- NEW: PER-TOWER RETRY LOGIC
-    local maxAttemptsPerTower = 5 -- Maximum retry attempts for each individual tower
-    local allEquipped = true
-    local failedTowers = {}
-    
-    print(("TDS:Loadout - Equipping %d towers"):format(#towers))
-    
-    -- Process each tower with individual retry logic
+    -- Equip towers one-by-one. Use pcall around each invocation so one failure doesn't stop the rest.
     for _, tower_name in ipairs(towers) do
         if tower_name and tower_name ~= "" then
-            local towerEquipped = false
-            local attempts = 0
-            
-            while not towerEquipped and attempts < maxAttemptsPerTower do
-                attempts = attempts + 1
-                
-                local ok, err = pcall(function()
-                    -- remote:InvokeServer expects ("Inventory", "Equip", "tower", tower_name) in the original code
-                    remote:InvokeServer("Inventory", "Equip", "tower", tower_name)
-                end)
-                
-                if ok then
-                    towerEquipped = true
-                    if attempts > 1 then
-                        print(("TDS:Loadout - ✓ %s equipped after %d attempts"):format(tostring(tower_name), attempts))
-                    else
-                        print(("TDS:Loadout - ✓ %s equipped"):format(tostring(tower_name)))
-                    end
-                else
-                    if attempts < maxAttemptsPerTower then
-                        -- Only warn if we're going to retry
-                        warn(("TDS:Loadout - attempt %d/%d failed for %s: %s"):format(
-                            attempts, maxAttemptsPerTower, tostring(tower_name), tostring(err)
-                        ))
-                        -- Wait before retrying this specific tower
-                        task.wait(1.0)
-                    else
-                        -- Final failure
-                        warn(("TDS:Loadout - ✗ %s failed after %d attempts: %s"):format(
-                            tostring(tower_name), maxAttemptsPerTower, tostring(err)
-                        ))
-                        allEquipped = false
-                        table.insert(failedTowers, {
-                            name = tower_name,
-                            error = err,
-                            attempts = attempts
-                        })
-                    end
-                end
+            local ok, err = pcall(function()
+                -- remote:InvokeServer expects ("Inventory", "Equip", "tower", tower_name) in the original code
+                remote:InvokeServer("Inventory", "Equip", "tower", tower_name)
+            end)
+            if not ok then
+                -- warn but continue with the next tower
+                warn(("TDS:Loadout - failed to equip %s: %s"):format(tostring(tower_name), tostring(err)))
             end
-            
-            -- Small delay between different towers (only if the current one succeeded or final failed)
-            if towerEquipped and attempts < maxAttemptsPerTower then
-                task.wait(1.0) -- Shorter delay if succeeded quickly
-            elseif towerEquipped then
-                task.wait(2.0) -- Longer delay if took multiple attempts
-            end
+            -- small delay between equips to emulate original behavior / prevent flooding
+            task.wait(0.5)
         end
     end
-    
-    -- Final result
-    if allEquipped then
-        print("TDS:Loadout - All towers equipped successfully!")
-        return true
-    else
-        local errorMsg = ("Failed to equip %d towers: "):format(#failedTowers)
-        for i, failed in ipairs(failedTowers) do
-            errorMsg = errorMsg .. ("\n  - %s: %s (attempts: %d)"):format(
-                failed.name, failed.error, failed.attempts
-            )
-        end
-        return false, errorMsg
-    end
+
+    return true
 end
 
 function TDS:TeleportToLobby()
@@ -1119,28 +1062,154 @@ local function start_auto_pickups()
     end)
 end
 
+-- Function to actually click the skip button
+local function run_vote_skip()
+    -- First, let's find the skip button again to make sure it's still there
+    local skip_button = player_gui:FindFirstChild("ReactOverridesVote")
+        and player_gui.ReactOverridesVote:FindFirstChild("Frame")
+        and player_gui.ReactOverridesVote.Frame:FindFirstChild("votes")
+        and player_gui.ReactOverridesVote.Frame.votes:FindFirstChild("vote")
+    
+    if skip_button then
+        -- Try different methods to click the button
+        -- Method 1: Fire click event if it's a TextButton/ImageButton
+        if skip_button:IsA("TextButton") or skip_button:IsA("ImageButton") then
+            skip_button:FireEvent("MouseButton1Click")
+            skip_button:FireEvent("Activated")
+            print("Clicked skip button via FireEvent")
+        
+        -- Method 2: If there's a ClickDetector
+        elseif skip_button:FindFirstChildOfClass("ClickDetector") then
+            fireclickdetector(skip_button:FindFirstChildOfClass("ClickDetector"))
+            print("Clicked skip button via ClickDetector")
+        
+        -- Method 3: Try to simulate mouse click
+        elseif skip_button:IsA("GuiObject") then
+            -- Try to call the callback if it exists
+            local success, errorMsg = pcall(function()
+                if skip_button.Activated then
+                    skip_button.Activated:Fire()
+                end
+            end)
+            print("Attempted to activate skip button")
+        end
+        
+        -- Add a small delay to avoid rapid clicking
+        task.wait(0.5)
+    else
+        print("Skip button not found when trying to click")
+    end
+end
+
+-- Debug function to check if we can find the button
+local function debug_find_skip_button()
+    local reactOverrides = player_gui:FindFirstChild("ReactOverridesVote")
+    print("ReactOverridesVote exists:", reactOverrides ~= nil)
+    
+    if reactOverrides then
+        local frame = reactOverrides:FindFirstChild("Frame")
+        print("Frame exists:", frame ~= nil)
+        
+        if frame then
+            local votes = frame:FindFirstChild("votes")
+            print("votes exists:", votes ~= nil)
+            
+            if votes then
+                local vote = votes:FindFirstChild("vote")
+                print("vote button exists:", vote ~= nil)
+                
+                if vote then
+                    print("Vote button class:", vote.ClassName)
+                    print("Vote button position:", vote.Position)
+                end
+            end
+        end
+    end
+end
+
+-- Auto-skip loop function
 local function start_auto_skip()
     if auto_skip_running or not _G.AutoSkip then return end
     auto_skip_running = true
+    print("Starting auto-skip loop...")
 
     task.spawn(function()
+        local checkCount = 0
         while _G.AutoSkip do
-            local skip_visible =
-                player_gui:FindFirstChild("ReactOverridesVote")
+            checkCount = checkCount + 1
+            
+            -- Debug every 10 checks
+            if checkCount % 10 == 0 then
+                print("Auto-skip is running... Check #" .. checkCount)
+                debug_find_skip_button()
+            end
+            
+            local skip_visible = player_gui:FindFirstChild("ReactOverridesVote")
                 and player_gui.ReactOverridesVote:FindFirstChild("Frame")
                 and player_gui.ReactOverridesVote.Frame:FindFirstChild("votes")
                 and player_gui.ReactOverridesVote.Frame.votes:FindFirstChild("vote")
 
-            if skip_visible and skip_visible.Position == UDim2.new(0.5, 0, 0.5, 0) then
-                run_vote_skip()
+            if skip_visible then
+                print("Found skip button! Position:", skip_visible.Position)
+                
+                -- Check if the position matches OR if it's just visible (remove the position check if it's too strict)
+                if skip_visible.Position == UDim2.new(0.5, 0, 0.5, 0) then
+                    print("Position matches! Attempting to click...")
+                    run_vote_skip()
+                else
+                    print("Position doesn't match. Current:", skip_visible.Position)
+                end
+            else
+                if checkCount % 5 == 0 then
+                    print("Skip button not visible")
+                end
             end
 
-            task.wait(0.2)
+            task.wait(1)
         end
-
+        print("Auto-skip loop stopped")
         auto_skip_running = false
     end)
 end
+
+-- Simple TDS table
+TDS = TDS or {}
+
+function TDS.AutoSkip(state)
+    if state == nil then
+        _G.AutoSkip = not _G.AutoSkip
+    else
+        _G.AutoSkip = state
+    end
+    
+    if _G.AutoSkip then
+        print("AutoSkip: ON - Starting...")
+        start_auto_skip()
+    else
+        print("AutoSkip: OFF - Stopping...")
+    end
+    
+    -- Debug current GUI structure
+    print("\nDebugging GUI structure:")
+    debug_find_skip_button()
+    
+    return _G.AutoSkip
+end
+
+-- Add a debug function
+function TDS.Debug()
+    debug_find_skip_button()
+    print("AutoSkip running:", auto_skip_running)
+    print("_G.AutoSkip:", _G.AutoSkip)
+end
+
+-- Test function to manually trigger skip
+function TDS.TestSkip()
+    print("Manually testing skip...")
+    run_vote_skip()
+end
+
+print("TDS AutoSkip module loaded. Use TDS:AutoSkip(true) to enable")
 
 local function start_back_to_lobby()
     if back_to_lobby_running then return end
@@ -1222,60 +1291,6 @@ local function start_anti_afk()
     end)
 end
 
-local function start_auto_chain()
-    if auto_chain_running or not _G.AutoChain then return end
-    auto_chain_running = true
-
-    task.spawn(function()
-        local idx = 1
-
-        while _G.AutoChain do
-            local commander = {}
-            local towers_folder = workspace:FindFirstChild("Towers")
-
-            if towers_folder then
-                for _, towers in ipairs(towers_folder:GetDescendants()) do
-                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
-                    and towers:GetAttribute("Name") == "Commander"
-                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
-                    and (towers:GetAttribute("Upgrade") or 0) >= 2 then
-                        commander[#commander + 1] = towers.Parent
-                    end
-                end
-            end
-
-            if #commander >= 3 then
-                if idx > #commander then idx = 1 end
-
-                remote_func:InvokeServer(
-                    "Troops",
-                    "Abilities",
-                    "Activate",
-                    { Troop = commander[idx], Name = "Call Of Arms", Data = {} }
-                )
-
-                idx += 1
-
-                local hotbar = player_gui.ReactUniversalHotbar.Frame
-                local timescale = hotbar and hotbar:FindFirstChild("timescale")
-                if timescale then
-                    if timescale:FindFirstChild("Lock") then
-                        task.wait(11)
-                    else
-                        task.wait(5.5)
-                    end
-                else
-                    task.wait(11)
-                end
-            end
-
-            task.wait(1)
-        end
-
-        auto_chain_running = false
-    end)
-end
-
 local function start_rejoin_on_disconnect()
     task.spawn(function()
         game.Players.PlayerRemoving:connect(function (plr)
@@ -1286,31 +1301,10 @@ local function start_rejoin_on_disconnect()
     end)
 end
 
-task.spawn(function()
-    while true do
-        if _G.AutoSkip and not auto_skip_running then
-            start_auto_skip()
-        end
-
-        if _G.AutoChain and not auto_chain_running then
-            start_auto_chain()
-        end
-
-        if _G.AutoDJ and not auto_dj_running then
-            start_auto_dj_booth()
-        end
-        
-        if _G.AntiLag and not anti_lag_running then
-            start_anti_lag()
-        end
-        
-        task.wait(1)
-    end
-end)
-
-
-start_auto_pickups()
 start_back_to_lobby()
+start_auto_skip()
+start_auto_pickups()
+start_anti_lag()
 start_anti_afk()
 start_rejoin_on_disconnect()
 
