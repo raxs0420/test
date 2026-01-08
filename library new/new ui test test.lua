@@ -1222,6 +1222,60 @@ local function start_anti_afk()
     end)
 end
 
+local function start_auto_chain()
+    if auto_chain_running or not _G.AutoChain then return end
+    auto_chain_running = true
+
+    task.spawn(function()
+        local idx = 1
+
+        while _G.AutoChain do
+            local commander = {}
+            local towers_folder = workspace:FindFirstChild("Towers")
+
+            if towers_folder then
+                for _, towers in ipairs(towers_folder:GetDescendants()) do
+                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
+                    and towers:GetAttribute("Name") == "Commander"
+                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                    and (towers:GetAttribute("Upgrade") or 0) >= 2 then
+                        commander[#commander + 1] = towers.Parent
+                    end
+                end
+            end
+
+            if #commander >= 3 then
+                if idx > #commander then idx = 1 end
+
+                remote_func:InvokeServer(
+                    "Troops",
+                    "Abilities",
+                    "Activate",
+                    { Troop = commander[idx], Name = "Call Of Arms", Data = {} }
+                )
+
+                idx += 1
+
+                local hotbar = player_gui.ReactUniversalHotbar.Frame
+                local timescale = hotbar and hotbar:FindFirstChild("timescale")
+                if timescale then
+                    if timescale:FindFirstChild("Lock") then
+                        task.wait(11)
+                    else
+                        task.wait(5.5)
+                    end
+                else
+                    task.wait(11)
+                end
+            end
+
+            task.wait(1)
+        end
+
+        auto_chain_running = false
+    end)
+end
+
 local function start_rejoin_on_disconnect()
     task.spawn(function()
         game.Players.PlayerRemoving:connect(function (plr)
@@ -1232,10 +1286,33 @@ local function start_rejoin_on_disconnect()
     end)
 end
 
+task.spawn(function()
+    while true do
+        if _G.AutoPickups and not auto_pickups_running then
+            start_auto_pickups()
+        end
+        
+        if _G.AutoSkip and not auto_skip_running then
+            start_auto_skip()
+        end
+
+        if _G.AutoChain and not auto_chain_running then
+            start_auto_chain()
+        end
+
+        if _G.AutoDJ and not auto_dj_running then
+            start_auto_dj_booth()
+        end
+        
+        if _G.AntiLag and not anti_lag_running then
+            start_anti_lag()
+        end
+        
+        task.wait(1)
+    end
+end)
+
 start_back_to_lobby()
-start_auto_skip()
-start_auto_pickups()
-start_anti_lag()
 start_anti_afk()
 start_rejoin_on_disconnect()
 
