@@ -111,7 +111,7 @@ TDS:Place("Mercenary Base", 20.68, 1.00, 12.67) -- 20
 TDS:Upgrade(20)
 TDS:Upgrade(20)
 TDS:Upgrade(20)
-TDS:Place("Mercenary Base", 25.79, 1.00, 18.40) -- 21
+TDS:Place("Mercenary Base", -9.51527023, 60, -0.76658535) -- 21
 TDS:Upgrade(21)
 TDS:Upgrade(21)
 TDS:Upgrade(21)
@@ -242,9 +242,6 @@ TDS:SetOption(19, "Unit 3", "Riot Guard", 40)
 TDS:SetOption(20, "Unit 1", "Riot Guard", 40)
 TDS:SetOption(20, "Unit 2", "Riot Guard", 40)
 TDS:SetOption(20, "Unit 3", "Riot Guard", 40)
-TDS:SetOption(21, "Unit 1", "Riot Guard", 40)
-TDS:SetOption(21, "Unit 2", "Riot Guard", 40)
-TDS:SetOption(21, "Unit 3", "Riot Guard", 40)
 
 TDS:Loadout("Turret", "Accelerator", "Mercenary Base", "Commander", "Turret")
 
