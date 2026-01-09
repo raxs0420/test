@@ -160,48 +160,62 @@ TDS:Place("Warlock", -9.51527023, 60, -0.76658535) -- 25
 TDS:Upgrade(25)
 TDS:Upgrade(25)
 TDS:Upgrade(25)
-TDS:Upgrade(22)
+
 TDS:Upgrade(22)
 TDS:Upgrade(23)
+TDS:Upgrade(24)
+TDS:Upgrade(25)
+
+TDS:Loadout("Turret", "Commander", "DJ Booth", "Scout", "Accelerator")
+
+TDS:Place("DJ Booth", -6.10374212, 60, -3.54938531) -- 26
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+
+TDS:SetOption(26, "Track", "Green")
+TDS:Ability(26, "Drop The Beat", {Nill} , true)
+
+TDS:Upgrade(22)
 TDS:Upgrade(23)
 TDS:Upgrade(24)
-TDS:Upgrade(24)
 TDS:Upgrade(25)
-TDS:Upgrade(25)
-TDS:Place("Accelerator", -6.10374212, 2.34998798, -3.54938531) -- 26
+
 TDS:Upgrade(26)
 TDS:Upgrade(26)
-TDS:Upgrade(26)
-TDS:Place("Accelerator", -2.93865132, 2.3499918, -3.34146309) -- 27
+
+TDS:Place("Accelerator", -6.10374212, 2.34998798, -3.54938531) -- 27
 TDS:Upgrade(27)
 TDS:Upgrade(27)
 TDS:Upgrade(27)
-TDS:Place("Accelerator", 0.183600187, 2.34998322, -3.29001379) -- 28
+TDS:Place("Accelerator", -2.93865132, 2.3499918, -3.34146309) -- 28
 TDS:Upgrade(28)
 TDS:Upgrade(28)
 TDS:Upgrade(28)
-TDS:Place("Accelerator", -2.4514637, 2.34998322, 2.40833759) -- 29
+TDS:Place("Accelerator", 0.183600187, 2.34998322, -3.29001379) -- 29
 TDS:Upgrade(29)
 TDS:Upgrade(29)
 TDS:Upgrade(29)
-TDS:Place("Accelerator", 0.104843616, 2.34998322, 4.04229164) -- 30
+TDS:Place("Accelerator", -2.4514637, 2.34998322, 2.40833759) -- 30
 TDS:Upgrade(30)
 TDS:Upgrade(30)
 TDS:Upgrade(30)
-TDS:Place("Accelerator", -5.86860037, 2.34999704, -8.9741745, 1, 0, 0, 0, 1, 0, 0, 0, 1) -- 31
+TDS:Place("Accelerator", 0.104843616, 2.34998322, 4.04229164) -- 31
 TDS:Upgrade(31)
 TDS:Upgrade(31)
 TDS:Upgrade(31)
-TDS:Place("Accelerator", -2.77454877, 2.35000157, -9.04821396, 1, 0, 0, 0, 1, 0, 0, 0, 1) -- 32
+TDS:Place("Accelerator", -5.86860037, 2.34999704, -8.9741745, 1, 0, 0, 0, 1, 0, 0, 0, 1) -- 32
 TDS:Upgrade(32)
 TDS:Upgrade(32)
 TDS:Upgrade(32)
-TDS:Place("Accelerator", 0.199033976, 2.34998322, -9.67147255, 1, 0, 0, 0, 1, 0, 0, 0, 1) -- 33
+TDS:Place("Accelerator", -2.77454877, 2.35000157, -9.04821396, 1, 0, 0, 0, 1, 0, 0, 0, 1) -- 33
 TDS:Upgrade(33)
 TDS:Upgrade(33)
 TDS:Upgrade(33)
-TDS:Upgrade(26)
-TDS:Upgrade(26)
+TDS:Place("Accelerator", 0.199033976, 2.34998322, -9.67147255, 1, 0, 0, 0, 1, 0, 0, 0, 1) -- 34
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
 TDS:Upgrade(27)
 TDS:Upgrade(27)
 TDS:Upgrade(28)
@@ -216,40 +230,36 @@ TDS:Upgrade(32)
 TDS:Upgrade(32)
 TDS:Upgrade(33)
 TDS:Upgrade(33)
-TDS:Upgrade(8)
-TDS:Upgrade(8)
-TDS:Upgrade(8, 2)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
 TDS:Upgrade(9)
 TDS:Upgrade(9)
 TDS:Upgrade(9, 2)
-TDS:Ability(8, "Hologram Tower", {
-    towerToClone = 19,
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(8, 2)
+TDS:Ability(9, "Hologram Tower", {
+    towerToClone = 20,
     towerPosition = {
         Vector3.new(14.1853657, 3.46938539, 13.4541798),
         Vector3.new(15.6933384, 3.46938467, 18.3442345),
     }
 }, true)
-TDS:Ability(9, "Hologram Tower", {
-    towerToClone = 20,
+TDS:Ability(8, "Hologram Tower", {
+    towerToClone = 21,
     towerPosition = {
         Vector3.new(20.7010803, 3.46938467, 18.3634109),
         Vector3.new(19.6996384, 3.46937752, 4.1759696),
     }
 }, true)
-TDS:SetOption(19, "Unit 1", "Riot Guard", 40)
-TDS:SetOption(19, "Unit 2", "Riot Guard", 40)
-TDS:SetOption(19, "Unit 3", "Riot Guard", 40)
 TDS:SetOption(20, "Unit 1", "Riot Guard", 40)
 TDS:SetOption(20, "Unit 2", "Riot Guard", 40)
 TDS:SetOption(20, "Unit 3", "Riot Guard", 40)
+TDS:SetOption(21, "Unit 1", "Riot Guard", 40)
+TDS:SetOption(21, "Unit 2", "Riot Guard", 40)
+TDS:SetOption(21, "Unit 3", "Riot Guard", 40)
 
-TDS:Loadout("Turret", "Commander", "Scout", "Accelerator", "Mercenary Base")
-
-TDS:Place("Commander", -9.51527023, 60, -0.76658535) -- 34
-TDS:Upgrade(34)
-TDS:Upgrade(34)
-TDS:Upgrade(34)
-TDS:Upgrade(34)
+TDS:SetOption(26, "Track", "Red")
 
 TDS:Place("Commander", -9.51527023, 60, -0.76658535) -- 35
 TDS:Upgrade(35)
@@ -263,26 +273,30 @@ TDS:Upgrade(36)
 TDS:Upgrade(36)
 TDS:Upgrade(36)
 
-TDS:AutoChain(36, 35, 34)
+TDS:Place("Commander", -9.51527023, 60, -0.76658535) -- 37
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+TDS:Upgrade(37)
 
-TDS:Place("Turret", -9.51527023, 60, -0.76658535) -- 37
+TDS:AutoChain(37, 36, 35)
+
 TDS:Place("Turret", -9.51527023, 60, -0.76658535) -- 38
 TDS:Place("Turret", -9.51527023, 60, -0.76658535) -- 39
+TDS:Place("Turret", -9.51527023, 60, -0.76658535) -- 40
 
-TDS:Upgrade(37)
-TDS:Upgrade(37)
 TDS:Upgrade(38)
 TDS:Upgrade(38)
 TDS:Upgrade(39)
 TDS:Upgrade(39)
-TDS:Upgrade(37)
-TDS:Upgrade(37)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
 TDS:Upgrade(38)
 TDS:Upgrade(38)
 TDS:Upgrade(39)
 TDS:Upgrade(39)
-TDS:Upgrade(38)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
 TDS:Upgrade(39)
-TDS:Upgrade(37)
-
-
+TDS:Upgrade(40)
+TDS:Upgrade(38)
