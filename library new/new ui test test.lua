@@ -1063,6 +1063,20 @@ local function start_auto_pickups()
     end)
 end
 
+function TDS:AutoSkip(state)
+    if state == true or state == "T" then
+        _G.AutoSkip = true
+        print("AutoSkip enabled!")
+        start_auto_skip() -- Start the auto-skip process
+    elseif state == false or state == "F" then
+        _G.AutoSkip = false
+        print("AutoSkip disabled!")
+        -- Note: The loop in start_auto_skip() will stop itself when _G.AutoSkip becomes false
+    else
+        print("Invalid argument. Use TDS:AutoSkip(T) or TDS:AutoSkip(F)")
+    end
+end
+
 local function start_auto_skip()
     if auto_skip_running or not _G.AutoSkip then return end
     auto_skip_running = true
@@ -1079,7 +1093,7 @@ local function start_auto_skip()
                 run_vote_skip()
             end
 
-            task.wait(1)
+            task.wait(0.5)
         end
 
         auto_skip_running = false
