@@ -1071,7 +1071,6 @@ function TDS:AutoSkip(state)
     elseif state == false or state == "F" then
         _G.AutoSkip = false
         print("AutoSkip disabled!")
-        -- Note: The loop in start_auto_skip() will stop itself when _G.AutoSkip becomes false
     else
         print("Invalid argument. Use TDS:AutoSkip(T) or TDS:AutoSkip(F)")
     end
@@ -1333,10 +1332,6 @@ task.spawn(function()
     while true do
         if _G.AutoPickups and not auto_pickups_running then
             start_auto_pickups()
-        end
-        
-        if _G.AutoSkip and not auto_skip_running then
-            start_auto_skip()
         end
 
         if _G.AutoChain and not auto_chain_running then
