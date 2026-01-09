@@ -1079,7 +1079,7 @@ local function start_auto_skip()
                 run_vote_skip()
             end
 
-            task.wait(0.5)
+            task.wait(0.1)
         end
 
         auto_skip_running = false
