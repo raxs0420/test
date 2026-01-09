@@ -1333,6 +1333,10 @@ task.spawn(function()
         if _G.AutoPickups and not auto_pickups_running then
             start_auto_pickups()
         end
+        
+        if _G.AutoSkip and not auto_skip_running then
+            start_auto_skip()
+        end
 
         if _G.AutoChain and not auto_chain_running then
             start_auto_chain()
