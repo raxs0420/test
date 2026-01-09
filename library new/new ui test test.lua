@@ -1063,19 +1063,6 @@ local function start_auto_pickups()
     end)
 end
 
-function TDS:AutoSkip(state)
-    if state == true or state == "T" then
-        _G.AutoSkip = true
-        print("AutoSkip enabled!")
-        start_auto_skip() -- Start the auto-skip process
-    elseif state == false or state == "F" then
-        _G.AutoSkip = false
-        print("AutoSkip disabled!")
-    else
-        print("Invalid argument. Use TDS:AutoSkip(T) or TDS:AutoSkip(F)")
-    end
-end
-
 local function start_auto_skip()
     if auto_skip_running or not _G.AutoSkip then return end
     auto_skip_running = true
@@ -1097,6 +1084,19 @@ local function start_auto_skip()
 
         auto_skip_running = false
     end)
+end
+
+function TDS:AutoSkip(state)
+    if state == true or state == "T" then
+        _G.AutoSkip = true
+        print("AutoSkip enabled!")
+        start_auto_skip() 
+    elseif state == false or state == "F" then
+        _G.AutoSkip = false
+        print("AutoSkip disabled!")
+    else
+        print("Invalid argument. Use TDS:AutoSkip("T") or TDS:AutoSkip("F")")
+    end
 end
 
 local function start_claim_rewards()
