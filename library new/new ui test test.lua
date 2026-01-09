@@ -1086,16 +1086,18 @@ local function start_auto_skip()
     end)
 end
 
+TDS = TDS or {}
+
 function TDS:AutoSkip(state)
-    if state == true or state == "T" then
+    if state == true or state == "T" or state == "t" then
         _G.AutoSkip = true
         print("AutoSkip enabled!")
-        start_auto_skip() 
-    elseif state == false or state == "F" then
+        start_auto_skip()
+    elseif state == false or state == "F" or state == "f" then
         _G.AutoSkip = false
         print("AutoSkip disabled!")
     else
-        print("Invalid argument. Use TDS:AutoSkip("T") or TDS:AutoSkip("F")")
+        print("Invalid argument. Use TDS:AutoSkip(T) or TDS:AutoSkip(F)")
     end
 end
 
