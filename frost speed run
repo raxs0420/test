@@ -243,7 +243,7 @@ TDS:SetOption(20, "Unit 1", "Riot Guard", 40)
 TDS:SetOption(20, "Unit 2", "Riot Guard", 40)
 TDS:SetOption(20, "Unit 3", "Riot Guard", 40)
 
-TDS:Loadout("Turret", "Commander", "Mercenary Base", "Hacker", "Warlock")
+TDS:Loadout("Turret", "Commander", "Scout", "Accelerator", "Mercenary Base")
 
 TDS:Place("Commander", -9.51527023, 60, -0.76658535) -- 34
 TDS:Upgrade(34)
