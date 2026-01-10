@@ -353,7 +353,7 @@ TDS:Upgrade(51)
 TDS:Upgrade(51)
 TDS:Upgrade(51)
 
-TDS:Loadout("", "", "", "Hacker", "Ranger")
+TDS:Loadout("Ranger", "Hacker", "", "", "")
 
 TDS:Place("Hacker", 1.6630262, 95, -9.2150927) -- 3
 TDS:Upgrade(52)
@@ -370,15 +370,15 @@ TDS:Upgrade(53, 2)
 
 TDS:SetOption(12, "Track", "Red")
 
-TDS:SetOption(51, "Unit 1", "Riot Guard", 24)
-TDS:SetOption(51, "Unit 2", "Riot Guard", 24)
-TDS:SetOption(51, "Unit 3", "Riot Guard", 24)
-TDS:SetOption(36, "Unit 1", "Riot Guard", 24)
-TDS:SetOption(36, "Unit 2", "Riot Guard", 24)
-TDS:SetOption(36, "Unit 3", "Riot Guard", 24)
-TDS:SetOption(37, "Unit 1", "Riot Guard", 24)
-TDS:SetOption(37, "Unit 2", "Riot Guard", 24)
-TDS:SetOption(37, "Unit 3", "Riot Guard", 24)
+TDS:SetOption(51, "Unit 1", "Riot Guard")
+TDS:SetOption(51, "Unit 2", "Riot Guard")
+TDS:SetOption(51, "Unit 3", "Riot Guard")
+TDS:SetOption(46, "Unit 1", "Riot Guard")
+TDS:SetOption(46, "Unit 2", "Riot Guard")
+TDS:SetOption(46, "Unit 3", "Riot Guard")
+TDS:SetOption(47, "Unit 1", "Riot Guard")
+TDS:SetOption(47, "Unit 2", "Riot Guard")
+TDS:SetOption(47, "Unit 3", "Riot Guard")
 
 TDS:Place("Ranger", 5.6914454, 95, 2.8757603) -- 2
 TDS:Upgrade(54)
