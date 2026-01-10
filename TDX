@@ -1,0 +1,403 @@
+-- TDX Tower Control Library
+local TDX = {}
+
+-- Services
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Remote references
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local PlaceTowerRemote = Remotes:WaitForChild("PlaceTower")
+local UpgradeTowerRemote = Remotes:WaitForChild("TowerUpgradeRequest")
+
+-- Tower data tracking
+local TowerInstances = {}
+local TowerData = {}
+
+--[[
+    Tower Data Structure:
+    TowerData = {
+        [towerName] = {
+            Instance = model/part,
+            ID = number,
+            Position = Vector3,
+            Path = string (e.g., "TowerName" or "FolderName.TowerName"),
+            Type = string
+        }
+    }
+]]
+
+-- Initialize the TDX library
+function TDX:Init()
+    print("[TDX] Library initialized")
+    
+    -- Monitor workspace for towers
+    self:MonitorTowers()
+    
+    return self
+end
+
+-- Monitor workspace.Game.Towers for changes
+function TDX:MonitorTowers()
+    local function scanTowers()
+        local gameFolder = Workspace:FindFirstChild("Game")
+        if not gameFolder then return end
+        
+        local towersFolder = gameFolder:FindFirstChild("Towers")
+        if not towersFolder then return end
+        
+        -- Clear existing data
+        TowerInstances = {}
+        TowerData = {}
+        
+        -- Scan all towers
+        self:ScanFolder(towersFolder, "")
+    end
+    
+    -- Initial scan
+    task.spawn(scanTowers)
+    
+    -- Set up monitoring
+    local gameFolder = Workspace:WaitForChild("Game", 10)
+    if gameFolder then
+        gameFolder:GetPropertyChangedSignal("ChildAdded"):Connect(function(child)
+            if child.Name == "Towers" then
+                scanTowers()
+            end
+        end)
+        
+        local towersFolder = gameFolder:WaitForChild("Towers", 5)
+        if towersFolder then
+            towersFolder.ChildAdded:Connect(function(child)
+                task.wait(0.2) -- Wait for object to load
+                self:ScanObject(child, child.Name)
+            end)
+            
+            towersFolder.ChildRemoved:Connect(function(child)
+                self:RemoveTower(child)
+            end)
+        end
+    end
+    
+    -- Periodic rescan
+    task.spawn(function()
+        while true do
+            task.wait(10) -- Rescan every 10 seconds
+            scanTowers()
+        end
+    end)
+end
+
+-- Recursively scan folder for towers
+function TDX:ScanFolder(folder, parentPath)
+    for _, child in ipairs(folder:GetChildren()) do
+        local path = parentPath .. (parentPath ~= "" and "." or "") .. child.Name
+        
+        if child:IsA("Model") or child:IsA("BasePart") then
+            self:RegisterTower(child, path)
+        elseif child:IsA("Folder") then
+            self:ScanFolder(child, path)
+        end
+    end
+end
+
+-- Register a tower in the system
+function TDX:RegisterTower(obj, path)
+    if TowerInstances[obj] then return end
+    
+    local position = self:GetObjectPosition(obj)
+    if not position then return end
+    
+    -- Generate ID based on position and name
+    local id = #TowerData + 1
+    local towerName = obj.Name
+    
+    TowerInstances[obj] = {
+        ID = id,
+        Path = path,
+        Position = position,
+        Type = towerName
+    }
+    
+    TowerData[id] = {
+        Instance = obj,
+        ID = id,
+        Position = position,
+        Path = path,
+        Type = towerName
+    }
+    
+    -- Store reference in the object for easy retrieval
+    obj:SetAttribute("TDX_ID", id)
+    
+    print(string.format("[TDX] Registered tower: %s (ID: %d) at %s", 
+        towerName, id, tostring(position)))
+end
+
+-- Remove a tower from tracking
+function TDX:RemoveTower(obj)
+    local data = TowerInstances[obj]
+    if data then
+        TowerData[data.ID] = nil
+        TowerInstances[obj] = nil
+        print(string.format("[TDX] Removed tower: %s (ID: %d)", obj.Name, data.ID))
+    end
+end
+
+-- Get position of an object (Model or BasePart)
+function TDX:GetObjectPosition(obj)
+    if obj:IsA("Model") then
+        local primaryPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+        if primaryPart then
+            return primaryPart.Position
+        end
+    elseif obj:IsA("BasePart") then
+        return obj.Position
+    end
+    return nil
+end
+
+-- Find tower by ID, name, or path
+function TDX:FindTower(identifier)
+    if type(identifier) == "number" then
+        return TowerData[identifier]
+    elseif type(identifier) == "string" then
+        -- Search by exact path first
+        for _, data in pairs(TowerData) do
+            if data.Path == identifier then
+                return data
+            end
+        end
+        
+        -- Search by partial name
+        for _, data in pairs(TowerData) do
+            if string.find(data.Type, identifier) or string.find(data.Path, identifier) then
+                return data
+            end
+        end
+    end
+    return nil
+end
+
+-- Place a tower at specified position
+function TDX:Place(towerType, x, y, z)
+    -- Handle different parameter formats
+    local towerName, position
+    
+    if type(towerType) == "table" then
+        -- Called from recorder format: TDX:Place("TowerName", x, y, z)
+        towerName = towerType
+        position = Vector3.new(x, y, z)
+    else
+        -- Called with tower name and vector
+        towerName = towerType
+        position = x -- x is actually Vector3 in this case
+    end
+    
+    -- Format position
+    if typeof(position) ~= "Vector3" then
+        if type(x) == "number" and type(y) == "number" and type(z) == "number" then
+            position = Vector3.new(x, y, z)
+        else
+            warn("[TDX] Invalid position provided")
+            return false
+        end
+    end
+    
+    -- Create placement arguments
+    local args = {
+        139.87838023900258, -- Placeholder value (might need adjustment)
+        towerName,
+        position,
+        0 -- Rotation or other parameter
+    }
+    
+    print(string.format("[TDX] Placing tower: %s at %s", towerName, tostring(position)))
+    
+    -- Call the remote
+    local success, result = pcall(function()
+        return PlaceTowerRemote:InvokeServer(unpack(args))
+    end)
+    
+    if success then
+        print("[TDX] Tower placed successfully")
+        return true
+    else
+        warn("[TDX] Failed to place tower:", result)
+        return false
+    end
+end
+
+-- Upgrade a tower (top path)
+function TDX:Upgrade(towerID, upgradeLevel)
+    if not towerID or not upgradeLevel then
+        warn("[TDX] Upgrade requires tower ID and upgrade level")
+        return false
+    end
+    
+    -- Validate tower exists
+    local tower = self:FindTower(towerID)
+    if not tower then
+        warn(string.format("[TDX] Tower with ID %d not found", towerID))
+        return false
+    end
+    
+    local args = {
+        towerID,
+        upgradeLevel,
+        1 -- 1 for top path
+    }
+    
+    print(string.format("[TDX] Upgrading tower ID %d (top path) to level %d", towerID, upgradeLevel))
+    
+    local success, result = pcall(function()
+        return UpgradeTowerRemote:FireServer(unpack(args))
+    end)
+    
+    if success then
+        print("[TDX] Tower upgraded successfully")
+        return true
+    else
+        warn("[TDX] Failed to upgrade tower:", result)
+        return false
+    end
+end
+
+-- Upgrade a tower (bottom path)
+function TDX:UpgradeBottom(towerID, upgradeLevel)
+    if not towerID or not upgradeLevel then
+        warn("[TDX] Upgrade requires tower ID and upgrade level")
+        return false
+    end
+    
+    -- Validate tower exists
+    local tower = self:FindTower(towerID)
+    if not tower then
+        warn(string.format("[TDX] Tower with ID %d not found", towerID))
+        return false
+    end
+    
+    local args = {
+        towerID,
+        upgradeLevel,
+        2 -- 2 for bottom path
+    }
+    
+    print(string.format("[TDX] Upgrading tower ID %d (bottom path) to level %d", towerID, upgradeLevel))
+    
+    local success, result = pcall(function()
+        return UpgradeTowerRemote:FireServer(unpack(args))
+    end)
+    
+    if success then
+        print("[TDX] Tower upgraded successfully")
+        return true
+    else
+        warn("[TDX] Failed to upgrade tower:", result)
+        return false
+    end
+end
+
+-- Upgrade tower using tower name/path instead of ID
+function TDX:UpgradeByName(towerIdentifier, upgradeLevel, isBottom)
+    local tower = self:FindTower(towerIdentifier)
+    if not tower then
+        warn(string.format("[TDX] Tower '%s' not found", tostring(towerIdentifier)))
+        return false
+    end
+    
+    if isBottom then
+        return self:UpgradeBottom(tower.ID, upgradeLevel)
+    else
+        return self:Upgrade(tower.ID, upgradeLevel)
+    end
+end
+
+-- Bulk place towers from array
+function TDX:PlaceMultiple(towers)
+    if type(towers) ~= "table" then
+        warn("[TDX] Towers must be a table")
+        return false
+    end
+    
+    local successCount = 0
+    
+    for _, towerInfo in ipairs(towers) do
+        if type(towerInfo) == "table" and #towerInfo >= 4 then
+            local success = self:Place(towerInfo[1], towerInfo[2], towerInfo[3], towerInfo[4])
+            if success then
+                successCount = successCount + 1
+            end
+            task.wait(0.2) -- Delay between placements
+        end
+    end
+    
+    print(string.format("[TDX] Placed %d/%d towers successfully", successCount, #towers))
+    return successCount
+end
+
+-- Get all tower data
+function TDX:GetAllTowers()
+    return TowerData
+end
+
+-- Get tower count
+function TDX:GetTowerCount()
+    local count = 0
+    for _ in pairs(TowerData) do
+        count = count + 1
+    end
+    return count
+end
+
+-- Export tower positions in recorder format
+function TDX:ExportPositions()
+    local exportText = "-- Tower Positions Export\n"
+    exportText = exportText .. string.format("-- Generated: %s\n", os.date("%Y-%m-%d %H:%M:%S"))
+    exportText = exportText .. string.format("-- Total Towers: %d\n\n", self:GetTowerCount())
+    
+    for id, data in pairs(TowerData) do
+        local x = math.floor(data.Position.X * 100) / 100
+        local y = math.floor(data.Position.Y * 100) / 100
+        local z = math.floor(data.Position.Z * 100) / 100
+        
+        exportText = exportText .. string.format('TDX:Place("%s", %.2f, %.2f, %.2f) -- ID: %d\n',
+            data.Path, x, y, z, id)
+    end
+    
+    return exportText
+end
+
+-- Import and place towers from recorder format
+function TDX:ImportFromText(text)
+    local commands = {}
+    
+    for line in string.gmatch(text, "[^\r\n]+") do
+        -- Match TDX:Place commands
+        local towerName, x, y, z = string.match(line, 'TDX:Place%("([^"]+)",%s*([%d%.%-]+),%s*([%d%.%-]+),%s*([%d%.%-]+)')
+        
+        if towerName and x and y and z then
+            table.insert(commands, {
+                towerName,
+                tonumber(x),
+                tonumber(y),
+                tonumber(z)
+            })
+        end
+    end
+    
+    if #commands > 0 then
+        print(string.format("[TDX] Imported %d tower placements", #commands))
+        return self:PlaceMultiple(commands)
+    else
+        warn("[TDX] No valid commands found in text")
+        return 0
+    end
+end
+
+-- Initialize the library
+TDX:Init()
+
+return TDX
