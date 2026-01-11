@@ -5,7 +5,7 @@ _G.AntiLag = true
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
 TDS:Mode("Badlands")
-TDS:Loadout("Cowboy", "Minigunner", "DJ Booth", "Accelerator", "Commander")
+TDS:Loadout("Cowboy", "DJ Booth", "Commander", "Minigunner", "Turret")
 
 TDS:Ready()
 
@@ -177,8 +177,6 @@ TDS:Upgrade(25)
 TDS:Upgrade(26)
 TDS:Upgrade(26)
 
-TDS:Loadout("Freezer", "Turret", "Ranger", "Accelerator", "Minigunner")
-
 TDS:Place("Turret", -5.02210, 60, 0.72128) -- 27
 TDS:Upgrade(27)
 TDS:Upgrade(27)
@@ -199,6 +197,8 @@ TDS:Upgrade(29)
 TDS:Upgrade(29)
 TDS:Upgrade(29)
 TDS:Upgrade(29)
+
+TDS:Loadout("Freezer", "Ranger", "Accelerator", "", "")
 
 TDS:Place("Accelerator", -5.02210, 60, 0.72128) -- 30
 TDS:Upgrade(30)
