@@ -413,6 +413,7 @@ local function cast_modifier_vote(mods_table)
 end
 
 local function is_map_available(name)
+    -- First check if map is already available
     for _, g in ipairs(workspace:GetDescendants()) do
         if g:IsA("SurfaceGui") and g.Name == "MapDisplay" then
             local t = g:FindFirstChild("Title")
@@ -422,12 +423,43 @@ local function is_map_available(name)
         end
     end
 
-    local total_player = #players_service:GetChildren()
-    repeat
-        remote_event:FireServer("LobbyVoting", "Veto")
-        wait(1)
-    until player_gui:WaitForChild("ReactGameIntermission"):WaitForChild("Frame"):WaitForChild("buttons"):WaitForChild("veto"):WaitForChild("value").Text == "Veto ("..total_player.."/"..total_player..")"
-
+    -- If not available, try to veto and wait for new maps
+    local total_players = #players_service:GetPlayers()
+    
+    -- Send veto vote once
+    remote_event:FireServer("LobbyVoting", "Veto")
+    
+    -- Wait for veto UI to update
+    local veto_ui = player_gui:WaitForChild("ReactGameIntermission", 5)
+    if not veto_ui then return false end
+    
+    local frame = veto_ui:WaitForChild("Frame", 5)
+    if not frame then return false end
+    
+    local buttons = frame:WaitForChild("buttons", 5)
+    if not buttons then return false end
+    
+    local veto_button = buttons:WaitForChild("veto", 5)
+    if not veto_button then return false end
+    
+    local veto_value = veto_button:WaitForChild("value", 5)
+    if not veto_value then return false end
+    
+    -- Wait for veto to complete (all players voted)
+    local max_wait_time = 2  
+    local start_time = os.time()
+    
+    while os.time() - start_time < max_wait_time do
+        if veto_value.Text == "Veto ("..total_players.."/"..total_players..")" then
+            break
+        end
+        task.wait(1)
+    end
+    
+    -- Wait for new maps to load after veto
+    task.wait(3)
+    
+    -- Check for the map again
     for _, g in ipairs(workspace:GetDescendants()) do
         if g:IsA("SurfaceGui") and g.Name == "MapDisplay" then
             local t = g:FindFirstChild("Title")
@@ -437,9 +469,6 @@ local function is_map_available(name)
         end
     end
 
-    -- If map not found after veto, teleport to lobby
-    TDS:TeleportToLobby()
-    log("Map '" .. name .. "'Lobby", "yellow")
     return false
 end
 
