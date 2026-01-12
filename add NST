@@ -293,8 +293,6 @@ TDS:Ability(19, "Support Caravan", {Nill} , true)
 TDS:Ability(20, "Support Caravan", {Nill} , true)
 TDS:Ability(21, "Support Caravan", {Nill} , true)
 
-TDS:AutoChain(19, 20, 21)
-
 TDS:Place("Minigunner", 6.262, 60.000, 13.912)
 TDS:Upgrade(41)
 TDS:Upgrade(41)
