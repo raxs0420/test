@@ -380,6 +380,10 @@ local function lobby_ready_up()
     end)
 end
 
+function TDS:TeleportToLobby()
+    send_to_lobby()
+end
+
 local function select_map_override(map_id, ...)
     local args = {...}
 
@@ -789,10 +793,6 @@ function TDS:Loadout(...)
     end
 
     return true
-end
-
-function TDS:TeleportToLobby()
-    send_to_lobby()
 end
 
 function TDS:VoteSkip(start_wave, end_wave)
