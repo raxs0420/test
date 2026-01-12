@@ -854,22 +854,36 @@ function TDS:VoteSkip(start_wave, end_wave)
 end
 
 function TDS:GameInfo(name, list)
+function TDS:GameInfo(name, list)
     list = list or {}
     if game_state ~= "GAME" then return false end
 
     local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
-    if not (vote_gui and vote_gui.Enabled and vote_gui:WaitForChild("Frame", 5)) then return end
+    if not (vote_gui and vote_gui.Enabled and vote_gui:WaitForChild("Frame", 5)) then 
+        warn("Vote GUI not found")
+        teleport_service:Teleport(3260590327, local_player)
+        return false
+    end
 
     cast_modifier_vote(list)
-
+    
+    task.wait(2)  -- Wait for modifier votes to process
+    
     if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
         select_map_override(name, "vip")
-    elseif is_map_available(name) then
-        select_map_override(name)
-    else
-        teleport_service:Teleport(3260590327, local_player)
+        return true
     end
-end
+    
+    -- Try to get the map via veto
+    if is_map_available(name) then
+        select_map_override(name)
+        return true
+    end
+    
+    warn("Map '" .. name .. "' Lobby")
+    teleport_service:Teleport(3260590327, local_player)
+    return false
+    end
 
 function TDS:UnlockTimeScale()
     unlock_speed_tickets()
