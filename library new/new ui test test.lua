@@ -433,9 +433,9 @@ local function is_map_available(name)
         end
     end
 
-    -- If map not found after veto, send to lobby
-    remote_event:FireServer("LobbyVoting", "LeaveGame")
-    log("Map '" .. name .. "' not found after veto, returning to lobby", "yellow")
+    -- If map not found after veto, teleport to lobby
+    TDS:TeleportToLobby()
+    log("Map '" .. name .. "'Lobby", "yellow")
     return false
 end
 
