@@ -853,6 +853,7 @@ function TDS:VoteSkip(start_wave, end_wave)
     end)
 end
 
+
 function TDS:GameInfo(name, list)
     list = list or {}
     if game_state ~= "GAME" then 
