@@ -854,13 +854,25 @@ function TDS:VoteSkip(start_wave, end_wave)
 end
 
 function TDS:GameInfo(name, list)
-function TDS:GameInfo(name, list)
     list = list or {}
-    if game_state ~= "GAME" then return false end
+    if game_state ~= "GAME" then 
+        warn("Not in game state for GameInfo")
+        return false 
+    end
 
+    -- Get teleport service locally to ensure it exists
+    local teleport_service = game:GetService("TeleportService")
+    
     local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
-    if not (vote_gui and vote_gui.Enabled and vote_gui:WaitForChild("Frame", 5)) then 
-        warn("Vote GUI not found")
+    if not (vote_gui and vote_gui.Enabled) then 
+        warn("Vote GUI not found or not enabled")
+        teleport_service:Teleport(3260590327, local_player)
+        return false
+    end
+    
+    local frame = vote_gui:WaitForChild("Frame", 5)
+    if not frame then
+        warn("Vote GUI Frame not found")
         teleport_service:Teleport(3260590327, local_player)
         return false
     end
@@ -880,10 +892,23 @@ function TDS:GameInfo(name, list)
         return true
     end
     
-    warn("Map '" .. name .. "' Lobby")
-    teleport_service:Teleport(3260590327, local_player)
-    return false
+    -- If we get here, veto didn't give us the right map
+    warn("Map '" .. tostring(name) .. "' not available after veto, teleporting to lobby")
+    
+    -- Add a small delay before teleporting
+    task.wait(1)
+    
+    -- Use pcall to catch any teleport errors
+    local success, errorMsg = pcall(function()
+        teleport_service:Teleport(3260590327, local_player)
+    end)
+    
+    if not success then
+        warn("Teleport failed: " .. tostring(errorMsg))
     end
+    
+    return false
+end
 
 function TDS:UnlockTimeScale()
     unlock_speed_tickets()
