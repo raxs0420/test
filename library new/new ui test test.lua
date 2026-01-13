@@ -1,5 +1,7 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
+-- test
+
 local function identify_game_state()
     local players = game:GetService("Players")
     local temp_player = players.LocalPlayer or players.PlayerAdded:Wait()
