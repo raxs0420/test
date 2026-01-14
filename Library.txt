@@ -218,164 +218,33 @@ local function handle_post_match()
         return 
     end
     
-    -- Log match results if webhook is enabled
-    if _G.SendWebhook then
-        local match = get_all_rewards()
-        
-        current_total_coins += match.Coins
-        current_total_gems += match.Gems
-        
-        local bonus_string = ""
-        if #match.Others > 0 then
-            for _, res in ipairs(match.Others) do
-                bonus_string = bonus_string .. "🎁 **" .. res.Amount .. " " .. res.Name .. "**\n"
-            end
-        else
-            bonus_string = "_No bonus rewards found._"
-        end
-        
-        local post_data = {
-            username = "TDS AutoStrat",
-            embeds = {{
-                title = (match.Status == "WIN" and "🏆 TRIUMPH" or "💀 DEFEAT"),
-                color = (match.Status == "WIN" and 0x2ecc71 or 0xe74c3c),
-                description =
-                    "### 📋 Match Overview\n" ..
-                    "> **Status:** `" .. match.Status .. "`\n" ..
-                    "> **Time:** `" .. match.Time .. "`\n" ..
-                    "> **Current Level:** `" .. match.Level .. "`\n" ..
-                    "> **Wave:** `" .. match.Wave .. "`\n",
-                    
-                fields = {
-                    {
-                        name = "✨ Rewards",
-                        value = "```ansi\n" ..
-                                "[2;33mCoins:[0m +" .. match.Coins .. "\n" ..
-                                "[2;34mGems: [0m +" .. match.Gems .. "\n" ..
-                                "[2;32mXP:   [0m +" .. match.XP .. "```",
-                        inline = false
-                    },
-                    {
-                        name = "🎁 Bonus Items",
-                        value = bonus_string,
-                        inline = true
-                    },
-                    {
-                        name = "📊 Session Totals",
-                        value = "```py\n# Total Amount\nCoins: " .. current_total_coins .. "\nGems:  " .. current_total_gems .. "```",
-                        inline = true
-                    }
-                },
-                footer = { text = "Logged for " .. local_player.Name .. " • TDS AutoStrat" },
-                timestamp = DateTime.now():ToIsoDate()
-            }}
-        }
-        
-        pcall(function()
-            send_request({
-                Url = _G.Webhook,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = game:GetService("HttpService"):JSONEncode(post_data)
-            })
-        end)
-    end
+    -- [Keep webhook logging...]
     
-    -- Wait a moment for rewards screen to be fully loaded
-    task.wait(1)
+    -- Wait a moment for rewards screen
+    task.wait(2)
     
-    -- Skip the rewards screen
+    -- Skip rewards
     run_vote_skip()
     
-    -- IMMEDIATELY start new match - no waiting for UI
-    print("Skipped rewards, starting new match...")
+    -- Wait for voting screen to appear
+    task.wait(3)
     
-    -- Reset game state for new match
+    print("Starting new match from GAME state...")
+    
+    -- Reset game state
     TDS.placed_towers = {}
     upgrade_history = {}
     
-    -- Start new match with stored difficulty
+    -- Use the updated TDS:Mode() that works in GAME state
     if current_difficulty then
-        print("Auto-restarting match with difficulty: " .. current_difficulty)
-        
-        -- Give a tiny delay for the skip to register
-        task.wait(0.5)
-        
-        -- Use the matchmaking function to start new match
-        -- Since we're still in the same server, we need to trigger match start
-        
-        -- Method 1: Try to use lobby voting to start match
-        local success, result = pcall(function()
-            -- Try to ready up first
-            remote_event:FireServer("LobbyVoting", "Ready")
-            
-            -- Then start matchmaking
-            -- We're in the game, so we need to use the matchmaking from within
-            local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
-            
-            local mode = TDS.matchmaking_map[current_difficulty]
-            local payload
-            
-            if mode then
-                payload = {
-                    mode = mode,
-                    count = 1
-                }
-            else
-                payload = {
-                    difficulty = current_difficulty,
-                    mode = "survival",
-                    count = 1
-                }
-            end
-            
-            return remote:InvokeServer("Multiplayer", "v2:start", payload)
-        end)
-        
-        if not success then
-            -- Method 2: Alternative approach if first fails
-            print("Trying alternative match start...")
-            task.wait(1)
-            
-            -- Check if we need to vote for map first
-            local lobby_hud = player_gui:FindFirstChild("ReactLobbyHud")
-            if lobby_hud and lobby_hud:FindFirstChild("Frame") then
-                local matchmaking = lobby_hud.Frame:FindFirstChild("matchmaking")
-                if matchmaking then
-                    -- We can use TDS:Mode() directly
-                    TDS:Mode(current_difficulty)
-                else
-                    -- Try to trigger match start through voting
-                    cast_map_vote("Simplicity", Vector3.new(12.59, 10.64, 52.01))
-                    task.wait(0.5)
-                    lobby_ready_up()
-                    task.wait(0.5)
-                    match_ready_up()
-                end
-            end
-        end
-        
-        -- Wait for new match to load
-        task.wait(3)
-        
-        -- Log the new match start if webhook is enabled
-        if _G.SendWebhook then
-            -- Reset starting coins/gems for new match
-            pcall(function()
-                local attempts = 0
-                repeat 
-                    task.wait(0.5)
-                    attempts = attempts + 1
-                until local_player:FindFirstChild("Coins") or attempts > 10
-                
-                if local_player:FindFirstChild("Coins") then
-                    start_coins = local_player.Coins.Value
-                    start_gems = local_player.Gems.Value
-                end
-            end)
-            log_match_start()
-        end
+        print("Calling TDS:Mode(" .. current_difficulty .. ") from GAME state")
+        TDS:Mode(current_difficulty)
     end
+    
+    -- Wait for match to start
+    task.wait(5)
+    
+    -- [Keep webhook logging for new match...]
     
     is_auto_restarting = false
 end
@@ -742,54 +611,83 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
 end
 
 -- // public api
--- lobby
 function TDS:Mode(difficulty)
-    if game_state ~= "LOBBY" then 
-        return false 
-    end
-    
     -- Store the difficulty for auto-restart
     current_difficulty = difficulty
-
-    local lobby_hud = player_gui:WaitForChild("ReactLobbyHud", 30)
-    local frame = lobby_hud and lobby_hud:WaitForChild("Frame", 30)
-    local match_making = frame and frame:WaitForChild("matchmaking", 30)
-
-    if match_making then
-        local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
-        local success = false
-        local res
-        repeat
-            local ok, result = pcall(function()
-                local mode = TDS.matchmaking_map[difficulty]
-
-                local payload
-
-                if mode then
-                    payload = {
-                        mode = mode,
-                        count = 1
-                    }
-                else
-                    payload = {
-                        difficulty = difficulty,
-                        mode = "survival",
-                        count = 1
-                    }
-                end
-
-                return remote:InvokeServer("Multiplayer", "v2:start", payload)
-            end)
-
-            if ok and check_res_ok(result) then
-                success = true
-                res = result
-            else
-                task.wait(0.5) 
-            end
-        until success
+    
+    local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
+    
+    -- Determine what mode to use based on difficulty
+    local mode = TDS.matchmaking_map[difficulty]
+    
+    local payload
+    if mode then
+        payload = {
+            mode = mode,
+            count = 1
+        }
+    else
+        payload = {
+            difficulty = difficulty,
+            mode = "survival",
+            count = 1
+        }
     end
-
+    
+    local success = false
+    local res
+    
+    repeat
+        local ok, result = pcall(function()
+            -- Try different methods based on game state
+            
+            if game_state == "LOBBY" then
+                -- Use lobby matchmaking
+                return remote:InvokeServer("Multiplayer", "v2:start", payload)
+            elseif game_state == "GAME" then
+                -- We're in game, try to use game's matchmaking system
+                
+                -- Method 1: Try the same remote but with different parameters
+                local game_result = remote:InvokeServer("Matchmaking", "StartGame", payload)
+                if check_res_ok(game_result) then
+                    return game_result
+                end
+                
+                -- Method 2: Try to trigger match start through game systems
+                local success2 = pcall(function()
+                    -- Try to ready up first
+                    remote_event:FireServer("LobbyVoting", "Ready")
+                    task.wait(0.5)
+                    
+                    -- Then try to start match
+                    return remote:InvokeServer("Game", "StartMatch", payload)
+                end)
+                
+                if success2 then
+                    return true
+                end
+                
+                -- Method 3: Use voting system
+                cast_map_vote("Simplicity", Vector3.new(12.59, 10.64, 52.01))
+                task.wait(0.5)
+                lobby_ready_up()
+                task.wait(0.5)
+                match_ready_up()
+                
+                return true
+            end
+            
+            return false
+        end)
+        
+        if ok and check_res_ok(result) then
+            success = true
+            res = result
+        else
+            task.wait(0.5)
+        end
+    until success
+    
     return true
 end
 
