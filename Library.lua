@@ -26,10 +26,6 @@ if not send_request then
 end
 
 -- // services & main refs
-
-local current_difficulty = "Frost" -- Default difficulty
-local match_history = {}
-local is_auto_restarting = false
 local teleport_service = game:GetService("TeleportService")
 local marketplace_service = game:GetService("MarketplaceService")
 local replicated_storage = game:GetService("ReplicatedStorage")
@@ -198,150 +194,123 @@ local function send_to_lobby()
     lobby_remote:FireServer()
 end
 
--- Replace the entire handle_post_match() function with this:
 local function handle_post_match()
-    if is_auto_restarting then return end
-    is_auto_restarting = true
-    
     local ui_root
     repeat
         task.wait(1)
-        
+
         local root = player_gui:FindFirstChild("ReactGameNewRewards")
         local frame = root and root:FindFirstChild("Frame")
         local gameOver = frame and frame:FindFirstChild("gameOver")
         local rewards_screen = gameOver and gameOver:FindFirstChild("RewardsScreen")
         ui_root = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
     until ui_root
-    
+
     if not ui_root then 
-        is_auto_restarting = false
+        -- Start new game instead of just sending to lobby
+        task.wait(1.5)
+        local args = {
+            "Multiplayer",
+            "v2:start",
+            {
+                difficulty = GetString("Difficulty", "Frost"),
+                count = GetNumber("PartySize", 1),
+                mode = "survival"
+            }
+        }
+        ReplicatedStorage:WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
         return 
     end
-    
-    -- Log match results if webhook is enabled
-    if _G.SendWebhook then
-        local match = get_all_rewards()
-        
-        current_total_coins += match.Coins
-        current_total_gems += match.Gems
-        
-        local bonus_string = ""
-        if #match.Others > 0 then
-            for _, res in ipairs(match.Others) do
-                bonus_string = bonus_string .. "🎁 **" .. res.Amount .. " " .. res.Name .. "**\n"
-            end
-        else
-            bonus_string = "_No bonus rewards found._"
-        end
-        
-        local post_data = {
-            username = "TDS AutoStrat",
-            embeds = {{
-                title = (match.Status == "WIN" and "🏆 TRIUMPH" or "💀 DEFEAT"),
-                color = (match.Status == "WIN" and 0x2ecc71 or 0xe74c3c),
-                description =
-                    "### 📋 Match Overview\n" ..
-                    "> **Status:** `" .. match.Status .. "`\n" ..
-                    "> **Time:** `" .. match.Time .. "`\n" ..
-                    "> **Current Level:** `" .. match.Level .. "`\n" ..
-                    "> **Wave:** `" .. match.Wave .. "`\n",
-                    
-                fields = {
-                    {
-                        name = "✨ Rewards",
-                        value = "```ansi\n" ..
-                                "[2;33mCoins:[0m +" .. match.Coins .. "\n" ..
-                                "[2;34mGems: [0m +" .. match.Gems .. "\n" ..
-                                "[2;32mXP:   [0m +" .. match.XP .. "```",
-                        inline = false
-                    },
-                    {
-                        name = "🎁 Bonus Items",
-                        value = bonus_string,
-                        inline = true
-                    },
-                    {
-                        name = "📊 Session Totals",
-                        value = "```py\n# Total Amount\nCoins: " .. current_total_coins .. "\nGems:  " .. current_total_gems .. "```",
-                        inline = true
-                    }
-                },
-                footer = { text = "Logged for " .. local_player.Name .. " • TDS AutoStrat" },
-                timestamp = DateTime.now():ToIsoDate()
-            }}
+
+    if not _G.SendWebhook then
+        -- Start new game instead of just sending to lobby
+        task.wait(1.5)
+        local args = {
+            "Multiplayer",
+            "v2:start",
+            {
+                difficulty = GetString("Difficulty", "Frost"),
+                count = GetNumber("PartySize", 1),
+                mode = "survival"
+            }
         }
-        
-        pcall(function()
-            send_request({
-                Url = _G.Webhook,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = game:GetService("HttpService"):JSONEncode(post_data)
-            })
-        end)
+        ReplicatedStorage:WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
+        return
     end
-    
-    -- Wait for reward screen to be ready
-    task.wait(3)
-    
-    -- Skip the rewards screen
-    run_vote_skip()
-    
-    -- Wait to return to lobby screen (poll PlayerGui instead of static game_state)
-    task.wait(5)
 
-    local function in_lobby()
-        local pl = game:GetService("Players").LocalPlayer
-        if not pl then return false end
-        local pg = pl:FindFirstChild("PlayerGui")
-        if not pg then return false end
-        if pg:FindFirstChild("ReactLobbyHud") or pg:FindFirstChild("LobbyGui") then
-            return true
+    local match = get_all_rewards()
+
+    current_total_coins += match.Coins
+    current_total_gems += match.Gems
+
+    local bonus_string = ""
+    if #match.Others > 0 then
+        for _, res in ipairs(match.Others) do
+            bonus_string = bonus_string .. "🎁 **" .. res.Amount .. " " .. res.Name .. "**\n"
         end
-        return false
+    else
+        bonus_string = "_No bonus rewards found._"
     end
 
-    local waited = 0
-    local max_wait = 60
-    repeat
-        task.wait(1)
-        waited = waited + 1
-    until in_lobby() or waited >= max_wait
+    local post_data = {
+        username = "TDS AutoStrat",
+        embeds = {{
+            title = (match.Status == "WIN" and "🏆 TRIUMPH" or "💀 DEFEAT"),
+            color = (match.Status == "WIN" and 0x2ecc71 or 0xe74c3c),
+            description =
+                "### 📋 Match Overview\n" ..
+                "> **Status:** `" .. match.Status .. "`\n" ..
+                "> **Time:** `" .. match.Time .. "`\n" ..
+                "> **Current Level:** `" .. match.Level .. "`\n" ..
+                "> **Wave:** `" .. match.Wave .. "`\n",
+                
+            fields = {
+                {
+                    name = "✨ Rewards",
+                    value = "```ansi\n" ..
+                            "[2;33mCoins:[0m +" .. match.Coins .. "\n" ..
+                            "[2;34mGems: [0m +" .. match.Gems .. "\n" ..
+                            "[2;32mXP:   [0m +" .. match.XP .. "```",
+                    inline = false
+                },
+                {
+                    name = "🎁 Bonus Items",
+                    value = bonus_string,
+                    inline = true
+                },
+                {
+                    name = "📊 Session Totals",
+                    value = "```py\n# Total Amount\nCoins: " .. current_total_coins .. "\nGems:  " .. current_total_gems .. "```",
+                    inline = true
+                }
+            },
+            footer = { text = "Logged for " .. local_player.Name .. " • TDS AutoStrat" },
+            timestamp = DateTime.now():ToIsoDate()
+        }}
+    }
 
-    -- Reset game state for new match
-    TDS.placed_towers = {}
-    upgrade_history = {}
-    
-    -- Start new match with stored difficulty
-    if current_difficulty then
-        print("Auto-restarting match with difficulty: " .. current_difficulty)
-        -- Attempt to start a new match using TDS:Mode (TDS:Mode now detects lobby dynamically)
-        pcall(function()
-            local ok, err = pcall(function()
-                TDS:Mode(current_difficulty)
-            end)
-            if not ok then
-                warn("TDS:Mode failed to start new match: " .. tostring(err))
-            end
-        end)
-        
-        -- Wait for match to start and set up again
-        task.wait(5)
-        
-        -- Log the new match start if webhook is enabled
-        if _G.SendWebhook then
-            -- Reset starting coins/gems for new match
-            pcall(function()
-                repeat task.wait(1) until local_player:FindFirstChild("Coins")
-                start_coins = local_player.Coins.Value
-                start_gems = local_player.Gems.Value
-            end)
-            log_match_start()
-        end
-    end
-    
-    is_auto_restarting = false
+    pcall(function()
+        send_request({
+            Url = _G.Webhook,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = game:GetService("HttpService"):JSONEncode(post_data)
+        })
+    end)
+
+    task.wait(1.5)
+
+    -- Start new game instead of just sending to lobby
+    local args = {
+        "Multiplayer",
+        "v2:start",
+        {
+            difficulty = GetString("Difficulty", "Frost"),
+            count = GetNumber("PartySize", 1),
+            mode = "survival"
+        }
+    }
+    ReplicatedStorage:WaitForChild("RemoteFunction"):InvokeServer(unpack(args))
 end
 
 local function log_match_start()
@@ -446,6 +415,10 @@ local function lobby_ready_up()
     end)
 end
 
+function TDS:TeleportToLobby()
+    send_to_lobby()
+end
+
 local function select_map_override(map_id, ...)
     local args = {...}
 
@@ -475,6 +448,7 @@ local function cast_modifier_vote(mods_table)
 end
 
 local function is_map_available(name)
+    -- First check if map is already available
     for _, g in ipairs(workspace:GetDescendants()) do
         if g:IsA("SurfaceGui") and g.Name == "MapDisplay" then
             local t = g:FindFirstChild("Title")
@@ -484,12 +458,43 @@ local function is_map_available(name)
         end
     end
 
-    local total_player = #players_service:GetChildren()
-    repeat
-        remote_event:FireServer("LobbyVoting", "Veto")
-        wait(1)
-    until player_gui:WaitForChild("ReactGameIntermission"):WaitForChild("Frame"):WaitForChild("buttons"):WaitForChild("veto"):WaitForChild("value").Text == "Veto ("..total_player.."/"..total_player..")"
-
+    -- If not available, try to veto and wait for new maps
+    local total_players = #players_service:GetPlayers()
+    
+    -- Send veto vote once
+    remote_event:FireServer("LobbyVoting", "Veto")
+    
+    -- Wait for veto UI to update
+    local veto_ui = player_gui:WaitForChild("ReactGameIntermission", 5)
+    if not veto_ui then return false end
+    
+    local frame = veto_ui:WaitForChild("Frame", 5)
+    if not frame then return false end
+    
+    local buttons = frame:WaitForChild("buttons", 5)
+    if not buttons then return false end
+    
+    local veto_button = buttons:WaitForChild("veto", 5)
+    if not veto_button then return false end
+    
+    local veto_value = veto_button:WaitForChild("value", 5)
+    if not veto_value then return false end
+    
+    -- Wait for veto to complete (all players voted)
+    local max_wait_time = 2  
+    local start_time = os.time()
+    
+    while os.time() - start_time < max_wait_time do
+        if veto_value.Text == "Veto ("..total_players.."/"..total_players..")" then
+            break
+        end
+        task.wait(1)
+    end
+    
+    -- Wait for new maps to load after veto
+    task.wait(3)
+    
+    -- Check for the map again
     for _, g in ipairs(workspace:GetDescendants()) do
         if g:IsA("SurfaceGui") and g.Name == "MapDisplay" then
             local t = g:FindFirstChild("Title")
@@ -711,18 +716,15 @@ function TDS:Mode(difficulty)
     if game_state ~= "LOBBY" then 
         return false 
     end
-    
-    -- Store the difficulty for auto-restart
-    current_difficulty = difficulty
 
     local lobby_hud = player_gui:WaitForChild("ReactLobbyHud", 30)
     local frame = lobby_hud and lobby_hud:WaitForChild("Frame", 30)
     local match_making = frame and frame:WaitForChild("matchmaking", 30)
 
     if match_making then
-        local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
-        local success = false
-        local res
+    local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
+    local success = false
+    local res
         repeat
             local ok, result = pcall(function()
                 local mode = TDS.matchmaking_map[difficulty]
@@ -857,14 +859,6 @@ function TDS:Loadout(...)
     return true
 end
 
-function TDS:TeleportToLobby()
-    send_to_lobby()
-end
-
-function TDS:ForceLobby()
-    send_to_lobby()
-end
-
 function TDS:VoteSkip(start_wave, end_wave)
     task.spawn(function()
         local current_wave = get_current_wave()
@@ -894,22 +888,62 @@ function TDS:VoteSkip(start_wave, end_wave)
     end)
 end
 
+
 function TDS:GameInfo(name, list)
     list = list or {}
-    if game_state ~= "GAME" then return false end
+    if game_state ~= "GAME" then 
+        warn("Not in game state for GameInfo")
+        return false 
+    end
 
+    -- Get teleport service locally to ensure it exists
+    local teleport_service = game:GetService("TeleportService")
+    
     local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
-    if not (vote_gui and vote_gui.Enabled and vote_gui:WaitForChild("Frame", 5)) then return end
+    if not (vote_gui and vote_gui.Enabled) then 
+        warn("Vote GUI not found or not enabled")
+        teleport_service:Teleport(3260590327, local_player)
+        return false
+    end
+    
+    local frame = vote_gui:WaitForChild("Frame", 5)
+    if not frame then
+        warn("Vote GUI Frame not found")
+        teleport_service:Teleport(3260590327, local_player)
+        return false
+    end
 
     cast_modifier_vote(list)
-
+    
+    task.wait(2)  -- Wait for modifier votes to process
+    
     if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
         select_map_override(name, "vip")
-    elseif is_map_available(name) then
-        select_map_override(name)
-    else
-        teleport_service:Teleport(3260590327, local_player)
+        return true
     end
+    
+    -- Try to get the map via veto
+    if is_map_available(name) then
+        select_map_override(name)
+        return true
+    end
+    
+    -- If we get here, veto didn't give us the right map
+    warn("Map '" .. tostring(name) .. "' not available after veto, teleporting to lobby")
+    
+    -- Add a small delay before teleporting
+    task.wait(1)
+    
+    -- Use pcall to catch any teleport errors
+    local success, errorMsg = pcall(function()
+        teleport_service:Teleport(3260590327, local_player)
+    end)
+    
+    if not success then
+        warn("Teleport failed: " .. tostring(errorMsg))
+    end
+    
+    return false
 end
 
 function TDS:UnlockTimeScale()
