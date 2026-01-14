@@ -289,12 +289,12 @@ local function handle_post_match()
     run_vote_skip()
     
     -- Wait to return to lobby screen
-    task.wait(5)
+    task.wait(2)
     
     -- IMPORTANT: Check if we're in lobby now, if not wait more
     repeat
         task.wait(1)
-    until game_state == "LOBBY"
+    until game_state == "GAME"
     
     -- Reset game state for new match
     TDS.placed_towers = {}
