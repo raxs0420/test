@@ -337,7 +337,7 @@ local function log_match_start()
 end
 
 if game_state == "GAME" then
-    send_lobby_webhook()
+    log_match_start()
 end
 
 local function send_lobby_webhook()
