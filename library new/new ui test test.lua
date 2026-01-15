@@ -376,8 +376,8 @@ local function send_lobby_webhook()
     local lobby_payload = {
         username = "TDS AutoStrat",
         embeds = {{
-            title = "📋 **AutoStrat Loaded in Lobby**",
-            description = "Script loaded successfully. Waiting in lobby with current battlepass level.",
+            title = "📋 **Inside Lobby**",
+            description = "Script loaded successfully. Waiting in lobby for battlepass level to load.",
             color = 16776960,
             fields = {
                 {
