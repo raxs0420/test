@@ -292,38 +292,83 @@ end
 
 local function log_match_start()
     if not _G.SendWebhook then return end
-    if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
-    if _G.Webhook:find("YOUR%-WEBHOOK") then return end
+    if type(_G.WebhookURL) ~= "string" or _G.WebhookURL == "" then return end
+    if _G.WebhookURL:find("YOUR%-WEBHOOK") then return end
     
     local start_payload = {
         username = "TDS AutoStrat",
         embeds = {{
-            title = "📋 **AutoStrat Loaded in Lobby**",
-            description = "The AutoStrat script has been loaded and is waiting in the lobby.",
-            color = 16776960, -- Yellow color
+            title = "🚀 **Match Started**",
+            description = "Game loaded successfully",
+            color = 3447003,
             fields = {
                 {
-                    name = "📊 Battlepass Level",
-                    value = "```Level " .. tostring(current_level) .. "```",
-                    inline = true
-                },
-                {
                     name = "🪙 Starting Coins",
-                    value = "```N/A (In Lobby)```",
+                    value = "```" .. tostring(start_coins) .. " Coins```",
                     inline = true
                 },
                 {
                     name = "💎 Starting Gems",
-                    value = "```N/A (In Lobby)```",
+                    value = "```" .. tostring(start_gems) .. " Gems```",
                     inline = true
                 },
                 {
                     name = "Status",
-                    value = "🟡 In Lobby - Ready to Start",
+                    value = "🟢 Running Script",
                     inline = false
                 }
             },
-            footer = { text = "Logged for " .. local_player.Name .. " • TDS AutoStrat" },
+            footer = { text = "Logged for " .. local_player.Name .. " • Tower Defense Simulator" },
+            timestamp = DateTime.now():ToIsoDate()
+        }}
+    }
+
+    pcall(function()
+        send_request({
+            Url = _G.WebhookURL,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = game:GetService("HttpService"):JSONEncode(start_payload)
+        })
+    end)
+end
+
+local function send_lobby_webhook()
+    if not _G.SendWebhook then return end
+    if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
+    if _G.Webhook:find("YOUR%-WEBHOOK") then return end
+    
+    task.wait(2)
+    
+    local battlepassLevel = 0
+    pcall(function()
+        local levelObject = local_player.PlayerGui.ReactLobbyBattlepass.Frame.scaled.battlepass.content.progress.level
+        if levelObject:IsA("TextLabel") or levelObject:IsA("TextButton") or levelObject:IsA("TextBox") then
+            battlepassLevel = tonumber(levelObject.Text) or 0
+        else
+            battlepassLevel = levelObject.Value or 0
+        end
+    end)
+    
+    local lobby_payload = {
+        username = "TDS AutoStrat",
+        embeds = {{
+            title = "📋 **AutoStrat Loaded in Lobby**",
+            description = "Script loaded successfully. Waiting in lobby with current battlepass level.",
+            color = 16776960, -- Yellow
+            fields = {
+                {
+                    name = "📊 Battlepass Level",
+                    value = "```Level " .. tostring(battlepassLevel) .. "```",
+                    inline = false
+                },
+                {
+                    name = "🎮 Game Status",
+                    value = "🟡 **In Lobby** - Ready to start match",
+                    inline = false
+                }
+            },
+            footer = { text = "Player: " .. local_player.Name },
             timestamp = DateTime.now():ToIsoDate()
         }}
     }
@@ -333,23 +378,15 @@ local function log_match_start()
             Url = _G.Webhook,
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
-            Body = game:GetService("HttpService"):JSONEncode(start_payload)
+            Body = game:GetService("HttpService"):JSONEncode(lobby_payload)
         })
+        print("✅ Lobby webhook sent with Level: " .. battlepassLevel)
     end)
 end
 
+-- Call it when you detect lobby state
 if game_state == "LOBBY" then
-    
-    task.wait(2)
-    
-    
-    pcall(function()
-        local levelObject = local_player.PlayerGui.ReactLobbyBattlepass.Frame.scaled.battlepass.content.progress.level
-        current_level = levelObject:IsA("TextLabel") and tonumber(levelObject.Text) or levelObject.Value or 0
-    end)
-    
-    
-    log_match_start()
+    send_lobby_webhook()
 end
 
 -- // voting & map selection
