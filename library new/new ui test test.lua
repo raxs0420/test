@@ -336,17 +336,8 @@ local function log_match_start()
     end)
 end
 
-if game_state == "LOBBY" then
+if game_state == "GAME" then
     send_lobby_webhook()
-elseif game_state == "GAME" then
-    pcall(function()
-        repeat task.wait(1) until local_player:FindFirstChild("Coins")
-        start_coins = local_player.Coins.Value
-        current_total_coins = start_coins
-        start_gems = local_player.Gems.Value
-        current_total_gems = start_gems
-    end)
-    log_match_start()
 end
 
 local function send_lobby_webhook()
