@@ -82,7 +82,7 @@ shared.TDS_Table = TDS
 local start_coins, current_total_coins, start_gems, current_total_gems = 0, 0, 0, 0
 local current_level = 0
 
-if game_state == "GAME" then
+if game_state == "LOBBY" then
     pcall(function()
         -- Wait for coins and gems
         repeat task.wait(1) until local_player:FindFirstChild("Coins")
@@ -298,28 +298,28 @@ local function log_match_start()
     local start_payload = {
         username = "TDS AutoStrat",
         embeds = {{
-            title = "🚀 **Match Started Successfully**",
-            description = "The AutoStrat has successfully loaded into a new game session and is beginning execution.",
-            color = 3447003,
+            title = "📋 **AutoStrat Loaded in Lobby**",
+            description = "The AutoStrat script has been loaded and is waiting in the lobby.",
+            color = 16776960, -- Yellow color
             fields = {
                 {
+                    name = "📊 Battlepass Level",
+                    value = "```Level " .. tostring(current_level) .. "```",
+                    inline = true
+                },
+                {
                     name = "🪙 Starting Coins",
-                    value = "```" .. tostring(start_coins) .. " Coins```",
+                    value = "```N/A (In Lobby)```",
                     inline = true
                 },
                 {
                     name = "💎 Starting Gems",
-                    value = "```" .. tostring(start_gems) .. " Gems```",
-                    inline = true
-                },
-                {
-                    name = "📊 Battlepass Level",  -- New field
-                    value = "```Level " .. tostring(current_level) .. "```",  -- Using current_level variable
+                    value = "```N/A (In Lobby)```",
                     inline = true
                 },
                 {
                     name = "Status",
-                    value = "🟢 Running Script",
+                    value = "🟡 In Lobby - Ready to Start",
                     inline = false
                 }
             },
@@ -336,6 +336,20 @@ local function log_match_start()
             Body = game:GetService("HttpService"):JSONEncode(start_payload)
         })
     end)
+end
+
+if game_state == "LOBBY" then
+    
+    task.wait(2)
+    
+    
+    pcall(function()
+        local levelObject = local_player.PlayerGui.ReactLobbyBattlepass.Frame.scaled.battlepass.content.progress.level
+        current_level = levelObject:IsA("TextLabel") and tonumber(levelObject.Text) or levelObject.Value or 0
+    end)
+    
+    
+    log_match_start()
 end
 
 -- // voting & map selection
