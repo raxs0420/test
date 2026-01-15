@@ -15,6 +15,7 @@ local function identify_game_state()
     end
 end
 
+
 local game_state = identify_game_state()
 
 local send_request = request or http_request or httprequest
@@ -84,14 +85,7 @@ local current_level = 0
 
 if game_state == "LOBBY" then
     pcall(function()
-        -- Wait for coins and gems
-        repeat task.wait(1) until local_player:FindFirstChild("Coins")
-        start_coins = local_player.Coins.Value
-        current_total_coins = start_coins
-        start_gems = local_player.Gems.Value
-        current_total_gems = start_gems
-        
-        -- Get current level
+        -- Get current level (this works in lobby)
         local levelObject = local_player.PlayerGui.ReactLobbyBattlepass.Frame.scaled.battlepass.content.progress.level
         if levelObject:IsA("TextLabel") or levelObject:IsA("TextButton") or levelObject:IsA("TextBox") then
             current_level = tonumber(levelObject.Text) or 0
@@ -99,6 +93,15 @@ if game_state == "LOBBY" then
             current_level = levelObject.Value or 0
         end
         print("Level " .. tostring(current_level))
+    end)
+elseif game_state == "GAME" then
+    pcall(function()
+        -- Wait for coins and gems (these only exist in game)
+        repeat task.wait(1) until local_player:FindFirstChild("Coins")
+        start_coins = local_player.Coins.Value
+        current_total_coins = start_coins
+        start_gems = local_player.Gems.Value
+        current_total_gems = start_gems
     end)
 end
 
