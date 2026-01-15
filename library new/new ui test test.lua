@@ -295,8 +295,8 @@ end
 
 local function log_match_start()
     if not _G.SendWebhook then return end
-    if type(_G.WebhookURL) ~= "string" or _G.WebhookURL == "" then return end
-    if _G.WebhookURL:find("YOUR%-WEBHOOK") then return end
+    if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end  -- CHANGED to _G.Webhook
+    if _G.Webhook:find("YOUR%-WEBHOOK") then return end  -- CHANGED to _G.Webhook
     
     local start_payload = {
         username = "TDS AutoStrat",
@@ -328,12 +328,29 @@ local function log_match_start()
 
     pcall(function()
         send_request({
-            Url = _G.WebhookURL,
+            Url = _G.Webhook,  -- CHANGED to _G.Webhook
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = game:GetService("HttpService"):JSONEncode(start_payload)
         })
     end)
+end
+
+-- send_lobby_webhook() stays the same (already uses _G.Webhook)
+
+-- Then your game state logic:
+if game_state == "LOBBY" then
+    send_lobby_webhook()
+elseif game_state == "GAME" then
+    -- Track coins/gems first
+    pcall(function()
+        repeat task.wait(1) until local_player:FindFirstChild("Coins")
+        start_coins = local_player.Coins.Value
+        current_total_coins = start_coins
+        start_gems = local_player.Gems.Value
+        current_total_gems = start_gems
+    end)
+    log_match_start()
 end
 
 local function send_lobby_webhook()
