@@ -336,52 +336,38 @@ end
 local function send_lobby_webhook()
     if not _G.SendWebhook then return end
     if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
-    if _G.Webhook:find("YOUR%-WEBHOOK") then return end
     
     task.wait(2)
     
-    local battlepassLevel = 0
+    local levelValue = "0"
     pcall(function()
-        local levelObject = local_player.PlayerGui.ReactLobbyBattlepass.Frame.scaled.battlepass.content.progress.level
-        if levelObject:IsA("TextLabel") or levelObject:IsA("TextButton") or levelObject:IsA("TextBox") then
-            battlepassLevel = tonumber(levelObject.Text) or 0
-        else
-            battlepassLevel = levelObject.Value or 0
-        end
+        local levelObj = local_player.PlayerGui.ReactLobbyBattlepass.Frame.scaled.battlepass.content.progress.level
+        levelValue = levelObj.Text or tostring(levelObj.Value) or "0"
     end)
     
-    local lobby_payload = {
+    local payload = {
         username = "TDS AutoStrat",
         embeds = {{
-            title = "📋 **AutoStrat Loaded in Lobby**",
-            description = "Script loaded successfully. Waiting in lobby with current battlepass level.",
-            color = 16776960, -- Yellow
-            fields = {
-                {
-                    name = "📊 Battlepass Level",
-                    value = "```Level " .. tostring(battlepassLevel) .. "```",
-                    inline = false
-                },
-                {
-                    name = "🎮 Game Status",
-                    value = "🟡 **In Lobby** - Ready to start match",
-                    inline = false
-                }
-            },
-            footer = { text = "Player: " .. local_player.Name },
-            timestamp = DateTime.now():ToIsoDate()
+            title = "Lobby - Battlepass Level",
+            description = "**Level " .. levelValue .. "**",
+            color = 16776960,
+            footer = { text = local_player.Name }
         }}
     }
-
+    
     pcall(function()
         send_request({
             Url = _G.Webhook,
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
-            Body = game:GetService("HttpService"):JSONEncode(lobby_payload)
+            Body = game:GetService("HttpService"):JSONEncode(payload)
         })
-        print("✅ Lobby webhook sent with Level: " .. battlepassLevel)
     end)
+end
+
+-- Trigger
+if game_state == "LOBBY" then
+    send_lobby_webhook()
 end
 
 -- Call it when you detect lobby state
