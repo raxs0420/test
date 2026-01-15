@@ -80,13 +80,25 @@ shared.TDS_Table = TDS
 
 -- // currency tracking
 local start_coins, current_total_coins, start_gems, current_total_gems = 0, 0, 0, 0
+local current_level = 0
+
 if game_state == "GAME" then
     pcall(function()
+        -- Wait for coins and gems
         repeat task.wait(1) until local_player:FindFirstChild("Coins")
         start_coins = local_player.Coins.Value
         current_total_coins = start_coins
         start_gems = local_player.Gems.Value
         current_total_gems = start_gems
+        
+        -- Get current level
+        local levelObject = local_player.PlayerGui.ReactLobbyBattlepass.Frame.scaled.battlepass.content.progress.level
+        if levelObject:IsA("TextLabel") or levelObject:IsA("TextButton") or levelObject:IsA("TextBox") then
+            current_level = tonumber(levelObject.Text) or 0
+        else
+            current_level = levelObject.Value or 0
+        end
+        print("Level " .. tostring(current_level))
     end)
 end
 
@@ -298,6 +310,11 @@ local function log_match_start()
                 {
                     name = "💎 Starting Gems",
                     value = "```" .. tostring(start_gems) .. " Gems```",
+                    inline = true
+                },
+                {
+                    name = "📊 Battlepass Level",  -- New field
+                    value = "```Level " .. tostring(current_level) .. "```",  -- Using current_level variable
                     inline = true
                 },
                 {
