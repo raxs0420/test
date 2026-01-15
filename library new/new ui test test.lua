@@ -293,10 +293,11 @@ local function handle_post_match()
     send_to_lobby()
 end
 
+-- 1. Define BOTH functions first
 local function log_match_start()
     if not _G.SendWebhook then return end
-    if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end  -- CHANGED to _G.Webhook
-    if _G.Webhook:find("YOUR%-WEBHOOK") then return end  -- CHANGED to _G.Webhook
+    if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
+    if _G.Webhook:find("YOUR%-WEBHOOK") then return end
     
     local start_payload = {
         username = "TDS AutoStrat",
@@ -334,10 +335,6 @@ local function log_match_start()
             Body = game:GetService("HttpService"):JSONEncode(start_payload)
         })
     end)
-end
-
-if game_state == "GAME" then
-    log_match_start()
 end
 
 local function send_lobby_webhook()
@@ -409,9 +406,11 @@ local function send_lobby_webhook()
     end)
 end
 
--- Call when in lobby
+-- 2. THEN check game state and call appropriate function
 if game_state == "LOBBY" then
     send_lobby_webhook()
+elseif game_state == "GAME" then
+    log_match_start()
 end
 
 -- // voting & map selection
