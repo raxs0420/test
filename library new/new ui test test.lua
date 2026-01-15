@@ -336,41 +336,73 @@ end
 local function send_lobby_webhook()
     if not _G.SendWebhook then return end
     if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
+    if _G.Webhook:find("YOUR%-WEBHOOK") then return end
     
-    task.wait(2)
+    -- Wait for battlepass GUI to load with multiple attempts
+    local maxAttempts = 10
+    local battlepassLevel = "0"
     
-    local levelValue = "0"
-    pcall(function()
-        local levelObj = local_player.PlayerGui.ReactLobbyBattlepass.Frame.scaled.battlepass.content.progress.level
-        levelValue = levelObj.Text or tostring(levelObj.Value) or "0"
-    end)
+    for attempt = 1, maxAttempts do
+        local success, result = pcall(function()
+            -- Check if the GUI path exists
+            local gui = local_player.PlayerGui:WaitForChild("ReactLobbyBattlepass", 2)
+            local frame = gui:WaitForChild("Frame", 1)
+            local scaled = frame:WaitForChild("scaled", 1)
+            local battlepass = scaled:WaitForChild("battlepass", 1)
+            local content = battlepass:WaitForChild("content", 1)
+            local progress = content:WaitForChild("progress", 1)
+            local levelObj = progress:WaitForChild("level", 1)
+            
+            -- Try to get the value
+            if levelObj:IsA("TextLabel") or levelObj:IsA("TextButton") or levelObj:IsA("TextBox") then
+                return levelObj.Text
+            else
+                return tostring(levelObj.Value)
+            end
+        end)
+        
+        if success and result and result ~= "" and result ~= "0" then
+            battlepassLevel = result
+            break
+        end
+        task.wait(1)
+    end
     
-    local payload = {
+    -- Send webhook
+    local lobby_payload = {
         username = "TDS AutoStrat",
         embeds = {{
-            title = "Lobby - Battlepass Level",
-            description = "**Level " .. levelValue .. "**",
+            title = "📋 **AutoStrat Loaded in Lobby**",
+            description = "Script loaded successfully. Waiting in lobby with current battlepass level.",
             color = 16776960,
-            footer = { text = local_player.Name }
+            fields = {
+                {
+                    name = "📊 Battlepass Level",
+                    value = "```Level " .. battlepassLevel .. "```",
+                    inline = false
+                },
+                {
+                    name = "🎮 Game Status",
+                    value = "🟡 **In Lobby** - Ready to start match",
+                    inline = false
+                }
+            },
+            footer = { text = "Player: " .. local_player.Name },
+            timestamp = DateTime.now():ToIsoDate()
         }}
     }
-    
+
     pcall(function()
         send_request({
             Url = _G.Webhook,
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
-            Body = game:GetService("HttpService"):JSONEncode(payload)
+            Body = game:GetService("HttpService"):JSONEncode(lobby_payload)
         })
     end)
 end
 
--- Trigger
-if game_state == "LOBBY" then
-    send_lobby_webhook()
-end
-
--- Call it when you detect lobby state
+-- Call when in lobby
 if game_state == "LOBBY" then
     send_lobby_webhook()
 end
