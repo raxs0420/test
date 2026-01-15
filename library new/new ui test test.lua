@@ -40,6 +40,8 @@ local back_to_lobby_running = false
 local auto_pickups_running = false
 local auto_skip_running = false
 local anti_lag_running = false
+local hasSentLobbyWebhook = false
+local hasSentMatchStartWebhook = false
 
 -- // icon item ids ill add more soon arghh
 local ItemNames = {
@@ -295,9 +297,16 @@ end
 
 -- 1. Define BOTH functions first
 local function log_match_start()
+    
+    if hasSentMatchStartWebhook then 
+        return 
+    end
+    
     if not _G.SendWebhook then return end
     if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
     if _G.Webhook:find("YOUR%-WEBHOOK") then return end
+
+    hasSentMatchStartWebhook = true
     
     local start_payload = {
         username = "TDS AutoStrat",
@@ -338,9 +347,16 @@ local function log_match_start()
 end
 
 local function send_lobby_webhook()
+
+if hasSentLobbyWebhook then 
+        return 
+    end
+    
     if not _G.SendWebhook then return end
     if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
     if _G.Webhook:find("YOUR%-WEBHOOK") then return end
+
+    hasSentLobbyWebhook = true
     
     -- Wait for battlepass GUI to load with multiple attempts
     local maxAttempts = 10
