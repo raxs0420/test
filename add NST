@@ -198,6 +198,15 @@ TDS:Upgrade(30)
 TDS:Upgrade(30)
 TDS:Upgrade(30)
 
+TDS:SetTarget(1, "Last") -- 1
+TDS:SetTarget(2, "Last") -- 2
+TDS:SetTarget(3, "Last") -- 3
+TDS:SetTarget(4, "Last") -- 4
+TDS:SetTarget(5, "Last") -- 5
+TDS:SetTarget(6, "Last") -- 6
+TDS:SetTarget(7, "Last") -- 7
+TDS:SetTarget(8, "Last") -- 8
+
 TDS:SetOption(19, "Track", "Red")
 
 TDS:Upgrade(30)
@@ -214,15 +223,6 @@ TDS:Upgrade(28)
 TDS:Upgrade(29)
 TDS:Upgrade(30)
 
-
-TDS:SetTarget(1, "Last") -- 1
-TDS:SetTarget(2, "Last") -- 2
-TDS:SetTarget(3, "Last") -- 3
-TDS:SetTarget(4, "Last") -- 4
-TDS:SetTarget(5, "Last") -- 5
-TDS:SetTarget(6, "Last") -- 6
-TDS:SetTarget(7, "Last") -- 7
-TDS:SetTarget(8, "Last") -- 8
 TDS:SetTarget(9, "Last") -- 9
 TDS:SetTarget(10, "Last") -- 10
 TDS:SetTarget(11, "Last") -- 11
