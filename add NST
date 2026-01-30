@@ -198,6 +198,8 @@ TDS:Upgrade(30)
 TDS:Upgrade(30)
 TDS:Upgrade(30)
 
+TDS:SetOption(19, "Track", "Red")
+
 TDS:Upgrade(30)
 TDS:Upgrade(29)
 TDS:Upgrade(28)
@@ -209,9 +211,6 @@ TDS:Ability(23, "Support Caravan", {Nill} , true)
 TDS:Ability(24, "Support Caravan", {Nill} , true)
 
 TDS:Upgrade(28)
-
-TDS:SetOption(19, "Track", "Red")
-
 TDS:Upgrade(29)
 TDS:Upgrade(30)
 
