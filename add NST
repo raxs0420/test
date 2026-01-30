@@ -189,25 +189,26 @@ TDS:Place("Turret", 6.262, 60, 13.912) -- 30
 TDS:Upgrade(28)
 TDS:Upgrade(28)
 TDS:Upgrade(28)
+
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+
+TDS:Upgrade(30)
+TDS:Upgrade(29)
 TDS:Upgrade(28)
-
-TDS:Upgrade(29)
-TDS:Upgrade(29)
-TDS:Upgrade(29)
-TDS:Upgrade(29)
-
-TDS:Upgrade(30)
-TDS:Upgrade(30)
-TDS:Upgrade(30)
-TDS:Upgrade(30)
 
 TDS:Loadout("Minigunner", "Soldier", "DJ Booth", "Commander", "Ranger")
-
-TDS:Upgrade(28)
 
 TDS:Ability(22, "Support Caravan", {Nill} , true)
 TDS:Ability(23, "Support Caravan", {Nill} , true)
 TDS:Ability(24, "Support Caravan", {Nill} , true)
+
+TDS:Upgrade(28)
 
 TDS:SetOption(19, "Track", "Red")
 
