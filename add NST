@@ -11,148 +11,169 @@ _G.Webhook = "WEBHOOK HERE"
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
 -- [[ START STRATEGY ]]
-TDS:Loadout("Ranger", "Cowboy", "DJ Booth", "Commander", "Minigunner")
+TDS:Loadout("Soldier", "DJ Booth", "Commander", "Ranger", "Turret")
 TDS:Mode("Frost")
 TDS:GameInfo("Summer Castle", {
-    Glass = true,
+    Glass = false,
 })  -- You can add more modifiers if you wanna (just use right name/Id)
 
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
+
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 1
 
 TDS:UnlockTimeScale()  -- Delete whole line to deactivate auto time-scale
 TDS:TimeScale(2)  -- Number = speed (0,0.5,1,1.5,2)
 
-TDS:Upgrade(1)
-TDS:Upgrade(1)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(2)
-TDS:Upgrade(2)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(3)
-TDS:Upgrade(3)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(4)
-TDS:Upgrade(4)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(5)
-TDS:Upgrade(5)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(6)
-TDS:Upgrade(6)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(7)
-TDS:Upgrade(7)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(8)
-TDS:Upgrade(8)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(9)
-TDS:Upgrade(9)
-TDS:Place("Cowboy", 12.553, 80, 24.012) -- 1
-TDS:Upgrade(10)
-TDS:Upgrade(10)
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 2
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 3
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 4
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 5
 
 TDS:Upgrade(1)
-TDS:Upgrade(2)
 TDS:Upgrade(1)
 TDS:Upgrade(2)
-
-TDS:Place("DJ Booth", 6.262, 60, 13.912)  -- 11
-TDS:Upgrade(11)
-TDS:Upgrade(11)
-TDS:Upgrade(11)
-
-TDS:SetOption(11, "Track", "Green")
-TDS:Ability(11, "Drop The Beat", {Nill} , true)
-
+TDS:Upgrade(2)
 TDS:Upgrade(3)
 TDS:Upgrade(3)
 TDS:Upgrade(4)
 TDS:Upgrade(4)
 TDS:Upgrade(5)
 TDS:Upgrade(5)
+
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 6
 TDS:Upgrade(6)
 TDS:Upgrade(6)
+
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 7
 TDS:Upgrade(7)
 TDS:Upgrade(7)
+
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 8
 TDS:Upgrade(8)
 TDS:Upgrade(8)
+
+TDS:Place("Soldier", 12.553, 70, 24.012) -- 9
 TDS:Upgrade(9)
 TDS:Upgrade(9)
+
+TDS:Place("Soldier", 8.63048, 70, 19.31162) -- 10
 TDS:Upgrade(10)
 TDS:Upgrade(10)
 
+TDS:Place("Soldier", 8.63048, 70, 19.31162) -- 11
 TDS:Upgrade(11)
 TDS:Upgrade(11)
 
-TDS:Place("Ranger", 11.146, 60, 8.997)
-TDS:Place("Ranger", 11.146, 60, 8.997)
-TDS:Place("Ranger", 11.146, 60, 8.997)
-TDS:Place("Ranger", 11.146, 60, 8.997)
-TDS:Place("Ranger", 11.146, 60, 8.997)
-TDS:Place("Ranger", 11.146, 60, 8.997)
-TDS:Place("Ranger", 11.146, 60, 8.997)
-
-TDS:Upgrade(1)
-TDS:Upgrade(2)
-TDS:Upgrade(3)
-TDS:Upgrade(4)
-TDS:Upgrade(5)
-TDS:Upgrade(6)
-TDS:Upgrade(7)
-TDS:Upgrade(8)
-TDS:Upgrade(9)
-TDS:Upgrade(10)
-
+TDS:Place("Soldier", 8.63048, 70, 19.31162) -- 12
 TDS:Upgrade(12)
 TDS:Upgrade(12)
-TDS:Upgrade(13)
-TDS:Upgrade(13)
-TDS:Upgrade(14)
-TDS:Upgrade(14)
-TDS:Upgrade(15)
-TDS:Upgrade(15)
-TDS:Upgrade(16)
-TDS:Upgrade(16)
-TDS:Upgrade(17)
-TDS:Upgrade(17)
-TDS:Upgrade(18)
-TDS:Upgrade(18)
 
-TDS:Place("Commander", 6.262, 60, 13.912)
-TDS:Place("Commander", 6.262, 60, 13.912)
-TDS:Place("Commander", 6.262, 60, 13.912)
+TDS:Place("Soldier", 8.63048, 70, 19.31162) -- 13
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+
+TDS:Place("Soldier", 8.63048, 70, 19.31162) -- 14
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+
+TDS:Place("Soldier", 8.63048, 70, 19.31162) -- 15
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+
+TDS:Place("Ranger", 11.146, 60, 8.997) -- 16
+TDS:Place("Ranger", 11.146, 60, 8.997) -- 17
+TDS:Place("Ranger", 11.146, 60, 8.997) -- 18
+
+TDS:Place("DJ Booth", 6.262, 60, 13.912)  -- 19
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+
+TDS:SetOption(19, "Track", "Green")
+TDS:Ability(19, "Drop The Beat", {Nill} , true)
+
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+
+TDS:Place("Ranger", 11.146, 60, 8.997) -- 20
+TDS:Place("Ranger", 11.146, 60, 8.997) -- 21
+
+TDS:Place("Commander", 6.262, 60, 13.912)  -- 22
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+
+TDS:Place("Commander", 6.262, 60, 13.912)  -- 23
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+
+TDS:Place("Commander", 6.262, 60, 13.912)  -- 24
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+
+TDS:AutoChain(22, 23, 24)
 
 TDS:Upgrade(19)
 TDS:Upgrade(19)
-TDS:Upgrade(20)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+
+TDS:Place("Ranger", 11.146, 60, 8.997) -- 25
+TDS:Place("Ranger", 11.146, 60, 8.997) -- 26
+TDS:Place("Ranger", 11.146, 60, 8.997) -- 27
+
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
 TDS:Upgrade(20)
 TDS:Upgrade(21)
+TDS:Upgrade(25)
+TDS:Upgrade(26)
+TDS:Upgrade(27)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+TDS:Upgrade(20)
 TDS:Upgrade(21)
+TDS:Upgrade(25)
+TDS:Upgrade(26)
+TDS:Upgrade(27)
 
-TDS:AutoChain(19, 20, 21)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
 
-TDS:Loadout("Ranger", "Turret", "DJ Booth", "Commander", "Minigunner")
-
-TDS:Place("Minigunner", 8.970, 60, 10.813)
-TDS:Place("Minigunner", 6.076, 60, 9.821)
-TDS:Place("Minigunner", 2.159, 60, 13.925)
-TDS:Place("Minigunner", 3.344, 60, 11.162)
-TDS:Place("Minigunner", 3.444, 60, 8.152)
-TDS:Place("Minigunner", 0.615, 60, 6.963)
-TDS:Place("Minigunner", 0.502, 60, 9.987)
-TDS:Place("Minigunner", -0.702, 60, 12.744)
-TDS:Place("Minigunner", -2.044, 60, 8.379)
-TDS:Place("Minigunner", -3.284, 60, 11.189)
-TDS:Place("Minigunner", 15.051, 60, 11.227)
-TDS:Place("Minigunner", 16.597, 60, 13.847)
-TDS:Place("Minigunner", 16.106, 60, 16.977)
-TDS:Place("Minigunner", 16.100, 60, 8.383)
-TDS:Place("Minigunner", 18.104, 60, 10.747)
-TDS:Place("Minigunner", 19.614, 60, 13.357)
-TDS:Place("Turret", 6.262, 60, 13.912)
-TDS:Place("Turret", 6.262, 60, 13.912)
-TDS:Place("Turret", 6.262, 60, 13.912)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(25)
+TDS:Upgrade(26)
+TDS:Upgrade(27)
 
 TDS:Upgrade(22)
 TDS:Upgrade(22)
@@ -160,277 +181,364 @@ TDS:Upgrade(23)
 TDS:Upgrade(23)
 TDS:Upgrade(24)
 TDS:Upgrade(24)
-TDS:Upgrade(25)
-TDS:Upgrade(25)
-TDS:Upgrade(26)
-TDS:Upgrade(26)
-TDS:Upgrade(27)
-TDS:Upgrade(27)
+
+TDS:Place("Turret", 6.262, 60, 13.912) -- 28
+TDS:Place("Turret", 6.262, 60, 13.912) -- 29
+TDS:Place("Turret", 6.262, 60, 13.912) -- 30
+
 TDS:Upgrade(28)
 TDS:Upgrade(28)
-TDS:Upgrade(29)
-TDS:Upgrade(29)
-TDS:Upgrade(30)
-TDS:Upgrade(30)
-TDS:Upgrade(31)
-TDS:Upgrade(31)
-TDS:Upgrade(32)
-TDS:Upgrade(32)
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-TDS:Upgrade(34)
-TDS:Upgrade(34)
-TDS:Upgrade(35)
-TDS:Upgrade(35)
-TDS:Upgrade(36)
-TDS:Upgrade(36)
-TDS:Upgrade(37)
-TDS:Upgrade(37)
-TDS:Upgrade(38)
-TDS:Upgrade(38)
-TDS:Upgrade(39)
-TDS:Upgrade(39)
-TDS:Upgrade(40)
-TDS:Upgrade(40)
-
-TDS:Upgrade(12)
-TDS:Upgrade(13)
-TDS:Upgrade(14)
-TDS:Upgrade(15)
-TDS:Upgrade(16)
-TDS:Upgrade(17)
-TDS:Upgrade(18)
-
-TDS:Upgrade(22)
-TDS:Upgrade(22)
-TDS:Upgrade(23)
-TDS:Upgrade(23)
-TDS:Upgrade(24)
-TDS:Upgrade(24)
-TDS:Upgrade(25)
-TDS:Upgrade(25)
-TDS:Upgrade(26)
-TDS:Upgrade(26)
-TDS:Upgrade(27)
-TDS:Upgrade(27)
 TDS:Upgrade(28)
 TDS:Upgrade(28)
+
 TDS:Upgrade(29)
 TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+
 TDS:Upgrade(30)
 TDS:Upgrade(30)
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+
+TDS:Loadout("Minigunner", "Soldier", "DJ Booth", "Commander", "Ranger")
+
+TDS:Upgrade(28)
+
+TDS:Ability(22, "Support Caravan", {Nill} , true)
+TDS:Ability(23, "Support Caravan", {Nill} , true)
+TDS:Ability(24, "Support Caravan", {Nill} , true)
+
+TDS:SetOption(19, "Track", "Red")
+
+TDS:Upgrade(29)
+TDS:Upgrade(30)
+
+
+TDS:SetTarget(1, "Last") -- 1
+TDS:SetTarget(2, "Last") -- 2
+TDS:SetTarget(3, "Last") -- 3
+TDS:SetTarget(4, "Last") -- 4
+TDS:SetTarget(5, "Last") -- 5
+TDS:SetTarget(6, "Last") -- 6
+TDS:SetTarget(7, "Last") -- 7
+TDS:SetTarget(8, "Last") -- 8
+TDS:SetTarget(9, "Last") -- 9
+TDS:SetTarget(10, "Last") -- 10
+TDS:SetTarget(11, "Last") -- 11
+TDS:SetTarget(12, "Last") -- 12
+TDS:SetTarget(13, "Last") -- 13
+
+TDS:Place("Minigunner", 12.553, 70, 24.012) -- 31
 TDS:Upgrade(31)
 TDS:Upgrade(31)
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+
+TDS:Place("Minigunner", 12.553, 70, 24.012) -- 32
 TDS:Upgrade(32)
 TDS:Upgrade(32)
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+
+TDS:SetTarget(31, "Last") -- 31
+TDS:SetTarget(32, "Last") -- 32
+
+TDS:Place("Minigunner", 12.553, 70, 24.012) -- 33
 TDS:Upgrade(33)
 TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+
+TDS:Place("Minigunner", 12.553, 70, 24.012) -- 34
 TDS:Upgrade(34)
 TDS:Upgrade(34)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+
+TDS:Place("Minigunner", 8.63048, 70, 19.31162) -- 35
 TDS:Upgrade(35)
 TDS:Upgrade(35)
+TDS:Upgrade(35)
+TDS:Upgrade(35)
+
+TDS:Place("Minigunner", 8.63048, 70, 19.31162) -- 36
 TDS:Upgrade(36)
 TDS:Upgrade(36)
+TDS:Upgrade(36)
+TDS:Upgrade(36)
+
+TDS:Place("Minigunner", 8.63048, 70, 19.31162) -- 37
 TDS:Upgrade(37)
 TDS:Upgrade(37)
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+
+TDS:Place("Minigunner", 8.63048, 70, 19.31162) -- 38
 TDS:Upgrade(38)
 TDS:Upgrade(38)
+TDS:Upgrade(38)
+TDS:Upgrade(38)
+
+TDS:Place("Minigunner", 8.63048, 70, 19.31162) -- 39
 TDS:Upgrade(39)
 TDS:Upgrade(39)
+TDS:Upgrade(39)
+TDS:Upgrade(39)
+
+TDS:Place("Minigunner", 8.63048, 70, 19.31162) -- 40
 TDS:Upgrade(40)
 TDS:Upgrade(40)
-
-TDS:SetTarget(12, "Last")
-TDS:SetTarget(13, "Last")
-TDS:SetTarget(14, "Last")
-TDS:SetTarget(15, "Last")
-TDS:SetTarget(16, "Last")
-TDS:SetTarget(17, "Last")
-TDS:SetTarget(18, "Last")
-TDS:SetTarget(19, "Last")
-TDS:SetTarget(20, "Last")
-TDS:SetTarget(21, "Last")
-TDS:SetTarget(22, "Last")
-TDS:SetTarget(23, "Last")
-TDS:SetTarget(24, "Last")
-TDS:SetTarget(25, "Last")
-TDS:SetTarget(26, "Last")
-TDS:SetTarget(27, "Last")
-TDS:SetTarget(28, "Last")
-TDS:SetTarget(29, "Last")
-TDS:SetTarget(30, "Last")
-TDS:SetTarget(31, "Last")
-
-TDS:Upgrade(12)
-TDS:Upgrade(13)
-TDS:Upgrade(14)
-TDS:Upgrade(15)
-TDS:Upgrade(16)
-TDS:Upgrade(17)
-TDS:Upgrade(18)
-
-TDS:Upgrade(19)
-TDS:Upgrade(19)
-TDS:Upgrade(20)
-TDS:Upgrade(20)
-TDS:Upgrade(21)
-TDS:Upgrade(21)
-
-TDS:SetOption(11, "Track", "Red")
+TDS:Upgrade(40)
+TDS:Upgrade(40)
 
 TDS:Sell(1)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 41
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+TDS:SetTarget(41, "Last") -- 41
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+
 TDS:Sell(2)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 42
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+TDS:SetTarget(42, "Last") -- 42
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+
 TDS:Sell(3)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 43
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+TDS:SetTarget(43, "Last") -- 43
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+
 TDS:Sell(4)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 44
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+TDS:SetTarget(44, "Last") -- 44
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+
 TDS:Sell(5)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 45
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+TDS:SetTarget(45, "Last") -- 45
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+
 TDS:Sell(6)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 46
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+TDS:SetTarget(46, "Last") -- 46
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+
 TDS:Sell(7)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 47
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+
 TDS:Sell(8)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 48
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+
 TDS:Sell(9)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 49
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+
 TDS:Sell(10)
-
-TDS:Ability(19, "Support Caravan", {Nill} , true)
-TDS:Ability(20, "Support Caravan", {Nill} , true)
-TDS:Ability(21, "Support Caravan", {Nill} , true)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(41)
-TDS:Upgrade(41)
-TDS:Upgrade(41)
-TDS:Upgrade(41)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(42)
-TDS:Upgrade(42)
-TDS:Upgrade(42)
-TDS:Upgrade(42)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(43)
-TDS:Upgrade(43)
-TDS:Upgrade(43)
-TDS:Upgrade(43)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(44)
-TDS:Upgrade(44)
-TDS:Upgrade(44)
-TDS:Upgrade(44)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(45)
-TDS:Upgrade(45)
-TDS:Upgrade(45)
-TDS:Upgrade(45)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(46)
-TDS:Upgrade(46)
-TDS:Upgrade(46)
-TDS:Upgrade(46)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(47)
-TDS:Upgrade(47)
-TDS:Upgrade(47)
-TDS:Upgrade(47)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(48)
-TDS:Upgrade(48)
-TDS:Upgrade(48)
-TDS:Upgrade(48)
-
-TDS:Place("Minigunner", 6.262, 60.000, 13.912)
-TDS:Upgrade(49)
-TDS:Upgrade(49)
-TDS:Upgrade(49)
-TDS:Upgrade(49)
-
-TDS:Place("Minigunner", -2.166, 60, 15.428)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 50
 TDS:Upgrade(50)
 TDS:Upgrade(50)
 TDS:Upgrade(50)
 TDS:Upgrade(50)
 
-
-TDS:SetTarget(12, "First")
-TDS:SetTarget(13, "First")
-TDS:SetTarget(14, "First")
-TDS:SetTarget(15, "First")
-TDS:SetTarget(16, "First")
-TDS:SetTarget(17, "First")
-TDS:SetTarget(18, "First")
-TDS:SetTarget(19, "First")
-TDS:SetTarget(20, "First")
-TDS:SetTarget(21, "First")
-TDS:SetTarget(22, "First")
-TDS:SetTarget(23, "First")
-TDS:SetTarget(24, "First")
-TDS:SetTarget(25, "First")
-TDS:SetTarget(26, "First")
-TDS:SetTarget(27, "First")
-TDS:SetTarget(28, "First")
-TDS:SetTarget(29, "First")
-TDS:SetTarget(30, "First")
-TDS:SetTarget(31, "First")
-
-TDS:Place("Minigunner", -2.166, 0.923, 15.428)
+TDS:Sell(11)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 51
 TDS:Upgrade(51)
 TDS:Upgrade(51)
 TDS:Upgrade(51)
 TDS:Upgrade(51)
 
-TDS:Place("Minigunner", -2.080, 0.949, 18.556)
+TDS:Sell(12)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 52
 TDS:Upgrade(52)
 TDS:Upgrade(52)
 TDS:Upgrade(52)
 TDS:Upgrade(52)
 
-TDS:Place("Minigunner", -4.760, 0.905, 13.873)
+TDS:Sell(13)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 53
 TDS:Upgrade(53)
 TDS:Upgrade(53)
 TDS:Upgrade(53)
 TDS:Upgrade(53)
 
-TDS:Place("Minigunner", -4.780, 0.944, 16.982)
+TDS:Sell(14)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 54
 TDS:Upgrade(54)
 TDS:Upgrade(54)
 TDS:Upgrade(54)
 TDS:Upgrade(54)
 
-TDS:Place("Minigunner", -2.014, 0.930, 5.312)
+TDS:Sell(15)
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 55
 TDS:Upgrade(55)
 TDS:Upgrade(55)
 TDS:Upgrade(55)
 TDS:Upgrade(55)
 
-TDS:Place("Minigunner", 3.195, 0.961, 24.653)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(25)
+TDS:Upgrade(26)
+TDS:Upgrade(27)
+
+TDS:Sell(31)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 56
 TDS:Upgrade(56)
 TDS:Upgrade(56)
 TDS:Upgrade(56)
 TDS:Upgrade(56)
 
-TDS:Place("Minigunner", 6.264, 0.966, 24.738)
+TDS:Sell(32)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 57
 TDS:Upgrade(57)
 TDS:Upgrade(57)
 TDS:Upgrade(57)
 TDS:Upgrade(57)
 
-TDS:Place("Minigunner", 9.258, 0.970, 25.139)
+TDS:Sell(33)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 58
 TDS:Upgrade(58)
 TDS:Upgrade(58)
 TDS:Upgrade(58)
 TDS:Upgrade(58)
 
-TDS:Place("Minigunner", 12.357, 0.974, 25.382)
+TDS:Sell(34)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 59
 TDS:Upgrade(59)
 TDS:Upgrade(59)
 TDS:Upgrade(59)
 TDS:Upgrade(59)
 
-TDS:Place("Minigunner", 15.058, 0.977, 24.016)
+TDS:Sell(35)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 60
 TDS:Upgrade(60)
 TDS:Upgrade(60)
 TDS:Upgrade(60)
 TDS:Upgrade(60)
+
+TDS:Sell(36)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 61
+TDS:Upgrade(61)
+TDS:Upgrade(61)
+TDS:Upgrade(61)
+TDS:Upgrade(61)
+
+TDS:Sell(37)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 62
+TDS:Upgrade(62)
+TDS:Upgrade(62)
+TDS:Upgrade(62)
+TDS:Upgrade(62)
+
+TDS:Sell(38)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 63
+TDS:Upgrade(63)
+TDS:Upgrade(63)
+TDS:Upgrade(63)
+TDS:Upgrade(63)
+
+TDS:Sell(39)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 64
+TDS:Upgrade(64)
+TDS:Upgrade(64)
+TDS:Upgrade(64)
+TDS:Upgrade(64)
+
+TDS:Sell(40)
+TDS:Place("Minigunner", 6.262, 60, 13.912) -- 65
+TDS:Upgrade(65)
+TDS:Upgrade(65)
+TDS:Upgrade(65)
+TDS:Upgrade(65)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 66
+TDS:Upgrade(66)
+TDS:Upgrade(66)
+TDS:Upgrade(66)
+TDS:Upgrade(66)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 67
+TDS:Upgrade(67)
+TDS:Upgrade(67)
+TDS:Upgrade(67)
+TDS:Upgrade(67)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 68
+TDS:Upgrade(68)
+TDS:Upgrade(68)
+TDS:Upgrade(68)
+TDS:Upgrade(68)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 69
+TDS:Upgrade(69)
+TDS:Upgrade(69)
+TDS:Upgrade(69)
+TDS:Upgrade(69)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 70
+TDS:Upgrade(70)
+TDS:Upgrade(70)
+TDS:Upgrade(70)
+TDS:Upgrade(70)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 71
+TDS:Upgrade(71)
+TDS:Upgrade(71)
+TDS:Upgrade(71)
+TDS:Upgrade(71)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 72
+TDS:Upgrade(72)
+TDS:Upgrade(72)
+TDS:Upgrade(72)
+TDS:Upgrade(72)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 73
+TDS:Upgrade(73)
+TDS:Upgrade(73)
+TDS:Upgrade(73)
+TDS:Upgrade(73)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 74
+TDS:Upgrade(74)
+TDS:Upgrade(74)
+TDS:Upgrade(74)
+TDS:Upgrade(74)
+
+TDS:Place("Minigunner", 9.26119, 70, 10.85202) -- 75
+TDS:Upgrade(75)
+TDS:Upgrade(75)
+TDS:Upgrade(75)
+TDS:Upgrade(75)
+
