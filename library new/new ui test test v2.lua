@@ -1675,27 +1675,42 @@ start_postmatch_manager = function()
                 if not rewards_section then task.wait(0.5) end
             until rewards_section
 
+            print("postmatch_manager: rewards detected; running handle_post_match")
             -- handle the match end (send webhooks & restart)
-            pcall(function()
+            local ok, err = pcall(function()
                 if type(handle_post_match) == "function" then
                     handle_post_match()
                 else
-                    if type(trigger_restart) == "function" then trigger_restart() end
+                    warn("postmatch_manager: handle_post_match not defined; calling trigger_restart instead")
+                    trigger_restart()
                 end
             end)
+            if not ok then
+                warn("postmatch_manager: handle_post_match error:", tostring(err))
+            end
 
-            -- ensure macros restart for next match
-            task.wait(1.5)
-            if type(restart_macros) == "function" then pcall(restart_macros, true) end
+            -- wait for rewards screen to disappear or until in-game HUD shows up (indicating new match)
+            local watchdog = 0
+            repeat
+                task.wait(0.5)
+                watchdog = watchdog + 0.5
+                root = player_gui:FindFirstChild("ReactGameNewRewards")
+                local ingame = player_gui:FindFirstChild("ReactIngameHud") or player_gui:FindFirstChild("ReactGameTopGameDisplay")
+                if not root and ingame then
+                    print("postmatch_manager: rewards gone and in-game HUD detected; proceeding")
+                    break
+                end
+                -- safety cap: after 45s move on and still try to restart macros
+            until watchdog >= 45
 
+            -- Ensure macros restart for next match
+            pcall(restart_macros, true)
+
+            -- small delay to avoid tight loops
             task.wait(2)
         end
     end)
 end
 
--- start postmatch manager and utilities that should always run
-start_postmatch_manager()
-start_anti_afk()
-start_rejoin_on_disconnect()
-
-return TDS
+-- start (call replacement manager)
+start_postmatch_manager() 
