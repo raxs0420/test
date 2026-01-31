@@ -206,9 +206,10 @@ end
 
 -- // lobby / teleporting
 local function send_to_lobby()
-    task.wait(1)
-    local lobby_remote = game.ReplicatedStorage.Network.Teleport["RE:backToLobby"]
-    lobby_remote:FireServer()
+    task.wait(1.5)
+
+-- CHANGED: Restart instead of going to lobby
+TDS:RestartGame()
 end
 
 local function handle_post_match()
