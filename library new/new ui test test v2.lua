@@ -432,6 +432,32 @@ elseif game_state == "GAME" then
     log_match_start()
 end
 
+-- restart macros helper: clears running guards and restarts enabled macros
+local function restart_macros()
+    -- Clear internal running flags so start_* functions will spawn new loops
+    auto_pickups_running = false
+    auto_skip_running    = false
+    auto_chain_running   = false
+    auto_dj_running      = false
+    anti_lag_running     = false
+    back_to_lobby_running = false
+
+    -- allow any existing loops to notice the flag change and exit cleanly
+    task.wait(0.5)
+
+    -- restart macros that the user enabled via _G flags
+    if _G.AutoPickups then start_auto_pickups() end
+    if _G.AutoSkip    then start_auto_skip() end
+    if _G.AutoChain   then start_auto_chain() end
+    if _G.AutoDJ      then start_auto_dj_booth() end
+    if _G.AntiLag     then start_anti_lag() end
+
+    -- optionally restart claim rewards if in lobby and enabled
+    if _G.ClaimRewards and not auto_claim_rewards and game_state == "LOBBY" then
+        start_claim_rewards()
+    end
+end
+
 -- // voting & map selection
 local function run_vote_skip()
     while true do
@@ -649,8 +675,14 @@ local function trigger_restart()
         end
     until found_section
 
-    task.wait(3)
+    task.wait(0.5)
+
+    -- perform the vote skip / restart action (this is your existing restart mechanism)
     run_vote_skip()
+
+    -- small wait to let server process the vote restart flow, then restart macros
+    task.wait(0.5)
+    restart_macros()
 end
 
 local function get_current_wave()
