@@ -661,27 +661,58 @@ local function unlock_speed_tickets()
 end
 
 -- // ingame control
+
 local function trigger_restart()
-    local ui_root = player_gui:WaitForChild("ReactGameNewRewards")
-    local found_section = false
+    local attempts = 0
+    local play_btn
 
+    -- wait for the rewards UI and PlayAgain button to appear
     repeat
-        task.wait(0.3)
-        local f = ui_root:FindFirstChild("Frame")
-        local g = f and f:FindFirstChild("gameOver")
-        local s = g and g:FindFirstChild("RewardsScreen")
-        if s and s:FindFirstChild("RewardsSection") then
-            found_section = true
+        local root = player_gui:FindFirstChild("ReactGameNewRewards")
+        local frame = root and root:FindFirstChild("Frame")
+        local gameOver = frame and frame:FindFirstChild("gameOver")
+        local rewards_screen = gameOver and gameOver:FindFirstChild("RewardsScreen")
+        play_btn = rewards_screen and rewards_screen:FindFirstChild("PlayAgain")
+        if play_btn then break end
+
+        task.wait(0.5)
+        attempts = attempts + 1
+    until attempts > 60  -- fail-safe ~30s
+
+    if not play_btn then
+        warn("PlayAgain button not found; falling back to run_vote_skip()")
+        pcall(run_vote_skip)
+        task.wait(1)
+        restart_macros()
+        return
+    end
+
+    -- try to activate the button safely
+    pcall(function()
+        -- most robust is GuiButton:Activate()
+        if typeof(play_btn.Activate) == "function" then
+            play_btn:Activate()
+        elseif play_btn:IsA("TextButton") or play_btn:IsA("ImageButton") then
+            -- fallback to firing MouseButton1Click if Activate not present
+            play_btn.MouseButton1Click:Fire()
         end
-    until found_section
+    end)
 
-    task.wait(0.5)
+    -- Wait for the next match to actually start before restarting macros.
+    -- Adjust checks here to whatever HUD elements your game uses when a round starts.
+    local maxWait = 60
+    local waited = 0
+    repeat
+        task.wait(0.5)
+        waited = waited + 0.5
+        -- common signals the match started:
+        -- presence of in-game HUD or top game display or towers in workspace
+        local in_game_hud = player_gui:FindFirstChild("ReactIngameHud") or player_gui:FindFirstChild("GameGui") or player_gui:FindFirstChild("ReactGameTopGameDisplay")
+        local has_towers = workspace:FindFirstChild("Towers") and #workspace.Towers:GetChildren() > 0
+        if in_game_hud or has_towers then break end
+    until waited >= maxWait
 
-    -- perform the vote skip / restart action (this is your existing restart mechanism)
-    run_vote_skip()
-
-    -- small wait to let server process the vote restart flow, then restart macros
-    task.wait(0.5)
+    -- restart macro loops
     restart_macros()
 end
 
