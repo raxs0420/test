@@ -1,30 +1,17 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
-local function identify_game_state()
-    local players = game:GetService("Players")
-    local temp_player = players.LocalPlayer or players.PlayerAdded:Wait()
-    local temp_gui = temp_player:WaitForChild("PlayerGui")
-    
-    while true do
-        if temp_gui:FindFirstChild("LobbyGui") then
-            return "LOBBY"
-        elseif temp_gui:FindFirstChild("GameGui") then
-            return "GAME"
-        end
-        task.wait(1)
-    end
-end
+-- Basic runtime flags
+local back_to_lobby_running = false
+local auto_pickups_running = false
+local auto_skip_running = false
+local anti_lag_running = false
+local auto_chain_running = false
+local auto_dj_running = false
+local auto_claim_rewards = false
+local postmatch_manager_running = false
 
-
-local game_state = identify_game_state()
-
-local send_request = request or http_request or httprequest
-    or GetDevice and GetDevice().request
-
-if not send_request then 
-    warn("failure: no http function") 
-    return 
-end
+local hasSentLobbyWebhook = false
+local hasSentMatchStartWebhook = false
 
 -- // services & main refs
 local teleport_service = game:GetService("TeleportService")
@@ -36,12 +23,13 @@ local players_service = game:GetService("Players")
 local local_player = players_service.LocalPlayer or players_service.PlayerAdded:Wait()
 local player_gui = local_player:WaitForChild("PlayerGui")
 
-local back_to_lobby_running = false
-local auto_pickups_running = false
-local auto_skip_running = false
-local anti_lag_running = false
-local hasSentLobbyWebhook = false
-local hasSentMatchStartWebhook = false
+local send_request = request or http_request or httprequest
+    or (GetDevice and GetDevice().request)
+
+if not send_request then 
+    warn("failure: no http function") 
+    -- continue, webhook functions will be no-ops
+end
 
 -- // icon item ids ill add more soon arghh
 local ItemNames = {
@@ -85,6 +73,24 @@ shared.TDS_Table = TDS
 local start_coins, current_total_coins, start_gems, current_total_gems = 0, 0, 0, 0
 local current_level = 0
 
+-- // detect LOBBY/GAME
+local function identify_game_state()
+    local players = game:GetService("Players")
+    local temp_player = players.LocalPlayer or players.PlayerAdded:Wait()
+    local temp_gui = temp_player:WaitForChild("PlayerGui")
+    
+    while true do
+        if temp_gui:FindFirstChild("LobbyGui") then
+            return "LOBBY"
+        elseif temp_gui:FindFirstChild("GameGui") then
+            return "GAME"
+        end
+        task.wait(1)
+    end
+end
+
+local game_state = identify_game_state()
+
 if game_state == "LOBBY" then
     pcall(function()
         -- Get current level (this works in lobby)
@@ -107,7 +113,7 @@ elseif game_state == "GAME" then
     end)
 end
 
--- // check if remote returned valid
+-- // helpers
 local function check_res_ok(data)
     if data == true then return true end
     if type(data) == "table" and data.Success == true then return true end
@@ -120,6 +126,153 @@ local function check_res_ok(data)
     if type(data) == "userdata" then return true end
 
     return false
+end
+
+-- Safe caller to avoid "attempt to call nil value"
+local function safe_call(fn, ...)
+    if type(fn) ~= "function" then
+        warn("safe_call: not a function:", tostring(fn))
+        return false
+    end
+    local ok, err = pcall(fn, ...)
+    if not ok then
+        warn("safe_call: function error:", tostring(err))
+        return false
+    end
+    return true
+end
+
+-- forward declarations (functions used earlier/later)
+local trigger_restart, restart_macros, start_postmatch_manager, handle_post_match
+
+-- Replace send_to_lobby to be a client-side restart (no server teleport)
+local function send_to_lobby()
+    -- Previously fired server "RE:backToLobby". Now we call a safe restart instead.
+    if type(trigger_restart) == "function" then
+        pcall(trigger_restart)
+    else
+        warn("send_to_lobby: trigger_restart not available")
+    end
+end
+
+-- // timescale logic, unlock, etc (unchanged)
+local function set_game_timescale(target_val)
+    local speed_list = {0, 0.5, 1, 1.5, 2}
+
+    local target_idx
+    for i, v in ipairs(speed_list) do
+        if v == target_val then
+            target_idx = i
+            break
+        end
+    end
+    if not target_idx then return end
+
+    local speed_label = game.Players.LocalPlayer.PlayerGui.ReactUniversalHotbar.Frame.timescale.Speed
+
+    local current_val = tonumber(speed_label.Text:match("x([%d%.]+)"))
+    if not current_val then return end
+
+    local current_idx
+    for i, v in ipairs(speed_list) do
+        if v == current_val then
+            current_idx = i
+            break
+        end
+    end
+    if not current_idx then return end
+
+    local diff = target_idx - current_idx
+    if diff < 0 then
+        diff = #speed_list + diff
+    end
+
+    for _ = 1, diff do
+        replicated_storage.RemoteFunction:InvokeServer(
+            "TicketsManager",
+            "CycleTimeScale"
+        )
+        task.wait(0.5)
+    end
+end
+
+local function unlock_speed_tickets()
+    if local_player.TimescaleTickets.Value >= 1 then
+        if game.Players.LocalPlayer.PlayerGui.ReactUniversalHotbar.Frame.timescale.Lock.Visible then
+            replicated_storage.RemoteFunction:InvokeServer('TicketsManager', 'UnlockTimeScale')
+        end
+    else
+        warn("no tickets left")
+    end
+end
+
+-- // ingame control (trigger_restart is used by handle_post_match)
+trigger_restart = function()
+    -- Wait briefly for reward UI (best-effort). If not present, proceed anyway.
+    local ok, ui_root = pcall(function()
+        return player_gui:FindFirstChild("ReactGameNewRewards")
+    end)
+
+    if ui_root == nil then
+        -- proceed, we might be in a different state
+        warn("trigger_restart: ReactGameNewRewards not found; proceeding with restart")
+    end
+
+    -- Attempt to perform in-game restart: run vote skip if available
+    if type(run_vote_skip) == "function" then
+        pcall(run_vote_skip)
+    else
+        -- fallback behaviour: attempt to invoke any server API for restart if known
+        -- otherwise just proceed to restart macros locally
+        warn("trigger_restart: run_vote_skip not available, relying on server flows or client-only restart")
+    end
+
+    -- give server a moment to process the skip/restart
+    task.wait(1)
+
+    -- restart macros (wait for match to start)
+    if type(restart_macros) == "function" then
+        pcall(restart_macros, true)
+    end
+end
+
+-- restart_macros resets internal guard flags and restarts enabled macros
+restart_macros = function(wait_for_ingame)
+    auto_pickups_running   = false
+    auto_skip_running      = false
+    auto_chain_running     = false
+    auto_dj_running        = false
+    anti_lag_running       = false
+    back_to_lobby_running  = false
+
+    -- allow existing loops to exit
+    task.wait(0.5)
+
+    -- optionally wait until next match UI is present before restarting macros
+    if wait_for_ingame then
+        local max_wait = 30
+        local waited = 0
+        while waited < max_wait do
+            if player_gui:FindFirstChild("ReactIngameHud")
+               or player_gui:FindFirstChild("ReactGameTopGameDisplay") then
+                break
+            end
+            task.wait(0.5)
+            waited = waited + 0.5
+        end
+    end
+
+    -- restart macros that the user enabled
+    if _G.AutoPickups and type(start_auto_pickups) == "function" then safe_call(start_auto_pickups) end
+    if _G.AutoSkip    and type(start_auto_skip)    == "function" then safe_call(start_auto_skip)    end
+    if _G.AutoChain   and type(start_auto_chain)   == "function" then safe_call(start_auto_chain)   end
+    if _G.AutoDJ      and type(start_auto_dj_booth)== "function" then safe_call(start_auto_dj_booth)  end
+    if _G.AntiLag     and type(start_anti_lag)     == "function" then safe_call(start_anti_lag)     end
+
+    if _G.ClaimRewards and not auto_claim_rewards and game_state == "LOBBY"
+       and type(start_claim_rewards) == "function" then
+        safe_call(start_claim_rewards)
+    end
 end
 
 -- // scrap ui for match data
@@ -204,13 +357,7 @@ local function get_all_rewards()
     return results
 end
 
--- // lobby / teleporting
-local function send_to_lobby()
-    task.wait(1)
-    local lobby_remote = game.ReplicatedStorage.Network.Teleport["RE:backToLobby"]
-    lobby_remote:FireServer()
-end
-
+-- // lobby / teleporting (send_to_lobby now safe)
 local function handle_post_match()
     local ui_root
     repeat
@@ -224,18 +371,21 @@ local function handle_post_match()
     until ui_root
 
     if not ui_root then 
-        return trigger_restart() 
+        -- fallback to restarting behavior
+        if type(trigger_restart) == "function" then pcall(trigger_restart) end
+        return
     end
 
+    -- If webhooks disabled, still restart the run instead of teleporting
     if not _G.SendWebhook then
-        trigger_restart()
+        if type(trigger_restart) == "function" then pcall(trigger_restart) end
         return
     end
 
     local match = get_all_rewards()
 
-    current_total_coins += match.Coins
-    current_total_gems += match.Gems
+    current_total_coins = current_total_coins + (match.Coins or 0)
+    current_total_gems = current_total_gems + (match.Gems or 0)
 
     local bonus_string = ""
     if #match.Others > 0 then
@@ -262,9 +412,9 @@ local function handle_post_match()
                 {
                     name = "✨ Rewards",
                     value = "```ansi\n" ..
-                            "[2;33mCoins:[0m +" .. match.Coins .. "\n" ..
-                            "[2;34mGems: [0m +" .. match.Gems .. "\n" ..
-                            "[2;32mXP:   [0m +" .. match.XP .. "```",
+                            "[2;33mCoins:[0m +" .. (match.Coins or 0) .. "\n" ..
+                            "[2;34mGems: [0m +" .. (match.Gems or 0) .. "\n" ..
+                            "[2;32mXP:   [0m +" .. (match.XP or 0) .. "```",
                     inline = false
                 },
                 {
@@ -294,13 +444,12 @@ local function handle_post_match()
 
     task.wait(1.5)
 
-    trigger_restart()
+    -- restart run instead of sending to lobby
+    if type(trigger_restart) == "function" then pcall(trigger_restart) end
 end
-    
-                    
--- 1. Define BOTH functions first
+
+-- 1. Define BOTH functions first (log webhook / lobby webhook) (unchanged)
 local function log_match_start()
-    
     if hasSentMatchStartWebhook then 
         return 
     end
@@ -350,8 +499,7 @@ local function log_match_start()
 end
 
 local function send_lobby_webhook()
-
-if hasSentLobbyWebhook then 
+    if hasSentLobbyWebhook then 
         return 
     end
     
@@ -432,7 +580,6 @@ elseif game_state == "GAME" then
     log_match_start()
 end
 
-
 -- // voting & map selection
 local function run_vote_skip()
     while true do
@@ -445,9 +592,9 @@ local function run_vote_skip()
 end
 
 local function match_ready_up()
-    local player_gui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    local player_gui_local = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     
-    local ui_overrides = player_gui:WaitForChild("ReactOverridesVote", 30)
+    local ui_overrides = player_gui_local:WaitForChild("ReactOverridesVote", 30)
     local main_frame = ui_overrides and ui_overrides:WaitForChild("Frame", 30)
     
     if not main_frame then
@@ -584,150 +731,8 @@ local function is_map_available(name)
     return false
 end
 
--- // timescale logic
-local function set_game_timescale(target_val)
-    local speed_list = {0, 0.5, 1, 1.5, 2}
-
-    local target_idx
-    for i, v in ipairs(speed_list) do
-        if v == target_val then
-            target_idx = i
-            break
-        end
-    end
-    if not target_idx then return end
-
-    local speed_label = game.Players.LocalPlayer.PlayerGui.ReactUniversalHotbar.Frame.timescale.Speed
-
-    local current_val = tonumber(speed_label.Text:match("x([%d%.]+)"))
-    if not current_val then return end
-
-    local current_idx
-    for i, v in ipairs(speed_list) do
-        if v == current_val then
-            current_idx = i
-            break
-        end
-    end
-    if not current_idx then return end
-
-    local diff = target_idx - current_idx
-    if diff < 0 then
-        diff = #speed_list + diff
-    end
-
-    for _ = 1, diff do
-        replicated_storage.RemoteFunction:InvokeServer(
-            "TicketsManager",
-            "CycleTimeScale"
-        )
-        task.wait(0.5)
-    end
-end
-
-local function unlock_speed_tickets()
-    if local_player.TimescaleTickets.Value >= 1 then
-        if game.Players.LocalPlayer.PlayerGui.ReactUniversalHotbar.Frame.timescale.Lock.Visible then
-            replicated_storage.RemoteFunction:InvokeServer('TicketsManager', 'UnlockTimeScale')
-        end
-    else
-        warn("no tickets left")
-    end
-end
-
--- // ingame control
-
--- Safe caller helper
-local function safe_call(fn, ...)
-    if type(fn) ~= "function" then
-        warn("safe_call: not a function:", tostring(fn))
-        return false
-    end
-    local ok, err = pcall(fn, ...)
-    if not ok then
-        warn("safe_call: function error:", tostring(err))
-        return false
-    end
-    return true
-end
-
--- restart macros helper: clears running guards and restarts enabled macros safely
-local function restart_macros(wait_for_ingame)
-    -- Clear internal running guards so start_* functions will spawn new loops
-    auto_pickups_running  = false
-    auto_skip_running     = false
-    auto_chain_running    = false
-    auto_dj_running       = false
-    anti_lag_running      = false
-    back_to_lobby_running = false
-
-    -- allow any existing loops to notice the flag change and exit cleanly
-    task.wait(0.5)
-
-    -- optionally wait until back in-game before restarting macros
-    if wait_for_ingame then
-        local max_wait = 30
-        local waited = 0
-        while waited < max_wait do
-            if player_gui:FindFirstChild("ReactIngameHud") or player_gui:FindFirstChild("ReactGameTopGameDisplay") then
-                break
-            end
-            task.wait(0.5)
-            waited = waited + 0.5
-        end
-    end
-
-    -- restart macros that the user enabled via _G flags, using safe_call
-    if _G.AutoPickups and type(start_auto_pickups) == "function" then safe_call(start_auto_pickups) end
-    if _G.AutoSkip    and type(start_auto_skip)    == "function" then safe_call(start_auto_skip)    end
-    if _G.AutoChain   and type(start_auto_chain)   == "function" then safe_call(start_auto_chain)   end
-    if _G.AutoDJ      and type(start_auto_dj_booth)== "function" then safe_call(start_auto_dj_booth)  end
-    if _G.AntiLag     and type(start_anti_lag)     == "function" then safe_call(start_anti_lag)     end
-
-    -- claim rewards only in lobby and if enabled
-    if _G.ClaimRewards and not auto_claim_rewards and game_state == "LOBBY" and type(start_claim_rewards) == "function" then
-        safe_call(start_claim_rewards)
-    end
-end
-
--- safer trigger_restart which calls restart_macros at the end
-local function trigger_restart()
-    local ok, ui_root = pcall(function()
-        return player_gui:WaitForChild("ReactGameNewRewards", 10)
-    end)
-    if not ok or not ui_root then
-        warn("trigger_restart: ReactGameNewRewards not found; proceeding with restart anyway")
-    end
-
-    local found_section = false
-    if ui_root then
-        repeat
-            task.wait(0.3)
-            local f = ui_root:FindFirstChild("Frame")
-            local g = f and f:FindFirstChild("gameOver")
-            local s = g and g:FindFirstChild("RewardsScreen")
-            if s and s:FindFirstChild("RewardsSection") then
-                found_section = true
-            end
-        until found_section or not ui_root
-    end
-
-    task.wait(1)
-
-    -- perform the vote skip / restart action if available
-    if type(run_vote_skip) == "function" then
-        pcall(run_vote_skip)
-    else
-        warn("trigger_restart: run_vote_skip is not available")
-    end
-
-    -- small wait to let server process the vote restart flow, then safely restart macros
-    task.wait(1)
-    -- pass true if you want to wait for the next in-game UI before restarting macros
-    restart_macros(true)
-end
-
-local function get_current_wave()
+-- // ingame actions (do_place_tower, upgrades, etc) unchanged
+local function set_current_wave_label()
     local label = player_gui:WaitForChild("ReactGameTopGameDisplay").Frame.wave.container.value
     local wave_num = label.Text:match("^(%d+)")
     return tonumber(wave_num) or 0
@@ -772,7 +777,7 @@ end
 
 local function do_set_option(t_obj, opt_name, opt_val, req_wave)
     if req_wave then
-        repeat task.wait(0.3) until get_current_wave() >= req_wave
+        repeat task.wait(0.3) until set_current_wave_label() >= req_wave
     end
 
     while true do
@@ -861,7 +866,6 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
 end
 
 -- // public api
--- lobby
 function TDS:Mode(difficulty)
     if game_state ~= "LOBBY" then 
         return false 
@@ -910,7 +914,6 @@ function TDS:Mode(difficulty)
 end
 
 function TDS:Loadout(...)
-    -- normalize arguments: allow either a bunch of string args or a single table
     local raw_args = {...}
     local towers = {}
     if #raw_args == 1 and type(raw_args[1]) == "table" then
@@ -923,15 +926,12 @@ function TDS:Loadout(...)
         return false, "no towers provided"
     end
 
-    -- Accept both LOBBY and GAME states.
-    -- If `game_state` global exists and is a string, use it; otherwise try to infer via PlayerGui.
     local state = nil
     if type(game_state) == "string" then
         state = game_state
     end
 
     if state ~= "LOBBY" and state ~= "GAME" then
-        -- try to infer from player's GUI presence (best-effort)
         local player = game:GetService("Players").LocalPlayer
         if player and player:FindFirstChild("PlayerGui") then
             local pg = player.PlayerGui
@@ -944,21 +944,17 @@ function TDS:Loadout(...)
     end
 
     if state ~= "LOBBY" and state ~= "GAME" then
-        -- If we still can't determine a valid state, reject the call
         return false, ("unsupported or unknown game state: %s"):format(tostring(state))
     end
 
-    -- Try to locate the remote function in ReplicatedStorage
     local replicated = game:GetService("ReplicatedStorage")
     local remote = nil
-    -- prefer WaitForChild but with a small timeout in case name differs
     local ok, res = pcall(function()
         return replicated:WaitForChild("RemoteFunction", 5)
     end)
     if ok then
         remote = res
     else
-        -- fallback to FindFirstChild if WaitForChild failed
         remote = replicated:FindFirstChild("RemoteFunction")
     end
 
@@ -966,20 +962,17 @@ function TDS:Loadout(...)
         return false, "RemoteFunction not found in ReplicatedStorage"
     end
 
-    -- If we're in the lobby, wait briefly for matchmaking UI (best-effort). If not found, continue anyway.
     if state == "LOBBY" then
         local player = game:GetService("Players").LocalPlayer
         if player then
-            local player_gui = player:FindFirstChild("PlayerGui")
-            if player_gui then
-                local lobby_hud = player_gui:FindFirstChild("ReactLobbyHud")
+            local player_gui_local = player:FindFirstChild("PlayerGui")
+            if player_gui_local then
+                local lobby_hud = player_gui_local:FindFirstChild("ReactLobbyHud")
                 if lobby_hud then
                     local frame = lobby_hud:FindFirstChild("Frame")
                     if frame then
-                        -- don't block forever; just wait a short moment for matchmaking node
                         local matchmaking = frame:FindFirstChild("matchmaking")
                         if not matchmaking then
-                            -- attempt to wait a couple seconds for the node to appear (best-effort)
                             pcall(function()
                                 frame:WaitForChild("matchmaking", 2)
                             end)
@@ -990,18 +983,14 @@ function TDS:Loadout(...)
         end
     end
 
-    -- Equip towers one-by-one. Use pcall around each invocation so one failure doesn't stop the rest.
     for _, tower_name in ipairs(towers) do
         if tower_name and tower_name ~= "" then
             local ok, err = pcall(function()
-                -- remote:InvokeServer expects ("Inventory", "Equip", "tower", tower_name) in the original code
                 remote:InvokeServer("Inventory", "Equip", "tower", tower_name)
             end)
             if not ok then
-                -- warn but continue with the next tower
                 warn(("TDS:Loadout - failed to equip %s: %s"):format(tostring(tower_name), tostring(err)))
             end
-            -- small delay between equips to emulate original behavior / prevent flooding
             task.wait(0.5)
         end
     end
@@ -1011,14 +1000,14 @@ end
 
 function TDS:VoteSkip(start_wave, end_wave)
     task.spawn(function()
-        local current_wave = get_current_wave()
+        local current_wave = get_all_rewards and get_all_rewards().Wave or get_current_wave()
         start_wave = current_wave or start_wave
         end_wave = end_wave or start_wave
 
         for wave = start_wave, end_wave do
             repeat
                 task.wait(0.5)
-            until get_current_wave() >= wave
+            until set_current_wave_label() >= wave
 
             local skip_done = false
             while not skip_done do
@@ -1038,28 +1027,25 @@ function TDS:VoteSkip(start_wave, end_wave)
     end)
 end
 
-
 function TDS:GameInfo(name, list)
     list = list or {}
     if game_state ~= "GAME" then 
         warn("Not in game state for GameInfo")
         return false 
     end
-
-    -- Get teleport service locally to ensure it exists
-    local teleport_service = game:GetService("TeleportService")
     
     local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
     if not (vote_gui and vote_gui.Enabled) then 
         warn("Vote GUI not found or not enabled")
-        teleport_service:Teleport(3260590327, local_player)
+        -- Don't teleport; restart instead
+        if type(trigger_restart) == "function" then pcall(trigger_restart) end
         return false
     end
     
     local frame = vote_gui:WaitForChild("Frame", 5)
     if not frame then
         warn("Vote GUI Frame not found")
-        teleport_service:Teleport(3260590327, local_player)
+        if type(trigger_restart) == "function" then pcall(trigger_restart) end
         return false
     end
 
@@ -1079,20 +1065,10 @@ function TDS:GameInfo(name, list)
     end
     
     -- If we get here, veto didn't give us the right map
-    warn("Map '" .. tostring(name) .. "' not available after veto, teleporting to lobby")
+    warn("Map '" .. tostring(name) .. "' not available after veto, restarting instead of teleporting to lobby")
     
-    -- Add a small delay before teleporting
     task.wait(1)
-    
-    -- Use pcall to catch any teleport errors
-    local success, errorMsg = pcall(function()
-        teleport_service:Teleport(3260590327, local_player)
-    end)
-    
-    if not success then
-        warn("Teleport failed: " .. tostring(errorMsg))
-    end
-    
+    if type(trigger_restart) == "function" then pcall(trigger_restart) end
     return false
 end
 
@@ -1116,11 +1092,81 @@ function TDS:Ready()
 end
 
 function TDS:GetWave()
-    return get_current_wave()
+    return set_current_wave_label()
 end
 
 function TDS:RestartGame()
-    trigger_restart()
+    -- Public API: trigger a restart and ensure macros re-enable
+    if type(trigger_restart) == "function" then
+        pcall(trigger_restart)
+        -- ensure macros get restarted shortly after
+        task.spawn(function()
+            task.wait(1.2)
+            if type(restart_macros) == "function" then pcall(restart_macros, true) end
+        end)
+        return true
+    else
+        warn("TDS:RestartGame - trigger_restart not available")
+        return false
+    end
+end
+
+function TDS:RestartGameImmediate()
+    -- Immediate restart without waiting for UI: mainly for direct use
+    if type(run_vote_skip) == "function" then
+        pcall(run_vote_skip)
+    end
+    if type(restart_macros) == "function" then
+        pcall(restart_macros, true)
+    end
+end
+
+function TDS:RestartGameOnlyMacros()
+    if type(restart_macros) == "function" then
+        pcall(restart_macros, true)
+    end
+end
+
+function TDS:RestartGameLocal()
+    -- compatibility alias
+    return self:RestartGame()
+end
+
+function TDS:Restart()
+    return self:RestartGame()
+end
+
+function TDS:RestartGameAndWait()
+    if type(trigger_restart) == "function" then
+        pcall(trigger_restart)
+        if type(restart_macros) == "function" then
+            restart_macros(true)
+        end
+    end
+end
+
+function TDS:RestartGameNoMacro()
+    if type(trigger_restart) == "function" then
+        pcall(trigger_restart)
+    end
+end
+
+function TDS:RestartGameSilent()
+    if type(trigger_restart) == "function" then
+        pcall(trigger_restart)
+    end
+end
+
+function TDS:RestartGameAndLog()
+    if type(trigger_restart) == "function" then
+        pcall(trigger_restart)
+        warn("TDS:RestartGame triggered")
+    end
+end
+
+-- other public API functions (Place, Upgrade, Sell, Ability, etc.)
+function TDS:StartGameLobbyReady()
+    lobby_ready_up()
 end
 
 function TDS:Place(t_name, px, py, pz, ...)
@@ -1176,7 +1222,7 @@ end
 
 function TDS:SetTarget(idx, target_type, req_wave)
     if req_wave then
-        repeat task.wait(0.5) until get_current_wave() >= req_wave
+        repeat task.wait(0.5) until set_current_wave_label() >= req_wave
     end
 
     local t = self.placed_towers[idx]
@@ -1192,7 +1238,7 @@ end
 
 function TDS:Sell(idx, req_wave)
     if req_wave then
-        repeat task.wait(0.5) until get_current_wave() >= req_wave
+        repeat task.wait(0.5) until set_current_wave_label() >= req_wave
     end
     local t = self.placed_towers[idx]
     if t and do_sell_tower(t) then
@@ -1204,7 +1250,7 @@ end
 function TDS:SellAll(req_wave)
     task.spawn(function()
         if req_wave then
-            repeat task.wait(0.5) until get_current_wave() >= req_wave
+            repeat task.wait(0.5) until set_current_wave_label() >= req_wave
         end
 
         local towers_copy = {unpack(self.placed_towers)}
@@ -1343,13 +1389,6 @@ local function start_auto_skip()
     end)
 end
 
-TDS = TDS or {}
-function TDS:AutoSkip(state)
-    _G.AutoSkip = state == true or state == "T" or state == "t"
-    print(_G.AutoSkip and "AutoSkip enabled!" or "AutoSkip disabled!")
-    start_auto_skip()
-end
-
 local function start_claim_rewards()
     if auto_claim_rewards or not _G.ClaimRewards or game_state ~= "LOBBY" then 
         return 
@@ -1385,6 +1424,7 @@ local function start_claim_rewards()
 end
 
 local function start_back_to_lobby()
+    -- kept for legacy compat; replaced by postmatch manager
     if back_to_lobby_running then return end
     back_to_lobby_running = true
 
@@ -1539,6 +1579,7 @@ local function start_auto_dj_booth()
     task.spawn(function()
         while _G.AutoDJ do
             local towers_folder = workspace:FindFirstChild("Towers")
+            local DJ = nil
 
             if towers_folder then
                 for _, towers in ipairs(towers_folder:GetDescendants()) do
@@ -1579,6 +1620,7 @@ local function start_auto_dj_booth()
     end)
 end
 
+-- persistent macro manager to start desired macros when enabled
 task.spawn(function()
     while true do
         if _G.AutoPickups and not auto_pickups_running then
@@ -1609,7 +1651,50 @@ if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
 
-start_back_to_lobby()
+-- post-match manager: watches for rewards every match and restarts
+start_postmatch_manager = function()
+    if postmatch_manager_running then return end
+    postmatch_manager_running = true
+
+    task.spawn(function()
+        while true do
+            -- wait for rewards UI to appear
+            local root = player_gui:FindFirstChild("ReactGameNewRewards")
+            while not root do
+                task.wait(1)
+                root = player_gui:FindFirstChild("ReactGameNewRewards")
+            end
+
+            -- wait until RewardsSection exists
+            local rewards_section
+            repeat
+                local frame = root and root:FindFirstChild("Frame")
+                local gameOver = frame and frame:FindFirstChild("gameOver")
+                local rewards_screen = gameOver and gameOver:FindFirstChild("RewardsScreen")
+                rewards_section = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
+                if not rewards_section then task.wait(0.5) end
+            until rewards_section
+
+            -- handle the match end (send webhooks & restart)
+            pcall(function()
+                if type(handle_post_match) == "function" then
+                    handle_post_match()
+                else
+                    if type(trigger_restart) == "function" then trigger_restart() end
+                end
+            end)
+
+            -- ensure macros restart for next match
+            task.wait(1.5)
+            if type(restart_macros) == "function" then pcall(restart_macros, true) end
+
+            task.wait(2)
+        end
+    end)
+end
+
+-- start postmatch manager and utilities that should always run
+start_postmatch_manager()
 start_anti_afk()
 start_rejoin_on_disconnect()
 
