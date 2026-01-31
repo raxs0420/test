@@ -206,10 +206,9 @@ end
 
 -- // lobby / teleporting
 local function send_to_lobby()
-    task.wait(1.5)
-
--- CHANGED: Restart instead of going to lobby
-TDS:RestartGame()
+    task.wait(1)
+    local lobby_remote = game.ReplicatedStorage.Network.Teleport["RE:backToLobby"]
+    lobby_remote:FireServer()
 end
 
 local function handle_post_match()
@@ -490,8 +489,7 @@ local function lobby_ready_up()
 end
 
 function TDS:TeleportToLobby()
-    -- Changed from send_to_lobby() to restart
-    TDS:RestartGame()
+    send_to_lobby()
 end
 
 local function select_map_override(map_id, ...)
@@ -1309,18 +1307,19 @@ local function start_claim_rewards()
     auto_claim_rewards = false
 end
 
-local function -- Change this line:
--- start_back_to_lobby()
--- To:
-task.spawn(function()
-    while true do
-        pcall(function()
-            handle_post_match()
-        end)
-        task.wait(5)
-    end
-end)
-    
+local function start_back_to_lobby()
+    if back_to_lobby_running then return end
+    back_to_lobby_running = true
+
+    task.spawn(function()
+        while true do
+            pcall(function()
+                handle_post_match()
+            end)
+            task.wait(5)
+        end
+        back_to_lobby_running = false
+    end)
 end
 
 local function start_anti_lag()
