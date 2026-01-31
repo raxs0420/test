@@ -223,10 +223,12 @@ local function handle_post_match()
         ui_root = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
     until ui_root
 
-    if not ui_root then return send_to_lobby() end
+    if not ui_root then 
+        return trigger_restart() 
+    end
 
     if not _G.SendWebhook then
-        send_to_lobby()
+        trigger_restart()
         return
     end
 
@@ -292,9 +294,10 @@ local function handle_post_match()
 
     task.wait(1.5)
 
-    send_to_lobby()
+    trigger_restart()
 end
-
+    
+                    
 -- 1. Define BOTH functions first
 local function log_match_start()
     
