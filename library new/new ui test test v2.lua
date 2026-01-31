@@ -432,31 +432,6 @@ elseif game_state == "GAME" then
     log_match_start()
 end
 
--- restart macros helper: clears running guards and restarts enabled macros
-local function restart_macros()
-    -- Clear internal running flags so start_* functions will spawn new loops
-    auto_pickups_running = false
-    auto_skip_running    = false
-    auto_chain_running   = false
-    auto_dj_running      = false
-    anti_lag_running     = false
-    back_to_lobby_running = false
-
-    -- allow any existing loops to notice the flag change and exit cleanly
-    task.wait(0.5)
-
-    -- restart macros that the user enabled via _G flags
-    if _G.AutoPickups then start_auto_pickups() end
-    if _G.AutoSkip    then start_auto_skip() end
-    if _G.AutoChain   then start_auto_chain() end
-    if _G.AutoDJ      then start_auto_dj_booth() end
-    if _G.AntiLag     then start_anti_lag() end
-
-    -- optionally restart claim rewards if in lobby and enabled
-    if _G.ClaimRewards and not auto_claim_rewards and game_state == "LOBBY" then
-        start_claim_rewards()
-    end
-end
 
 -- // voting & map selection
 local function run_vote_skip()
@@ -662,58 +637,94 @@ end
 
 -- // ingame control
 
-local function trigger_restart()
-    local attempts = 0
-    local play_btn
+-- Safe caller helper
+local function safe_call(fn, ...)
+    if type(fn) ~= "function" then
+        warn("safe_call: not a function:", tostring(fn))
+        return false
+    end
+    local ok, err = pcall(fn, ...)
+    if not ok then
+        warn("safe_call: function error:", tostring(err))
+        return false
+    end
+    return true
+end
 
-    -- wait for the rewards UI and PlayAgain button to appear
-    repeat
-        local root = player_gui:FindFirstChild("ReactGameNewRewards")
-        local frame = root and root:FindFirstChild("Frame")
-        local gameOver = frame and frame:FindFirstChild("gameOver")
-        local rewards_screen = gameOver and gameOver:FindFirstChild("RewardsScreen")
-        play_btn = rewards_screen and rewards_screen:FindFirstChild("PlayAgain")
-        if play_btn then break end
+-- restart macros helper: clears running guards and restarts enabled macros safely
+local function restart_macros(wait_for_ingame)
+    -- Clear internal running guards so start_* functions will spawn new loops
+    auto_pickups_running  = false
+    auto_skip_running     = false
+    auto_chain_running    = false
+    auto_dj_running       = false
+    anti_lag_running      = false
+    back_to_lobby_running = false
 
-        task.wait(0.5)
-        attempts = attempts + 1
-    until attempts > 60  -- fail-safe ~30s
+    -- allow any existing loops to notice the flag change and exit cleanly
+    task.wait(0.5)
 
-    if not play_btn then
-        warn("PlayAgain button not found; falling back to run_vote_skip()")
-        pcall(run_vote_skip)
-        task.wait(1)
-        restart_macros()
-        return
+    -- optionally wait until back in-game before restarting macros
+    if wait_for_ingame then
+        local max_wait = 30
+        local waited = 0
+        while waited < max_wait do
+            if player_gui:FindFirstChild("ReactIngameHud") or player_gui:FindFirstChild("ReactGameTopGameDisplay") then
+                break
+            end
+            task.wait(0.5)
+            waited = waited + 0.5
+        end
     end
 
-    -- try to activate the button safely
-    pcall(function()
-        -- most robust is GuiButton:Activate()
-        if typeof(play_btn.Activate) == "function" then
-            play_btn:Activate()
-        elseif play_btn:IsA("TextButton") or play_btn:IsA("ImageButton") then
-            -- fallback to firing MouseButton1Click if Activate not present
-            play_btn.MouseButton1Click:Fire()
-        end
+    -- restart macros that the user enabled via _G flags, using safe_call
+    if _G.AutoPickups and type(start_auto_pickups) == "function" then safe_call(start_auto_pickups) end
+    if _G.AutoSkip    and type(start_auto_skip)    == "function" then safe_call(start_auto_skip)    end
+    if _G.AutoChain   and type(start_auto_chain)   == "function" then safe_call(start_auto_chain)   end
+    if _G.AutoDJ      and type(start_auto_dj_booth)== "function" then safe_call(start_auto_dj_booth)  end
+    if _G.AntiLag     and type(start_anti_lag)     == "function" then safe_call(start_anti_lag)     end
+
+    -- claim rewards only in lobby and if enabled
+    if _G.ClaimRewards and not auto_claim_rewards and game_state == "LOBBY" and type(start_claim_rewards) == "function" then
+        safe_call(start_claim_rewards)
+    end
+end
+
+-- safer trigger_restart which calls restart_macros at the end
+local function trigger_restart()
+    local ok, ui_root = pcall(function()
+        return player_gui:WaitForChild("ReactGameNewRewards", 10)
     end)
+    if not ok or not ui_root then
+        warn("trigger_restart: ReactGameNewRewards not found; proceeding with restart anyway")
+    end
 
-    -- Wait for the next match to actually start before restarting macros.
-    -- Adjust checks here to whatever HUD elements your game uses when a round starts.
-    local maxWait = 60
-    local waited = 0
-    repeat
-        task.wait(0.5)
-        waited = waited + 0.5
-        -- common signals the match started:
-        -- presence of in-game HUD or top game display or towers in workspace
-        local in_game_hud = player_gui:FindFirstChild("ReactIngameHud") or player_gui:FindFirstChild("GameGui") or player_gui:FindFirstChild("ReactGameTopGameDisplay")
-        local has_towers = workspace:FindFirstChild("Towers") and #workspace.Towers:GetChildren() > 0
-        if in_game_hud or has_towers then break end
-    until waited >= maxWait
+    local found_section = false
+    if ui_root then
+        repeat
+            task.wait(0.3)
+            local f = ui_root:FindFirstChild("Frame")
+            local g = f and f:FindFirstChild("gameOver")
+            local s = g and g:FindFirstChild("RewardsScreen")
+            if s and s:FindFirstChild("RewardsSection") then
+                found_section = true
+            end
+        until found_section or not ui_root
+    end
 
-    -- restart macro loops
-    restart_macros()
+    task.wait(1)
+
+    -- perform the vote skip / restart action if available
+    if type(run_vote_skip) == "function" then
+        pcall(run_vote_skip)
+    else
+        warn("trigger_restart: run_vote_skip is not available")
+    end
+
+    -- small wait to let server process the vote restart flow, then safely restart macros
+    task.wait(1)
+    -- pass true if you want to wait for the next in-game UI before restarting macros
+    restart_macros(true)
 end
 
 local function get_current_wave()
