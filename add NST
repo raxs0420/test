@@ -2,6 +2,7 @@
 _G.AutoPickups = true
 _G.AntiLag = true
 _G.ClaimRewards = true
+_G.AutoRejoin = true
 
 -- [[ WEBHOOK SETTINGS ]]
 _G.SendWebhook = false -- Set to true to enable notifications
