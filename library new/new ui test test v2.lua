@@ -1186,8 +1186,98 @@ function TDS:GetWave()
     return get_current_wave()
 end
 
+-- Helper: fetch + run a remote Lua file and return its result (module table)
+local function fetch_and_run(url)
+    if not url or url == "" then
+        return nil, "no url"
+    end
+
+    if not game or not game.HttpGet then
+        return nil, "HttpGet unavailable"
+    end
+
+    local ok, src = pcall(game.HttpGet, game, url)
+    if not ok or type(src) ~= "string" then
+        return nil, ("fetch failed: %s"):format(tostring(src))
+    end
+
+    local chunk, err = (loadstring or load)(src)
+    if not chunk then
+        return nil, ("compile error: %s"):format(tostring(err))
+    end
+
+    local success, result = pcall(chunk)
+    if not success then
+        return nil, ("execution error: %s"):format(tostring(result))
+    end
+
+    return result, nil
+end
+
+-- Optional fallback raw URL (use a raw.githubusercontent.com URL, no "refs/heads", avoid spaces)
+local LOCAL_FALLBACK_URL = "https://raw.githubusercontent.com/raxs0420/test/main/library%20new/new%20ui%20test%20test%20v2.lua"
+
+-- Replace TDS:RestartGame with this version
 function TDS:RestartGame()
-    trigger_restart()
+    task.spawn(function()
+        -- 1) Trigger in-game restart mechanism (vote-skip / ready)
+        trigger_restart()
+
+        -- 2) Wait for new-round UI to appear (ReactUniversalHotbar is a good indication)
+        local started = false
+        for i = 1, 60 do  -- up to ~30s
+            if player_gui:FindFirstChild("ReactUniversalHotbar") then
+                started = true
+                break
+            end
+            task.wait(0.5)
+        end
+
+        -- Short settle wait
+        task.wait(1)
+
+        -- 3) Attempt hard reload via _G.ScriptURL first (if provided), otherwise fallback to LOCAL_FALLBACK_URL
+        local candidate = nil
+        if type(_G.ScriptURL) == "string" and _G.ScriptURL ~= "" then
+            candidate = _G.ScriptURL
+        elseif LOCAL_FALLBACK_URL and LOCAL_FALLBACK_URL ~= "" then
+            candidate = LOCAL_FALLBACK_URL
+        end
+
+        if candidate then
+            local ok, mod_or_err = pcall(fetch_and_run, candidate)
+            if ok and type(mod_or_err) == "table" then
+                -- Hard reload succeeded; assign returned module to a global or local var as you prefer.
+                -- Common pattern: replace the global TDS (if your environment uses it).
+                pcall(function()
+                    -- if the fetched module returns TDS table, override local/global reference
+                    _G.LOADED_TDS = mod_or_err
+                    -- Also update local TDS reference in current scope if allowed
+                    -- (this assignment won't replace functions already running, but future calls can use new module)
+                    TDS = mod_or_err
+                end)
+                return
+            else
+                warn("Hard reload attempt failed:", tostring(mod_or_err))
+                -- If candidate was _G.ScriptURL and it failed, attempt fallback if available and different
+                if candidate ~= LOCAL_FALLBACK_URL and LOCAL_FALLBACK_URL and LOCAL_FALLBACK_URL ~= "" then
+                    local ok2, mod2_or_err = pcall(fetch_and_run, LOCAL_FALLBACK_URL)
+                    if ok2 and type(mod2_or_err) == "table" then
+                        pcall(function()
+                            _G.LOADED_TDS = mod2_or_err
+                            TDS = mod2_or_err
+                        end)
+                        return
+                    else
+                        warn("Fallback hard reload failed:", tostring(mod2_or_err))
+                    end
+                end
+            end
+        end
+
+        -- 4) If hard reload not performed or failed, fall back to soft restart so automation restarts internally
+        pcall(soft_restart)
+    end)
 end
 
 function TDS:Place(t_name, px, py, pz, ...)
