@@ -204,11 +204,63 @@ local function get_all_rewards()
     return results
 end
 
--- // lobby / teleporting
-local function send_to_lobby()
-    task.wait(1)
-    local lobby_remote = game.ReplicatedStorage.Network.Teleport["RE:backToLobby"]
-    lobby_remote:FireServer()
+-- // rejoining
+local function rejoin_match()
+    local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
+    local success = false
+    local res
+
+    repeat
+        local state_folder = replicated_storage:FindFirstChild("State")
+        local current_mode = state_folder and state_folder.Difficulty.Value
+
+        if current_mode then
+            local ok, result = pcall(function()
+                local payload
+
+                if current_mode == "PizzaParty" then
+                    payload = {
+                        mode = "halloween",
+                        count = 1
+                    }
+                elseif current_mode == "Hardcore" then
+                    payload = {
+                        mode = "hardcore",
+                        count = 1
+                    }
+                elseif current_mode == "PollutedWasteland" then
+                    payload = {
+                        mode = "polluted",
+                        count = 1
+                    }
+                elseif current_mode == "Badlands" then
+                    payload = {
+                        mode = "badlands",
+                        count = 1
+                    }
+                else
+                    payload = {
+                        difficulty = current_mode,
+                        mode = "survival",
+                        count = 1
+                    }
+                end
+
+                return remote:InvokeServer("Multiplayer", "v2:start", payload)
+            end)
+
+            if ok and check_res_ok(result) then
+                success = true
+                res = result
+            else
+                task.wait(0.5) 
+            end
+        else
+            task.wait(1)
+        end
+    until success
+    
+    return res
 end
 
 local function handle_post_match()
@@ -223,13 +275,16 @@ local function handle_post_match()
         ui_root = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
     until ui_root
 
-    if not ui_root then return send_to_lobby() end
+    if not ui_root then return rejoin_match() end
+    if not _G.AutoRejoin then return end
 
     if not _G.SendWebhook then
-        send_to_lobby()
+        rejoin_match()
         return
     end
 
+    task.wait(1)
+    
     local match = get_all_rewards()
 
     current_total_coins += match.Coins
@@ -283,7 +338,7 @@ local function handle_post_match()
 
     pcall(function()
         send_request({
-            Url = _G.Webhook,
+            Url = _G.WebhookURL,
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = game:GetService("HttpService"):JSONEncode(post_data)
@@ -292,8 +347,9 @@ local function handle_post_match()
 
     task.wait(1.5)
 
-    send_to_lobby()
+    rejoin_match()
 end
+
 
 -- 1. Define BOTH functions first
 local function log_match_start()
