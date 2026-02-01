@@ -366,12 +366,8 @@ local function handle_post_match()
 
     task.wait(1.5)
 
-    -- Final action after sending webhook
-    if _G.sent_to_lobby then
-        send_to_lobby()
-    else
-        rejoin_match()
-    end
+    send_to_lobby()
+        
 end
 
 -- 1. Define BOTH functions first
