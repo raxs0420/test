@@ -338,16 +338,104 @@ local function handle_post_match()
 
     pcall(function()
         send_request({
-            Url = _G.WebhookURL,
+            Url = (_G.WebhookURL or _G.Webhook),
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = game:GetService("HttpService"):JSONEncode(post_data)
         })
     end)
 
+    -- small delay to ensure webhook goes out
     task.wait(1.5)
 
-    rejoin_match()
+    -- WAIT 5 seconds before restarting macro/state
+    task.wait(5)
+
+    -- If you provided a script URL, attempt a hard reload (fetch & run the script again).
+    if type(_G.ScriptURL) == "string" and _G.ScriptURL ~= "" and (loadstring or load) then
+        pcall(function()
+            local ok, src = pcall(function()
+                -- many exploit environments expose HttpGet; wrap in pcall to avoid hard errors
+                return game:HttpGet(_G.ScriptURL)
+            end)
+            if ok and type(src) == "string" then
+                local fn = (loadstring and loadstring(src)) or load(src)
+                if fn then
+                    -- run the fetched script in protected call
+                    pcall(fn)
+                    return
+                end
+            end
+        end)
+        return
+    end
+
+    -- Otherwise perform a soft restart: reset key state and restart background loops so macro starts over.
+    local function soft_restart()
+        -- reset one-shot flags and histories
+        hasSentLobbyWebhook = false
+        hasSentMatchStartWebhook = false
+
+        -- reset placed towers / upgrade history
+        TDS.placed_towers = {}
+        upgrade_history = {}
+
+        -- reset session coin/gem totals to current start values (so session totals continue correctly)
+        current_total_coins = start_coins
+        current_total_gems = start_gems
+
+        -- stop any running background trackers (they check these globals)
+        _G.AutoPickups = _G.AutoPickups or false
+        _G.AutoSkip = _G.AutoSkip or false
+        _G.AutoChain = _G.AutoChain or false
+        _G.AutoDJ = _G.AutoDJ or false
+        _G.AntiLag = _G.AntiLag or false
+        _G.ClaimRewards = _G.ClaimRewards or false
+        _G.AutoRejoin = _G.AutoRejoin or false
+
+        -- reset internal running flags so start_* functions may restart them
+        back_to_lobby_running = false
+        auto_pickups_running = false
+        auto_skip_running = false
+        auto_chain_running = false
+        auto_dj_running = false
+        anti_lag_running = false
+        auto_claim_rewards = false
+
+        -- restart persistent helpers
+        pcall(start_anti_afk)
+        pcall(start_rejoin_on_disconnect)
+        pcall(start_back_to_lobby)
+
+        -- restart claim rewards if configured
+        if _G.ClaimRewards then
+            pcall(start_claim_rewards)
+        end
+
+        -- respawn the main watcher that launches per-feature loops
+        task.spawn(function()
+            while true do
+                if _G.AutoPickups and not auto_pickups_running then
+                    start_auto_pickups()
+                end
+                if _G.AutoSkip and not auto_skip_running then
+                    start_auto_skip()
+                end
+                if _G.AutoChain and not auto_chain_running then
+                    start_auto_chain()
+                end
+                if _G.AutoDJ and not auto_dj_running then
+                    start_auto_dj_booth()
+                end
+                if _G.AntiLag and not anti_lag_running then
+                    start_anti_lag()
+                end
+                task.wait(1)
+            end
+        end)
+    end
+
+    soft_restart()
 end
 
 
