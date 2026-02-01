@@ -204,6 +204,14 @@ local function get_all_rewards()
     return results
 end
 
+
+-- // lobby / teleporting
+local function send_to_lobby()
+    task.wait(1)
+    local lobby_remote = game.ReplicatedStorage.Network.Teleport["RE:backToLobby"]
+    lobby_remote:FireServer()
+end
+
 -- // lobby / teleporting
 local function rejoin_match()
     local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
@@ -275,11 +283,22 @@ local function handle_post_match()
         ui_root = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
     until ui_root
 
-    if not ui_root then return rejoin_match() end
+    if not ui_root then 
+        if _G.sent_to_lobby then
+            send_to_lobby()
+        else
+            rejoin_match() 
+        end
+        return 
+    end
     if not _G.AutoRejoin then return end
 
     if not _G.SendWebhook then
-        rejoin_match()
+        if _G.sent_to_lobby then
+            send_to_lobby()
+        else
+            rejoin_match()
+        end
         return
     end
 
@@ -347,7 +366,12 @@ local function handle_post_match()
 
     task.wait(1.5)
 
-    rejoin_match()
+    -- Final action after sending webhook
+    if _G.sent_to_lobby then
+        send_to_lobby()
+    else
+        rejoin_match()
+    end
 end
 
 -- 1. Define BOTH functions first
