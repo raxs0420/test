@@ -1,0 +1,60 @@
+
+-- [[ CONFIGURATION ]]
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoSkip = true
+_G.AutoRejoin = true
+
+-- [[ WEBHOOK SETTINGS ]]
+_G.SendWebhook = false -- Set to true to enable notifications
+_G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
+
+-- [[ INITIALIZE LIBRARY ]]
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test%20v2.lua"))()
+
+-- [[ START STRATEGY ]]
+TDS:Loadout("Crook Boss", "Pyromancer", "Electroshocker", "Freezer", "")
+TDS:Mode("Hardcore")
+TDS:GameInfo("Wrecked Battlefield", {
+    HiddenEnemies = true, 
+    Glass = true, 
+    ExplodingEnemies = true,
+    Limitation = true, 
+    Committed = true, 
+    HealthyEnemies = false,
+    SpeedyEnemies = true,
+    Quarantine = true, 
+    Fog = true,
+    FlyingEnemies = false, 
+    Broke = false, 
+    Jailed = false, 
+    Inflation = false
+})
+
+TDS:Place("Electroshocker", 0.89593, 0.99993, 39.01825)
+TDS:Place("Pyromancer", -2.86882, 0.99993, 39.13010)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Place("Crook Boss", 2.11007, 0.99993, 33.42033)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Place("Electroshocker", 4.08874, 0.99993, 38.95203)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Place("Electroshocker", -1.12927, 0.99993, 33.30575)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+TDS:Place("Electroshocker", -4.48406, 0.99993, 33.60836)
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Place("Freezer", 1.59653, 0.99993, 42.42541)
+TDS:SetTarget(7, "Strongest")
+TDS:Upgrade(7)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(4)
+TDS:Upgrade(7)
+TDS:GetWave()
+TDS:SellAll(24)
+
