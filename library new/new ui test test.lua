@@ -721,7 +721,7 @@ local function trigger_restart()
         end
     until found_section
 
-    task.wait(3)
+    task.wait(2)
     run_vote_skip()
 end
 
@@ -764,7 +764,7 @@ local function do_sell_tower(t_obj)
             return remote_func:InvokeServer("Troops", "Sell", { Troop = t_obj })
         end)
         if ok and check_res_ok(res) then return true end
-        task.wait(0.25)
+        task.wait(0.2)
     end
 end
 
@@ -1190,7 +1190,7 @@ end
 
 function TDS:Sell(idx, req_wave)
     if req_wave then
-        repeat task.wait(0.5) until get_current_wave() >= req_wave
+        repeat task.wait(0.1) until get_current_wave() >= req_wave
     end
     local t = self.placed_towers[idx]
     if t and do_sell_tower(t) then
@@ -1202,7 +1202,7 @@ end
 function TDS:SellAll(req_wave)
     task.spawn(function()
         if req_wave then
-            repeat task.wait(0.5) until get_current_wave() >= req_wave
+            repeat task.wait(0.1) until get_current_wave() >= req_wave
         end
 
         local towers_copy = {unpack(self.placed_towers)}
