@@ -1063,7 +1063,7 @@ function TDS:GameInfo(name, list)
 
     cast_modifier_vote(list)
     
-    task.wait(2)  -- Wait for modifier votes to process
+    task.wait(1)  -- Wait for modifier votes to process
     
     if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
         select_map_override(name, "vip")
