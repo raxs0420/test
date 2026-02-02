@@ -764,7 +764,7 @@ local function do_sell_tower(t_obj)
             return remote_func:InvokeServer("Troops", "Sell", { Troop = t_obj })
         end)
         if ok and check_res_ok(res) then return true end
-        task.wait(0.2)
+        task.wait(0.15)
     end
 end
 
@@ -1015,7 +1015,7 @@ function TDS:VoteSkip(start_wave, end_wave)
 
         for wave = start_wave, end_wave do
             repeat
-                task.wait(0.5)
+                task.wait(0.2)
             until get_current_wave() >= wave
 
             local skip_done = false
@@ -1174,7 +1174,7 @@ end
 
 function TDS:SetTarget(idx, target_type, req_wave)
     if req_wave then
-        repeat task.wait(0.5) until get_current_wave() >= req_wave
+        repeat task.wait(0.2) until get_current_wave() >= req_wave
     end
 
     local t = self.placed_towers[idx]
@@ -1334,7 +1334,7 @@ local function start_auto_skip()
                 run_vote_skip()
             end
 
-            task.wait(0.1)
+            task.wait(0.05)
         end
 
         auto_skip_running = false
