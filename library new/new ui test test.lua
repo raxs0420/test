@@ -706,6 +706,20 @@ local function unlock_speed_tickets()
     end
 end
 
+-- // stun detection 
+local function isTowerStunned(tower)
+    if not tower then return false end
+    local towerReplicator = tower:FindFirstChild("TowerReplicator")
+    if not towerReplicator then return false end
+    return towerReplicator:GetAttribute("IsStunned") == true
+end
+
+local function waitUntilUnstunned(tower)
+    while isTowerStunned(tower) do
+        task.wait(0.05)
+    end
+end
+
 -- // ingame control
 local function trigger_restart()
     local ui_root = player_gui:WaitForChild("ReactGameNewRewards")
@@ -1240,6 +1254,7 @@ function TDS:AutoChain(...)
             local tower = TDS.placed_towers[idx]
 
             if tower then
+                waitUntilUnstunned(tower)
                 do_activate_ability(tower, "Call Of Arms")
             end
 
