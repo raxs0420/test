@@ -47,9 +47,7 @@ minimizeButton.TextSize = 18
 minimizeButton.Parent = screenGui
 
 local mainFrame = Instance.new("Frame")
-local isPhone = UIS.TouchEnabled
-local phoneScale = 0.6
-mainFrame.Size = UDim2.new(0, isPhone and 300 or 500, 0, isPhone and 294 or 490)
+mainFrame.Size = UDim2.new(0, 150, 0, 50)
 mainFrame.Position = UDim2.new(0, 10, 0, 50)
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 mainFrame.BorderSizePixel = 0
