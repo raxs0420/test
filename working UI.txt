@@ -7,11 +7,9 @@ local UIS = game:GetService("UserInputService")
 local camera = workspace.CurrentCamera
 
 repeat wait() until game:IsLoaded()
-
 repeat wait() until player and player:IsDescendantOf(Players)
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
-
 repeat wait() until player:FindFirstChild("PlayerGui")
 
 local HotbarMapping = {}
@@ -28,6 +26,38 @@ local allTowers = {
     "Hallow Punk", "Biologist", "Harvester", "Snowballer", "Elementalist", "Firework Technician", "Warlock", "Spotlight Tech", "War Machine", "Mecha Base"
 }
 
+-- ===========================================
+-- SCALING FUNCTIONS
+-- ===========================================
+local screenSize = workspace.CurrentCamera.ViewportSize
+local isMobile = UIS.TouchEnabled
+
+-- Scaling functions
+local function scaleX(percent)
+    return screenSize.X * (percent / 100)
+end
+
+local function scaleY(percent)
+    return screenSize.Y * (percent / 100)
+end
+
+-- Font scaling
+local function getFontSize(baseSize)
+    if isMobile then
+        return math.max(baseSize, screenSize.Y * 0.02)  -- Minimum 2% of screen height
+    end
+    return baseSize
+end
+
+-- Element scaling
+local function getButtonHeight()
+    return isMobile and scaleY(5) or scaleY(4)
+end
+
+local function getPadding()
+    return isMobile and scaleX(2) or scaleX(1)
+end
+
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "TowerStackGUI"
 screenGui.ResetOnSpawn = false
@@ -35,20 +65,20 @@ screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local minimizeButton = Instance.new("TextButton")
-minimizeButton.Size = UDim2.new(0, 50, 0, 30)
-minimizeButton.Position = UDim2.new(0, 10, 0, 10)
+minimizeButton.Size = UDim2.new(0, scaleX(4.5), 0, scaleY(5.5))
+minimizeButton.Position = UDim2.new(0, scaleX(2), 0, scaleY(2))
 minimizeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 minimizeButton.BorderSizePixel = 1
 minimizeButton.BorderColor3 = Color3.fromRGB(100, 100, 100)
 minimizeButton.Text = "▼"
 minimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 minimizeButton.Font = Enum.Font.SourceSans
-minimizeButton.TextSize = 18
+minimizeButton.TextSize = getFontSize(18)
 minimizeButton.Parent = screenGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 150, 0, 50)
-mainFrame.Position = UDim2.new(0, 10, 0, 50)
+mainFrame.Size = UDim2.new(0, scaleX(42), 0, scaleY(70))
+mainFrame.Position = UDim2.new(0, scaleX(7), 0.5, -scaleY(87)/2)  
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = true
@@ -59,63 +89,64 @@ if not UIS.TouchEnabled then
     minimizeButton.Visible = true
 end
 
-Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, scaleX(1))
 
 local tabFrame = Instance.new("Frame")
-tabFrame.Size = UDim2.new(1, 0, 0, 30)
+tabFrame.Size = UDim2.new(1, 0, 0, scaleY(6))
 tabFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
 tabFrame.BorderSizePixel = 0
 tabFrame.Parent = mainFrame
 
 local stackTabButton = Instance.new("TextButton")
-stackTabButton.Size = UDim2.new(0.5, 0, 1, 0)
+stackTabButton.Size = UDim2.new(0.48, 0, 1, 0)
+stackTabButton.Position = UDim2.new(0, 0, 0, 0) 
 stackTabButton.BackgroundColor3 = Color3.fromRGB(60, 100, 200)
 stackTabButton.Text = "STACKER"
 stackTabButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 stackTabButton.Font = Enum.Font.SourceSansBold
-stackTabButton.TextSize = 14
+stackTabButton.TextSize = getFontSize(14)
 stackTabButton.Parent = tabFrame
 
 local switchTabButton = Instance.new("TextButton")
-switchTabButton.Size = UDim2.new(0.5, 0, 1, 0)
-switchTabButton.Position = UDim2.new(0.5, 0, 0, 0)
+switchTabButton.Size = UDim2.new(0.48, 0, 1, 0)
+switchTabButton.Position = UDim2.new(0.52, 0, 0, 0) 
 switchTabButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
 switchTabButton.Text = "SWITCHER"
 switchTabButton.TextColor3 = Color3.fromRGB(200, 200, 200)
 switchTabButton.Font = Enum.Font.SourceSansBold
-switchTabButton.TextSize = 14
+switchTabButton.TextSize = getFontSize(14)
 switchTabButton.Parent = tabFrame
 
 local stackerFrame = Instance.new("Frame")
-stackerFrame.Size = UDim2.new(1, 0, 1, -30)
-stackerFrame.Position = UDim2.new(0, 0, 0, 30)
+stackerFrame.Size = UDim2.new(1, 0, 1, -scaleY(6))
+stackerFrame.Position = UDim2.new(0, 0, 0, scaleY(6))
 stackerFrame.BackgroundTransparency = 1
 stackerFrame.Visible = true
 stackerFrame.Parent = mainFrame
 
 local switcherFrame = Instance.new("Frame")
-switcherFrame.Size = UDim2.new(1, 0, 1, -30)
-switcherFrame.Position = UDim2.new(0, 0, 0, 30)
+switcherFrame.Size = UDim2.new(1, 0, 1, -scaleY(6))
+switcherFrame.Position = UDim2.new(0, 0, 0, scaleY(6))
 switcherFrame.BackgroundTransparency = 1
 switcherFrame.Visible = false
 switcherFrame.Parent = mainFrame
 
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, -20, 0, 30)
-searchBox.Position = UDim2.new(0, 10, 0, 10)
+searchBox.Size = UDim2.new(1, -scaleX(4), 0, scaleY(5))
+searchBox.Position = UDim2.new(0, scaleX(2), 0, scaleY(2))
 searchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 searchBox.PlaceholderText = "Search..."
 searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
 searchBox.Font = Enum.Font.SourceSans
-searchBox.TextSize = 14
+searchBox.TextSize = getFontSize(14)
 searchBox.Parent = stackerFrame
 
-Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local slotFrame = Instance.new("Frame")
-slotFrame.Size = UDim2.new(0.35, -15, 0, 200)
-slotFrame.Position = UDim2.new(0.65, 5, 0, 50)
+slotFrame.Size = UDim2.new(0.35, -scaleX(1), 0, scaleY(35))
+slotFrame.Position = UDim2.new(0.65, scaleX(0.5), 0, scaleY(10))
 slotFrame.BackgroundTransparency = 1
 slotFrame.Parent = stackerFrame
 
@@ -124,8 +155,8 @@ local slotLabels = {}
 
 for i = 1, HOTBAR_SLOTS do
     local buttonFrame = Instance.new("Frame")
-    buttonFrame.Size = UDim2.new(1, 0, 0, 40)
-    buttonFrame.Position = UDim2.new(0, 0, 0, (i-1) * 40)
+    buttonFrame.Size = UDim2.new(1, 0, 0, scaleY(7))
+    buttonFrame.Position = UDim2.new(0, 0, 0, (i-1) * scaleY(7))
     buttonFrame.BackgroundTransparency = 1
     buttonFrame.Parent = slotFrame
     
@@ -136,23 +167,23 @@ for i = 1, HOTBAR_SLOTS do
     slotButton.Text = tostring(i)
     slotButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     slotButton.Font = Enum.Font.SourceSansBold
-    slotButton.TextSize = 16
+    slotButton.TextSize = getFontSize(16)
     slotButton.Parent = buttonFrame
     
-    Instance.new("UICorner", slotButton).CornerRadius = UDim.new(0, 4)
+    Instance.new("UICorner", slotButton).CornerRadius = UDim.new(0, scaleX(0.5))
     
     local slotLabel = Instance.new("TextLabel")
-    slotLabel.Size = UDim2.new(0.75, 0, 1, 0)
-    slotLabel.Position = UDim2.new(0.25, 5, 0, 0)
+    slotLabel.Size = UDim2.new(0.75, -scaleX(1), 1, 0)
+    slotLabel.Position = UDim2.new(0.25, scaleX(1), 0, 0)
     slotLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
     slotLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     slotLabel.Font = Enum.Font.SourceSans
-    slotLabel.TextSize = 12
+    slotLabel.TextSize = getFontSize(12)
     slotLabel.Text = "[Empty]"
     slotLabel.TextXAlignment = Enum.TextXAlignment.Left
     slotLabel.Parent = buttonFrame
     
-    Instance.new("UICorner", slotLabel).CornerRadius = UDim.new(0, 4)
+    Instance.new("UICorner", slotLabel).CornerRadius = UDim.new(0, scaleX(0.5))
     
     slotButton.MouseButton1Click:Connect(function()
         lastHotbarSelected = i
@@ -183,98 +214,98 @@ local function updateSlotHighlights()
 end
 
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(0.6, -15, 1, -160)
-scrollFrame.Position = UDim2.new(0, 10, 0, 50)
+scrollFrame.Size = UDim2.new(0.6, -scaleX(1), 1, -scaleY(25))
+scrollFrame.Position = UDim2.new(0, scaleX(2), 0, scaleY(10))
 scrollFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 scrollFrame.BorderSizePixel = 0
-scrollFrame.ScrollBarThickness = 6
+scrollFrame.ScrollBarThickness = scaleX(1)
 scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 scrollFrame.Parent = stackerFrame
 
-Instance.new("UICorner", scrollFrame).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", scrollFrame).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local towerListLayout = Instance.new("UIListLayout")
 towerListLayout.FillDirection = Enum.FillDirection.Vertical
 towerListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-towerListLayout.Padding = UDim.new(0, 2)
+towerListLayout.Padding = UDim.new(0, scaleY(0.3))
 towerListLayout.Parent = scrollFrame
 
 local stackerStatus = Instance.new("TextLabel")
-stackerStatus.Size = UDim2.new(0.6, -10, 0, 40)
-stackerStatus.Position = UDim2.new(0, 10, 1, -60)
+stackerStatus.Size = UDim2.new(0.6, -scaleX(1), 0, scaleY(8))
+stackerStatus.Position = UDim2.new(0, scaleX(2), 1, -scaleY(12))
 stackerStatus.BackgroundTransparency = 1
 stackerStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
 stackerStatus.Font = Enum.Font.SourceSans
-stackerStatus.TextSize = 12
+stackerStatus.TextSize = getFontSize(12)
 stackerStatus.Text = "Click slot button (1-5) first"
 stackerStatus.TextWrapped = true
 stackerStatus.TextYAlignment = Enum.TextYAlignment.Top
 stackerStatus.Parent = stackerFrame
 
 local togglePlacingButton = Instance.new("TextButton")
-togglePlacingButton.Size = UDim2.new(0.35, -15, 0, 30)
-togglePlacingButton.Position = UDim2.new(0.65, 5, 1, -60)
+togglePlacingButton.Size = UDim2.new(0.35, -scaleX(1), 0, scaleY(5))
+togglePlacingButton.Position = UDim2.new(0.65, scaleX(0.5), 1, -scaleY(12))
 togglePlacingButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
 togglePlacingButton.Text = "Place: ON"
 togglePlacingButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 togglePlacingButton.Font = Enum.Font.SourceSansBold
-togglePlacingButton.TextSize = 14
+togglePlacingButton.TextSize = getFontSize(14)
 togglePlacingButton.Parent = stackerFrame
 
-Instance.new("UICorner", togglePlacingButton).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", togglePlacingButton).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local switcherTitleBar = Instance.new("Frame")
-switcherTitleBar.Size = UDim2.new(1, -20, 0, 30)
-switcherTitleBar.Position = UDim2.new(0, 10, 0, 10)
+switcherTitleBar.Size = UDim2.new(1, -scaleX(4), 0, scaleY(6))
+switcherTitleBar.Position = UDim2.new(0, scaleX(2), 0, scaleY(2))
 switcherTitleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 switcherTitleBar.BorderSizePixel = 0
 switcherTitleBar.Parent = switcherFrame
 
-Instance.new("UICorner", switcherTitleBar).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", switcherTitleBar).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local switcherTitle = Instance.new("TextLabel")
-switcherTitle.Size = UDim2.new(1, -60, 1, 0)
-switcherTitle.Position = UDim2.new(0, 8, 0, 0)
+switcherTitle.Size = UDim2.new(1, -scaleX(12), 1, 0)
+switcherTitle.Position = UDim2.new(0, scaleX(1.5), 0, 0)
 switcherTitle.BackgroundTransparency = 1
 switcherTitle.Text = "TDS SWITCHER"
 switcherTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
-switcherTitle.TextSize = 14
+switcherTitle.TextSize = getFontSize(14)
 switcherTitle.Font = Enum.Font.SourceSansBold
 switcherTitle.TextXAlignment = Enum.TextXAlignment.Left
 switcherTitle.Parent = switcherTitleBar
 
 local switcherCountDisplay = Instance.new("TextLabel")
 switcherCountDisplay.Name = "CountDisplay"
-switcherCountDisplay.Size = UDim2.new(0, 45, 0, 25)
-switcherCountDisplay.Position = UDim2.new(1, -85, 0, 2)
+switcherCountDisplay.Size = UDim2.new(0, scaleX(9), 0, scaleY(4.5))
+switcherCountDisplay.Position = UDim2.new(1, -scaleX(10), 0, scaleY(0.8))
 switcherCountDisplay.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
 switcherCountDisplay.Text = "0/5"
 switcherCountDisplay.TextColor3 = Color3.fromRGB(255, 255, 255)
-switcherCountDisplay.TextSize = 12
+switcherCountDisplay.TextSize = getFontSize(12)
 switcherCountDisplay.Font = Enum.Font.SourceSansBold
 switcherCountDisplay.Parent = switcherTitleBar
 
-Instance.new("UICorner", switcherCountDisplay).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", switcherCountDisplay).CornerRadius = UDim.new(0, scaleX(0.3))
 
 local switcherAvailableFrame = Instance.new("Frame")
-switcherAvailableFrame.Size = UDim2.new(1, -20, 1, -130)
-switcherAvailableFrame.Position = UDim2.new(0, 10, 0, 50)
+switcherAvailableFrame.Size = UDim2.new(1, -scaleX(4), 1, -scaleY(25))
+switcherAvailableFrame.Position = UDim2.new(0, scaleX(2), 0, scaleY(10))
 switcherAvailableFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 switcherAvailableFrame.BorderSizePixel = 0
 switcherAvailableFrame.Parent = switcherFrame
 
-Instance.new("UICorner", switcherAvailableFrame).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", switcherAvailableFrame).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local switcherSearchBox = Instance.new("TextBox")
 switcherSearchBox.Name = "Search..."
-switcherSearchBox.Size = UDim2.new(1, -8, 0, 24)
-switcherSearchBox.Position = UDim2.new(0, 4, 0, 4)
+switcherSearchBox.Size = UDim2.new(1, -scaleX(1.5), 0, scaleY(4))
+switcherSearchBox.Position = UDim2.new(0, scaleX(0.8), 0, scaleX(0.8))
 switcherSearchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 switcherSearchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 switcherSearchBox.PlaceholderText = "Search..."
 switcherSearchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
 switcherSearchBox.Text = ""
-switcherSearchBox.TextSize = 12
+switcherSearchBox.TextSize = getFontSize(12)
 switcherSearchBox.Font = Enum.Font.SourceSans
 switcherSearchBox.ClearTextOnFocus = false
 switcherSearchBox.Parent = switcherAvailableFrame
@@ -282,11 +313,11 @@ switcherSearchBox.Parent = switcherAvailableFrame
 -- New buttons
 
 local utilityButtonFrame = Instance.new("Frame")
-utilityButtonFrame.Size = UDim2.new(1, 0, 0, 30)
+utilityButtonFrame.Size = UDim2.new(1, 0, 0, scaleY(6))
 utilityButtonFrame.BackgroundTransparency = 1
 utilityButtonFrame.Parent = mainFrame
 
-local buttonWidth = 0.19  
+local buttonWidth = 0.192
 local buttonSpacing = 0.01 
 
 local autoSkipButton = Instance.new("TextButton")
@@ -295,10 +326,10 @@ autoSkipButton.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
 autoSkipButton.Text = "AutoSkip: OFF"
 autoSkipButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 autoSkipButton.Font = Enum.Font.SourceSansBold
-autoSkipButton.TextSize = 9  
+autoSkipButton.TextSize = getFontSize(9) 
 autoSkipButton.Parent = utilityButtonFrame
 
-Instance.new("UICorner", autoSkipButton).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", autoSkipButton).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local autoPickupsButton = Instance.new("TextButton")
 autoPickupsButton.Size = UDim2.new(buttonWidth, 0, 1, 0)
@@ -307,10 +338,10 @@ autoPickupsButton.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
 autoPickupsButton.Text = "AutoPickups: OFF"
 autoPickupsButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 autoPickupsButton.Font = Enum.Font.SourceSansBold
-autoPickupsButton.TextSize = 9  
+autoPickupsButton.TextSize = getFontSize(9) 
 autoPickupsButton.Parent = utilityButtonFrame
 
-Instance.new("UICorner", autoPickupsButton).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", autoPickupsButton).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local autoDJButton = Instance.new("TextButton")
 autoDJButton.Size = UDim2.new(buttonWidth, 0, 1, 0)
@@ -319,10 +350,10 @@ autoDJButton.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
 autoDJButton.Text = "AutoDJ: OFF"
 autoDJButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 autoDJButton.Font = Enum.Font.SourceSansBold
-autoDJButton.TextSize = 9 
+autoDJButton.TextSize = getFontSize(9)
 autoDJButton.Parent = utilityButtonFrame
 
-Instance.new("UICorner", autoDJButton).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", autoDJButton).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local autoChainButton = Instance.new("TextButton")
 autoChainButton.Size = UDim2.new(buttonWidth, 0, 1, 0)
@@ -331,10 +362,10 @@ autoChainButton.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
 autoChainButton.Text = "AutoChain: OFF"
 autoChainButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 autoChainButton.Font = Enum.Font.SourceSansBold
-autoChainButton.TextSize = 9  
+autoChainButton.TextSize = getFontSize(9) 
 autoChainButton.Parent = utilityButtonFrame
 
-Instance.new("UICorner", autoChainButton).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", autoChainButton).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local autoNecroButton = Instance.new("TextButton")
 autoNecroButton.Size = UDim2.new(buttonWidth, 0, 1, 0)
@@ -343,19 +374,19 @@ autoNecroButton.BackgroundColor3 = Color3.fromRGB(100, 0, 0)
 autoNecroButton.Text = "AutoNecro: OFF"
 autoNecroButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 autoNecroButton.Font = Enum.Font.SourceSansBold
-autoNecroButton.TextSize = 9  
+autoNecroButton.TextSize = getFontSize(9) 
 autoNecroButton.Parent = utilityButtonFrame
 
-Instance.new("UICorner", autoNecroButton).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", autoNecroButton).CornerRadius = UDim.new(0, scaleX(0.5))
 
-tabFrame.Position = UDim2.new(0, 0, 0, 30)
+tabFrame.Position = UDim2.new(0, 0, 0, scaleY(6))
 
-stackTabButton.Size = UDim2.new(0.5, -1, 1, 0)
-switchTabButton.Size = UDim2.new(0.5, -1, 1, 0)
-switchTabButton.Position = UDim2.new(0.5, 1, 0, 0)
+stackTabButton.Size = UDim2.new(0.5, -scaleX(0.2), 1, 0)
+switchTabButton.Size = UDim2.new(0.5, -scaleX(0.2), 1, 0)
+switchTabButton.Position = UDim2.new(0.5, scaleX(0.2), 0, 0)
 
-stackerFrame.Position = UDim2.new(0, 0, 0, 60)
-switcherFrame.Position = UDim2.new(0, 0, 0, 60)
+stackerFrame.Position = UDim2.new(0, 0, 0, scaleY(12))
+switcherFrame.Position = UDim2.new(0, 0, 0, scaleY(12))
 
 local autoSkipEnabled = false
 local autoPickupsEnabled = false
@@ -464,57 +495,57 @@ autoNecroButton.MouseButton1Click:Connect(function()
     end
 end)
 
-Instance.new("UICorner", switcherSearchBox).CornerRadius = UDim.new(0, 4)
+Instance.new("UICorner", switcherSearchBox).CornerRadius = UDim.new(0, scaleX(0.3))
 
 local switcherTowersScroll = Instance.new("ScrollingFrame")
 switcherTowersScroll.Name = "TowersScroll"
-switcherTowersScroll.Size = UDim2.new(1, -8, 1, -34)
-switcherTowersScroll.Position = UDim2.new(0, 4, 0, 32)
+switcherTowersScroll.Size = UDim2.new(1, -scaleX(1.5), 1, -scaleY(6))
+switcherTowersScroll.Position = UDim2.new(0, scaleX(0.8), 0, scaleY(5.5))
 switcherTowersScroll.BackgroundTransparency = 1
-switcherTowersScroll.ScrollBarThickness = 4
+switcherTowersScroll.ScrollBarThickness = scaleX(0.8)
 switcherTowersScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
 switcherTowersScroll.Parent = switcherAvailableFrame
 
 local switcherButtonFrame = Instance.new("Frame")
 switcherButtonFrame.Name = "ButtonFrame"
-switcherButtonFrame.Size = UDim2.new(0.4, 0, 0, 55)
-switcherButtonFrame.Position = UDim2.new(0.6, 0, 0.83, 0)
+switcherButtonFrame.Size = UDim2.new(0.4, 0, 0, scaleY(10))
+switcherButtonFrame.Position = UDim2.new(0.6, 0, 0.77, 0)
 switcherButtonFrame.BackgroundTransparency = 1
 switcherButtonFrame.Parent = switcherFrame
 
 local clearButton = Instance.new("TextButton")
 clearButton.Name = "ClearButton"
-clearButton.Size = UDim2.new(1, 0, 0, 24)
+clearButton.Size = UDim2.new(0.98, 0, 0, scaleY(4))
 clearButton.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
 clearButton.Text = "CLEAR"
 clearButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-clearButton.TextSize = 11
+clearButton.TextSize = getFontSize(11)
 clearButton.Font = Enum.Font.SourceSansBold
 clearButton.Parent = switcherButtonFrame
 
-Instance.new("UICorner", clearButton).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", clearButton).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local equipButton = Instance.new("TextButton")
 equipButton.Name = "EquipButton"
-equipButton.Size = UDim2.new(1, 0, 0, 24)
-equipButton.Position = UDim2.new(0, 0, 0, 22)
+equipButton.Size = UDim2.new(0.98, 0, 0, scaleY(4))
+equipButton.Position = UDim2.new(0, 0, 0, scaleY(4.2))
 equipButton.BackgroundColor3 = Color3.fromRGB(70, 70, 90)
 equipButton.Text = "EQUIP (0)"
 equipButton.TextColor3 = Color3.fromRGB(200, 200, 200)
-equipButton.TextSize = 12
+equipButton.TextSize = getFontSize(12)
 equipButton.Font = Enum.Font.SourceSansBold
 equipButton.Parent = switcherButtonFrame
 
-Instance.new("UICorner", equipButton).CornerRadius = UDim.new(0, 6)
+Instance.new("UICorner", equipButton).CornerRadius = UDim.new(0, scaleX(0.5))
 
 local switcherStatus = Instance.new("TextLabel")
 switcherStatus.Name = "Status"
-switcherStatus.Size = UDim2.new(0.55, 0, 0, 55)
-switcherStatus.Position = UDim2.new(0.05, 0, 1, -65)
+switcherStatus.Size = UDim2.new(0.55, 0, 0, scaleY(10))
+switcherStatus.Position = UDim2.new(0.05, 0, 1, -scaleY(12))
 switcherStatus.BackgroundTransparency = 1
 switcherStatus.Text = "Select up to 5 towers\nClick tower to select/deselect"
 switcherStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
-switcherStatus.TextSize = 10
+switcherStatus.TextSize = getFontSize(10)
 switcherStatus.Font = Enum.Font.SourceSans
 switcherStatus.TextWrapped = true
 switcherStatus.TextYAlignment = Enum.TextYAlignment.Top
@@ -548,17 +579,17 @@ end
 local function createSwitcherTowerButton(towerName, index, isEven)
     local towerBtn = Instance.new("TextButton")
     towerBtn.Name = "TowerBtn_" .. towerName
-    towerBtn.Size = UDim2.new(1, -8, 0, 26)
-    towerBtn.Position = UDim2.new(0, 4, 0, (index-1) * 28)
+    towerBtn.Size = UDim2.new(1, -scaleX(1.5), 0, scaleY(4.5))
+    towerBtn.Position = UDim2.new(0, scaleX(0.8), 0, (index-1) * scaleY(5))
     towerBtn.BackgroundColor3 = isEven and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(35, 35, 50)
     towerBtn.Text = towerName
     towerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    towerBtn.TextSize = 11
+    towerBtn.TextSize = getFontSize(11)
     towerBtn.Font = Enum.Font.SourceSans
     towerBtn.AutoButtonColor = false
     towerBtn.Parent = switcherTowersScroll
     
-    Instance.new("UICorner", towerBtn).CornerRadius = UDim.new(0, 4)
+    Instance.new("UICorner", towerBtn).CornerRadius = UDim.new(0, scaleX(0.3))
     
     local originalColor = towerBtn.BackgroundColor3
     switcherTowerButtons[towerName] = towerBtn
@@ -637,7 +668,7 @@ local function populateSwitcherTowers(searchText)
         filteredTowers = allTowers
     end
     
-    switcherTowersScroll.CanvasSize = UDim2.new(0, 0, 0, #filteredTowers * 28)
+    switcherTowersScroll.CanvasSize = UDim2.new(0, 0, 0, #filteredTowers * scaleY(5))
     
     for i, towerName in ipairs(filteredTowers) do
         createSwitcherTowerButton(towerName, i, i % 2 == 0)
@@ -721,17 +752,17 @@ local function populateTowerList(searchText)
     
     for i, towerName in ipairs(filteredTowers) do
         local button = Instance.new("TextButton")
-        button.Size = UDim2.new(1, -4, 0, 28)
-        button.Position = UDim2.new(0, 2, 0, (i-1) * 30)
+        button.Size = UDim2.new(1, -scaleX(0.8), 0, scaleY(5))
+        button.Position = UDim2.new(0, scaleX(0.4), 0, (i-1) * scaleY(5.5))
         button.BackgroundColor3 = i % 2 == 0 and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(35, 35, 50)
         button.Text = towerName
         button.TextColor3 = Color3.fromRGB(255, 255, 255)
-        button.TextSize = 12
+        button.TextSize = getFontSize(12)
         button.Font = Enum.Font.SourceSans
         button.AutoButtonColor = false
         button.Parent = scrollFrame
         
-        Instance.new("UICorner", button).CornerRadius = UDim.new(0, 4)
+        Instance.new("UICorner", button).CornerRadius = UDim.new(0, scaleX(0.3))
         
         local originalColor = button.BackgroundColor3
         
@@ -758,7 +789,7 @@ local function populateTowerList(searchText)
         end)
     end
     
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #filteredTowers * 30)
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #filteredTowers * scaleY(5.5))
 end
 
 local currentTab = "stacker"
@@ -867,7 +898,11 @@ game:GetService("RunService").RenderStepped:Connect(function()
     lastCameraCFrame = currentCFrame
 end)
 
-local function canPlace()
+local function canPlacePC()
+    return true  -- Always allow on PC
+end
+
+local function canPlaceTouch()
     return tick() - lastCameraMoveTime > cameraCooldown
 end
 
@@ -898,7 +933,7 @@ UIS.InputBegan:Connect(function(input, processed)
     if processed then return end
     
     if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and canPlace() and isPlacingActive then
+        if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and canPlacePC() and isPlacingActive then
             local mousePos = UIS:GetMouseLocation()
             local x, z = getWorldPosition(mousePos)
             if x and z then
@@ -942,7 +977,7 @@ if UIS.TouchEnabled then
         if processed then return end
         
         if input.UserInputType == Enum.UserInputType.Touch then
-            if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and canPlace() and isPlacingActive then
+    if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and canPlaceTouch() and isPlacingActive then
                 activeTouch = input
                 touchStartTime = tick()
                 touchStartPosition = input.Position
@@ -960,7 +995,7 @@ if UIS.TouchEnabled then
     end)
     
     while true do
-        if activeTouch and touchStartPosition and canPlace() and isPlacingActive then
+    if activeTouch and touchStartPosition and canPlaceTouch() and isPlacingActive then
             if tick() - touchStartTime >= 0.4 then
                 if lastHotbarSelected and HotbarMapping[lastHotbarSelected] then
                     local x, z = getWorldPosition(touchStartPosition)
