@@ -1515,13 +1515,11 @@ local function start_auto_chain()
 
             if #commander >= 3 then
                 if idx > #commander then idx = 1 end
-
-                remote_func:InvokeServer(
-                    "Troops",
-                    "Abilities",
-                    "Activate",
-                    { Troop = commander[idx], Name = "Call Of Arms", Data = {} }
-                )
+                local tower = commander[idx]
+                if tower then
+                    waitUntilUnstunned(tower)
+                    do_activate_ability(tower, "Call Of Arms")
+                end
 
                 idx += 1
 
@@ -1552,6 +1550,7 @@ local function start_auto_dj_booth()
     task.spawn(function()
         while _G.AutoDJ do
             local towers_folder = workspace:FindFirstChild("Towers")
+            local DJ = nil
 
             if towers_folder then
                 for _, towers in ipairs(towers_folder:GetDescendants()) do
@@ -1560,17 +1559,14 @@ local function start_auto_dj_booth()
                     and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
                     and (towers:GetAttribute("Upgrade") or 0) >= 3 then
                         DJ = towers.Parent
+                        break 
                     end
                 end
             end
 
             if DJ then
-                remote_func:InvokeServer(
-                    "Troops",
-                    "Abilities",
-                    "Activate",
-                    { Troop = DJ, Name = "Drop The Beat", Data = {} }
-                )
+                waitUntilUnstunned(DJ)
+                do_activate_ability(DJ, "Drop The Beat")
 
                 local hotbar = player_gui.ReactUniversalHotbar.Frame
                 local timescale = hotbar and hotbar:FindFirstChild("timescale")
@@ -1591,6 +1587,7 @@ local function start_auto_dj_booth()
         auto_dj_running = false
     end)
 end
+
 
 task.spawn(function()
     while true do
