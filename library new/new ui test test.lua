@@ -1592,10 +1592,73 @@ local function start_auto_dj_booth()
     end)
 end
 
+local NECRO_DELAY = 1.5
+local necroTimers = {}
+local auto_necro_running = false
+
+local remoteFunc = game:GetService("ReplicatedStorage"):FindFirstChild("RemoteFunction")
+
+local function start_auto_necro()
+    if auto_necro_running or not _G.AutoNecro then return end
+    auto_necro_running = true
+    
+    task.spawn(function()
+        while _G.AutoNecro do
+            local currentTime = tick()
+            local towers = workspace:FindFirstChild("Towers")
+            
+            if towers then
+                for _, tower in pairs(towers:GetChildren()) do
+                    local rep = tower:FindFirstChild("TowerReplicator")
+                    if not rep then continue end
+                    
+                    if rep:GetAttribute("Name") == "Necromancer" and rep:GetAttribute("OwnerId") == localPlayer.UserId then
+                        local currentAmmo = rep:GetAttribute("Ammo") or 0
+                        local maxAmmo = rep:GetAttribute("MaxAmmo") or 1
+                        
+                        if currentAmmo == maxAmmo then
+                            if not necroTimers[tower] then
+                                necroTimers[tower] = currentTime
+                            else
+                                if currentTime - necroTimers[tower] >= NECRO_DELAY then
+                                    if remoteFunc then
+                                        remoteFunc:InvokeServer(
+                                            "Troops",
+                                            "Abilities",
+                                            "Activate",
+                                            { 
+                                                Troop = tower, 
+                                                Name = "Raise The Dead", 
+                                                Data = {} 
+                                            }
+                                        )
+                                    end
+                                    necroTimers[tower] = nil
+                                end
+                            end
+                        else
+                            necroTimers[tower] = nil
+                        end
+                    end
+                end
+            end
+            
+            task.wait()
+        end
+        
+        auto_necro_running = false
+        necroTimers = {} 
+    end)
+end
+
 task.spawn(function()
     while true do
         if _G.AutoPickups and not auto_pickups_running then
             start_auto_pickups()
+        end
+            
+        if _G.AutoNecro and not auto_necro_running then
+            start_auto_necro()
         end
         
         if _G.AutoSkip and not auto_skip_running then
