@@ -62,10 +62,10 @@ end
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
 local isPhone = UIS.TouchEnabled
-local phoneScale = 0.6  
+local phoneScale = 0.6
 
-mainFrame.Size = UDim2.new(0, 500 * (isPhone and phoneScale or 1), 
-                             0, 490 * (isPhone and phoneScale or 1))
+mainFrame.Size = UDim2.new(0, 400 * (isPhone and phoneScale or 1), 
+                             0, 290 * (isPhone and phoneScale or 1))
 
 local tabFrame = Instance.new("Frame")
 tabFrame.Size = UDim2.new(1, 0, 0, 30)
