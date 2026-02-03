@@ -1491,7 +1491,6 @@ local function start_rejoin_on_disconnect()
     end)
 end
 
-local auto_chain_running = false
 local activation_queue = {}
 local processing_queue = false
 
@@ -1575,7 +1574,6 @@ local function start_auto_chain()
             task.wait(1)  
         end
 
-        auto_chain_running = false
         activation_queue = {}  
         processing_queue = false
     end)
