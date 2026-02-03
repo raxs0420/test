@@ -5,6 +5,14 @@ local RemoteEvent = ReplicatedStorage:WaitForChild("RemoteEvent")
 local RemoteFunction = ReplicatedStorage:WaitForChild("RemoteFunction")
 local UIS = game:GetService("UserInputService")
 local camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+
+local isDragging = false
+local isResizing = false
+local dragStart, resizeStart
+local startPos, startSize
+local MIN_SIZE = UDim2.new(0, 250, 0, 200) 
+local MAX_SIZE = UDim2.new(0, 800, 0, 700)  
 
 repeat wait() until game:IsLoaded()
 
@@ -60,6 +68,42 @@ if not UIS.TouchEnabled then
 end
 
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
+
+local resizeHandle = Instance.new("Frame")
+resizeHandle.Name = "ResizeHandle"
+resizeHandle.Size = UDim2.new(0, 20, 0, 20)
+resizeHandle.Position = UDim2.new(1, -20, 1, -20)
+resizeHandle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+resizeHandle.BorderSizePixel = 0
+resizeHandle.ZIndex = 10
+resizeHandle.Visible = true
+resizeHandle.Parent = mainFrame
+
+Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 4)
+
+local resizeIcon = Instance.new("ImageLabel")
+resizeIcon.Name = "ResizeIcon"
+resizeIcon.Size = UDim2.new(1, 0, 1, 0)
+resizeIcon.BackgroundTransparency = 1
+resizeIcon.Image = "rbxassetid://3926305904"
+resizeIcon.ImageRectSize = Vector2.new(64, 64)
+resizeIcon.ImageRectOffset = Vector2.new(524, 284)
+resizeIcon.ImageColor3 = Color3.fromRGB(200, 200, 200)
+resizeIcon.Parent = resizeHandle
+
+local bottomEdge = Instance.new("Frame")
+bottomEdge.Name = "BottomEdge"
+bottomEdge.Size = UDim2.new(1, 0, 0, 10)
+bottomEdge.Position = UDim2.new(0, 0, 1, -10)
+bottomEdge.BackgroundTransparency = 1
+bottomEdge.Parent = mainFrame
+
+local rightEdge = Instance.new("Frame")
+rightEdge.Name = "RightEdge"
+rightEdge.Size = UDim2.new(0, 10, 1, 0)
+rightEdge.Position = UDim2.new(1, -10, 0, 0)
+rightEdge.BackgroundTransparency = 1
+rightEdge.Parent = mainFrame
 
 local tabFrame = Instance.new("Frame")
 tabFrame.Size = UDim2.new(1, 0, 0, 30)
@@ -762,6 +806,94 @@ local function populateTowerList(searchText)
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #filteredTowers * 30)
 end
 
+local function onDragStart(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        isDragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        
+        if not UIS.TouchEnabled then
+            tabFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
+        end
+        return true
+    end
+    return false
+end
+
+local function onDragEnd(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        isDragging = false
+        -- Reset visual feedback
+        tabFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
+    end
+end
+
+local function onResizeStart(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        isResizing = true
+        resizeStart = input.Position
+        startSize = mainFrame.Size
+        startPos = mainFrame.Position
+        
+        resizeHandle.BackgroundColor3 = Color3.fromRGB(100, 100, 150)
+        return true
+    end
+    return false
+end
+
+local function onResizeEnd(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        isResizing = false
+        -- Reset visual feedback
+        resizeHandle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+    end
+end
+
+tabFrame.InputBegan:Connect(onDragStart)
+tabFrame.InputEnded:Connect(onDragEnd)
+minimizeButton.InputBegan:Connect(onDragStart)
+minimizeButton.InputEnded:Connect(onDragEnd)
+
+resizeHandle.InputBegan:Connect(onResizeStart)
+resizeHandle.InputEnded:Connect(onResizeEnd)
+bottomEdge.InputBegan:Connect(onResizeStart)
+bottomEdge.InputEnded:Connect(onResizeEnd)
+rightEdge.InputBegan:Connect(onResizeStart)
+rightEdge.InputEnded:Connect(onResizeEnd)
+
+if not UIS.TouchEnabled then
+    resizeHandle.MouseEnter:Connect(function()
+        if not isResizing then
+            resizeHandle.BackgroundColor3 = Color3.fromRGB(100, 100, 140)
+            resizeIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+        end
+    end)
+    
+    resizeHandle.MouseLeave:Connect(function()
+        if not isResizing then
+            resizeHandle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
+            resizeIcon.ImageColor3 = Color3.fromRGB(200, 200, 200)
+        end
+    end)
+end
+
+if UIS.TouchEnabled then
+    local touchDragArea = Instance.new("Frame")
+    touchDragArea.Size = UDim2.new(1, 0, 0, 40)
+    touchDragArea.BackgroundTransparency = 1
+    touchDragArea.Parent = tabFrame
+    
+    touchDragArea.InputBegan:Connect(onDragStart)
+    touchDragArea.InputEnded:Connect(onDragEnd)
+    
+    -- Make resize handle larger for mobile
+    resizeHandle.Size = UDim2.new(0, 40, 0, 40)
+end
+
 local currentTab = "stacker"
 
 local function switchToTab(tabName)
@@ -797,30 +929,34 @@ minimizeButton.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     mainFrame.Visible = not isMinimized
     minimizeButton.Text = isMinimized and "▲" or "▼"
-end)
-
-local dragging = false
-local dragStart
-local startPos
-
-tabFrame.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
+    
+    if resizeHandle then
+        resizeHandle.Visible = not isMinimized
     end
 end)
-
-tabFrame.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
-    end
-end)
-
 UIS.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-        local delta = input.Position - dragStart
-        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or 
+       input.UserInputType == Enum.UserInputType.Touch then
+        
+        if isDragging and dragStart and startPos then
+            local delta = input.Position - dragStart
+            local newX = startPos.X.Offset + delta.X
+            local newY = startPos.Y.Offset + delta.Y
+            
+            local screenSize = workspace.CurrentCamera.ViewportSize
+            newX = math.clamp(newX, 0, screenSize.X - mainFrame.AbsoluteSize.X)
+            newY = math.clamp(newY, 0, screenSize.Y - mainFrame.AbsoluteSize.Y)
+            
+            mainFrame.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
+        end
+        
+        if isResizing and resizeStart and startSize and startPos then
+            local delta = input.Position - resizeStart
+            local newWidth = math.clamp(startSize.X.Offset + delta.X, MIN_SIZE.X.Offset, MAX_SIZE.X.Offset)
+            local newHeight = math.clamp(startSize.Y.Offset + delta.Y, MIN_SIZE.Y.Offset, MAX_SIZE.Y.Offset)
+            
+            mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+        end
     end
 end)
 
@@ -834,6 +970,27 @@ updateToggleButton()
 
 populateSwitcherTowers("")
 updateSwitcherCountDisplay()
+
+local function updateInternalSizes()
+    if not mainFrame.Visible then return end
+    
+    local frameWidth = mainFrame.AbsoluteSize.X
+    local frameHeight = mainFrame.AbsoluteSize.Y
+    
+    local stackerContentHeight = frameHeight - 90
+    scrollFrame.Size = UDim2.new(0.6, -15, 0, stackerContentHeight - 110)
+    stackerStatus.Position = UDim2.new(0, 10, 1, -60)
+    togglePlacingButton.Position = UDim2.new(0.65, 5, 1, -60)
+    
+    local switcherContentHeight = frameHeight - 90
+    switcherAvailableFrame.Size = UDim2.new(1, -20, 0, switcherContentHeight - 50)
+    switcherButtonFrame.Position = UDim2.new(0.6, 0, 0, switcherContentHeight - 65)
+    switcherStatus.Position = UDim2.new(0.05, 0, 0, switcherContentHeight - 65)
+end
+
+mainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateInternalSizes)
+
+updateInternalSizes()
 
 local function getWorldPosition(screenPosition)
     local ray = camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
@@ -994,3 +1151,4 @@ UIS.InputBegan:Connect(function(input, processed)
         end
     end
 end)
+
