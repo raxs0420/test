@@ -6,14 +6,18 @@ local RemoteFunction = ReplicatedStorage:WaitForChild("RemoteFunction")
 local UIS = game:GetService("UserInputService")
 local camera = workspace.CurrentCamera
 
+repeat wait() until game:IsLoaded()
+
+repeat wait() until player and player:IsDescendantOf(Players)
+
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
-if not game:IsLoaded() then game.Loaded:Wait() end
+
+repeat wait() until player:FindFirstChild("PlayerGui")
 
 local HotbarMapping = {}
 local lastHotbarSelected = nil
 local HOTBAR_SLOTS = 5
 local isPlacingActive = true 
-
 
 local allTowers = {
     "Scout", "Sniper", "Paintballer", "Demoman", "Hunter", "Soldier", "Militant", "Freezer", "Assassin", "Shotgunner", 
@@ -26,6 +30,8 @@ local allTowers = {
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "TowerStackGUI"
+screenGui.ResetOnSpawn = false
+screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = player:WaitForChild("PlayerGui")
 
 local minimizeButton = Instance.new("TextButton")
@@ -47,6 +53,11 @@ mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = true
 mainFrame.Parent = screenGui
+
+if not UIS.TouchEnabled then
+    mainFrame.Visible = true
+    minimizeButton.Visible = true
+end
 
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
@@ -843,9 +854,15 @@ local cameraCooldown = 0.3
 game:GetService("RunService").RenderStepped:Connect(function()
     local currentCFrame = camera.CFrame
     
-    if (currentCFrame.Position - lastCameraCFrame.Position).Magnitude > 0.01 or
-       currentCFrame.LookVector:Dot(lastCameraCFrame.LookVector) < 0.9999 then
-        lastCameraMoveTime = tick()
+    if UIS.TouchEnabled then
+        if (currentCFrame.Position - lastCameraCFrame.Position).Magnitude > 0.01 or
+           currentCFrame.LookVector:Dot(lastCameraCFrame.LookVector) < 0.9999 then
+            lastCameraMoveTime = tick()
+        end
+    else
+        if (currentCFrame.Position - lastCameraCFrame.Position).Magnitude > 0.001 then
+            lastCameraMoveTime = tick()
+        end
     end
     
     lastCameraCFrame = currentCFrame
@@ -883,17 +900,36 @@ UIS.InputBegan:Connect(function(input, processed)
     
     if input.UserInputType == Enum.UserInputType.MouseButton2 then
         if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and canPlace() and isPlacingActive then
-            local x, z = getWorldPosition(UIS:GetMouseLocation())
+            local mousePos = UIS:GetMouseLocation()
+            local x, z = getWorldPosition(mousePos)
             if x and z then
                 stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected]
-                RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
-                    Rotation = CFrame.Angles(0, 0, 0),
-                    Position = Vector3.new(x, 80, z)
-                }, HotbarMapping[lastHotbarSelected])
-                stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected] .. " from slot " .. lastHotbarSelected
+                
+                local success, err = pcall(function()
+                    RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
+                        Rotation = CFrame.Angles(0, 0, 0),
+                        Position = Vector3.new(x, 80, z)
+                    }, HotbarMapping[lastHotbarSelected])
+                end)
+                
+                if success then
+                    stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected] .. " from slot " .. lastHotbarSelected
+                else
+                    stackerStatus.Text = "Error: " .. tostring(err)
+                end
             end
         elseif not isPlacingActive then
             stackerStatus.Text = "Placing is disabled!"
+        end
+    end
+    
+    if input.UserInputType == Enum.UserInputType.MouseButton1 and not UIS.TouchEnabled then
+        if not mainFrame.Visible then
+            lastHotbarSelected = nil
+            if currentTab == "stacker" then
+                stackerStatus.Text = "Click slot button first"
+            end
+            updateSlotHighlights()
         end
     end
 end)
