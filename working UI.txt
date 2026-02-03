@@ -5,14 +5,6 @@ local RemoteEvent = ReplicatedStorage:WaitForChild("RemoteEvent")
 local RemoteFunction = ReplicatedStorage:WaitForChild("RemoteFunction")
 local UIS = game:GetService("UserInputService")
 local camera = workspace.CurrentCamera
-local RunService = game:GetService("RunService")
-
-local isDragging = false
-local isResizing = false
-local dragStart, resizeStart
-local startPos, startSize
-local MIN_SIZE = UDim2.new(0.08, 0, 0.1, 0) 
-local MAX_SIZE = UDim2.new(0.7, 0, 0.8, 0)     
 
 repeat wait() until game:IsLoaded()
 
@@ -55,8 +47,8 @@ minimizeButton.TextSize = 18
 minimizeButton.Parent = screenGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0.25, 0, 0.2, 0)   
-mainFrame.Position = UDim2.new(0.01, 0, 0.05, 0)
+mainFrame.Size = UDim2.new(0, 500, 0, 490)
+mainFrame.Position = UDim2.new(0, 10, 0, 50)
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 mainFrame.BorderSizePixel = 0
 mainFrame.Visible = true
@@ -69,45 +61,14 @@ end
 
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 8)
 
-local resizeHandle = Instance.new("Frame")
-resizeHandle.Name = "ResizeHandle"
-resizeHandle.Size = UDim2.new(0.02, 0, 0.02, 0) 
-resizeHandle.Position = UDim2.new(1, 0, 1, 0)  
-resizeHandle.AnchorPoint = Vector2.new(1, 1)     
-resizeHandle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
-resizeHandle.BorderSizePixel = 0
-resizeHandle.ZIndex = 10
-resizeHandle.Visible = true
-resizeHandle.Parent = mainFrame
+local isPhone = UIS.TouchEnabled
+local phoneScale = 0.6  
 
-Instance.new("UICorner", resizeHandle).CornerRadius = UDim.new(0, 4)
-
-local resizeIcon = Instance.new("ImageLabel")
-resizeIcon.Name = "ResizeIcon"
-resizeIcon.Size = UDim2.new(1, 0, 1, 0)
-resizeIcon.BackgroundTransparency = 1
-resizeIcon.Image = "rbxassetid://3926305904"
-resizeIcon.ImageRectSize = Vector2.new(64, 64)
-resizeIcon.ImageRectOffset = Vector2.new(524, 284)
-resizeIcon.ImageColor3 = Color3.fromRGB(200, 200, 200)
-resizeIcon.Parent = resizeHandle
-
-local bottomEdge = Instance.new("Frame")
-bottomEdge.Name = "BottomEdge"
-bottomEdge.Size = UDim2.new(1, 0, 0, 10)
-bottomEdge.Position = UDim2.new(0, 0, 1, -10)
-bottomEdge.BackgroundTransparency = 1
-bottomEdge.Parent = mainFrame
-
-local rightEdge = Instance.new("Frame")
-rightEdge.Name = "RightEdge"
-rightEdge.Size = UDim2.new(0, 10, 1, 0)
-rightEdge.Position = UDim2.new(1, -10, 0, 0)
-rightEdge.BackgroundTransparency = 1
-rightEdge.Parent = mainFrame
+mainFrame.Size = UDim2.new(0, 500 * (isPhone and phoneScale or 1), 
+                             0, 490 * (isPhone and phoneScale or 1))
 
 local tabFrame = Instance.new("Frame")
-tabFrame.Size = UDim2.new(1, 0, 0.15, 0)  
+tabFrame.Size = UDim2.new(1, 0, 0, 30)
 tabFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
 tabFrame.BorderSizePixel = 0
 tabFrame.Parent = mainFrame
@@ -146,8 +107,8 @@ switcherFrame.Visible = false
 switcherFrame.Parent = mainFrame
 
 local searchBox = Instance.new("TextBox")
-searchBox.Size = UDim2.new(1, 0, 0.15, 0)  
-searchBox.Position = UDim2.new(0, 0, 0, 0)
+searchBox.Size = UDim2.new(1, -20, 0, 30)
+searchBox.Position = UDim2.new(0, 10, 0, 10)
 searchBox.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 searchBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 searchBox.PlaceholderText = "Search..."
@@ -159,8 +120,8 @@ searchBox.Parent = stackerFrame
 Instance.new("UICorner", searchBox).CornerRadius = UDim.new(0, 4)
 
 local slotFrame = Instance.new("Frame")
-slotFrame.Size = UDim2.new(0.35, 0, 0.7, 0)   
-slotFrame.Position = UDim2.new(0.65, 0, 0.15, 0) 
+slotFrame.Size = UDim2.new(0.35, -15, 0, 200)
+slotFrame.Position = UDim2.new(0.65, 5, 0, 50)
 slotFrame.BackgroundTransparency = 1
 slotFrame.Parent = stackerFrame
 
@@ -169,8 +130,8 @@ local slotLabels = {}
 
 for i = 1, HOTBAR_SLOTS do
     local buttonFrame = Instance.new("Frame")
-    buttonFrame.Size = UDim2.new(1, 0, 0.2, 0)
-    buttonFrame.Position = UDim2.new(0, 0, (i-1) * 0.2, 0)
+    buttonFrame.Size = UDim2.new(1, 0, 0, 40)
+    buttonFrame.Position = UDim2.new(0, 0, 0, (i-1) * 40)
     buttonFrame.BackgroundTransparency = 1
     buttonFrame.Parent = slotFrame
     
@@ -228,8 +189,8 @@ local function updateSlotHighlights()
 end
 
 local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Size = UDim2.new(0.6, 0, 0.7, 0)   
-scrollFrame.Position = UDim2.new(0, 0, 0.15, 0)  
+scrollFrame.Size = UDim2.new(0.6, -15, 1, -160)
+scrollFrame.Position = UDim2.new(0, 10, 0, 50)
 scrollFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 scrollFrame.BorderSizePixel = 0
 scrollFrame.ScrollBarThickness = 6
@@ -245,8 +206,8 @@ towerListLayout.Padding = UDim.new(0, 2)
 towerListLayout.Parent = scrollFrame
 
 local stackerStatus = Instance.new("TextLabel")
-stackerStatus.Size = UDim2.new(0.6, 0, 0.15, 0)  
-stackerStatus.Position = UDim2.new(0, 0, 0.85, 0)  
+stackerStatus.Size = UDim2.new(0.6, -10, 0, 40)
+stackerStatus.Position = UDim2.new(0, 10, 1, -60)
 stackerStatus.BackgroundTransparency = 1
 stackerStatus.TextColor3 = Color3.fromRGB(200, 200, 200)
 stackerStatus.Font = Enum.Font.SourceSans
@@ -257,8 +218,8 @@ stackerStatus.TextYAlignment = Enum.TextYAlignment.Top
 stackerStatus.Parent = stackerFrame
 
 local togglePlacingButton = Instance.new("TextButton")
-togglePlacingButton.Size = UDim2.new(0.35, 0, 0.15, 0)  
-togglePlacingButton.Position = UDim2.new(0.65, 0, 0.85, 0)  
+togglePlacingButton.Size = UDim2.new(0.35, -15, 0, 30)
+togglePlacingButton.Position = UDim2.new(0.65, 5, 1, -60)
 togglePlacingButton.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
 togglePlacingButton.Text = "Place: ON"
 togglePlacingButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -269,8 +230,8 @@ togglePlacingButton.Parent = stackerFrame
 Instance.new("UICorner", togglePlacingButton).CornerRadius = UDim.new(0, 6)
 
 local switcherTitleBar = Instance.new("Frame")
-switcherTitleBar.Size = UDim2.new(1, 0, 0.15, 0) 
-switcherTitleBar.Position = UDim2.new(0, 0, 0, 0)  
+switcherTitleBar.Size = UDim2.new(1, -20, 0, 30)
+switcherTitleBar.Position = UDim2.new(0, 10, 0, 10)
 switcherTitleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 65)
 switcherTitleBar.BorderSizePixel = 0
 switcherTitleBar.Parent = switcherFrame
@@ -300,9 +261,10 @@ switcherCountDisplay.Font = Enum.Font.SourceSansBold
 switcherCountDisplay.Parent = switcherTitleBar
 
 Instance.new("UICorner", switcherCountDisplay).CornerRadius = UDim.new(0, 4)
+
 local switcherAvailableFrame = Instance.new("Frame")
-switcherAvailableFrame.Size = UDim2.new(1, 0, 0.7, 0)    
-switcherAvailableFrame.Position = UDim2.new(0, 0, 0.15, 0)  
+switcherAvailableFrame.Size = UDim2.new(1, -20, 1, -130)
+switcherAvailableFrame.Position = UDim2.new(0, 10, 0, 50)
 switcherAvailableFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 switcherAvailableFrame.BorderSizePixel = 0
 switcherAvailableFrame.Parent = switcherFrame
@@ -324,7 +286,6 @@ switcherSearchBox.ClearTextOnFocus = false
 switcherSearchBox.Parent = switcherAvailableFrame
 
 -- New buttons
-mainFrame.Size = UDim2.new(0, 300, 0, 150)
 
 local utilityButtonFrame = Instance.new("Frame")
 utilityButtonFrame.Size = UDim2.new(1, 0, 0, 30)
@@ -806,94 +767,6 @@ local function populateTowerList(searchText)
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #filteredTowers * 30)
 end
 
-local function onDragStart(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        isDragging = true
-        dragStart = input.Position
-        startPos = mainFrame.Position
-        
-        if not UIS.TouchEnabled then
-            tabFrame.BackgroundColor3 = Color3.fromRGB(70, 70, 100)
-        end
-        return true
-    end
-    return false
-end
-
-local function onDragEnd(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        isDragging = false
-        -- Reset visual feedback
-        tabFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 60)
-    end
-end
-
-local function onResizeStart(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        isResizing = true
-        resizeStart = input.Position
-        startSize = mainFrame.Size
-        startPos = mainFrame.Position
-        
-        resizeHandle.BackgroundColor3 = Color3.fromRGB(100, 100, 150)
-        return true
-    end
-    return false
-end
-
-local function onResizeEnd(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        isResizing = false
-        -- Reset visual feedback
-        resizeHandle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
-    end
-end
-
-tabFrame.InputBegan:Connect(onDragStart)
-tabFrame.InputEnded:Connect(onDragEnd)
-minimizeButton.InputBegan:Connect(onDragStart)
-minimizeButton.InputEnded:Connect(onDragEnd)
-
-resizeHandle.InputBegan:Connect(onResizeStart)
-resizeHandle.InputEnded:Connect(onResizeEnd)
-bottomEdge.InputBegan:Connect(onResizeStart)
-bottomEdge.InputEnded:Connect(onResizeEnd)
-rightEdge.InputBegan:Connect(onResizeStart)
-rightEdge.InputEnded:Connect(onResizeEnd)
-
-if not UIS.TouchEnabled then
-    resizeHandle.MouseEnter:Connect(function()
-        if not isResizing then
-            resizeHandle.BackgroundColor3 = Color3.fromRGB(100, 100, 140)
-            resizeIcon.ImageColor3 = Color3.fromRGB(255, 255, 255)
-        end
-    end)
-    
-    resizeHandle.MouseLeave:Connect(function()
-        if not isResizing then
-            resizeHandle.BackgroundColor3 = Color3.fromRGB(80, 80, 100)
-            resizeIcon.ImageColor3 = Color3.fromRGB(200, 200, 200)
-        end
-    end)
-end
-
-if UIS.TouchEnabled then
-    local touchDragArea = Instance.new("Frame")
-    touchDragArea.Size = UDim2.new(1, 0, 0, 40)
-    touchDragArea.BackgroundTransparency = 1
-    touchDragArea.Parent = tabFrame
-    
-    touchDragArea.InputBegan:Connect(onDragStart)
-    touchDragArea.InputEnded:Connect(onDragEnd)
-    
-    -- Make resize handle larger for mobile
-    resizeHandle.Size = UDim2.new(0, 40, 0, 40)
-end
-
 local currentTab = "stacker"
 
 local function switchToTab(tabName)
@@ -929,34 +802,30 @@ minimizeButton.MouseButton1Click:Connect(function()
     isMinimized = not isMinimized
     mainFrame.Visible = not isMinimized
     minimizeButton.Text = isMinimized and "▲" or "▼"
-    
-    if resizeHandle then
-        resizeHandle.Visible = not isMinimized
+end)
+
+local dragging = false
+local dragStart
+local startPos
+
+tabFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
     end
 end)
+
+tabFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
 UIS.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or 
-       input.UserInputType == Enum.UserInputType.Touch then
-        
-        if isDragging and dragStart and startPos then
-            local delta = input.Position - dragStart
-            local newX = startPos.X.Offset + delta.X
-            local newY = startPos.Y.Offset + delta.Y
-            
-            local screenSize = workspace.CurrentCamera.ViewportSize
-            newX = math.clamp(newX, 0, screenSize.X - mainFrame.AbsoluteSize.X)
-            newY = math.clamp(newY, 0, screenSize.Y - mainFrame.AbsoluteSize.Y)
-            
-            mainFrame.Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
-        end
-        
-        if isResizing and resizeStart and startSize and startPos then
-            local delta = input.Position - resizeStart
-            local newWidth = math.clamp(startSize.X.Offset + delta.X, MIN_SIZE.X.Offset, MAX_SIZE.X.Offset)
-            local newHeight = math.clamp(startSize.Y.Offset + delta.Y, MIN_SIZE.Y.Offset, MAX_SIZE.Y.Offset)
-            
-            mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
-        end
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
 
@@ -970,25 +839,6 @@ updateToggleButton()
 
 populateSwitcherTowers("")
 updateSwitcherCountDisplay()
-
-local function updateInternalSizes()
-    if not mainFrame.Visible then return end
-    
-    local frameWidth = mainFrame.AbsoluteSize.X
-    local frameHeight = mainFrame.AbsoluteSize.Y
-    
-    local stackerContentHeight = frameHeight - 90
-    scrollFrame.Size = UDim2.new(0.6, -15, 0, stackerContentHeight - 110)
-    stackerStatus.Position = UDim2.new(0, 10, 1, -60)
-    togglePlacingButton.Position = UDim2.new(0.65, 5, 1, -60)
-    
-    local switcherContentHeight = frameHeight - 90
-    switcherAvailableFrame.Size = UDim2.new(1, -20, 0, switcherContentHeight - 50)
-    switcherButtonFrame.Position = UDim2.new(0.6, 0, 0, switcherContentHeight - 65)
-    switcherStatus.Position = UDim2.new(0.05, 0, 0, switcherContentHeight - 65)
-end
-
-updateInternalSizes()
 
 local function getWorldPosition(screenPosition)
     local ray = camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
@@ -1149,4 +999,3 @@ UIS.InputBegan:Connect(function(input, processed)
         end
     end
 end)
-
