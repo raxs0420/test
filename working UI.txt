@@ -11,7 +11,7 @@ local isDragging = false
 local isResizing = false
 local dragStart, resizeStart
 local startPos, startSize
-local MIN_SIZE = UDim2.new(0, 250, 0, 200) 
+local MIN_SIZE = UDim2.new(0, 150, 0, 100) 
 local MAX_SIZE = UDim2.new(0, 800, 0, 700)  
 
 repeat wait() until game:IsLoaded()
@@ -55,7 +55,7 @@ minimizeButton.TextSize = 18
 minimizeButton.Parent = screenGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 300, 0, 290)
+mainFrame.Size = UDim2.new(0, 300, 0, 150)
 mainFrame.Position = UDim2.new(0, 10, 0, 50)
 mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
 mainFrame.BorderSizePixel = 0
@@ -324,7 +324,7 @@ switcherSearchBox.ClearTextOnFocus = false
 switcherSearchBox.Parent = switcherAvailableFrame
 
 -- New buttons
-mainFrame.Size = UDim2.new(0, 300, 0, 290)
+mainFrame.Size = UDim2.new(0, 300, 0, 150)
 
 local utilityButtonFrame = Instance.new("Frame")
 utilityButtonFrame.Size = UDim2.new(1, 0, 0, 30)
