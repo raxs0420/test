@@ -1491,6 +1491,42 @@ local function start_rejoin_on_disconnect()
     end)
 end
 
+local auto_chain_running = false
+local activation_queue = {}
+local processing_queue = false
+
+local function process_commander_queue()
+    if processing_queue or #activation_queue == 0 then return end
+    processing_queue = true
+    
+    while #activation_queue > 0 and _G.AutoChain do
+        local tower = table.remove(activation_queue, 1)
+        
+        if tower and not isTowerStunned(tower) then
+            do_activate_ability(tower, "Call Of Arms")
+            
+            local hotbar = player_gui.ReactUniversalHotbar.Frame
+            local timescale = hotbar and hotbar:FindFirstChild("timescale")
+            local wait_time = 5.5  
+            
+            if timescale then
+                if timescale:FindFirstChild("Lock") then
+                    wait_time = 11
+                end
+            else
+                wait_time = 11
+            end
+            
+            task.wait(wait_time)
+        elseif tower then
+            task.wait(0.2)
+            table.insert(activation_queue, tower)
+        end
+    end
+    
+    processing_queue = false
+end
+
 local function start_auto_chain()
     if auto_chain_running or not _G.AutoChain then return end
     auto_chain_running = true
@@ -1515,31 +1551,33 @@ local function start_auto_chain()
 
             if #commander >= 3 then
                 if idx > #commander then idx = 1 end
+                
                 local tower = commander[idx]
                 if tower then
-                    waitUntilUnstunned(tower)
-                    do_activate_ability(tower, "Call Of Arms")
-                end
-
-                idx += 1
-
-                local hotbar = player_gui.ReactUniversalHotbar.Frame
-                local timescale = hotbar and hotbar:FindFirstChild("timescale")
-                if timescale then
-                    if timescale:FindFirstChild("Lock") then
-                        task.wait(11)
-                    else
-                        task.wait(5.5)
+                    local already_in_queue = false
+                    for _, queued_tower in ipairs(activation_queue) do
+                        if queued_tower == tower then
+                            already_in_queue = true
+                            break
+                        end
                     end
-                else
-                    task.wait(11)
+                    
+                    if not already_in_queue then
+                        table.insert(activation_queue, tower)
+                    end
                 end
+                
+                idx += 1
+                
+                task.spawn(process_commander_queue)
             end
 
-            task.wait(1)
+            task.wait(1)  
         end
 
         auto_chain_running = false
+        activation_queue = {}  
+        processing_queue = false
     end)
 end
 
