@@ -1579,16 +1579,16 @@ local function start_auto_dj_booth()
                 local timescale = hotbar and hotbar:FindFirstChild("timescale")
                 if timescale then
                     if timescale:FindFirstChild("Lock") then
-                        task.wait(28)
+                        task.wait(30.5)
                     else
-                        task.wait(14)
+                        task.wait(15.5)
                     end
                 else
-                    task.wait(28)
+                    task.wait(30.5)
                 end
             end
 
-            task.wait(1)
+            task.wait(0.2)
         end
 
         auto_dj_running = false
