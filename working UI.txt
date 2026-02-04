@@ -44,7 +44,7 @@ end
 -- Font scaling
 local function getFontSize(baseSize)
     if isMobile then
-        return math.max(baseSize, screenSize.Y * 0.04)  -- Minimum 2% of screen height
+        return math.max(baseSize, screenSize.Y * 0.03)  -- Minimum 2% of screen height
     end
     return baseSize
 end
