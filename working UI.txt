@@ -17,6 +17,15 @@ local lastHotbarSelected = nil
 local HOTBAR_SLOTS = 5
 local isPlacingActive = true 
 
+local PC_FONT_SCALE = 1.6  
+
+local function getFontSize(baseSize, mobileMultiplier)
+    if isMobile then
+        return math.max(baseSize * (mobileMultiplier or 1.2), screenSize.Y * 0.02)
+    end
+    return baseSize * PC_FONT_SCALE  -- Apply PC scaling
+end
+
 local allTowers = {
     "Scout", "Sniper", "Paintballer", "Demoman", "Hunter", "Soldier", "Militant", "Freezer", "Assassin", "Shotgunner", 
     "Pyromancer", "Ace Pilot", "Medic", "Farm", "Rocketeer", "Trapper", "Military Base", "Crook Boss", "Electroshocker", 
