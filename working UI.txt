@@ -46,7 +46,7 @@ local function getFontSize(baseSize)
     if isMobile then
         return math.max(baseSize, screenSize.Y * 0.02)
     end
-    return baseSize * 1.50  
+    return baseSize * 1.75 
 end
 
 -- Element scaling
