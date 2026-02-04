@@ -17,6 +17,10 @@ local lastHotbarSelected = nil
 local HOTBAR_SLOTS = 5
 local isPlacingActive = true 
 
+local PC_FONT_SCALE = 1.6  -- Start with 1.0 (no scaling), adjust as needed
+
+local allTowers = {
+
 local allTowers = {
     "Scout", "Sniper", "Paintballer", "Demoman", "Hunter", "Soldier", "Militant", "Freezer", "Assassin", "Shotgunner", 
     "Pyromancer", "Ace Pilot", "Medic", "Farm", "Rocketeer", "Trapper", "Military Base", "Crook Boss", "Electroshocker", 
@@ -43,7 +47,7 @@ end
 
 local function getFontSize(baseSize)
     if isMobile then
-        return math.max(baseSize, screenSize.Y * 0.02)  -- Minimum 2% of screen height
+        return math.max(baseSize, screenSize.Y * 0.05)  
     end
     return baseSize * PC_FONT_SCALE  
 end
@@ -914,6 +918,7 @@ end
 local function canPlaceTouch()
     return tick() - lastCameraMoveTime > cameraCooldown
 end
+
 local mt = getrawmetatable(game)
 setreadonly(mt, false)
 local oldNamecall = mt.__namecall
@@ -928,6 +933,7 @@ mt.__namecall = function(self, ...)
     if method == "FireServer" then
         -- Multiple ways to identify the remote
         if self == RemoteEvent or self.Name == "RemoteEvent" then
+            -- Check if it's a slot click
             if args[1] == "Hotbar" and args[2] == "Click" then
                 local slot = args[3]
                 if slot and type(slot) == "number" and slot >= 1 and slot <= HOTBAR_SLOTS then
@@ -940,7 +946,8 @@ mt.__namecall = function(self, ...)
                     -- Debug
                     print("[HOOK] Slot selected via remote:", slot)
                     
-                    return  -- IMPORTANT: Don't call original if we're overriding
+                    -- IMPORTANT: Still call the original so the game knows
+                    return oldNamecall(self, ...)
                 end
             end
         end
