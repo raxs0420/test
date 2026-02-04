@@ -44,7 +44,7 @@ end
 -- Font scaling
 local function getFontSize(baseSize)
     if isMobile then
-        return math.max(baseSize, screenSize.Y * 0.02)  -- Minimum 2% of screen height
+        return math.max(baseSize, screenSize.Y * 0.06)  -- Minimum 2% of screen height
     end
     return baseSize
 end
@@ -936,6 +936,7 @@ end
 
 setreadonly(mt, true)
 
+-- Clean PC Placement Function (replacing the old one)
 UIS.InputBegan:Connect(function(input, processed)
     if processed then return end
     
@@ -944,38 +945,11 @@ UIS.InputBegan:Connect(function(input, processed)
             local mousePos = UIS:GetMouseLocation()
             local x, z = getWorldPosition(mousePos)
             if x and z then
-                stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected]
-                
-                local success, result = pcall(function()
-                    -- Use CFrame.new() instead of CFrame.Angles(0,0,0)
-                    return RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
-                        Rotation = CFrame.new(),
-                        Position = Vector3.new(x, 80, z)
-                    }, HotbarMapping[lastHotbarSelected])
-                end)
-                
-                if success then
-                    stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected] .. " from slot " .. lastHotbarSelected
-                else
-                    stackerStatus.Text = "Error: " .. tostring(result)
-                end
+                RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
+                    Rotation = CFrame.new(),
+                    Position = Vector3.new(x, 80, z)
+                }, HotbarMapping[lastHotbarSelected])
             end
-        elseif not isPlacingActive then
-            stackerStatus.Text = "Placing is disabled!"
-        elseif not lastHotbarSelected then
-            stackerStatus.Text = "Select a slot first (1-5)"
-        elseif not HotbarMapping[lastHotbarSelected] then
-            stackerStatus.Text = "No tower assigned to slot " .. lastHotbarSelected
-        end
-    end
-    
-    if input.UserInputType == Enum.UserInputType.MouseButton1 and not UIS.TouchEnabled then
-        if not mainFrame.Visible then
-            lastHotbarSelected = nil
-            if currentTab == "stacker" then
-                stackerStatus.Text = "Click slot button first"
-            end
-            updateSlotHighlights()
         end
     end
 end)
