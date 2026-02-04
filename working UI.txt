@@ -1,4 +1,3 @@
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
@@ -45,9 +44,9 @@ end
 -- Font scaling
 local function getFontSize(baseSize)
     if isMobile then
-        return math.max(baseSize, screenSize.Y * 0.05)  -- Minimum 2% of screen height
+        return math.max(baseSize, screenSize.Y * 0.02)
     end
-    return baseSize
+    return baseSize * 1.50  
 end
 
 -- Element scaling
@@ -883,78 +882,98 @@ local function getWorldPosition(screenPosition)
     return nil, nil
 end
 
--- FIXED: Simplified placement function
+-- FIXED: Placement function
 local function placeTowerAtPosition(towerName, x, z)
     if not towerName or not x or not z then 
         return false, "Invalid parameters"
     end
     
     local success, result = pcall(function()
-        -- Try different possible remote function signatures
-        local args = {
-            Rotation = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1),
+        return RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
+            Rotation = CFrame.new(),
             Position = Vector3.new(x, 80, z)
-        }
-        
-        -- Try first method
-        local response = RemoteFunction:InvokeServer("Troops", "Place", args, towerName)
-        return response
+        }, towerName)
     end)
     
     if success then
         return true, result
     else
-        -- Try alternative method
-        local success2, result2 = pcall(function()
-            local args = {
-                Rotation = CFrame.Angles(0, 0, 0),
-                Position = Vector3.new(x, 80, z)
-            }
-            return RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", args, towerName)
-        end)
-        
-        if success2 then
-            return true, result2
-        else
-            return false, result2 or "Unknown error"
-        end
+        return false, result
     end
 end
 
--- FIXED: Simple PC placement handler
+-- PC Placement (right-click)
 UIS.InputBegan:Connect(function(input, processed)
     if processed then return end
     
     if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and isPlacingActive then
-            local mousePos = UIS:GetMouseLocation()
-            local x, z = getWorldPosition(mousePos)
-            
-            if x and z then
-                stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected] .. "..."
-                
-                local success, result = placeTowerAtPosition(HotbarMapping[lastHotbarSelected], x, z)
-                
-                if success then
-                    stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected]
-                else
-                    stackerStatus.Text = "Failed: " .. tostring(result)
-                end
-            else
-                stackerStatus.Text = "Invalid position"
-            end
-        elseif not isPlacingActive then
-            stackerStatus.Text = "Placing disabled"
-        elseif not lastHotbarSelected then
+        -- Check conditions first
+        if not lastHotbarSelected then
             stackerStatus.Text = "Select slot first"
-        elseif not HotbarMapping[lastHotbarSelected] then
+            return
+        end
+        
+        if not HotbarMapping[lastHotbarSelected] then
             stackerStatus.Text = "No tower in slot " .. lastHotbarSelected
+            return
+        end
+        
+        if not isPlacingActive then
+            stackerStatus.Text = "Placing disabled"
+            return
+        end
+        
+        -- Get mouse position
+        local mousePos = UIS:GetMouseLocation()
+        local x, z = getWorldPosition(mousePos)
+        
+        if not x or not z then
+            stackerStatus.Text = "Invalid position"
+            return
+        end
+        
+        -- IMMEDIATELY update status
+        stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected] .. "..."
+        
+        -- Force UI update
+        task.wait(0.01)
+        
+        -- Try to place
+        local success, result = placeTowerAtPosition(HotbarMapping[lastHotbarSelected], x, z)
+        
+        if success then
+            stackerStatus.Text = "✓ Placed " .. HotbarMapping[lastHotbarSelected]
+        else
+            stackerStatus.Text = "✗ Failed: " .. tostring(result)
         end
     end
 end)
 
--- FIXED: Mobile placement (simplified)
+-- ===========================================
+-- OLD MOBILE PLACEMENT (LONG PRESS) - RESTORED
+-- ===========================================
 if UIS.TouchEnabled then
+    local lastCameraCFrame = camera.CFrame
+    local lastCameraMoveTime = tick()
+    local cameraCooldown = 0.3
+    
+    -- Track camera movement for cooldown
+    game:GetService("RunService").RenderStepped:Connect(function()
+        local currentCFrame = camera.CFrame
+        
+        if (currentCFrame.Position - lastCameraCFrame.Position).Magnitude > 0.01 or
+           currentCFrame.LookVector:Dot(lastCameraCFrame.LookVector) < 0.9999 then
+            lastCameraMoveTime = tick()
+        end
+        
+        lastCameraCFrame = currentCFrame
+    end)
+    
+    local function canPlaceTouch()
+        return tick() - lastCameraMoveTime > cameraCooldown
+    end
+    
+    local activeTouch = nil
     local touchStartTime = 0
     local touchStartPosition = nil
     
@@ -962,28 +981,49 @@ if UIS.TouchEnabled then
         if processed then return end
         
         if input.UserInputType == Enum.UserInputType.Touch then
-            if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and isPlacingActive then
+            if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and canPlaceTouch() and isPlacingActive then
+                activeTouch = input
                 touchStartTime = tick()
                 touchStartPosition = input.Position
                 stackerStatus.Text = "Touch & hold to place " .. HotbarMapping[lastHotbarSelected]
+            elseif not isPlacingActive then
+                stackerStatus.Text = "Placing is disabled!"
             end
         end
     end)
     
     UIS.InputEnded:Connect(function(input, processed)
-        if processed then return end
-        
-        if input.UserInputType == Enum.UserInputType.Touch then
-            if touchStartPosition and tick() - touchStartTime > 0.5 then
-                if lastHotbarSelected and HotbarMapping[lastHotbarSelected] then
-                    local x, z = getWorldPosition(touchStartPosition)
-                    if x and z then
-                        placeTowerAtPosition(HotbarMapping[lastHotbarSelected], x, z)
-                        stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected]
+        if input.UserInputType == Enum.UserInputType.Touch and input == activeTouch then
+            activeTouch = nil
+        end
+    end)
+    
+    -- Long-press detection loop (old way that worked well)
+    spawn(function()
+        while true do
+            if activeTouch and touchStartPosition and canPlaceTouch() and isPlacingActive then
+                if tick() - touchStartTime >= 0.4 then  -- 400ms long press
+                    if lastHotbarSelected and HotbarMapping[lastHotbarSelected] then
+                        local x, z = getWorldPosition(touchStartPosition)
+                        if x and z then
+                            stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected] .. "..."
+                            
+                            local success, result = placeTowerAtPosition(HotbarMapping[lastHotbarSelected], x, z)
+                            
+                            if success then
+                                stackerStatus.Text = "✓ Placed " .. HotbarMapping[lastHotbarSelected] .. " from slot " .. lastHotbarSelected
+                            else
+                                stackerStatus.Text = "✗ Failed: " .. tostring(result)
+                            end
+                            
+                            activeTouch = nil
+                            touchStartPosition = nil
+                        end
                     end
                 end
-                touchStartPosition = nil
             end
+            
+            wait(0.1)  -- Check every 100ms
         end
     end)
 end
@@ -1003,4 +1043,3 @@ UIS.InputBegan:Connect(function(input, processed)
     end
 end)
 
-print("Tower Stack GUI loaded successfully!")
