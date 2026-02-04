@@ -913,17 +913,24 @@ local oldNamecall = mt.__namecall
 mt.__namecall = function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
-
-    if method == "FireServer" and self == RemoteEvent then
+    
+    if method == "FireServer" and tostring(self) == "RemoteEvent" then
         if args[1] == "Hotbar" and args[2] == "Click" then
-            lastHotbarSelected = args[3]
-            if currentTab == "stacker" then
-                stackerStatus.Text = "Selected slot: " .. lastHotbarSelected
+            local slot = args[3]
+            if slot and type(slot) == "number" and slot >= 1 and slot <= HOTBAR_SLOTS then
+                lastHotbarSelected = slot
+                if currentTab == "stacker" then
+                    stackerStatus.Text = "Selected slot: " .. lastHotbarSelected
+                end
+                updateSlotHighlights()
+                return
             end
-            updateSlotHighlights()
         end
+    elseif method == "InvokeServer" and tostring(self) == "RemoteFunction" then
+        -- Allow the original function to run normally for placement
+        return oldNamecall(self, ...)
     end
-
+    
     return oldNamecall(self, ...)
 end
 
@@ -932,31 +939,59 @@ setreadonly(mt, true)
 UIS.InputBegan:Connect(function(input, processed)
     if processed then return end
     
+    -- RIGHT CLICK for placing (PC only)
     if input.UserInputType == Enum.UserInputType.MouseButton2 then
-        if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and canPlacePC() and isPlacingActive then
-            local mousePos = UIS:GetMouseLocation()
-            local x, z = getWorldPosition(mousePos)
-            if x and z then
-                stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected]
+        if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and isPlacingActive then
+            -- Check if we can place (different rules for PC vs Touch)
+            local canPlace = false
+            
+            if UIS.TouchEnabled then
+                canPlace = canPlaceTouch()
+            else
+                canPlace = canPlacePC()
+            end
+            
+            if canPlace then
+                local mousePos = UIS:GetMouseLocation()
+                local x, z = getWorldPosition(mousePos)
                 
-                local success, err = pcall(function()
-                    RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
-                        Rotation = CFrame.Angles(0, 0, 0),
-                        Position = Vector3.new(x, 80, z)
-                    }, HotbarMapping[lastHotbarSelected])
-                end)
-                
-                if success then
-                    stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected] .. " from slot " .. lastHotbarSelected
+                if x and z then
+                    stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected] .. "..."
+                    
+                    -- Use pcall to safely invoke the remote function
+                    local success, err = pcall(function()
+                        RemoteFunction:InvokeServer("Troops", "Place", {
+                            Rotation = CFrame.Angles(0, 0, 0),
+                            Position = Vector3.new(x, 80, z)
+                        }, HotbarMapping[lastHotbarSelected])
+                    end)
+                    
+                    if success then
+                        stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected] .. " from slot " .. lastHotbarSelected
+                    else
+                        stackerStatus.Text = "Placement error: " .. tostring(err)
+                        warn("Placement error:", err)
+                    end
                 else
-                    stackerStatus.Text = "Error: " .. tostring(err)
+                    stackerStatus.Text = "Could not determine placement position"
+                end
+            else
+                if UIS.TouchEnabled then
+                    stackerStatus.Text = "Wait for camera to stop moving..."
+                else
+                    stackerStatus.Text = "Cannot place right now"
                 end
             end
         elseif not isPlacingActive then
-            stackerStatus.Text = "Placing is disabled!"
+            stackerStatus.Text = "Placing is disabled! Enable with Place button"
+        elseif not lastHotbarSelected then
+            stackerStatus.Text = "Select a slot first (1-5)"
+        else
+            stackerStatus.Text = "No tower assigned to slot " .. lastHotbarSelected
         end
     end
     
+    -- LEFT CLICK to reset selection when clicking outside GUI (PC only)
     if input.UserInputType == Enum.UserInputType.MouseButton1 and not UIS.TouchEnabled then
         if not mainFrame.Visible then
             lastHotbarSelected = nil
@@ -968,22 +1003,24 @@ UIS.InputBegan:Connect(function(input, processed)
     end
 end)
 
+-- Touch input handling
 if UIS.TouchEnabled then
     local activeTouch = nil
     local touchStartTime = 0
     local touchStartPosition = nil
+    local LONG_PRESS_DURATION = 0.5  -- Increased from 0.4 for better reliability
     
     UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
         
         if input.UserInputType == Enum.UserInputType.Touch then
-    if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and canPlaceTouch() and isPlacingActive then
+            if lastHotbarSelected and HotbarMapping[lastHotbarSelected] and isPlacingActive then
                 activeTouch = input
                 touchStartTime = tick()
                 touchStartPosition = input.Position
-                stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected]
+                stackerStatus.Text = "Touch and hold to place " .. HotbarMapping[lastHotbarSelected] .. "..."
             elseif not isPlacingActive then
-                stackerStatus.Text = "Placing is disabled!"
+                stackerStatus.Text = "Placing is disabled! Enable with Place button"
             end
         end
     end)
@@ -991,30 +1028,63 @@ if UIS.TouchEnabled then
     UIS.InputEnded:Connect(function(input, processed)
         if input.UserInputType == Enum.UserInputType.Touch and input == activeTouch then
             activeTouch = nil
-        end
-    end)
-    
-    while true do
-    if activeTouch and touchStartPosition and canPlaceTouch() and isPlacingActive then
-            if tick() - touchStartTime >= 0.4 then
+            if tick() - touchStartTime < LONG_PRESS_DURATION then
+                -- Short tap - just update status
                 if lastHotbarSelected and HotbarMapping[lastHotbarSelected] then
-                    local x, z = getWorldPosition(touchStartPosition)
-                    if x and z then
-                        RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
-                            Rotation = CFrame.Angles(0, 0, 0),
-                            Position = Vector3.new(x, 80, z)
-                        }, HotbarMapping[lastHotbarSelected])
-                        stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected] .. " from slot " .. lastHotbarSelected
-                        activeTouch = nil
-                    end
+                    stackerStatus.Text = "Hold for " .. LONG_PRESS_DURATION .. "s to place " .. HotbarMapping[lastHotbarSelected]
                 end
             end
         end
-        
-        wait(0.1)
-    end
+    end)
+    
+    -- Separate thread for handling long press placements
+    spawn(function()
+        while true do
+            if activeTouch and touchStartPosition and isPlacingActive then
+                local elapsed = tick() - touchStartTime
+                
+                if elapsed >= LONG_PRESS_DURATION then
+                    if lastHotbarSelected and HotbarMapping[lastHotbarSelected] then
+                        local canPlace = canPlaceTouch()
+                        
+                        if canPlace then
+                            local x, z = getWorldPosition(touchStartPosition)
+                            if x and z then
+                                local success, err = pcall(function()
+                                    RemoteFunction:InvokeServer("Troops", "Place", {
+                                        Rotation = CFrame.Angles(0, 0, 0),
+                                        Position = Vector3.new(x, 80, z)
+                                    }, HotbarMapping[lastHotbarSelected])
+                                end)
+                                
+                                if success then
+                                    stackerStatus.Text = "Placed " .. HotbarMapping[lastHotbarSelected] .. " from slot " .. lastHotbarSelected
+                                else
+                                    stackerStatus.Text = "Placement error: " .. tostring(err)
+                                end
+                            else
+                                stackerStatus.Text = "Invalid placement position"
+                            end
+                            activeTouch = nil
+                        else
+                            stackerStatus.Text = "Wait for camera to stop moving..."
+                        end
+                    end
+                else
+                    -- Update countdown
+                    local remaining = LONG_PRESS_DURATION - elapsed
+                    if remaining > 0 and lastHotbarSelected and HotbarMapping[lastHotbarSelected] then
+                        stackerStatus.Text = string.format("Hold %.1fs to place %s...", remaining, HotbarMapping[lastHotbarSelected])
+                    end
+                end
+            end
+            
+            wait(0.1)
+        end
+    end)
 end
 
+-- Additional click handling
 UIS.InputBegan:Connect(function(input, processed)
     if processed then return end
     
