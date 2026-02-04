@@ -869,20 +869,32 @@ updateToggleButton()
 populateSwitcherTowers("")
 updateSwitcherCountDisplay()
 
--- FIXED: Proper world position function
+-- FIXED: Different ray casting for mobile vs PC
 local function getWorldPosition(screenPosition)
-    local ray = camera:ViewportPointToRay(screenPosition.X, screenPosition.Y)
-    local distance = -ray.Origin.Y / ray.Direction.Y
-    
-    if distance > 0 then
-        local worldPoint = ray.Origin + (ray.Direction * distance)
-        return worldPoint.X, worldPoint.Z
+    if UIS.TouchEnabled then
+        -- OLD MOBILE METHOD: ScreenPointToRay
+        local ray = camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
+        local distance = -ray.Origin.Y / ray.Direction.Y
+        
+        if distance > 0 then
+            local worldPoint = ray.Origin + (ray.Direction * distance)
+            return worldPoint.X, worldPoint.Z
+        end
+    else
+        -- PC METHOD: ViewportPointToRay
+        local ray = camera:ViewportPointToRay(screenPosition.X, screenPosition.Y)
+        local distance = -ray.Origin.Y / ray.Direction.Y
+        
+        if distance > 0 then
+            local worldPoint = ray.Origin + (ray.Direction * distance)
+            return worldPoint.X, worldPoint.Z
+        end
     end
     
     return nil, nil
 end
 
--- FIXED: Placement function
+-- FIXED: Placement function (same for both)
 local function placeTowerAtPosition(towerName, x, z)
     if not towerName or not x or not z then 
         return false, "Invalid parameters"
@@ -950,7 +962,7 @@ UIS.InputBegan:Connect(function(input, processed)
 end)
 
 -- ===========================================
--- OLD MOBILE PLACEMENT (LONG PRESS) - RESTORED
+-- OLD MOBILE PLACEMENT WITH OLD RAY CASTING
 -- ===========================================
 if UIS.TouchEnabled then
     local lastCameraCFrame = camera.CFrame
@@ -998,12 +1010,13 @@ if UIS.TouchEnabled then
         end
     end)
     
-    -- Long-press detection loop (old way that worked well)
+    -- Long-press detection loop
     spawn(function()
         while true do
             if activeTouch and touchStartPosition and canPlaceTouch() and isPlacingActive then
                 if tick() - touchStartTime >= 0.4 then  -- 400ms long press
                     if lastHotbarSelected and HotbarMapping[lastHotbarSelected] then
+                        -- OLD MOBILE RAY CASTING METHOD
                         local x, z = getWorldPosition(touchStartPosition)
                         if x and z then
                             stackerStatus.Text = "Placing " .. HotbarMapping[lastHotbarSelected] .. "..."
@@ -1042,4 +1055,3 @@ UIS.InputBegan:Connect(function(input, processed)
         end
     end
 end)
-
