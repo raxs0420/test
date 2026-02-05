@@ -1,0 +1,512 @@
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Camera = workspace.CurrentCamera
+
+local LocalPlayer = Players.LocalPlayer
+local espEnabled = true  -- ESP starts ON
+local cameraFollowEnabled = false  -- Camera follow starts OFF (for safety)
+local outlines = {}
+local followedPlayer = nil
+local isMobile = UserInputService.TouchEnabled
+
+print("ESP: Initializing... Mobile =", isMobile)
+print("ESP Enabled =", espEnabled)
+print("Camera Follow Enabled =", cameraFollowEnabled)
+
+-- Mobile GUI elements (only created if on mobile)
+local screenGui, controlsFrame, followToggle, cycleLeft, cycleRight
+
+-- Define functions first that will be used
+local function isEnemy(player)
+    if player == LocalPlayer then 
+        return false 
+    end
+    
+    -- Check if different team
+    if LocalPlayer.Team and player.Team then
+        return LocalPlayer.Team ~= player.Team
+    end
+    
+    -- If no teams, show everyone except yourself
+    return true
+end
+
+local function getClosestEnemy()
+    local closestPlayer = nil
+    local closestDistance = math.huge
+    local localCharacter = LocalPlayer.Character
+    local localRoot = localCharacter and localCharacter:FindFirstChild("HumanoidRootPart")
+    
+    if not localRoot then return nil end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player and player.Parent and isEnemy(player) then
+            local character = player.Character
+            local humanoid = character and character:FindFirstChild("Humanoid")
+            local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+            
+            if character and character.Parent and humanoid and humanoid.Health > 0 and rootPart then
+                local distance = (localRoot.Position - rootPart.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestPlayer = player
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+local function createOutline(player)
+    if outlines[player] then
+        if outlines[player].Parent then
+            outlines[player]:Destroy()
+        end
+        outlines[player] = nil
+    end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESP_" .. player.Name
+    highlight.FillColor = Color3.fromRGB(128, 0, 255)
+    highlight.FillTransparency = 0.3
+    highlight.OutlineColor = Color3.fromRGB(100, 0, 200)
+    highlight.OutlineTransparency = 0
+    highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Enabled = true
+    
+    outlines[player] = highlight
+    return highlight
+end
+
+local function updateAllOutlines()
+    if not espEnabled then
+        for player, highlight in pairs(outlines) do
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+        outlines = {}
+        
+        -- Update mobile button text
+        if isMobile and followToggle then
+            followToggle.Text = "Camera Follow: OFF"
+        end
+        return
+    end
+    
+    for player, highlight in pairs(outlines) do
+        if not player or not player.Parent or not isEnemy(player) then
+            if highlight then
+                highlight:Destroy()
+            end
+            outlines[player] = nil
+        end
+    end
+    
+    for _, player in pairs(Players:GetPlayers()) do
+        if player and player.Parent and isEnemy(player) then
+            local character = player.Character
+            local humanoid = character and character:FindFirstChild("Humanoid")
+            
+            if character and character.Parent and humanoid and humanoid.Health > 0 then
+                local highlight = outlines[player]
+                if not highlight then
+                    highlight = createOutline(player)
+                end
+                
+                if highlight.Parent ~= character then
+                    highlight.Parent = character
+                    highlight.Adornee = character
+                end
+                
+                highlight.Enabled = true
+                
+                if cameraFollowEnabled and player == followedPlayer then
+                    highlight.FillColor = Color3.fromRGB(255, 100, 0)
+                    highlight.OutlineColor = Color3.fromRGB(255, 50, 0)
+                else
+                    highlight.FillColor = Color3.fromRGB(128, 0, 255)
+                    highlight.OutlineColor = Color3.fromRGB(100, 0, 200)
+                end
+            else
+                if outlines[player] then
+                    outlines[player].Enabled = false
+                end
+            end
+        end
+    end
+end
+
+local function updateCameraFollow()
+    if not cameraFollowEnabled or not followedPlayer or not espEnabled then
+        return
+    end
+    
+    local character = followedPlayer.Character
+    local rootPart = character and character:FindFirstChild("HumanoidRootPart")
+    local humanoid = character and character:FindFirstChild("Humanoid")
+    
+    if not character or not character.Parent or not rootPart or not humanoid or humanoid.Health <= 0 then
+        local newClosest = getClosestEnemy()
+        if newClosest then
+            followedPlayer = newClosest
+        else
+            followedPlayer = nil
+        end
+        return
+    end
+    
+    local currentCF = Camera.CFrame
+    local targetPosition = rootPart.Position + Vector3.new(0, 3, 5)
+    local lookAtPoint = rootPart.Position + Vector3.new(0, 2, 0)
+    local targetCF = CFrame.new(targetPosition, lookAtPoint)
+    local smoothness = 0.15
+    local newCF = currentCF:Lerp(targetCF, smoothness)
+    
+    Camera.CFrame = newCF
+end
+
+local function cycleFollowedPlayer(direction)
+    if not espEnabled or not cameraFollowEnabled then
+        return
+    end
+    
+    local enemies = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        if player and player.Parent and isEnemy(player) then
+            table.insert(enemies, player)
+        end
+    end
+    
+    if #enemies == 0 then
+        followedPlayer = nil
+        if isMobile and followToggle then
+            followToggle.Text = "Camera Follow: OFF (No enemies)"
+        end
+        return
+    end
+    
+    table.sort(enemies, function(a, b)
+        return a.Name < b.Name
+    end)
+    
+    if not followedPlayer then
+        followedPlayer = enemies[1]
+    else
+        local currentIndex = 0
+        for i, enemy in ipairs(enemies) do
+            if enemy == followedPlayer then
+                currentIndex = i
+                break
+            end
+        end
+        
+        if currentIndex > 0 then
+            if direction == "next" then
+                currentIndex = currentIndex % #enemies + 1
+            else
+                currentIndex = currentIndex - 1
+                if currentIndex < 1 then
+                    currentIndex = #enemies
+                end
+            end
+            followedPlayer = enemies[currentIndex]
+        else
+            followedPlayer = enemies[1]
+        end
+    end
+    
+    if isMobile and followToggle then
+        followToggle.Text = "Following: " .. followedPlayer.Name
+    end
+    updateAllOutlines()
+end
+
+-- Function to toggle ESP
+local function toggleESP()
+    espEnabled = not espEnabled
+    print("==================================")
+    print("Enemy ESP: " .. (espEnabled and "ENABLED" or "DISABLED"))
+    print("==================================")
+    
+    if espEnabled then
+        for player, highlight in pairs(outlines) do
+            if highlight then
+                highlight:Destroy()
+            end
+        end
+        outlines = {}
+        -- Reinitialize enemies
+        for _, player in pairs(Players:GetPlayers()) do
+            if isEnemy(player) then
+                createOutline(player)
+            end
+        end
+        updateAllOutlines()
+    else
+        cameraFollowEnabled = false
+        followedPlayer = nil
+        if isMobile and followToggle then
+            followToggle.Text = "Camera Follow: OFF"
+        end
+    end
+end
+
+-- Function to toggle camera follow
+local function toggleCameraFollow()
+    cameraFollowEnabled = not cameraFollowEnabled
+    
+    if cameraFollowEnabled then
+        followedPlayer = getClosestEnemy()
+        if followedPlayer then
+            print("Camera follow ENABLED, following:", followedPlayer.Name)
+            if isMobile and followToggle then
+                followToggle.Text = "Following: " .. followedPlayer.Name
+            end
+        else
+            print("Camera follow ENABLED but no enemies found")
+            if isMobile and followToggle then
+                followToggle.Text = "Camera Follow: ON (No enemies)"
+            end
+        end
+    else
+        print("Camera follow DISABLED")
+        followedPlayer = nil
+        if isMobile and followToggle then
+            followToggle.Text = "Camera Follow: OFF"
+        end
+    end
+    
+    updateAllOutlines()
+end
+
+-- Initialize for ALL existing enemy players
+local function initializeAllEnemies()
+    print("ESP: Scanning for enemies...")
+    for _, player in pairs(Players:GetPlayers()) do
+        if isEnemy(player) then
+            print("ESP: Creating outline for enemy:", player.Name)
+            createOutline(player)
+        end
+    end
+    updateAllOutlines()
+end
+
+-- Create mobile controls
+local function createMobileControls()
+    if not isMobile then return end
+    
+    -- Wait for PlayerGui to exist
+    if not LocalPlayer:FindFirstChild("PlayerGui") then
+        LocalPlayer:WaitForChild("PlayerGui")
+    end
+    
+    screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ESPMobileControls"
+    screenGui.DisplayOrder = 999
+    screenGui.ResetOnSpawn = false
+    
+    controlsFrame = Instance.new("Frame")
+    controlsFrame.Name = "ControlsFrame"
+    controlsFrame.Size = UDim2.new(1, 0, 0, 120)
+    controlsFrame.Position = UDim2.new(0, 0, 1, -120)
+    controlsFrame.BackgroundTransparency = 1
+    controlsFrame.Parent = screenGui
+    
+    -- Toggle Follow Button
+    followToggle = Instance.new("TextButton")
+    followToggle.Name = "ToggleFollow"
+    followToggle.Size = UDim2.new(0.4, 0, 0, 50)
+    followToggle.Position = UDim2.new(0.05, 0, 0, 10)
+    followToggle.Text = "Camera Follow: OFF"
+    followToggle.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    followToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    followToggle.Font = Enum.Font.SourceSansBold
+    followToggle.TextSize = 18
+    followToggle.Parent = controlsFrame
+    
+    -- Cycle Left Button
+    cycleLeft = Instance.new("TextButton")
+    cycleLeft.Name = "CycleLeft"
+    cycleLeft.Size = UDim2.new(0.2, 0, 0, 50)
+    cycleLeft.Position = UDim2.new(0.55, 0, 0, 10)
+    cycleLeft.Text = "◀"
+    cycleLeft.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    cycleLeft.TextColor3 = Color3.fromRGB(255, 255, 255)
+    cycleLeft.Font = Enum.Font.SourceSansBold
+    cycleLeft.TextSize = 24
+    cycleLeft.Parent = controlsFrame
+    
+    -- Cycle Right Button
+    cycleRight = Instance.new("TextButton")
+    cycleRight.Name = "CycleRight"
+    cycleRight.Size = UDim2.new(0.2, 0, 0, 50)
+    cycleRight.Position = UDim2.new(0.8, 0, 0, 10)
+    cycleRight.Text = "▶"
+    cycleRight.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    cycleRight.TextColor3 = Color3.fromRGB(255, 255, 255)
+    cycleRight.Font = Enum.Font.SourceSansBold
+    cycleRight.TextSize = 24
+    cycleRight.Parent = controlsFrame
+    
+    -- ESP Toggle Button
+    local espToggle = Instance.new("TextButton")
+    espToggle.Name = "ToggleESP"
+    espToggle.Size = UDim2.new(0.4, 0, 0, 50)
+    espToggle.Position = UDim2.new(0.05, 0, 0, 70)
+    espToggle.Text = "Toggle ESP"
+    espToggle.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    espToggle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    espToggle.Font = Enum.Font.SourceSansBold
+    espToggle.TextSize = 18
+    espToggle.Visible = true
+    espToggle.Parent = controlsFrame
+    
+    -- Button connections
+    followToggle.MouseButton1Click:Connect(function()
+        toggleCameraFollow()
+    end)
+    
+    cycleLeft.MouseButton1Click:Connect(function()
+        if cameraFollowEnabled then
+            cycleFollowedPlayer("previous")
+        end
+    end)
+    
+    cycleRight.MouseButton1Click:Connect(function()
+        if cameraFollowEnabled then
+            cycleFollowedPlayer("next")
+        end
+    end)
+    
+    espToggle.MouseButton1Click:Connect(function()
+        toggleESP()
+    end)
+    
+    screenGui.Parent = LocalPlayer.PlayerGui
+end
+
+-- Create mobile controls first
+createMobileControls()
+
+-- Start with ESP enabled immediately
+initializeAllEnemies()
+
+-- Listen for new players
+Players.PlayerAdded:Connect(function(player)
+    task.wait(1)
+    if isEnemy(player) then
+        createOutline(player)
+        updateAllOutlines()
+    end
+end)
+
+-- Handle character respawns
+Players.PlayerAdded:Connect(function(player)
+    player.CharacterAdded:Connect(function(character)
+        if espEnabled and isEnemy(player) then
+            task.wait(0.5)
+            if outlines[player] then
+                if outlines[player].Parent then
+                    outlines[player]:Destroy()
+                end
+                outlines[player] = nil
+            end
+            createOutline(player)
+            updateAllOutlines()
+        end
+    end)
+end)
+
+-- Main update loop
+RunService.Heartbeat:Connect(function()
+    updateAllOutlines()
+    updateCameraFollow()
+end)
+
+-- Cleanup when players leave
+Players.PlayerRemoving:Connect(function(player)
+    if outlines[player] then
+        outlines[player]:Destroy()
+        outlines[player] = nil
+    end
+    
+    if player == followedPlayer then
+        followedPlayer = getClosestEnemy()
+        if followedPlayer then
+            print("Followed player left. Now following:", followedPlayer.Name)
+        end
+    end
+end)
+
+-- PC controls
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if not gameProcessed then
+        -- Toggle ESP with RightControl (PC only)
+        if input.KeyCode == Enum.KeyCode.RightControl then
+            toggleESP()
+        end
+        
+        -- Toggle camera follow with RightShift (PC only)
+        if input.KeyCode == Enum.KeyCode.RightShift then
+            toggleCameraFollow()
+        end
+        
+        -- Cycle through enemies with arrow keys (PC only)
+        if cameraFollowEnabled and espEnabled then
+            if input.KeyCode == Enum.KeyCode.Right then
+                cycleFollowedPlayer("next")
+            elseif input.KeyCode == Enum.KeyCode.Left then
+                cycleFollowedPlayer("previous")
+            end
+        end
+    end
+end)
+
+-- Auto-refresh every 10 seconds
+task.spawn(function()
+    while true do
+        task.wait(10)
+        if espEnabled then
+            for _, player in pairs(Players:GetPlayers()) do
+                if isEnemy(player) and outlines[player] then
+                    if outlines[player].Parent then
+                        outlines[player]:Destroy()
+                    end
+                    outlines[player] = nil
+                    createOutline(player)
+                end
+            end
+            updateAllOutlines()
+        end
+    end
+end)
+
+print("==================================")
+print("ENEMY ESP FULLY LOADED")
+print("Platform:", isMobile and "MOBILE" or "PC")
+print("ESP Status: ENABLED")
+print("Camera Follow Status: OFF (by default)")
+print("Color: PURPLE GLOW")
+print("Shows: ALL ENEMIES")
+if isMobile then
+    print("Mobile Controls: ON (bottom of screen)")
+    print("- Tap 'Camera Follow' to toggle following")
+    print("- Tap ◀ ▶ to cycle targets")
+    print("- Tap 'Toggle ESP' to turn ESP on/off")
+else
+    print("PC Controls:")
+    print("- Toggle ESP: RightCtrl")
+    print("- Toggle Follow: RightShift")
+    print("- Cycle Targets: Left/Right Arrow")
+end
+print("==================================")
+print("Current enemies found:")
+for _, player in pairs(Players:GetPlayers()) do
+    if isEnemy(player) then
+        print("- " .. player.Name)
+    end
+end
