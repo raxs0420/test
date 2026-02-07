@@ -750,10 +750,24 @@ end
 
 local function do_place_tower(t_name, t_pos)
     while true do
+        
+        local random_x_xx = math.random(0, 99) / 10000000
+        local random_z_xx = math.random(0, 99) / 10000000
+        
+        
+        local floor_x = math.floor(t_pos.X * 100000) / 100000
+        local floor_z = math.floor(t_pos.Z * 100000) / 100000
+        
+        
+        local new_x = floor_x + random_x_xx
+        local new_z = floor_z + random_z_xx
+        
+        local randomized_pos = Vector3.new(new_x, t_pos.Y, new_z)
+        
         local ok, res = pcall(function()
             return remote_func:InvokeServer("Troops", "Pl\208\176ce", {
                 Rotation = CFrame.new(),
-                Position = t_pos
+                Position = randomized_pos
             }, t_name)
         end)
 
