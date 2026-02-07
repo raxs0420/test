@@ -750,19 +750,17 @@ end
 
 local function do_place_tower(t_name, t_pos)
     while true do
+        -- Generate random offsets for x and z
+        local random_x_offset = (math.random(-99, 99)) / 1000000
+        local random_z_offset = (math.random(-99, 99)) / 1000000
         
-        local random_x_xx = math.random(0, 99) / 10000000
-        local random_z_xx = math.random(0, 99) / 10000000
-        
-        
-        local floor_x = math.floor(t_pos.X * 100000) / 100000
-        local floor_z = math.floor(t_pos.Z * 100000) / 100000
-        
-        
-        local new_x = floor_x + random_x_xx
-        local new_z = floor_z + random_z_xx
+        -- Apply random offsets
+        local new_x = t_pos.X + random_x_offset
+        local new_z = t_pos.Z + random_z_offset
         
         local randomized_pos = Vector3.new(new_x, t_pos.Y, new_z)
+        
+        print("Placing at:", string.format("%.7f", new_x), t_pos.Y, string.format("%.7f", new_z))
         
         local ok, res = pcall(function()
             return remote_func:InvokeServer("Troops", "Pl\208\176ce", {
