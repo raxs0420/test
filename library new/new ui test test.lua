@@ -760,7 +760,7 @@ local function do_place_tower(t_name, t_pos)
         
         local randomized_pos = Vector3.new(new_x, t_pos.Y, new_z)
         
-        print("Placing at:", string.format("%.7f", new_x), t_pos.Y, string.format("%.7f", new_z))
+    
         
         local ok, res = pcall(function()
             return remote_func:InvokeServer("Troops", "Pl\208\176ce", {
@@ -1068,38 +1068,56 @@ end
 function TDS:GameInfo(name, list)
     list = list or {}
     if game_state ~= "GAME" then 
+        warn("Not in game state for GameInfo")
         return false 
     end
 
+    -- Get teleport service locally to ensure it exists
     local teleport_service = game:GetService("TeleportService")
     
     local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
     if not (vote_gui and vote_gui.Enabled) then 
+        warn("Vote GUI not found or not enabled")
         teleport_service:Teleport(3260590327, local_player)
         return false
     end
     
     local frame = vote_gui:WaitForChild("Frame", 5)
     if not frame then
+        warn("Vote GUI Frame not found")
         teleport_service:Teleport(3260590327, local_player)
         return false
     end
 
     cast_modifier_vote(list)
     
-    task.wait(1)
+    task.wait(1)  -- Wait for modifier votes to process
     
     if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
         select_map_override(name, "vip")
         return true
     end
     
+    -- Try to get the map via veto
     if is_map_available(name) then
         select_map_override(name)
         return true
     end
     
-    rejoin_match()
+    -- If we get here, veto didn't give us the right map
+    warn("Map '" .. tostring(name) .. "' not available after veto, teleporting to lobby")
+    
+    -- Add a small delay before teleporting
+    task.wait(1)
+    
+    -- Use pcall to catch any teleport errors
+    local success, errorMsg = pcall(function()
+        teleport_service:Teleport(3260590327, local_player)
+    end)
+    
+    if not success then
+        warn("Teleport failed: " .. tostring(errorMsg))
+    end
     
     return false
 end
