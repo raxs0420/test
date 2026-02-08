@@ -1066,29 +1066,42 @@ function TDS:VoteSkip(start_wave, end_wave)
 end
 
 function TDS:GameInfo(name, list)
-    if GameState ~= "GAME" then return false end
-
-    local VoteGui = PlayerGui:WaitForChild("ReactGameIntermission", 30)
-    if not (VoteGui and VoteGui.Enabled and VoteGui:WaitForChild("Frame", 5)) then return end
-
-    local modifiers = (list and #list > 0) and list or Globals.Modifiers
-    
-    CastModifierVote(modifiers)
-
-    if MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 10518590) then
-        SelectMapOverride(name, "vip")
-        Logger:Log("Selected map: " .. name)
-        repeat task.wait(1) until PlayerGui:FindFirstChild("ReactUniversalHotbar")
-        return true 
-    elseif IsMapAvailable(name) then
-        SelectMapOverride(name)
-        repeat task.wait(1) until PlayerGui:FindFirstChild("ReactUniversalHotbar")
-        return true
-    else
-        Logger:Log("Map '" .. name .. "' not available, rejoining...")
-        TeleportService:Teleport(3260590327, LocalPlayer)
-        repeat task.wait(9999) until false
+    list = list or {}
+    if game_state ~= "GAME" then 
+        return false 
     end
+
+    local teleport_service = game:GetService("TeleportService")
+    
+    local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
+    if not (vote_gui and vote_gui.Enabled) then 
+        teleport_service:Teleport(3260590327, local_player)
+        return false
+    end
+    
+    local frame = vote_gui:WaitForChild("Frame", 5)
+    if not frame then
+        teleport_service:Teleport(3260590327, local_player)
+        return false
+    end
+
+    cast_modifier_vote(list)
+    
+    task.wait(1)
+    
+    if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
+        select_map_override(name, "vip")
+        return true
+    end
+    
+    if is_map_available(name) then
+        select_map_override(name)
+        return true
+    end
+    
+    rejoin_match()
+    
+    return false
 end
 
 function TDS:UnlockTimeScale()
