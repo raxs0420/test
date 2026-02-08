@@ -1077,6 +1077,7 @@ function TDS:GameInfo(name, list)
 
     if MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 10518590) then
         SelectMapOverride(name, "vip")
+        Logger:Log("Selected map: " .. name)
         repeat task.wait(1) until PlayerGui:FindFirstChild("ReactUniversalHotbar")
         return true 
     elseif IsMapAvailable(name) then
@@ -1084,6 +1085,7 @@ function TDS:GameInfo(name, list)
         repeat task.wait(1) until PlayerGui:FindFirstChild("ReactUniversalHotbar")
         return true
     else
+        Logger:Log("Map '" .. name .. "' not available, rejoining...")
         TeleportService:Teleport(3260590327, LocalPlayer)
         repeat task.wait(9999) until false
     end
