@@ -173,7 +173,7 @@ TDS:Place("Turret", -10.78923, 80.00000, -3.35788)
 TDS:Place("Turret", -10.29416, 80.00000, -2.43865)
 TDS:Upgrade(24)
 TDS:Upgrade(25)
-TDS:Upgrade(26)
+TDS:Upgrade(26) 
 TDS:Upgrade(24)
 TDS:Upgrade(25)
 TDS:Upgrade(26)
@@ -187,6 +187,14 @@ TDS:Upgrade(24)
 TDS:Upgrade(25)
 TDS:Upgrade(26)
 TDS:SetOption(11, "Track", "Red")
+TDS:Sell(1)
+TDS:Sell(2)
+TDS:Sell(3)
+TDS:Sell(4)
+
+
+
+
 
 
 
