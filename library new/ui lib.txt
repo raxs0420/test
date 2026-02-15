@@ -7,11 +7,11 @@ local UIS = game:GetService("UserInputService")
 
 -- Helper functions
 local function scaleX(percent)
-    return camera.ViewportSize.X * (percent / 100)
+    return camera.ViewportSize.X * (percent / 100) * 1.2
 end
 
 local function scaleY(percent)
-    return camera.ViewportSize.Y * (percent / 100)
+    return camera.ViewportSize.Y * (percent / 100) * 1.2
 end
 
 -- Configuration - Grey/Green Aesthetic
