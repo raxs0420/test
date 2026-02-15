@@ -1,4 +1,4 @@
--- Complete UI Library for TDS - Grey/Green Edition
+
 local UILib = {}
 
 -- Cache screen size for performance
