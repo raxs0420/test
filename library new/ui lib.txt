@@ -1,0 +1,568 @@
+-- Complete UI Library for TDS
+local UILib = {}
+
+-- Cache screen size for performance
+local camera = workspace.CurrentCamera
+local UIS = game:GetService("UserInputService")
+
+-- Helper functions
+local function scaleX(percent)
+    return camera.ViewportSize.X * (percent / 100)
+end
+
+local function scaleY(percent)
+    return camera.ViewportSize.Y * (percent / 100)
+end
+
+-- Configuration
+UILib.Config = {
+    Colors = {
+        Background = Color3.fromRGB(35, 35, 45),
+        BackgroundDark = Color3.fromRGB(25, 25, 35),
+        BackgroundLight = Color3.fromRGB(45, 45, 60),
+        BackgroundDarker = Color3.fromRGB(20, 20, 30),
+        Accent = Color3.fromRGB(60, 100, 200),
+        Success = Color3.fromRGB(0, 100, 0),
+        Danger = Color3.fromRGB(200, 80, 80),
+        Warning = Color3.fromRGB(200, 200, 0),
+        Selected = Color3.fromRGB(70, 130, 70),
+        SlotEmpty = Color3.fromRGB(70, 70, 90),
+        SlotFilled = Color3.fromRGB(100, 100, 0),
+        Text = Color3.fromRGB(255, 255, 255),
+        TextDim = Color3.fromRGB(200, 200, 200),
+        TextMuted = Color3.fromRGB(150, 150, 150),
+        Border = Color3.fromRGB(100, 100, 100)
+    },
+    Fonts = {
+        Normal = Enum.Font.SourceSans,
+        Bold = Enum.Font.SourceSansBold
+    },
+    Sizes = {
+        ButtonHeight = 5,
+        SlotHeight = 7,
+        TabHeight = 6,
+        TextBoxHeight = 5,
+        LabelHeight = 4,
+        CornerRadius = 0.5,
+        LargeCorner = 1
+    }
+}
+
+-- Core methods
+function UILib:AddCorner(instance, scale)
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, scaleX(scale or self.Config.Sizes.CornerRadius))
+    corner.Parent = instance
+end
+
+function UILib:CreateScreenGui(name, parent)
+    local gui = Instance.new("ScreenGui")
+    gui.Name = name or "UILibGUI"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = parent or game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    return gui
+end
+
+function UILib:CreateWindow(parent, title, size, position, draggable)
+    size = size or UDim2.new(0, scaleX(42), 0, scaleY(70))
+    position = position or UDim2.new(0, scaleX(7), 0.5, -scaleY(87)/2)
+    
+    local window = Instance.new("Frame")
+    window.Size = size
+    window.Position = position
+    window.BackgroundColor3 = self.Config.Colors.Background
+    window.BorderSizePixel = 0
+    window.Parent = parent
+    
+    self:AddCorner(window, self.Config.Sizes.LargeCorner)
+    
+    if draggable then
+        self:MakeDraggable(window, window)
+    end
+    
+    return window
+end
+
+function UILib:CreateMinimizeButton(parent, window, size, position)
+    local btn = Instance.new("TextButton")
+    btn.Size = size or UDim2.new(0, scaleX(4.5), 0, scaleY(5.5))
+    btn.Position = position or UDim2.new(0, scaleX(2), 0, scaleY(2))
+    btn.BackgroundColor3 = self.Config.Colors.BackgroundLight
+    btn.BorderSizePixel = 1
+    btn.BorderColor3 = self.Config.Colors.Border
+    btn.Text = "▼"
+    btn.TextColor3 = self.Config.Colors.Text
+    btn.Font = self.Config.Fonts.Normal
+    btn.TextSize = scaleY(1.8)
+    btn.Parent = parent
+    
+    self:AddCorner(btn, 0.5)
+    
+    local minimized = false
+    btn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        window.Visible = not minimized
+        btn.Text = minimized and "▲" or "▼"
+    end)
+    
+    return btn
+end
+
+function UILib:CreateTabBar(parent, height)
+    local bar = Instance.new("Frame")
+    bar.Size = UDim2.new(1, 0, 0, scaleY(height or self.Config.Sizes.TabHeight))
+    bar.Position = UDim2.new(0, 0, 0, scaleY(self.Config.Sizes.TabHeight))
+    bar.BackgroundColor3 = self.Config.Colors.BackgroundLight
+    bar.BorderSizePixel = 0
+    bar.Parent = parent
+    
+    return bar
+end
+
+function UILib:CreateTab(parent, name, position, isActive)
+    local tab = Instance.new("TextButton")
+    tab.Size = UDim2.new(0.32, 0, 1, 0)
+    tab.Position = position
+    tab.BackgroundColor3 = isActive and self.Config.Colors.Accent or self.Config.Colors.BackgroundLight
+    tab.Text = name
+    tab.TextColor3 = isActive and self.Config.Colors.Text or self.Config.Colors.TextDim
+    tab.Font = self.Config.Fonts.Bold
+    tab.TextSize = scaleY(1.4)
+    tab.Parent = parent
+    
+    return tab
+end
+
+function UILib:CreateFrame(parent, size, position, transparent, color)
+    local frame = Instance.new("Frame")
+    frame.Size = size or UDim2.new(1, 0, 1, 0)
+    frame.Position = position or UDim2.new(0, 0, 0, 0)
+    frame.BackgroundTransparency = transparent and 1 or 0
+    frame.BackgroundColor3 = color or self.Config.Colors.Background
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    
+    return frame
+end
+
+function UILib:CreateButton(parent, text, size, position, color, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = size or UDim2.new(0, scaleX(10), 0, scaleY(self.Config.Sizes.ButtonHeight))
+    btn.Position = position or UDim2.new(0, 0, 0, 0)
+    btn.BackgroundColor3 = color or self.Config.Colors.Accent
+    btn.Text = text
+    btn.TextColor3 = self.Config.Colors.Text
+    btn.Font = self.Config.Fonts.Bold
+    btn.TextSize = scaleY(1.4)
+    btn.Parent = parent
+    
+    self:AddCorner(btn)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(callback)
+    end
+    
+    return btn
+end
+
+function UILib:CreateTextBox(parent, placeholder, size, position, text)
+    local box = Instance.new("TextBox")
+    box.Size = size or UDim2.new(1, -scaleX(4), 0, scaleY(self.Config.Sizes.TextBoxHeight))
+    box.Position = position or UDim2.new(0, scaleX(2), 0, scaleY(2))
+    box.BackgroundColor3 = self.Config.Colors.BackgroundDarker
+    box.TextColor3 = self.Config.Colors.Text
+    box.PlaceholderText = placeholder or "Search..."
+    box.PlaceholderColor3 = self.Config.Colors.TextMuted
+    box.Text = text or ""
+    box.Font = self.Config.Fonts.Normal
+    box.TextSize = scaleY(1.4)
+    box.ClearTextOnFocus = false
+    box.Parent = parent
+    
+    self:AddCorner(box)
+    
+    return box
+end
+
+function UILib:CreateScrollingFrame(parent, size, position, color)
+    local frame = Instance.new("ScrollingFrame")
+    frame.Size = size or UDim2.new(1, -scaleX(4), 1, -scaleY(15))
+    frame.Position = position or UDim2.new(0, scaleX(2), 0, scaleY(7))
+    frame.BackgroundColor3 = color or self.Config.Colors.BackgroundDark
+    frame.BorderSizePixel = 0
+    frame.ScrollBarThickness = scaleX(1)
+    frame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    frame.Parent = parent
+    
+    self:AddCorner(frame)
+    
+    return frame
+end
+
+function UILib:CreateLabel(parent, text, size, position, color, textSize, isBold, alignment)
+    local label = Instance.new("TextLabel")
+    label.Size = size or UDim2.new(1, 0, 0, scaleY(self.Config.Sizes.LabelHeight))
+    label.Position = position or UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color or self.Config.Colors.Text
+    label.Font = isBold and self.Config.Fonts.Bold or self.Config.Fonts.Normal
+    label.TextSize = textSize or scaleY(1.2)
+    label.TextXAlignment = alignment or Enum.TextXAlignment.Center
+    label.TextWrapped = true
+    label.Parent = parent
+    
+    return label
+end
+
+function UILib:CreateStatusLabel(parent, text, size, position)
+    return self:CreateLabel(parent, text, 
+        size or UDim2.new(1, -scaleX(4), 0, scaleY(8)), 
+        position or UDim2.new(0, scaleX(2), 1, -scaleY(12)),
+        self.Config.Colors.TextDim,
+        scaleY(1.2),
+        false,
+        Enum.TextXAlignment.Left
+    )
+end
+
+function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = size or UDim2.new(1, 0, 0, scaleY(7))
+    frame.Position = position or UDim2.new(0, 0, 0, (slotNumber-1) * scaleY(7))
+    frame.BackgroundTransparency = 1
+    frame.Parent = parent
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.25, 0, 1, 0)
+    btn.BackgroundColor3 = self.Config.Colors.SlotEmpty
+    btn.BorderSizePixel = 0
+    btn.Text = tostring(slotNumber)
+    btn.TextColor3 = self.Config.Colors.Text
+    btn.Font = self.Config.Fonts.Bold
+    btn.TextSize = scaleY(1.6)
+    btn.Parent = frame
+    
+    self:AddCorner(btn)
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.75, -scaleX(1), 1, 0)
+    label.Position = UDim2.new(0.25, scaleX(1), 0, 0)
+    label.BackgroundColor3 = self.Config.Colors.BackgroundLight
+    label.TextColor3 = self.Config.Colors.Text
+    label.Font = self.Config.Fonts.Normal
+    label.TextSize = scaleY(1.2)
+    label.Text = "[Empty]"
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    self:AddCorner(label)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(function()
+            callback(slotNumber, btn, label)
+        end)
+    end
+    
+    return btn, label, frame
+end
+
+function UILib:CreatePopup(parent, title, size)
+    size = size or UDim2.new(0, scaleX(30), 0, scaleY(45))
+    
+    local popup = Instance.new("Frame")
+    popup.Size = size
+    popup.Position = UDim2.new(0.5, -size.X.Offset/2, 0.5, -size.Y.Offset/2)
+    popup.BackgroundColor3 = self.Config.Colors.Background
+    popup.BorderSizePixel = 2
+    popup.BorderColor3 = self.Config.Colors.Accent
+    popup.ZIndex = 20
+    popup.Visible = false
+    popup.Parent = parent
+    
+    self:AddCorner(popup, self.Config.Sizes.LargeCorner)
+    
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, scaleY(6))
+    titleBar.BackgroundColor3 = self.Config.Colors.BackgroundLight
+    titleBar.BorderSizePixel = 0
+    titleBar.ZIndex = 21
+    titleBar.Parent = popup
+    
+    self:AddCorner(titleBar)
+    
+    local dragHint = self:CreateLabel(titleBar, "≡", 
+        UDim2.new(0, scaleX(4), 0, scaleY(4)),
+        UDim2.new(0, scaleX(1), 0, scaleY(1)),
+        self.Config.Colors.TextDim,
+        scaleY(1.4),
+        true,
+        Enum.TextXAlignment.Center
+    )
+    dragHint.ZIndex = 22
+    
+    local titleLabel = self:CreateLabel(titleBar, title,
+        UDim2.new(0.8, 0, 1, 0),
+        UDim2.new(0, scaleX(5), 0, 0),
+        self.Config.Colors.Text,
+        scaleY(1.3),
+        true,
+        Enum.TextXAlignment.Left
+    )
+    titleLabel.ZIndex = 22
+    
+    local closeBtn = self:CreateButton(titleBar, "X",
+        UDim2.new(0, scaleX(4), 0, scaleY(4)),
+        UDim2.new(1, -scaleX(5), 0, scaleY(1)),
+        self.Config.Colors.Danger,
+        function() popup.Visible = false end
+    )
+    closeBtn.ZIndex = 22
+    closeBtn.TextSize = scaleY(1.2)
+    
+    self:MakeDraggable(popup, titleBar)
+    
+    return popup, titleBar, closeBtn
+end
+
+function UILib:CreateToggleButton(parent, text, defaultState, size, position, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = size or UDim2.new(0, scaleX(8), 0, scaleY(4))
+    btn.Position = position or UDim2.new(0, 0, 0, 0)
+    btn.BackgroundColor3 = defaultState and self.Config.Colors.Success or self.Config.Colors.Danger
+    btn.Text = text .. ": " .. (defaultState and "ON" or "OFF")
+    btn.TextColor3 = self.Config.Colors.Text
+    btn.Font = self.Config.Fonts.Bold
+    btn.TextSize = scaleY(1.2)
+    btn.Parent = parent
+    
+    self:AddCorner(btn)
+    
+    local state = defaultState
+    
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.BackgroundColor3 = state and self.Config.Colors.Success or self.Config.Colors.Danger
+        btn.Text = text .. ": " .. (state and "ON" or "OFF")
+        if callback then
+            callback(state)
+        end
+    end)
+    
+    return btn, state
+end
+
+function UILib:CreateMiniToggleRow(parent, buttons, startX)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, scaleY(6))
+    row.BackgroundTransparency = 1
+    row.Parent = parent
+    
+    local buttonWidth = 0.192
+    local buttonSpacing = 0.01
+    local toggles = {}
+    
+    for i, btnData in ipairs(buttons) do
+        local xPos = (buttonWidth + buttonSpacing) * (i-1)
+        local toggle, state = self:CreateToggleButton(row, btnData.name, btnData.default,
+            UDim2.new(buttonWidth, 0, 1, 0),
+            UDim2.new(xPos, 0, 0, 0),
+            btnData.callback
+        )
+        toggle.TextSize = scaleY(0.9)
+        toggles[btnData.name] = {button = toggle, state = state}
+    end
+    
+    return row, toggles
+end
+
+function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCancel)
+    local popup = Instance.new("Frame")
+    popup.Size = UDim2.new(0, scaleX(30), 0, scaleY(15))
+    popup.Position = UDim2.new(0.5, -scaleX(15), 0.5, -scaleY(7.5))
+    popup.BackgroundColor3 = self.Config.Colors.Background
+    popup.BorderSizePixel = 0
+    popup.ZIndex = 10
+    popup.Parent = parent
+    
+    self:AddCorner(popup, self.Config.Sizes.LargeCorner)
+    
+    local titleLabel = self:CreateLabel(popup, title,
+        UDim2.new(1, -scaleX(2), 0, scaleY(4)),
+        UDim2.new(0, scaleX(1), 0, scaleY(1)),
+        self.Config.Colors.Text,
+        scaleY(1.4),
+        true
+    )
+    titleLabel.ZIndex = 11
+    
+    local msgLabel = self:CreateLabel(popup, message,
+        UDim2.new(1, -scaleX(2), 0, scaleY(5)),
+        UDim2.new(0, scaleX(1), 0, scaleY(5)),
+        self.Config.Colors.Danger,
+        scaleY(1.2)
+    )
+    msgLabel.ZIndex = 11
+    msgLabel.TextWrapped = true
+    
+    local btnFrame = self:CreateFrame(popup,
+        UDim2.new(1, -scaleX(2), 0, scaleY(5)),
+        UDim2.new(0, scaleX(1), 0, scaleY(10)),
+        true
+    )
+    btnFrame.ZIndex = 11
+    
+    local confirmBtn = self:CreateButton(btnFrame, "CONFIRM",
+        UDim2.new(0.48, 0, 1, 0),
+        UDim2.new(0, 0, 0, 0),
+        self.Config.Colors.Success,
+        function()
+            if onConfirm then onConfirm() end
+            popup:Destroy()
+        end
+    )
+    confirmBtn.ZIndex = 12
+    
+    local cancelBtn = self:CreateButton(btnFrame, "CANCEL",
+        UDim2.new(0.48, 0, 1, 0),
+        UDim2.new(0.52, 0, 0, 0),
+        self.Config.Colors.Danger,
+        function()
+            if onCancel then onCancel() end
+            popup:Destroy()
+        end
+    )
+    cancelBtn.ZIndex = 12
+    
+    return popup
+end
+
+function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -scaleX(0.8), 0, scaleY(5))
+    btn.Position = UDim2.new(0, scaleX(0.4), 0, (index-1) * scaleY(5.5))
+    btn.BackgroundColor3 = isSelected and self.Config.Colors.Selected or 
+                          (index % 2 == 0 and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(35, 35, 50))
+    btn.Text = towerName
+    btn.TextColor3 = self.Config.Colors.Text
+    btn.TextSize = scaleY(1.2)
+    btn.Font = self.Config.Fonts.Normal
+    btn.AutoButtonColor = false
+    btn.Parent = parent
+    
+    self:AddCorner(btn, 0.3)
+    
+    local originalColor = btn.BackgroundColor3
+    
+    btn.MouseEnter:Connect(function()
+        if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
+            btn.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+        end
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
+            btn.BackgroundColor3 = originalColor
+        end
+    end)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(function()
+            callback(btn, towerName, originalColor)
+        end)
+    end
+    
+    return btn
+end
+
+function UILib:CreateTowerWithLevelButton(parent, towerData, index, isSelected, callback)
+    local displayText = string.format("L.%d %s (%d)", towerData.upgrade, towerData.name, towerData.count)
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -scaleX(0.5), 0, scaleY(4.5))
+    btn.Position = UDim2.new(0, scaleX(0.25), 0, (index-1) * scaleY(5))
+    btn.BackgroundColor3 = isSelected and self.Config.Colors.Selected or 
+                          (index % 2 == 0 and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(35, 35, 50))
+    btn.Text = displayText
+    btn.RichText = true
+    btn.TextColor3 = self.Config.Colors.Text
+    btn.TextSize = scaleY(1.1)
+    btn.Font = self.Config.Fonts.Normal
+    btn.AutoButtonColor = false
+    btn.ZIndex = 22
+    btn.Parent = parent
+    
+    self:AddCorner(btn, 0.3)
+    
+    local originalColor = btn.BackgroundColor3
+    
+    btn.MouseEnter:Connect(function()
+        if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
+            btn.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+        end
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
+            btn.BackgroundColor3 = originalColor
+        end
+    end)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(function()
+            callback(btn, towerData, originalColor)
+        end)
+    end
+    
+    return btn
+end
+
+function UILib:MakeDraggable(frame, handle)
+    local dragging = false
+    local dragStart
+    local startPos
+    
+    handle = handle or frame
+    
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    
+    handle.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+    
+    UIS.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                        input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            local newX = startPos.X.Offset + delta.X
+            local newY = startPos.Y.Offset + delta.Y
+            
+            local screenBounds = camera.ViewportSize
+            local frameSize = frame.AbsoluteSize
+            
+            newX = math.max(0, math.min(newX, screenBounds.X - frameSize.X))
+            newY = math.max(0, math.min(newY, screenBounds.Y - frameSize.Y))
+            
+            frame.Position = UDim2.new(0, newX, 0, newY)
+        end
+    end)
+end
+
+function UILib:ClearContainer(container)
+    for _, child in ipairs(container:GetChildren()) do
+        child:Destroy()
+    end
+end
+
+return UILib
