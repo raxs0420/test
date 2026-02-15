@@ -12,7 +12,7 @@ end
 
 local function scaleY(percent)
     -- Increase base size by 20% and ensure minimum for text clarity
-    local calculated = camera.ViewportSize.Y * (percent / 100) * 1.2
+    local calculated = camera.ViewportSize.Y * (percent / 100) * 1.1
     local minSize = 14  -- Absolute minimum pixel size
     return math.max(calculated, minSize)
 end
@@ -68,9 +68,9 @@ UILib.Config = {
         BorderSize = 1
     },
     Effects = {
-        HoverBrightness = 1.2,
-        PressedBrightness = 0.8,
-        TransitionTime = 0.2
+        HoverBrightness = 0.5,
+        PressedBrightness = 0.3,
+        TransitionTime = 0.1
     },
     Transparency = {
         -- Default transparency levels (subtle opacity, not see-through)
