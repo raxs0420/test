@@ -7,11 +7,11 @@ local UIS = game:GetService("UserInputService")
 
 -- Helper functions
 local function scaleX(percent)
-    return camera.ViewportSize.X * (percent / 100) * 1.5
+    return camera.ViewportSize.X * (percent / 100) 
 end
 
 local function scaleY(percent)
-    return camera.ViewportSize.Y * (percent / 100) * 1.5
+    return camera.ViewportSize.Y * (percent / 100) 
 end
 
 -- Configuration - Grey/Green Aesthetic
@@ -65,7 +65,7 @@ UILib.Config = {
         BorderSize = 1
     },
     Effects = {
-        HoverBrightness = 1.2,
+        HoverBrightness = 0.3,
         PressedBrightness = 0.8,
         TransitionTime = 0.2
     }
