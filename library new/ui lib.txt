@@ -1,4 +1,4 @@
--- Complete UI Library for TDS
+-- Complete UI Library for TDS - Grey/Green Edition
 local UILib = {}
 
 -- Cache screen size for performance
@@ -14,28 +14,45 @@ local function scaleY(percent)
     return camera.ViewportSize.Y * (percent / 100)
 end
 
--- Configuration
+-- Configuration - Grey/Green Aesthetic
 UILib.Config = {
     Colors = {
-        Background = Color3.fromRGB(35, 35, 45),
-        BackgroundDark = Color3.fromRGB(25, 25, 35),
-        BackgroundLight = Color3.fromRGB(45, 45, 60),
-        BackgroundDarker = Color3.fromRGB(20, 20, 30),
-        Accent = Color3.fromRGB(60, 100, 200),
-        Success = Color3.fromRGB(0, 100, 0),
-        Danger = Color3.fromRGB(200, 80, 80),
-        Warning = Color3.fromRGB(200, 200, 0),
-        Selected = Color3.fromRGB(70, 130, 70),
-        SlotEmpty = Color3.fromRGB(70, 70, 90),
-        SlotFilled = Color3.fromRGB(100, 100, 0),
-        Text = Color3.fromRGB(255, 255, 255),
-        TextDim = Color3.fromRGB(200, 200, 200),
-        TextMuted = Color3.fromRGB(150, 150, 150),
-        Border = Color3.fromRGB(100, 100, 100)
+        -- Base greys
+        Background = Color3.fromRGB(30, 30, 35),      -- Dark grey background
+        BackgroundDark = Color3.fromRGB(20, 20, 25),   -- Darker grey for contrast
+        BackgroundLight = Color3.fromRGB(45, 45, 50),  -- Lighter grey for elements
+        BackgroundDarker = Color3.fromRGB(15, 15, 20), -- Deepest grey
+        
+        -- Green accents
+        Accent = Color3.fromRGB(70, 140, 70),         -- Primary green
+        AccentLight = Color3.fromRGB(90, 180, 90),     -- Lighter green for hover
+        AccentDark = Color3.fromRGB(50, 110, 50),      -- Darker green for pressed
+        
+        -- Status colors
+        Success = Color3.fromRGB(70, 140, 70),         -- Green for success
+        SuccessLight = Color3.fromRGB(100, 200, 100),   -- Bright green
+        Danger = Color3.fromRGB(200, 80, 80),          -- Red for danger
+        Warning = Color3.fromRGB(200, 180, 50),        -- Amber for warning
+        
+        -- Interactive elements
+        Selected = Color3.fromRGB(70, 140, 70),        -- Green for selected
+        SlotEmpty = Color3.fromRGB(55, 55, 65),        -- Grey for empty slots
+        SlotFilled = Color3.fromRGB(70, 140, 70),      -- Green for filled slots
+        
+        -- Text colors
+        Text = Color3.fromRGB(255, 255, 255),          -- Pure white
+        TextDim = Color3.fromRGB(200, 200, 200),       -- Light grey
+        TextMuted = Color3.fromRGB(150, 150, 160),     -- Muted grey
+        
+        -- Borders and accents
+        Border = Color3.fromRGB(70, 70, 80),           -- Subtle border
+        BorderLight = Color3.fromRGB(90, 90, 100),      -- Lighter border
+        Glow = Color3.fromRGB(70, 140, 70),            -- Green glow effect
     },
     Fonts = {
         Normal = Enum.Font.SourceSans,
-        Bold = Enum.Font.SourceSansBold
+        Bold = Enum.Font.SourceSansBold,
+        SemiBold = Enum.Font.SourceSansSemibold
     },
     Sizes = {
         ButtonHeight = 5,
@@ -44,7 +61,13 @@ UILib.Config = {
         TextBoxHeight = 5,
         LabelHeight = 4,
         CornerRadius = 0.5,
-        LargeCorner = 1
+        LargeCorner = 1,
+        BorderSize = 1
+    },
+    Effects = {
+        HoverBrightness = 1.2,
+        PressedBrightness = 0.8,
+        TransitionTime = 0.2
     }
 }
 
@@ -53,6 +76,13 @@ function UILib:AddCorner(instance, scale)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, scaleX(scale or self.Config.Sizes.CornerRadius))
     corner.Parent = instance
+end
+
+function UILib:AddStroke(instance, thickness, color)
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = thickness or 1
+    stroke.Color = color or self.Config.Colors.Border
+    stroke.Parent = instance
 end
 
 function UILib:CreateScreenGui(name, parent)
@@ -76,6 +106,7 @@ function UILib:CreateWindow(parent, title, size, position, draggable)
     window.Parent = parent
     
     self:AddCorner(window, self.Config.Sizes.LargeCorner)
+    self:AddStroke(window, self.Config.Sizes.BorderSize, self.Config.Colors.BorderLight)
     
     if draggable then
         self:MakeDraggable(window, window)
@@ -89,21 +120,36 @@ function UILib:CreateMinimizeButton(parent, window, size, position)
     btn.Size = size or UDim2.new(0, scaleX(4.5), 0, scaleY(5.5))
     btn.Position = position or UDim2.new(0, scaleX(2), 0, scaleY(2))
     btn.BackgroundColor3 = self.Config.Colors.BackgroundLight
-    btn.BorderSizePixel = 1
-    btn.BorderColor3 = self.Config.Colors.Border
+    btn.BorderSizePixel = 0
     btn.Text = "▼"
     btn.TextColor3 = self.Config.Colors.Text
-    btn.Font = self.Config.Fonts.Normal
+    btn.Font = self.Config.Fonts.Bold
     btn.TextSize = scaleY(1.8)
     btn.Parent = parent
     
     self:AddCorner(btn, 0.5)
+    self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     local minimized = false
+    
+    -- Hover effects
+    btn.MouseEnter:Connect(function()
+        if not minimized then
+            btn.BackgroundColor3 = self.Config.Colors.BackgroundLight:Lerp(self.Config.Colors.Accent, 0.3)
+        end
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        if not minimized then
+            btn.BackgroundColor3 = self.Config.Colors.BackgroundLight
+        end
+    end)
+    
     btn.MouseButton1Click:Connect(function()
         minimized = not minimized
         window.Visible = not minimized
         btn.Text = minimized and "▲" or "▼"
+        btn.BackgroundColor3 = minimized and self.Config.Colors.Accent or self.Config.Colors.BackgroundLight
     end)
     
     return btn
@@ -111,25 +157,39 @@ end
 
 function UILib:CreateTabBar(parent, height)
     local bar = Instance.new("Frame")
-    bar.Size = UDim2.new(1, 0, 0, scaleY(height or self.Config.Sizes.TabHeight))
-    bar.Position = UDim2.new(0, 0, 0, scaleY(self.Config.Sizes.TabHeight))
+    bar.Size = UDim2.new(1, -scaleX(2), 0, scaleY(height or self.Config.Sizes.TabHeight))
+    bar.Position = UDim2.new(0, scaleX(1), 0, scaleY(self.Config.Sizes.TabHeight))
     bar.BackgroundColor3 = self.Config.Colors.BackgroundLight
     bar.BorderSizePixel = 0
     bar.Parent = parent
+    
+    self:AddCorner(bar, 0.5)
     
     return bar
 end
 
 function UILib:CreateTab(parent, name, position, isActive)
     local tab = Instance.new("TextButton")
-    tab.Size = UDim2.new(0.32, 0, 1, 0)
+    tab.Size = UDim2.new(0.32, -scaleX(0.5), 1, -scaleY(1))
     tab.Position = position
     tab.BackgroundColor3 = isActive and self.Config.Colors.Accent or self.Config.Colors.BackgroundLight
     tab.Text = name
-    tab.TextColor3 = isActive and self.Config.Colors.Text or self.Config.Colors.TextDim
+    tab.TextColor3 = self.Config.Colors.Text
     tab.Font = self.Config.Fonts.Bold
     tab.TextSize = scaleY(1.4)
     tab.Parent = parent
+    
+    self:AddCorner(tab, 0.5)
+    
+    -- Hover effect for inactive tabs
+    if not isActive then
+        tab.MouseEnter:Connect(function()
+            tab.BackgroundColor3 = self.Config.Colors.BackgroundLight:Lerp(self.Config.Colors.Accent, 0.2)
+        end)
+        tab.MouseLeave:Connect(function()
+            tab.BackgroundColor3 = self.Config.Colors.BackgroundLight
+        end)
+    end
     
     return tab
 end
@@ -158,6 +218,26 @@ function UILib:CreateButton(parent, text, size, position, color, callback)
     btn.Parent = parent
     
     self:AddCorner(btn)
+    self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
+    
+    local originalColor = btn.BackgroundColor3
+    
+    -- Hover effects
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.Text, 0.2)
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = originalColor
+    end)
+    
+    btn.MouseButton1Down:Connect(function()
+        btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.BackgroundDark, 0.3)
+    end)
+    
+    btn.MouseButton1Up:Connect(function()
+        btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.Text, 0.2)
+    end)
     
     if callback then
         btn.MouseButton1Click:Connect(callback)
@@ -181,6 +261,16 @@ function UILib:CreateTextBox(parent, placeholder, size, position, text)
     box.Parent = parent
     
     self:AddCorner(box)
+    self:AddStroke(box, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
+    
+    -- Focus effects
+    box.Focused:Connect(function()
+        self:AddStroke(box, self.Config.Sizes.BorderSize + 1, self.Config.Colors.Accent)
+    end)
+    
+    box.FocusLost:Connect(function()
+        self:AddStroke(box, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
+    end)
     
     return box
 end
@@ -191,11 +281,13 @@ function UILib:CreateScrollingFrame(parent, size, position, color)
     frame.Position = position or UDim2.new(0, scaleX(2), 0, scaleY(7))
     frame.BackgroundColor3 = color or self.Config.Colors.BackgroundDark
     frame.BorderSizePixel = 0
-    frame.ScrollBarThickness = scaleX(1)
+    frame.ScrollBarThickness = scaleX(0.8)
+    frame.ScrollBarImageColor3 = self.Config.Colors.Accent
     frame.CanvasSize = UDim2.new(0, 0, 0, 0)
     frame.Parent = parent
     
     self:AddCorner(frame)
+    self:AddStroke(frame, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     return frame
 end
@@ -210,6 +302,7 @@ function UILib:CreateLabel(parent, text, size, position, color, textSize, isBold
     label.Font = isBold and self.Config.Fonts.Bold or self.Config.Fonts.Normal
     label.TextSize = textSize or scaleY(1.2)
     label.TextXAlignment = alignment or Enum.TextXAlignment.Center
+    label.TextYAlignment = Enum.TextYAlignment.Center
     label.TextWrapped = true
     label.Parent = parent
     
@@ -235,7 +328,8 @@ function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
     frame.Parent = parent
     
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.25, 0, 1, 0)
+    btn.Size = UDim2.new(0.25, 0, 1, -scaleY(0.5))
+    btn.Position = UDim2.new(0, 0, 0, scaleY(0.25))
     btn.BackgroundColor3 = self.Config.Colors.SlotEmpty
     btn.BorderSizePixel = 0
     btn.Text = tostring(slotNumber)
@@ -245,19 +339,37 @@ function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
     btn.Parent = frame
     
     self:AddCorner(btn)
+    self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(0.75, -scaleX(1), 1, 0)
-    label.Position = UDim2.new(0.25, scaleX(1), 0, 0)
+    label.Size = UDim2.new(0.75, -scaleX(1), 1, -scaleY(0.5))
+    label.Position = UDim2.new(0.25, scaleX(1), 0, scaleY(0.25))
     label.BackgroundColor3 = self.Config.Colors.BackgroundLight
     label.TextColor3 = self.Config.Colors.Text
     label.Font = self.Config.Fonts.Normal
     label.TextSize = scaleY(1.2)
     label.Text = "[Empty]"
     label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextYAlignment = Enum.TextYAlignment.Center
     label.Parent = frame
     
     self:AddCorner(label)
+    self:AddStroke(label, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
+    
+    -- Hover effects for button
+    btn.MouseEnter:Connect(function()
+        if btn.BackgroundColor3 ~= self.Config.Colors.Selected and 
+           btn.BackgroundColor3 ~= self.Config.Colors.SlotFilled then
+            btn.BackgroundColor3 = btn.BackgroundColor3:Lerp(self.Config.Colors.AccentLight, 0.3)
+        end
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        if btn.BackgroundColor3 ~= self.Config.Colors.Selected and 
+           btn.BackgroundColor3 ~= self.Config.Colors.SlotFilled then
+            btn.BackgroundColor3 = self.Config.Colors.SlotEmpty
+        end
+    end)
     
     if callback then
         btn.MouseButton1Click:Connect(function()
@@ -275,16 +387,17 @@ function UILib:CreatePopup(parent, title, size)
     popup.Size = size
     popup.Position = UDim2.new(0.5, -size.X.Offset/2, 0.5, -size.Y.Offset/2)
     popup.BackgroundColor3 = self.Config.Colors.Background
-    popup.BorderSizePixel = 2
-    popup.BorderColor3 = self.Config.Colors.Accent
+    popup.BorderSizePixel = 0
     popup.ZIndex = 20
     popup.Visible = false
     popup.Parent = parent
     
     self:AddCorner(popup, self.Config.Sizes.LargeCorner)
+    self:AddStroke(popup, self.Config.Sizes.BorderSize + 1, self.Config.Colors.Accent)
     
     local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, scaleY(6))
+    titleBar.Size = UDim2.new(1, -scaleX(2), 0, scaleY(6))
+    titleBar.Position = UDim2.new(0, scaleX(1), 0, scaleY(1))
     titleBar.BackgroundColor3 = self.Config.Colors.BackgroundLight
     titleBar.BorderSizePixel = 0
     titleBar.ZIndex = 21
@@ -292,19 +405,9 @@ function UILib:CreatePopup(parent, title, size)
     
     self:AddCorner(titleBar)
     
-    local dragHint = self:CreateLabel(titleBar, "≡", 
-        UDim2.new(0, scaleX(4), 0, scaleY(4)),
-        UDim2.new(0, scaleX(1), 0, scaleY(1)),
-        self.Config.Colors.TextDim,
-        scaleY(1.4),
-        true,
-        Enum.TextXAlignment.Center
-    )
-    dragHint.ZIndex = 22
-    
     local titleLabel = self:CreateLabel(titleBar, title,
         UDim2.new(0.8, 0, 1, 0),
-        UDim2.new(0, scaleX(5), 0, 0),
+        UDim2.new(0, scaleX(2), 0, 0),
         self.Config.Colors.Text,
         scaleY(1.3),
         true,
@@ -312,14 +415,14 @@ function UILib:CreatePopup(parent, title, size)
     )
     titleLabel.ZIndex = 22
     
-    local closeBtn = self:CreateButton(titleBar, "X",
+    local closeBtn = self:CreateButton(titleBar, "✕",
         UDim2.new(0, scaleX(4), 0, scaleY(4)),
         UDim2.new(1, -scaleX(5), 0, scaleY(1)),
         self.Config.Colors.Danger,
         function() popup.Visible = false end
     )
     closeBtn.ZIndex = 22
-    closeBtn.TextSize = scaleY(1.2)
+    closeBtn.TextSize = scaleY(1.4)
     
     self:MakeDraggable(popup, titleBar)
     
@@ -330,21 +433,32 @@ function UILib:CreateToggleButton(parent, text, defaultState, size, position, ca
     local btn = Instance.new("TextButton")
     btn.Size = size or UDim2.new(0, scaleX(8), 0, scaleY(4))
     btn.Position = position or UDim2.new(0, 0, 0, 0)
-    btn.BackgroundColor3 = defaultState and self.Config.Colors.Success or self.Config.Colors.Danger
-    btn.Text = text .. ": " .. (defaultState and "ON" or "OFF")
+    btn.BackgroundColor3 = defaultState and self.Config.Colors.Success or self.Config.Colors.BackgroundLight
+    btn.Text = text .. (defaultState and " ✓" or " ✗")
     btn.TextColor3 = self.Config.Colors.Text
     btn.Font = self.Config.Fonts.Bold
     btn.TextSize = scaleY(1.2)
     btn.Parent = parent
     
     self:AddCorner(btn)
+    self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     local state = defaultState
+    local originalColor = btn.BackgroundColor3
+    
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.Text, 0.2)
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundColor3 = originalColor
+    end)
     
     btn.MouseButton1Click:Connect(function()
         state = not state
-        btn.BackgroundColor3 = state and self.Config.Colors.Success or self.Config.Colors.Danger
-        btn.Text = text .. ": " .. (state and "ON" or "OFF")
+        originalColor = state and self.Config.Colors.Success or self.Config.Colors.BackgroundLight
+        btn.BackgroundColor3 = originalColor
+        btn.Text = text .. (state and " ✓" or " ✗")
         if callback then
             callback(state)
         end
@@ -355,7 +469,8 @@ end
 
 function UILib:CreateMiniToggleRow(parent, buttons, startX)
     local row = Instance.new("Frame")
-    row.Size = UDim2.new(1, 0, 0, scaleY(6))
+    row.Size = UDim2.new(1, -scaleX(2), 0, scaleY(6))
+    row.Position = UDim2.new(0, scaleX(1), 0, 0)
     row.BackgroundTransparency = 1
     row.Parent = parent
     
@@ -387,6 +502,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
     popup.Parent = parent
     
     self:AddCorner(popup, self.Config.Sizes.LargeCorner)
+    self:AddStroke(popup, self.Config.Sizes.BorderSize + 1, self.Config.Colors.Warning)
     
     local titleLabel = self:CreateLabel(popup, title,
         UDim2.new(1, -scaleX(2), 0, scaleY(4)),
@@ -400,7 +516,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
     local msgLabel = self:CreateLabel(popup, message,
         UDim2.new(1, -scaleX(2), 0, scaleY(5)),
         UDim2.new(0, scaleX(1), 0, scaleY(5)),
-        self.Config.Colors.Danger,
+        self.Config.Colors.TextDim,
         scaleY(1.2)
     )
     msgLabel.ZIndex = 11
@@ -413,7 +529,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
     )
     btnFrame.ZIndex = 11
     
-    local confirmBtn = self:CreateButton(btnFrame, "CONFIRM",
+    local confirmBtn = self:CreateButton(btnFrame, "✓ CONFIRM",
         UDim2.new(0.48, 0, 1, 0),
         UDim2.new(0, 0, 0, 0),
         self.Config.Colors.Success,
@@ -424,7 +540,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
     )
     confirmBtn.ZIndex = 12
     
-    local cancelBtn = self:CreateButton(btnFrame, "CANCEL",
+    local cancelBtn = self:CreateButton(btnFrame, "✗ CANCEL",
         UDim2.new(0.48, 0, 1, 0),
         UDim2.new(0.52, 0, 0, 0),
         self.Config.Colors.Danger,
@@ -439,11 +555,13 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
 end
 
 function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
+    local isEven = index % 2 == 0
+    local baseColor = isEven and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
+    
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -scaleX(0.8), 0, scaleY(5))
     btn.Position = UDim2.new(0, scaleX(0.4), 0, (index-1) * scaleY(5.5))
-    btn.BackgroundColor3 = isSelected and self.Config.Colors.Selected or 
-                          (index % 2 == 0 and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(35, 35, 50))
+    btn.BackgroundColor3 = isSelected and self.Config.Colors.Selected or baseColor
     btn.Text = towerName
     btn.TextColor3 = self.Config.Colors.Text
     btn.TextSize = scaleY(1.2)
@@ -452,12 +570,13 @@ function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
     btn.Parent = parent
     
     self:AddCorner(btn, 0.3)
+    self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     local originalColor = btn.BackgroundColor3
     
     btn.MouseEnter:Connect(function()
         if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
-            btn.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+            btn.BackgroundColor3 = baseColor:Lerp(self.Config.Colors.AccentLight, 0.3)
         end
     end)
     
@@ -477,13 +596,14 @@ function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
 end
 
 function UILib:CreateTowerWithLevelButton(parent, towerData, index, isSelected, callback)
+    local isEven = index % 2 == 0
+    local baseColor = isEven and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
     local displayText = string.format("L.%d %s (%d)", towerData.upgrade, towerData.name, towerData.count)
     
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -scaleX(0.5), 0, scaleY(4.5))
     btn.Position = UDim2.new(0, scaleX(0.25), 0, (index-1) * scaleY(5))
-    btn.BackgroundColor3 = isSelected and self.Config.Colors.Selected or 
-                          (index % 2 == 0 and Color3.fromRGB(40, 40, 55) or Color3.fromRGB(35, 35, 50))
+    btn.BackgroundColor3 = isSelected and self.Config.Colors.Selected or baseColor
     btn.Text = displayText
     btn.RichText = true
     btn.TextColor3 = self.Config.Colors.Text
@@ -494,12 +614,13 @@ function UILib:CreateTowerWithLevelButton(parent, towerData, index, isSelected, 
     btn.Parent = parent
     
     self:AddCorner(btn, 0.3)
+    self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     local originalColor = btn.BackgroundColor3
     
     btn.MouseEnter:Connect(function()
         if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
-            btn.BackgroundColor3 = Color3.fromRGB(55, 55, 70)
+            btn.BackgroundColor3 = baseColor:Lerp(self.Config.Colors.AccentLight, 0.3)
         end
     end)
     
