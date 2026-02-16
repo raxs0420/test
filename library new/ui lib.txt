@@ -11,43 +11,31 @@ local function scaleX(percent)
 end
 
 local function scaleY(percent)
-    -- Increase base size by 20% and ensure minimum for text clarity
     local calculated = camera.ViewportSize.Y * (percent / 100) * 1.1
-    local minSize = 14  -- Absolute minimum pixel size
+    local minSize = 14
     return math.max(calculated, minSize)
 end
 
--- Configuration - Grey/Green Aesthetic
+-- Configuration
 UILib.Config = {
     Colors = {
-        -- Base greys
         Background = Color3.fromRGB(30, 30, 35),
         BackgroundDark = Color3.fromRGB(20, 20, 25),
         BackgroundLight = Color3.fromRGB(45, 45, 50),
         BackgroundDarker = Color3.fromRGB(15, 15, 20),
-        
-        -- Green accents
         Accent = Color3.fromRGB(70, 140, 70),
         AccentLight = Color3.fromRGB(90, 180, 90),
         AccentDark = Color3.fromRGB(50, 110, 50),
-        
-        -- Status colors
         Success = Color3.fromRGB(70, 140, 70),
         SuccessLight = Color3.fromRGB(100, 200, 100),
         Danger = Color3.fromRGB(200, 80, 80),
         Warning = Color3.fromRGB(200, 180, 50),
-        
-        -- Interactive elements
         Selected = Color3.fromRGB(70, 140, 70),
         SlotEmpty = Color3.fromRGB(55, 55, 65),
         SlotFilled = Color3.fromRGB(70, 140, 70),
-        
-        -- Text colors
         Text = Color3.fromRGB(255, 255, 255),
         TextDim = Color3.fromRGB(200, 200, 200),
         TextMuted = Color3.fromRGB(150, 150, 160),
-        
-        -- Borders and accents
         Border = Color3.fromRGB(70, 70, 80),
         BorderLight = Color3.fromRGB(90, 90, 100),
         Glow = Color3.fromRGB(70, 140, 70),
@@ -61,7 +49,7 @@ UILib.Config = {
         ButtonHeight = 5,
         SlotHeight = 7,
         TabHeight = 6,
-        TextBoxHeight = 5,
+        TextBoxHeight = 7,
         LabelHeight = 4,
         CornerRadius = 0.5,
         LargeCorner = 1,
@@ -80,6 +68,13 @@ UILib.Config = {
         Borders = 0,
         Hover = 0.05,
         Pressed = 0.15
+    },
+    ZIndex = {
+        Background = 1,
+        Elements = 5,
+        Buttons = 10,
+        Popup = 50,
+        Dropdown = 1000
     }
 }
 
@@ -121,7 +116,8 @@ function UILib:CreateWindow(parent, title, size, position, draggable)
     window.BackgroundTransparency = self.Config.Transparency.Background
     window.BorderSizePixel = 0
     window.Parent = parent
-    window.ZIndex = 1
+    window.ZIndex = self.Config.ZIndex.Background
+    window.ClipsDescendants = false  -- Important for dropdowns
     
     self:AddCorner(window, self.Config.Sizes.LargeCorner)
     self:AddStroke(window, self.Config.Sizes.BorderSize, self.Config.Colors.BorderLight)
@@ -145,29 +141,36 @@ function UILib:CreateMinimizeButton(parent, window)
     btn.Font = self.Config.Fonts.Bold
     btn.TextSize = scaleY(2.5)
     btn.Parent = parent
-    btn.ZIndex = 10
+    btn.ZIndex = self.Config.ZIndex.Buttons
+    btn.AutoButtonColor = false
     
     self:AddCorner(btn, 0.5)
     self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     local minimized = false
+    local debounce = false
     
     btn.MouseButton1Click:Connect(function()
+        if debounce then return end
+        debounce = true
         minimized = not minimized
         window.Visible = not minimized
         btn.Text = minimized and "□" or "−"
+        task.wait(0.2)
+        debounce = false
     end)
     
     return btn
 end
 
--- ========== FIXED DRAGGABLE (works on mobile) ==========
+-- ========== FIXED DRAGGABLE ==========
 
 function UILib:MakeDraggable(frame, handle)
     local dragging = false
     local dragStart = nil
     local startPos = nil
     local connection
+    local touchId = nil
     
     handle = handle or frame
     
@@ -177,33 +180,37 @@ function UILib:MakeDraggable(frame, handle)
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
-            input:Capture()
+            if input.UserInputType == Enum.UserInputType.Touch then
+                touchId = input.KeyCode
+            end
         end
     end
     
     local function onInputEnded(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or 
-           input.UserInputType == Enum.UserInputType.Touch then
+           (input.UserInputType == Enum.UserInputType.Touch and input.KeyCode == touchId) then
             dragging = false
-            input:Release()
+            touchId = nil
         end
     end
     
     local function onInputChanged(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
-                        input.UserInputType == Enum.UserInputType.Touch) then
-            local delta = input.Position - dragStart
-            local newX = startPos.X.Offset + delta.X
-            local newY = startPos.Y.Offset + delta.Y
-            
-            -- Keep within screen bounds
-            local screenBounds = camera.ViewportSize
-            local frameSize = frame.AbsoluteSize
-            
-            newX = math.max(0, math.min(newX, screenBounds.X - frameSize.X))
-            newY = math.max(0, math.min(newY, screenBounds.Y - frameSize.Y))
-            
-            frame.Position = UDim2.new(0, newX, 0, newY)
+        if dragging then
+            if input.UserInputType == Enum.UserInputType.MouseMovement or 
+               (input.UserInputType == Enum.UserInputType.Touch and input.KeyCode == touchId) then
+                local delta = input.Position - dragStart
+                local newX = startPos.X.Offset + delta.X
+                local newY = startPos.Y.Offset + delta.Y
+                
+                -- Keep within screen bounds
+                local screenBounds = camera.ViewportSize
+                local frameSize = frame.AbsoluteSize
+                
+                newX = math.max(0, math.min(newX, screenBounds.X - frameSize.X))
+                newY = math.max(0, math.min(newY, screenBounds.Y - frameSize.Y))
+                
+                frame.Position = UDim2.new(0, newX, 0, newY)
+            end
         end
     end
     
@@ -211,7 +218,6 @@ function UILib:MakeDraggable(frame, handle)
     handle.InputEnded:Connect(onInputEnded)
     connection = UIS.InputChanged:Connect(onInputChanged)
     
-    -- Clean up when frame is destroyed
     frame.AncestryChanged:Connect(function()
         if not frame.Parent then
             connection:Disconnect()
@@ -229,6 +235,8 @@ function UILib:CreateFrame(parent, size, position, transparent, color)
     frame.BackgroundColor3 = color or self.Config.Colors.Background
     frame.BorderSizePixel = 0
     frame.Parent = parent
+    frame.ZIndex = parent.ZIndex + 1
+    frame.ClipsDescendants = false
     return frame
 end
 
@@ -246,10 +254,11 @@ function UILib:CreateLabel(parent, text, size, position, color, textSize, isBold
     label.TextYAlignment = Enum.TextYAlignment.Center
     label.TextWrapped = true
     label.Parent = parent
+    label.ZIndex = parent.ZIndex + 1
     return label
 end
 
--- ========== FIXED BUTTON (with proper click handling) ==========
+-- ========== FIXED BUTTON ==========
 
 function UILib:CreateButton(parent, text, size, position, color, callback)
     local btn = Instance.new("TextButton")
@@ -263,39 +272,52 @@ function UILib:CreateButton(parent, text, size, position, color, callback)
     btn.Font = self.Config.Fonts.Bold
     btn.TextSize = scaleY(1.6)
     btn.Parent = parent
+    btn.ZIndex = parent.ZIndex + 2
     btn.AutoButtonColor = false
+    btn.Active = true
+    btn.Selected = false
+    btn.Modal = false
     
     self:AddCorner(btn)
     self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     local originalColor = btn.BackgroundColor3
     local baseTransparency = self.Config.Transparency.Buttons
+    local isActive = true
     local debounce = false
+    
+    -- Ensure button captures input
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            input:Capture()
+        end
+    end)
     
     -- Hover effects
     btn.MouseEnter:Connect(function()
-        if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
+        if isActive and btn.BackgroundColor3 ~= self.Config.Colors.Selected then
             btn.BackgroundTransparency = math.max(baseTransparency - self.Config.Transparency.Hover, 0)
             btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.Text, 0.2)
         end
     end)
     
     btn.MouseLeave:Connect(function()
-        if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
+        if isActive and btn.BackgroundColor3 ~= self.Config.Colors.Selected then
             btn.BackgroundTransparency = baseTransparency
             btn.BackgroundColor3 = originalColor
         end
     end)
     
     btn.MouseButton1Down:Connect(function()
-        if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
+        if isActive and btn.BackgroundColor3 ~= self.Config.Colors.Selected then
             btn.BackgroundTransparency = math.min(baseTransparency + self.Config.Transparency.Pressed, 1)
             btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.BackgroundDark, 0.3)
         end
     end)
     
     btn.MouseButton1Up:Connect(function()
-        if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
+        if isActive and btn.BackgroundColor3 ~= self.Config.Colors.Selected then
             btn.BackgroundTransparency = math.max(baseTransparency - self.Config.Transparency.Hover, 0)
             btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.Text, 0.2)
         end
@@ -303,7 +325,7 @@ function UILib:CreateButton(parent, text, size, position, color, callback)
     
     if callback then
         btn.MouseButton1Click:Connect(function()
-            if debounce then return end
+            if debounce or not isActive then return end
             debounce = true
             callback()
             task.wait(0.2)
@@ -311,68 +333,18 @@ function UILib:CreateButton(parent, text, size, position, color, callback)
         end)
     end
     
+    -- Store original color
+    btn:SetAttribute("OriginalColor", originalColor)
+    btn:SetAttribute("IsActive", true)
+    
     return btn
-end
-
--- ========== FIXED TOGGLE BUTTON ==========
-
-function UILib:CreateToggleButton(parent, text, defaultState, size, position, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = size or UDim2.new(0, scaleX(8), 0, scaleY(4))
-    btn.Position = position or UDim2.new(0, 0, 0, 0)
-    btn.BackgroundColor3 = defaultState and self.Config.Colors.Success or self.Config.Colors.BackgroundLight
-    btn.BackgroundTransparency = self.Config.Transparency.Buttons
-    btn.Text = text .. (defaultState and " ✓" or " ✗")
-    btn.TextColor3 = self.Config.Colors.Text
-    btn.TextTransparency = self.Config.Transparency.Text
-    btn.Font = self.Config.Fonts.Bold
-    btn.TextSize = scaleY(1.4)
-    btn.Parent = parent
-    btn.AutoButtonColor = false
-    
-    self:AddCorner(btn)
-    self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
-    
-    local state = defaultState
-    local originalColor = btn.BackgroundColor3
-    local baseTransparency = self.Config.Transparency.Buttons
-    local debounce = false
-    
-    btn.MouseEnter:Connect(function()
-        btn.BackgroundTransparency = math.max(baseTransparency - self.Config.Transparency.Hover, 0)
-        btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.Text, 0.2)
-    end)
-    
-    btn.MouseLeave:Connect(function()
-        btn.BackgroundTransparency = baseTransparency
-        btn.BackgroundColor3 = originalColor
-    end)
-    
-    btn.MouseButton1Click:Connect(function()
-        if debounce then return end
-        debounce = true
-        
-        state = not state
-        originalColor = state and self.Config.Colors.Success or self.Config.Colors.BackgroundLight
-        btn.BackgroundColor3 = originalColor
-        btn.Text = text .. (state and " ✓" or " ✗")
-        
-        if callback then
-            callback(state)
-        end
-        
-        task.wait(0.2)
-        debounce = false
-    end)
-    
-    return btn, state
 end
 
 -- ========== FIXED TEXT BOX ==========
 
 function UILib:CreateTextBox(parent, placeholder, size, position, text)
     local box = Instance.new("TextBox")
-    box.Size = size or UDim2.new(1, -scaleX(4), 0, scaleY(self.Config.Sizes.TextBoxHeight + 2)) -- Taller
+    box.Size = size or UDim2.new(1, -scaleX(4), 0, scaleY(self.Config.Sizes.TextBoxHeight + 3))
     box.Position = position or UDim2.new(0, scaleX(2), 0, scaleY(2))
     box.BackgroundColor3 = self.Config.Colors.BackgroundDarker
     box.BackgroundTransparency = self.Config.Transparency.Elements
@@ -382,10 +354,11 @@ function UILib:CreateTextBox(parent, placeholder, size, position, text)
     box.PlaceholderColor3 = self.Config.Colors.TextMuted
     box.Text = text or ""
     box.Font = self.Config.Fonts.Normal
-    box.TextSize = scaleY(1.8) -- Bigger text
+    box.TextSize = scaleY(2)
     box.ClearTextOnFocus = false
     box.Parent = parent
-    box.ZIndex = 5
+    box.ZIndex = parent.ZIndex + 2
+    box.Active = true
     
     self:AddCorner(box)
     self:AddStroke(box, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
@@ -404,7 +377,7 @@ function UILib:CreateTextBox(parent, placeholder, size, position, text)
     return box
 end
 
--- ========== SCROLLING FRAME ==========
+-- ========== SCROLLING FRAME WITH PROPER INPUT HANDLING ==========
 
 function UILib:CreateScrollingFrame(parent, size, position, color)
     local frame = Instance.new("ScrollingFrame")
@@ -417,8 +390,18 @@ function UILib:CreateScrollingFrame(parent, size, position, color)
     frame.ScrollBarImageColor3 = self.Config.Colors.Accent
     frame.CanvasSize = UDim2.new(0, 0, 0, 0)
     frame.Parent = parent
-    frame.ZIndex = 5
+    frame.ZIndex = parent.ZIndex + 1
     frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    frame.ScrollingEnabled = true
+    frame.ScrollBarImageTransparency = 0
+    frame.ElasticBehavior = Enum.ElasticBehavior.Always
+    frame.BottomImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
+    frame.TopImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
+    frame.MidImage = "rbxasset://textures/ui/Scroll/scroll-middle.png"
+    frame.VerticalScrollBarPosition = Enum.VerticalScrollBarPosition.Right
+    frame.CanvasPosition = Vector2.new(0, 0)
+    frame.Active = true
+    frame.Selectable = true
     
     self:AddCorner(frame)
     self:AddStroke(frame, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
@@ -433,18 +416,20 @@ function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
     local baseColor = isEven and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
     
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -scaleX(0.8), 0, scaleY(5))
-    btn.Position = UDim2.new(0, scaleX(0.4), 0, (index-1) * scaleY(5.5))
+    btn.Size = UDim2.new(1, -scaleX(0.8), 0, scaleY(5.5))
+    btn.Position = UDim2.new(0, scaleX(0.4), 0, (index-1) * scaleY(6))
     btn.BackgroundColor3 = isSelected and self.Config.Colors.Selected or baseColor
     btn.BackgroundTransparency = isSelected and self.Config.Transparency.Buttons or self.Config.Transparency.Elements
     btn.Text = towerName
     btn.TextColor3 = self.Config.Colors.Text
     btn.TextTransparency = self.Config.Transparency.Text
-    btn.TextSize = scaleY(1.5)
+    btn.TextSize = scaleY(1.6)
     btn.Font = self.Config.Fonts.Normal
     btn.AutoButtonColor = false
     btn.Parent = parent
-    btn.ZIndex = 5
+    btn.ZIndex = parent.ZIndex + 2
+    btn.Active = true
+    btn.Selected = isSelected
     
     self:AddCorner(btn, 0.3)
     self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
@@ -452,6 +437,14 @@ function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
     local originalColor = btn.BackgroundColor3
     local baseTransparency = btn.BackgroundTransparency
     local debounce = false
+    
+    -- Ensure button captures input
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            input:Capture()
+        end
+    end)
     
     btn.MouseEnter:Connect(function()
         if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
@@ -477,8 +470,8 @@ function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
         end)
     end
     
-    -- Store original color for later use
     btn:SetAttribute("OriginalColor", originalColor)
+    btn:SetAttribute("BaseColor", baseColor)
     
     return btn
 end
@@ -491,19 +484,21 @@ function UILib:CreateTowerWithLevelButton(parent, towerData, index, isSelected, 
     local displayText = string.format("L.%d %s (%d)", towerData.upgrade, towerData.name, towerData.count)
     
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -scaleX(0.5), 0, scaleY(4.5))
-    btn.Position = UDim2.new(0, scaleX(0.25), 0, (index-1) * scaleY(5))
+    btn.Size = UDim2.new(1, -scaleX(0.5), 0, scaleY(5))
+    btn.Position = UDim2.new(0, scaleX(0.25), 0, (index-1) * scaleY(5.5))
     btn.BackgroundColor3 = isSelected and self.Config.Colors.Selected or baseColor
     btn.BackgroundTransparency = isSelected and self.Config.Transparency.Buttons or self.Config.Transparency.Elements
     btn.Text = displayText
     btn.RichText = true
     btn.TextColor3 = self.Config.Colors.Text
     btn.TextTransparency = self.Config.Transparency.Text
-    btn.TextSize = scaleY(1.4)
+    btn.TextSize = scaleY(1.5)
     btn.Font = self.Config.Fonts.Normal
     btn.AutoButtonColor = false
-    btn.ZIndex = 25
     btn.Parent = parent
+    btn.ZIndex = parent.ZIndex + 2
+    btn.Active = true
+    btn.Selected = isSelected
     
     self:AddCorner(btn, 0.3)
     self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
@@ -511,6 +506,13 @@ function UILib:CreateTowerWithLevelButton(parent, towerData, index, isSelected, 
     local originalColor = btn.BackgroundColor3
     local baseTransparency = btn.BackgroundTransparency
     local debounce = false
+    
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            input:Capture()
+        end
+    end)
     
     btn.MouseEnter:Connect(function()
         if btn.BackgroundColor3 ~= self.Config.Colors.Selected then
@@ -543,10 +545,11 @@ end
 
 function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
     local frame = Instance.new("Frame")
-    frame.Size = size or UDim2.new(1, 0, 0, scaleY(7))
-    frame.Position = position or UDim2.new(0, 0, 0, (slotNumber-1) * scaleY(7))
+    frame.Size = size or UDim2.new(1, 0, 0, scaleY(7.5))
+    frame.Position = position or UDim2.new(0, 0, 0, (slotNumber-1) * scaleY(7.5))
     frame.BackgroundTransparency = 1
     frame.Parent = parent
+    frame.ZIndex = parent.ZIndex + 1
     
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0.25, 0, 1, -scaleY(0.5))
@@ -558,9 +561,11 @@ function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
     btn.TextColor3 = self.Config.Colors.Text
     btn.TextTransparency = self.Config.Transparency.Text
     btn.Font = self.Config.Fonts.Bold
-    btn.TextSize = scaleY(1.8)
+    btn.TextSize = scaleY(2)
     btn.Parent = frame
-    btn.ZIndex = 5
+    btn.ZIndex = frame.ZIndex + 1
+    btn.Active = true
+    btn.AutoButtonColor = false
     
     self:AddCorner(btn)
     self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
@@ -573,18 +578,25 @@ function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
     label.TextColor3 = self.Config.Colors.TextDim
     label.TextTransparency = self.Config.Transparency.Text
     label.Font = self.Config.Fonts.Normal
-    label.TextSize = scaleY(1.4)
+    label.TextSize = scaleY(1.5)
     label.Text = "[Empty]"
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.TextYAlignment = Enum.TextYAlignment.Center
     label.Parent = frame
-    label.ZIndex = 5
+    label.ZIndex = frame.ZIndex + 1
     
     self:AddCorner(label)
     self:AddStroke(label, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
     
     local baseTransparency = self.Config.Transparency.Buttons
     local debounce = false
+    
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            input:Capture()
+        end
+    end)
     
     btn.MouseEnter:Connect(function()
         if btn.BackgroundColor3 ~= self.Config.Colors.Selected and 
@@ -615,7 +627,7 @@ function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
     return btn, label, frame
 end
 
--- ========== POPUP WITH FIXED DROPDOWN ==========
+-- ========== POPUP WITH PROPER ZINDEX ==========
 
 function UILib:CreatePopup(parent, title, size)
     size = size or UDim2.new(0, scaleX(30), 0, scaleY(45))
@@ -626,9 +638,11 @@ function UILib:CreatePopup(parent, title, size)
     popup.BackgroundColor3 = self.Config.Colors.Background
     popup.BackgroundTransparency = self.Config.Transparency.Background
     popup.BorderSizePixel = 0
-    popup.ZIndex = 20
+    popup.ZIndex = self.Config.ZIndex.Popup
     popup.Visible = false
     popup.Parent = parent
+    popup.ClipsDescendants = false
+    popup.Active = true
     
     self:AddCorner(popup, self.Config.Sizes.LargeCorner)
     self:AddStroke(popup, self.Config.Sizes.BorderSize + 1, self.Config.Colors.Accent)
@@ -639,8 +653,9 @@ function UILib:CreatePopup(parent, title, size)
     titleBar.BackgroundColor3 = self.Config.Colors.BackgroundLight
     titleBar.BackgroundTransparency = self.Config.Transparency.Elements
     titleBar.BorderSizePixel = 0
-    titleBar.ZIndex = 21
+    titleBar.ZIndex = popup.ZIndex + 1
     titleBar.Parent = popup
+    titleBar.Active = true
     
     self:AddCorner(titleBar)
     
@@ -652,57 +667,170 @@ function UILib:CreatePopup(parent, title, size)
         true,
         Enum.TextXAlignment.Left
     )
-    titleLabel.ZIndex = 22
+    titleLabel.ZIndex = titleBar.ZIndex + 1
     
     local closeBtn = self:CreateButton(titleBar, "✕",
         UDim2.new(0, scaleX(4), 0, scaleY(4)),
         UDim2.new(1, -scaleX(5), 0, scaleY(1)),
         self.Config.Colors.Danger
     )
-    closeBtn.ZIndex = 22
+    closeBtn.ZIndex = titleBar.ZIndex + 1
     closeBtn.TextSize = scaleY(1.4)
-    closeBtn.BackgroundTransparency = self.Config.Transparency.Buttons
     
     self:MakeDraggable(popup, titleBar)
     
     return popup, titleBar, closeBtn
 end
 
+-- ========== DROPDOWN WITH MAX ZINDEX ==========
+
+function UILib:CreateDropdown(parent, position, items, callback)
+    local dropdown = Instance.new("Frame")
+    dropdown.Size = UDim2.new(0, scaleX(20), 0, scaleY(28))
+    dropdown.Position = position
+    dropdown.BackgroundColor3 = Color3.fromRGB(5, 5, 8)
+    dropdown.BackgroundTransparency = 0
+    dropdown.BorderSizePixel = 0
+    dropdown.ZIndex = self.Config.ZIndex.Dropdown
+    dropdown.Visible = false
+    dropdown.Parent = parent
+    dropdown.ClipsDescendants = false
+    dropdown.Active = true
+    
+    self:AddCorner(dropdown, 0.3)
+    self:AddStroke(dropdown, self.Config.Sizes.BorderSize + 1, self.Config.Colors.Accent)
+    
+    local title = self:CreateLabel(dropdown, "SELECT OPTION",
+        UDim2.new(1, -scaleX(0.5), 0, scaleY(4)),
+        UDim2.new(0, scaleX(0.25), 0, scaleY(0.25)),
+        self.Config.Colors.Accent,
+        scaleY(1.4),
+        true
+    )
+    title.ZIndex = dropdown.ZIndex + 1
+    
+    local scroll = self:CreateScrollingFrame(dropdown,
+        UDim2.new(1, -scaleX(0.5), 1, -scaleY(5)),
+        UDim2.new(0, scaleX(0.25), 0, scaleY(4.5)),
+        Color3.fromRGB(10, 10, 15)
+    )
+    scroll.BackgroundTransparency = 0
+    scroll.ZIndex = dropdown.ZIndex + 1
+    scroll.CanvasSize = UDim2.new(0, 0, 0, #items * scaleY(5.5))
+    
+    local buttons = {}
+    
+    for i, item in ipairs(items) do
+        local btn = self:CreateButton(scroll, item,
+            UDim2.new(1, -scaleX(0.2), 0, scaleY(5)),
+            UDim2.new(0, scaleX(0.1), 0, (i-1) * scaleY(5.5)),
+            self.Config.Colors.BackgroundLight,
+            function()
+                if callback then
+                    callback(item)
+                end
+                dropdown.Visible = false
+            end
+        )
+        btn.ZIndex = scroll.ZIndex + 1
+        btn.TextSize = scaleY(1.4)
+        btn.Font = self.Config.Fonts.Bold
+        table.insert(buttons, btn)
+    end
+    
+    return dropdown, buttons
+end
+
 -- ========== MINI TOGGLE ROW ==========
 
-function UILib:CreateMiniToggleRow(parent, buttons, startX)
+function UILib:CreateMiniToggleRow(parent, buttons)
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, -scaleX(2), 0, scaleY(6))
     row.Position = UDim2.new(0, scaleX(1), 0, 0)
     row.BackgroundTransparency = 1
     row.Parent = parent
-    row.ZIndex = 5
+    row.ZIndex = parent.ZIndex + 1
     
     local buttonWidth = 0.19
     local buttonSpacing = 0.0125
     local toggles = {}
-    local debounce = false
     
     for i, btnData in ipairs(buttons) do
         local xPos = (buttonWidth + buttonSpacing) * (i-1)
         local toggle, state = self:CreateToggleButton(row, btnData.name, btnData.default,
             UDim2.new(buttonWidth, 0, 1, 0),
             UDim2.new(xPos, 0, 0, 0),
-            function(newState)
-                if debounce then return end
-                debounce = true
-                if btnData.callback then
-                    btnData.callback(newState)
-                end
-                task.wait(0.2)
-                debounce = false
-            end
+            btnData.callback
         )
-        toggle.TextSize = scaleY(0.9)
+        toggle.TextSize = scaleY(1)
+        toggle.ZIndex = row.ZIndex + 1
         toggles[btnData.name] = {button = toggle, state = state}
     end
     
     return row, toggles
+end
+
+-- ========== TOGGLE BUTTON ==========
+
+function UILib:CreateToggleButton(parent, text, defaultState, size, position, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = size or UDim2.new(0, scaleX(8), 0, scaleY(4))
+    btn.Position = position or UDim2.new(0, 0, 0, 0)
+    btn.BackgroundColor3 = defaultState and self.Config.Colors.Success or self.Config.Colors.BackgroundLight
+    btn.BackgroundTransparency = self.Config.Transparency.Buttons
+    btn.Text = text .. (defaultState and " ✓" or " ✗")
+    btn.TextColor3 = self.Config.Colors.Text
+    btn.TextTransparency = self.Config.Transparency.Text
+    btn.Font = self.Config.Fonts.Bold
+    btn.TextSize = scaleY(1.4)
+    btn.Parent = parent
+    btn.ZIndex = parent.ZIndex + 1
+    btn.AutoButtonColor = false
+    btn.Active = true
+    
+    self:AddCorner(btn)
+    self:AddStroke(btn, self.Config.Sizes.BorderSize, self.Config.Colors.Border)
+    
+    local state = defaultState
+    local originalColor = btn.BackgroundColor3
+    local baseTransparency = self.Config.Transparency.Buttons
+    local debounce = false
+    
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            input:Capture()
+        end
+    end)
+    
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundTransparency = math.max(baseTransparency - self.Config.Transparency.Hover, 0)
+        btn.BackgroundColor3 = originalColor:Lerp(self.Config.Colors.Text, 0.2)
+    end)
+    
+    btn.MouseLeave:Connect(function()
+        btn.BackgroundTransparency = baseTransparency
+        btn.BackgroundColor3 = originalColor
+    end)
+    
+    btn.MouseButton1Click:Connect(function()
+        if debounce then return end
+        debounce = true
+        
+        state = not state
+        originalColor = state and self.Config.Colors.Success or self.Config.Colors.BackgroundLight
+        btn.BackgroundColor3 = originalColor
+        btn.Text = text .. (state and " ✓" or " ✗")
+        
+        if callback then
+            callback(state)
+        end
+        
+        task.wait(0.2)
+        debounce = false
+    end)
+    
+    return btn, state
 end
 
 -- ========== CONFIRMATION POPUP ==========
@@ -714,8 +842,9 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
     popup.BackgroundColor3 = self.Config.Colors.Background
     popup.BackgroundTransparency = self.Config.Transparency.Background
     popup.BorderSizePixel = 0
-    popup.ZIndex = 10
+    popup.ZIndex = self.Config.ZIndex.Popup + 10
     popup.Parent = parent
+    popup.Active = true
     
     self:AddCorner(popup, self.Config.Sizes.LargeCorner)
     self:AddStroke(popup, self.Config.Sizes.BorderSize + 1, self.Config.Colors.Warning)
@@ -727,7 +856,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
         scaleY(1.4),
         true
     )
-    titleLabel.ZIndex = 11
+    titleLabel.ZIndex = popup.ZIndex + 1
     
     local msgLabel = self:CreateLabel(popup, message,
         UDim2.new(1, -scaleX(2), 0, scaleY(5)),
@@ -735,7 +864,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
         self.Config.Colors.TextDim,
         scaleY(1.2)
     )
-    msgLabel.ZIndex = 11
+    msgLabel.ZIndex = popup.ZIndex + 1
     msgLabel.TextWrapped = true
     
     local btnFrame = self:CreateFrame(popup,
@@ -743,7 +872,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
         UDim2.new(0, scaleX(1), 0, scaleY(10)),
         true
     )
-    btnFrame.ZIndex = 11
+    btnFrame.ZIndex = popup.ZIndex + 1
     
     local confirmBtn = self:CreateButton(btnFrame, "✓ CONFIRM",
         UDim2.new(0.48, 0, 1, 0),
@@ -754,7 +883,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
             popup:Destroy()
         end
     )
-    confirmBtn.ZIndex = 12
+    confirmBtn.ZIndex = btnFrame.ZIndex + 1
     
     local cancelBtn = self:CreateButton(btnFrame, "✗ CANCEL",
         UDim2.new(0.48, 0, 1, 0),
@@ -765,7 +894,7 @@ function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCanc
             popup:Destroy()
         end
     )
-    cancelBtn.ZIndex = 12
+    cancelBtn.ZIndex = btnFrame.ZIndex + 1
     
     return popup
 end
