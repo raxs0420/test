@@ -6,15 +6,14 @@ local camera = workspace.CurrentCamera
 local UIS = game:GetService("UserInputService")
 
 -- Helper functions
-local screenSize = workspace.CurrentCamera.ViewportSize
-local UI_SCALE = 0.75 -- 25% smaller (1 = 100%, 0.75 = 75%)
-
 local function scaleX(percent)
-    return screenSize.X * (percent / 100) * UI_SCALE
+    return camera.ViewportSize.X * (percent / 100)
 end
 
 local function scaleY(percent)
-    return screenSize.Y * (percent / 100) * UI_SCALE
+    local calculated = camera.ViewportSize.Y * (percent / 100) * 1.1
+    local minSize = 14
+    return math.max(calculated, minSize)
 end
 
 -- Configuration
@@ -84,7 +83,10 @@ function UILib:CreateScreenGui(name, parent)
 end
 
 -- ========== WINDOW ==========
-local mainContainer = UILib:CreateWindow(screenGui, "TDS CONTROLS", UDim2.new(0, scaleX(62), 0, scaleY(88)), nil, true
+function UILib:CreateWindow(parent, title, size, position, draggable)
+    size = size or UDim2.new(0, scaleX(42), 0, scaleY(70))
+    position = position or UDim2.new(0, scaleX(7), 0.5, -scaleY(87)/2)
+    
     local window = Instance.new("Frame")
     window.Size = size
     window.Position = position
