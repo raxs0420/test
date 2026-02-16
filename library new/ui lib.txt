@@ -6,14 +6,15 @@ local camera = workspace.CurrentCamera
 local UIS = game:GetService("UserInputService")
 
 -- Helper functions
+local screenSize = workspace.CurrentCamera.ViewportSize
+local UI_SCALE = 0.75 -- 25% smaller (1 = 100%, 0.75 = 75%)
+
 local function scaleX(percent)
-    return camera.ViewportSize.X * (percent / 100)
+    return screenSize.X * (percent / 100) * UI_SCALE
 end
 
 local function scaleY(percent)
-    local calculated = camera.ViewportSize.Y * (percent / 100) * 0.7
-    local minSize = 14
-    return math.max(calculated, minSize)
+    return screenSize.Y * (percent / 100) * UI_SCALE
 end
 
 -- Configuration
