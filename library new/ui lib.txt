@@ -84,9 +84,7 @@ function UILib:CreateScreenGui(name, parent)
 end
 
 -- ========== WINDOW ==========
-function UILib:CreateWindow(parent, title, size, position, draggable)
-    size = size or UDim2.new(0, scaleX(42), 0, scaleY(70))
-    position = position or UDim2.new(0, scaleX(7), 0.5, -scaleY(87)/2)
+local mainContainer = UILib:CreateWindow(screenGui, "TDS CONTROLS", UDim2.new(0, scaleX(46.5), 0, scaleY(66)), nil, true) -- 25% smaller (62*0.75=46.5, 88*0.75=66)
     
     local window = Instance.new("Frame")
     window.Size = size
