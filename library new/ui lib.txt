@@ -1,4 +1,4 @@
-
+-- Complete UI Library for TDS - Grey/Green Edition
 local UILib = {}
 
 -- Cache screen size for performance
@@ -74,12 +74,14 @@ UILib.Config = {
 -- ========== CORE UI METHODS ==========
 
 function UILib:AddCorner(instance, scale)
+    if not instance then return end
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, scaleX(scale or self.Config.Sizes.CornerRadius))
     corner.Parent = instance
 end
 
 function UILib:AddStroke(instance, thickness, color)
+    if not instance then return end
     local stroke = Instance.new("UIStroke")
     stroke.Thickness = thickness or 1
     stroke.Color = color or self.Config.Colors.Border
@@ -243,15 +245,21 @@ function UILib:CreateLabel(parent, text, size, position, color, textSize, isBold
     return label
 end
 
--- ========== BUTTON ==========
+-- ========== FIXED BUTTON ==========
 
 function UILib:CreateButton(parent, text, size, position, color, callback)
+    -- Validate parent
+    if not parent then
+        warn("UILib:CreateButton - parent is nil")
+        return nil
+    end
+    
     local btn = Instance.new("TextButton")
     btn.Size = size or UDim2.new(0, scaleX(10), 0, scaleY(self.Config.Sizes.ButtonHeight))
     btn.Position = position or UDim2.new(0, 0, 0, 0)
     btn.BackgroundColor3 = color or self.Config.Colors.Accent
     btn.BackgroundTransparency = self.Config.Transparency.Buttons
-    btn.Text = text
+    btn.Text = text or "Button"
     btn.TextColor3 = self.Config.Colors.Text
     btn.TextTransparency = self.Config.Transparency.Text
     btn.Font = self.Config.Fonts.Bold
@@ -299,7 +307,10 @@ function UILib:CreateButton(parent, text, size, position, color, callback)
         btn.MouseButton1Click:Connect(function()
             if debounce then return end
             debounce = true
-            callback()
+            local success, err = pcall(callback)
+            if not success then
+                warn("Button callback error:", err)
+            end
             task.wait(0.2)
             debounce = false
         end)
@@ -311,6 +322,8 @@ end
 -- ========== TEXT BOX ==========
 
 function UILib:CreateTextBox(parent, placeholder, size, position, text)
+    if not parent then return nil end
+    
     local box = Instance.new("TextBox")
     box.Size = size or UDim2.new(1, -scaleX(4), 0, scaleY(self.Config.Sizes.TextBoxHeight + 2))
     box.Position = position or UDim2.new(0, scaleX(2), 0, scaleY(2))
@@ -346,6 +359,8 @@ end
 -- ========== SCROLLING FRAME ==========
 
 function UILib:CreateScrollingFrame(parent, size, position, color)
+    if not parent then return nil end
+    
     local frame = Instance.new("ScrollingFrame")
     frame.Size = size or UDim2.new(1, -scaleX(4), 1, -scaleY(15))
     frame.Position = position or UDim2.new(0, scaleX(2), 0, scaleY(7))
@@ -370,6 +385,8 @@ end
 -- ========== TOWER BUTTON ==========
 
 function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
+    if not parent then return nil end
+    
     local isEven = index % 2 == 0
     local baseColor = isEven and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
     
@@ -413,7 +430,10 @@ function UILib:CreateTowerButton(parent, towerName, index, isSelected, callback)
         btn.MouseButton1Click:Connect(function()
             if debounce then return end
             debounce = true
-            callback(btn, towerName, originalColor)
+            local success, err = pcall(function() callback(btn, towerName, originalColor) end)
+            if not success then
+                warn("Tower button callback error:", err)
+            end
             task.wait(0.2)
             debounce = false
         end)
@@ -427,6 +447,8 @@ end
 -- ========== TOWER WITH LEVEL BUTTON ==========
 
 function UILib:CreateTowerWithLevelButton(parent, towerData, index, isSelected, callback)
+    if not parent then return nil end
+    
     local isEven = index % 2 == 0
     local baseColor = isEven and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
     local displayText = string.format("L.%d %s (%d)", towerData.upgrade, towerData.name, towerData.count)
@@ -472,7 +494,10 @@ function UILib:CreateTowerWithLevelButton(parent, towerData, index, isSelected, 
         btn.MouseButton1Click:Connect(function()
             if debounce then return end
             debounce = true
-            callback(btn, towerData, originalColor)
+            local success, err = pcall(function() callback(btn, towerData, originalColor) end)
+            if not success then
+                warn("Tower with level callback error:", err)
+            end
             task.wait(0.2)
             debounce = false
         end)
@@ -484,6 +509,8 @@ end
 -- ========== SLOT BUTTON ==========
 
 function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
+    if not parent then return nil, nil end
+    
     local frame = Instance.new("Frame")
     frame.Size = size or UDim2.new(1, 0, 0, scaleY(7.5))
     frame.Position = position or UDim2.new(0, 0, 0, (slotNumber-1) * scaleY(7.5))
@@ -548,7 +575,10 @@ function UILib:CreateSlotButton(parent, slotNumber, size, position, callback)
         btn.MouseButton1Click:Connect(function()
             if debounce then return end
             debounce = true
-            callback(slotNumber, btn, label)
+            local success, err = pcall(function() callback(slotNumber, btn, label) end)
+            if not success then
+                warn("Slot button callback error:", err)
+            end
             task.wait(0.2)
             debounce = false
         end)
@@ -560,6 +590,8 @@ end
 -- ========== POPUP ==========
 
 function UILib:CreatePopup(parent, title, size)
+    if not parent then return nil, nil, nil end
+    
     size = size or UDim2.new(0, scaleX(30), 0, scaleY(45))
     
     local popup = Instance.new("Frame")
@@ -611,6 +643,8 @@ end
 -- ========== MINI TOGGLE ROW ==========
 
 function UILib:CreateMiniToggleRow(parent, buttons)
+    if not parent then return nil, {} end
+    
     local row = Instance.new("Frame")
     row.Size = UDim2.new(1, -scaleX(2), 0, scaleY(6))
     row.Position = UDim2.new(0, scaleX(1), 0, 0)
@@ -638,6 +672,8 @@ end
 -- ========== TOGGLE BUTTON ==========
 
 function UILib:CreateToggleButton(parent, text, defaultState, size, position, callback)
+    if not parent then return nil, defaultState end
+    
     local btn = Instance.new("TextButton")
     btn.Size = size or UDim2.new(0, scaleX(8), 0, scaleY(4))
     btn.Position = position or UDim2.new(0, 0, 0, 0)
@@ -680,7 +716,10 @@ function UILib:CreateToggleButton(parent, text, defaultState, size, position, ca
         btn.Text = text .. (state and " ✓" or " ✗")
         
         if callback then
-            callback(state)
+            local success, err = pcall(function() callback(state) end)
+            if not success then
+                warn("Toggle button callback error:", err)
+            end
         end
         
         task.wait(0.2)
@@ -693,6 +732,8 @@ end
 -- ========== CONFIRMATION POPUP ==========
 
 function UILib:CreateConfirmationPopup(parent, title, message, onConfirm, onCancel)
+    if not parent then return nil end
+    
     local popup = Instance.new("Frame")
     popup.Size = UDim2.new(0, scaleX(30), 0, scaleY(15))
     popup.Position = UDim2.new(0.5, -scaleX(15), 0.5, -scaleY(7.5))
@@ -753,6 +794,7 @@ end
 -- ========== CLEAR CONTAINER ==========
 
 function UILib:ClearContainer(container)
+    if not container then return end
     for _, child in ipairs(container:GetChildren()) do
         child:Destroy()
     end
