@@ -1,0 +1,685 @@
+local UILib = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/ui%20lib.txt"))()
+if not UILib then
+    return
+end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+
+repeat task.wait() until LocalPlayer:FindFirstChild("PlayerGui")
+
+local Settings = {
+    On = true,
+    Burst = 45,
+    Cooldown = 0.02
+}
+
+local Stats = {
+    Burst = 45,
+    Cooldown = 0.02,
+    Enemies = 0,
+    FPS = false,
+    CanFire = false,
+    TowerFound = false,
+    TotalDamage = 0,
+    MagazineDamage = 0,
+    LastDamage = 0,
+    WasReloading = false
+}
+
+local towerRep = nil
+local myTower = nil
+local isReloading = false
+local fpsOn = false
+local GatlingGunRemote = nil
+local firing = false
+local connection
+local lastDamageValue = 0
+
+local PathNodes = {}
+local MaxPathDistance = 0
+
+local function FindPath()
+    local MapFolder = workspace:FindFirstChild("Map")
+    if not MapFolder then return nil end
+    local PathsFolder = MapFolder:FindFirstChild("Paths")
+    if not PathsFolder then return nil end
+    local PathFolder = PathsFolder:GetChildren()[1]
+    if not PathFolder then return nil end
+    
+    local nodes = {}
+    for _, node in ipairs(PathFolder:GetChildren()) do
+        if node:IsA("BasePart") then
+            table.insert(nodes, node)
+        end
+    end
+    
+    table.sort(nodes, function(a, b)
+        local NumA = tonumber(a.Name:match("%d+"))
+        local NumB = tonumber(b.Name:match("%d+"))
+        if NumA and NumB then return NumA < NumB end
+        return a.Name < b.Name
+    end)
+    
+    return nodes
+end
+
+local function TotalLength(nodes)
+    local total = 0
+    for i = 1, #nodes - 1 do
+        total = total + (nodes[i + 1].Position - nodes[i].Position).Magnitude
+    end
+    return total
+end
+
+local function GetPointAtDistance(nodes, distance)
+    if not nodes or #nodes < 2 then return nil end
+    
+    local currentDist = 0
+    for i = 1, #nodes - 1 do
+        local startPos = nodes[i].Position
+        local endPos = nodes[i + 1].Position
+        local segmentLen = (endPos - startPos).Magnitude
+        
+        if currentDist + segmentLen >= distance then
+            local remaining = distance - currentDist
+            local direction = (endPos - startPos).Unit
+            return startPos + (direction * remaining)
+        end
+        currentDist = currentDist + segmentLen
+    end
+    return nodes[#nodes].Position
+end
+
+local function UpdatePath()
+    local nodes = FindPath()
+    if nodes and #nodes > 0 then
+        PathNodes = nodes
+        MaxPathDistance = TotalLength(nodes)
+        return true
+    end
+    return false
+end
+
+UpdatePath()
+
+local function isDamageNumber(obj)
+    if obj:IsA("BillboardGui") then
+        return true
+    end
+    
+    if obj:IsA("TextLabel") then
+        if obj.Text and obj.Text:match("^%-?%d+") then
+            return true
+        end
+    end
+    
+    return false
+end
+
+local function checkAndRemove(obj)
+    if isDamageNumber(obj) then
+        obj:Destroy()
+    end
+end
+
+for _, v in pairs(workspace:GetDescendants()) do
+    checkAndRemove(v)
+end
+
+workspace.DescendantAdded:Connect(function(obj)
+    checkAndRemove(obj)
+end)
+
+local function setupWallPenetration()
+    pcall(function()
+        local cliff = workspace:FindFirstChild("Cliff")
+        if cliff then
+            local function disableCollision(obj)
+                if obj:IsA("BasePart") then
+                    obj.CanCollide = false
+                    obj.CanQuery = false
+                    obj.CanTouch = false
+                end
+                for _, child in ipairs(obj:GetChildren()) do
+                    disableCollision(child)
+                end
+            end
+            disableCollision(cliff)
+        end
+    end)
+end
+
+spawn(function()
+    while true do
+        task.wait(5)
+        setupWallPenetration()
+        UpdatePath() 
+    end
+end)
+
+local function findGatlingGun()
+    local towers = workspace:FindFirstChild("Towers")
+    if not towers then return nil, nil end
+    
+    for _, towerFolder in pairs(towers:GetChildren()) do
+        local rep = towerFolder:FindFirstChild("TowerReplicator")
+        if rep then
+            local ownerAttr = rep:GetAttribute("OwnerId")
+            if ownerAttr and ownerAttr == LocalPlayer.UserId then
+                local nameAttr = rep:GetAttribute("Name")
+                if nameAttr and (nameAttr == "Gatlin Gun" or nameAttr == "Gatling Gun") then
+                    return rep, towerFolder
+                end
+            end
+        end
+    end
+    return nil, nil
+end
+
+local function setupRemote()
+    local Network = game:GetService("ReplicatedStorage"):FindFirstChild("Network")
+    if Network then
+        local GatlingGun = Network:FindFirstChild("GatlingGun")
+        if GatlingGun then
+            GatlingGunRemote = GatlingGun:FindFirstChild("RE:Fire") or GatlingGun:FindFirstChild("Fire")
+        end
+    end
+end
+
+spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        pcall(function()
+            local rep, tower = findGatlingGun()
+            
+            if rep and tower then
+                if not towerRep then
+                    setupRemote()
+                end
+                
+                towerRep = rep
+                myTower = tower
+                Stats.TowerFound = true
+                
+                local fpsAttr = rep:GetAttribute("FPS")
+                if fpsAttr ~= nil then
+                    fpsOn = fpsAttr == true
+                    Stats.FPS = fpsOn
+                end
+                
+                local reloadAttr = rep:GetAttribute("Reloading")
+                if reloadAttr ~= nil then
+                    if isReloading and not reloadAttr then
+                        Stats.MagazineDamage = 0
+                    end
+                    isReloading = reloadAttr == true
+                end
+                
+                Stats.CanFire = fpsOn and not isReloading
+            else
+                towerRep = nil
+                myTower = nil
+                GatlingGunRemote = nil
+                Stats.TowerFound = false
+                Stats.FPS = false
+                Stats.CanFire = false
+                fpsOn = false
+            end
+        end)
+    end
+end)
+
+spawn(function()
+    while true do
+        task.wait(0.1)
+        pcall(function()
+            if towerRep then
+                local currentDamage = towerRep:GetAttribute("TotalDamage") or 0
+                if currentDamage ~= lastDamageValue then
+                    local damageAdded = currentDamage - lastDamageValue
+                    if damageAdded > 0 and damageAdded < 10000 then
+                        Stats.TotalDamage = Stats.TotalDamage + damageAdded
+                        Stats.MagazineDamage = Stats.MagazineDamage + damageAdded
+                    end
+                    lastDamageValue = currentDamage
+                end
+            else
+                lastDamageValue = 0
+            end
+        end)
+    end
+end)
+
+local function getEnemyPathPosition(npc)
+    if #PathNodes == 0 then return nil end
+    
+    local humanoid = npc:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return nil end
+    
+    local rootPart = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+    if not rootPart then return nil end
+    
+    local closestDist = math.huge
+    local closestPoint = nil
+    local closestNodeIndex = 1
+    
+    for i = 1, #PathNodes - 1 do
+        local startPos = PathNodes[i].Position
+        local endPos = PathNodes[i + 1].Position
+        local segmentDir = (endPos - startPos).Unit
+        local toEnemy = rootPart.Position - startPos
+        
+        local t = toEnemy:Dot(segmentDir)
+        t = math.max(0, math.min(t, (endPos - startPos).Magnitude))
+        
+        local pointOnSegment = startPos + segmentDir * t
+        local dist = (rootPart.Position - pointOnSegment).Magnitude
+        
+        if dist < closestDist then
+            closestDist = dist
+            closestPoint = pointOnSegment
+            closestNodeIndex = i + (t / (endPos - startPos).Magnitude)
+        end
+    end
+    
+    local pathDistance = 0
+    for i = 1, closestNodeIndex - 1 do
+        pathDistance = pathDistance + (PathNodes[i + 1].Position - PathNodes[i].Position).Magnitude
+    end
+    
+    if closestNodeIndex > math.floor(closestNodeIndex) then
+        local i = math.floor(closestNodeIndex)
+        local t = closestNodeIndex - i
+        pathDistance = pathDistance + t * (PathNodes[i + 1].Position - PathNodes[i].Position).Magnitude
+    end
+    
+    return pathDistance
+end
+
+local function isEnemyMoving(npc)
+    local humanoid = npc:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        if humanoid.MoveDirection.Magnitude > 0 then
+            return true
+        end
+        
+        local rootPart = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+        if rootPart and rootPart:IsA("BasePart") and rootPart.Velocity.Magnitude > 1 then
+            return true
+        end
+    end
+    return false
+end
+
+local function getEnemies()
+    local enemies = {}
+    local movingEnemies = {}
+    
+    local char = LocalPlayer.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root then return enemies, movingEnemies end
+    
+    local npcs = workspace:FindFirstChild("NPCs")
+    if not npcs then return enemies, movingEnemies end
+    
+    for _, npc in pairs(npcs:GetChildren()) do
+        local humanoid = npc:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Health > 0 then
+            local part = npc:FindFirstChild("Hitbox")
+            
+            if part then
+                local dist = (root.Position - part.Position).Magnitude
+                if dist <= 500 then
+                    local moving = isEnemyMoving(npc)
+                    local pathPos = getEnemyPathPosition(npc) or 0
+                    
+                    local enemyData = {
+                        npc = npc,
+                        part = part,
+                        pos = part.Position,
+                        dist = dist,
+                        pathDist = pathPos,
+                        isMoving = moving
+                    }
+                    
+                    table.insert(enemies, enemyData)
+                    
+                    if moving then
+                        table.insert(movingEnemies, enemyData)
+                    end
+                end
+            end
+        end
+    end
+    
+    table.sort(enemies, function(a, b) return a.pathDist > b.pathDist end)
+    table.sort(movingEnemies, function(a, b) return a.pathDist > b.pathDist end)
+    
+    Stats.Enemies = #enemies
+    return enemies, movingEnemies
+end
+
+local function findEnemiesInLine(primaryEnemy, allEnemies)
+    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return {primaryEnemy} end
+    
+    local camera = workspace.CurrentCamera
+    local shootDir = (primaryEnemy.pos - camera.CFrame.Position).Unit
+    local targets = {primaryEnemy}
+    
+    for _, enemy in ipairs(allEnemies) do
+        if enemy ~= primaryEnemy and #targets < 3 then 
+            local toEnemy = (enemy.pos - camera.CFrame.Position).Unit
+            local dot = shootDir:Dot(toEnemy)
+            
+            if dot > 0.7 then
+                local distToPrimary = (enemy.pos - primaryEnemy.pos).Magnitude
+                if distToPrimary <= 25 then
+                    table.insert(targets, enemy)
+                end
+            end
+        end
+    end
+    
+    return targets
+end
+
+local function selectTargets()
+    local allEnemies, movingEnemies = getEnemies()
+    
+    local primaryList = #movingEnemies > 0 and movingEnemies or allEnemies
+    if #primaryList == 0 then return {} end
+    
+    local primary = primaryList[1]
+    
+    local targets = findEnemiesInLine(primary, primaryList)
+    
+    return targets
+end
+
+local function stopFiring()
+    firing = false
+    if connection then 
+        connection:Disconnect() 
+        connection = nil 
+    end
+end
+
+local function startFiring()
+    if firing then return end
+    firing = true
+    
+    connection = RunService.Heartbeat:Connect(function()
+        if not firing or not Settings.On or not Stats.TowerFound or not Stats.CanFire or not GatlingGunRemote then
+            return
+        end
+        
+        local targets = selectTargets()
+        if #targets == 0 then return end
+        
+        local sync = workspace:GetAttribute("Sync") or 0
+        local time = workspace:GetServerTimeNow() or 0
+        local camera = workspace.CurrentCamera
+        
+        if camera and targets[1] then
+            local dir = (targets[1].pos - camera.CFrame.Position).Unit
+            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, camera.CFrame.Position + dir)
+        end
+        
+        for _, target in ipairs(targets) do
+            if not firing or not Stats.CanFire then break end
+            
+            for i = 1, Settings.Burst do
+                if not firing or not Stats.CanFire then break end
+                pcall(function() 
+                    GatlingGunRemote:FireServer(target.pos, sync, time) 
+                end)
+                if i < Settings.Burst then task.wait(0.001) end
+            end
+        end
+        task.wait(Settings.Cooldown)
+    end)
+end
+
+spawn(function()
+    while true do
+        task.wait(0.1)
+        if Stats.TowerFound and Stats.CanFire and GatlingGunRemote then
+            if not firing then
+                startFiring()
+            end
+        else
+            if firing then
+                stopFiring()
+            end
+        end
+    end
+end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "GatlingGUI"
+gui.ResetOnSpawn = false
+gui.Parent = LocalPlayer.PlayerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 280, 0, 160)
+mainFrame.Position = UDim2.new(0, 20, 0.5, -80)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+mainFrame.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 6)
+corner.Parent = mainFrame
+
+local stroke = Instance.new("UIStroke")
+stroke.Thickness = 1
+stroke.Color = Color3.fromRGB(70, 140, 70)
+stroke.Parent = mainFrame
+
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 25)
+titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleCorner = Instance.new("UICorner")
+titleCorner.CornerRadius = UDim.new(0, 6)
+titleCorner.Parent = titleBar
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -35, 1, 0)
+title.Position = UDim2.new(0, 8, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "GATLING GUN"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = titleBar
+
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 20, 0, 20)
+minimizeBtn.Position = UDim2.new(1, -25, 0, 2.5)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(70, 140, 70)
+minimizeBtn.Text = "−"
+minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.TextSize = 16
+minimizeBtn.Parent = titleBar
+minimizeBtn.AutoButtonColor = false
+
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 3)
+btnCorner.Parent = minimizeBtn
+
+local content = Instance.new("Frame")
+content.Size = UDim2.new(1, -16, 1, -35)
+content.Position = UDim2.new(0, 8, 0, 28)
+content.BackgroundTransparency = 1
+content.Parent = mainFrame
+
+local statsFrame = Instance.new("Frame")
+statsFrame.Size = UDim2.new(1, 0, 0, 55)
+statsFrame.Position = UDim2.new(0, 0, 0, 0)
+statsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+statsFrame.Parent = content
+
+local statsCorner = Instance.new("UICorner")
+statsCorner.CornerRadius = UDim.new(0, 4)
+statsCorner.Parent = statsFrame
+
+local statsLabel = Instance.new("TextLabel")
+statsLabel.Size = UDim2.new(1, -8, 1, -4)
+statsLabel.Position = UDim2.new(0, 4, 0, 2)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "Enemies: 0\nTotal: 0 | Magazine: 0"
+statsLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statsLabel.Font = Enum.Font.Code
+statsLabel.TextSize = 12
+statsLabel.TextXAlignment = Enum.TextXAlignment.Left
+statsLabel.TextYAlignment = Enum.TextYAlignment.Top
+statsLabel.TextWrapped = true
+statsLabel.Parent = statsFrame
+
+local burstBtn = Instance.new("TextButton")
+burstBtn.Size = UDim2.new(0.45, 0, 0, 28)
+burstBtn.Position = UDim2.new(0, 0, 0, 60)
+burstBtn.BackgroundColor3 = Color3.fromRGB(70, 140, 70)
+burstBtn.Text = "BURST"
+burstBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+burstBtn.Font = Enum.Font.GothamBold
+burstBtn.TextSize = 12
+burstBtn.Parent = content
+
+local burstCorner = Instance.new("UICorner")
+burstCorner.CornerRadius = UDim.new(0, 3)
+burstCorner.Parent = burstBtn
+
+local cdBtn = Instance.new("TextButton")
+cdBtn.Size = UDim2.new(0.45, 0, 0, 28)
+cdBtn.Position = UDim2.new(0.55, 0, 0, 60)
+cdBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+cdBtn.Text = "COOLDOWN"
+cdBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+cdBtn.Font = Enum.Font.GothamBold
+cdBtn.TextSize = 12
+cdBtn.Parent = content
+
+local cdCorner = Instance.new("UICorner")
+cdCorner.CornerRadius = UDim.new(0, 3)
+cdCorner.Parent = cdBtn
+
+local valueFrame = Instance.new("Frame")
+valueFrame.Size = UDim2.new(0.6, 0, 0, 24)
+valueFrame.Position = UDim2.new(0.2, 0, 0, 93)
+valueFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+valueFrame.Parent = content
+
+local valueCorner = Instance.new("UICorner")
+valueCorner.CornerRadius = UDim.new(0, 3)
+valueCorner.Parent = valueFrame
+
+local valueLabel = Instance.new("TextLabel")
+valueLabel.Size = UDim2.new(1, 0, 1, 0)
+valueLabel.BackgroundTransparency = 1
+valueLabel.Text = "45"
+valueLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+valueLabel.Font = Enum.Font.GothamBold
+valueLabel.TextSize = 14
+valueLabel.Parent = valueFrame
+
+local minusBtn = Instance.new("TextButton")
+minusBtn.Size = UDim2.new(0.15, 0, 0, 24)
+minusBtn.Position = UDim2.new(0.05, 0, 0, 93)
+minusBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+minusBtn.Text = "-"
+minusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+minusBtn.Font = Enum.Font.GothamBold
+minusBtn.TextSize = 14
+minusBtn.Parent = content
+
+local minusCorner = Instance.new("UICorner")
+minusCorner.CornerRadius = UDim.new(0, 3)
+minusCorner.Parent = minusBtn
+
+local plusBtn = Instance.new("TextButton")
+plusBtn.Size = UDim2.new(0.15, 0, 0, 24)
+plusBtn.Position = UDim2.new(0.8, 0, 0, 93)
+plusBtn.BackgroundColor3 = Color3.fromRGB(70, 140, 70)
+plusBtn.Text = "+"
+plusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+plusBtn.Font = Enum.Font.GothamBold
+plusBtn.TextSize = 14
+plusBtn.Parent = content
+
+local plusCorner = Instance.new("UICorner")
+plusCorner.CornerRadius = UDim.new(0, 3)
+plusCorner.Parent = plusBtn
+
+local minimized = false
+minimizeBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    content.Visible = not minimized
+    minimizeBtn.Text = minimized and "□" or "−"
+    if minimized then
+        mainFrame.Size = UDim2.new(0, 280, 0, 25)
+    else
+        mainFrame.Size = UDim2.new(0, 280, 0, 160)
+    end
+end)
+
+local activeControl = "burst"
+
+burstBtn.MouseButton1Click:Connect(function()
+    activeControl = "burst"
+    burstBtn.BackgroundColor3 = Color3.fromRGB(70, 140, 70)
+    cdBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    valueLabel.Text = tostring(Settings.Burst)
+end)
+
+cdBtn.MouseButton1Click:Connect(function()
+    activeControl = "cooldown"
+    burstBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    cdBtn.BackgroundColor3 = Color3.fromRGB(70, 140, 70)
+    valueLabel.Text = string.format("%.2fs", Settings.Cooldown)
+end)
+
+minusBtn.MouseButton1Click:Connect(function()
+    if activeControl == "burst" then
+        Settings.Burst = math.max(5, Settings.Burst - 5) 
+        Stats.Burst = Settings.Burst
+        valueLabel.Text = tostring(Settings.Burst)
+    else
+        Settings.Cooldown = math.max(0.02, Settings.Cooldown - 0.01)
+        Stats.Cooldown = Settings.Cooldown
+        valueLabel.Text = string.format("%.2fs", Settings.Cooldown)
+    end
+end)
+
+plusBtn.MouseButton1Click:Connect(function()
+    if activeControl == "burst" then
+        Settings.Burst = math.min(60, Settings.Burst + 5)
+        Stats.Burst = Settings.Burst
+        valueLabel.Text = tostring(Settings.Burst)
+    else
+        Settings.Cooldown = math.min(0.1, Settings.Cooldown + 0.01)
+        Stats.Cooldown = Settings.Cooldown
+        valueLabel.Text = string.format("%.2fs", Settings.Cooldown)
+    end
+end)
+
+spawn(function()
+    while true do
+        task.wait(0.1)
+        statsLabel.Text = string.format("Enemies: %d\nTotal: %s | Mag: %s", 
+            Stats.Enemies, 
+            tostring(Stats.TotalDamage),
+            tostring(Stats.MagazineDamage))
+    end
+end)
