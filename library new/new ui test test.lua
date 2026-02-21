@@ -1670,14 +1670,8 @@ local function start_smart_auto_skip()
     if auto_smart_skip_running or not _G.AutoSmartSkip then return end
     auto_smart_skip_running = true
     
-    print("🔍 SMART AUTO SKIP STARTED - Debug mode ON")
-    
     local HEALTH_THRESHOLDS = {
-        [1] = 10,    -- Waves 1-10: total health < 10
-        [11] = 100,  -- Waves 11-16: total health < 100
-        [17] = 250,  -- Waves 17-25: total health < 250
-        [26] = 1000, -- Waves 26-35: total health < 1000
-        [36] = 5000  -- Waves 36+: total health < 5000
+        [1] = 10, [11] = 100, [17] = 250, [26] = 1000, [36] = 5000
     }
     
     local current_wave_tracking = {wave = 0, wave_start_time = 0, skip_active = false}
@@ -1690,52 +1684,23 @@ local function start_smart_auto_skip()
         return success and result or 0
     end
     
-    -- DEBUGGING VERSION - Shows every step
     local function get_total_enemy_health()
         local total_health = 0
-        local enemies_found = 0
-        local debug_info = {}
         
-        -- Navigate to StateReplicators
         local state_replicators = replicated_storage:FindFirstChild("StateReplicators")
-        if not state_replicators then
-            print("❌ DEBUG: StateReplicators folder not found!")
-            return 0
-        else
-            print("✅ DEBUG: StateReplicators found with", #state_replicators:GetChildren(), "children")
-        end
+        if not state_replicators then return 0 end
         
-        -- Look for ALL folders named NPCReplicator inside StateReplicators
         for _, folder in ipairs(state_replicators:GetChildren()) do
             if folder.Name == "NPCReplicator" then
-                enemies_found = enemies_found + 1
-                
-                -- Get health attribute from this NPCReplicator folder
-                local health = folder:GetAttribute("Health")
-                local max_health = folder:GetAttribute("MaxHealth")
-                
-                if health and type(health) == "number" then
-                    if health > 0 then
+                local unit_type = folder:GetAttribute("Type")
+                if unit_type == "Enemies" then
+                    local health = folder:GetAttribute("Health")
+                    if health and type(health) == "number" and health > 0 then
                         total_health = total_health + health
-                        table.insert(debug_info, string.format("      Enemy %d: Health=%.1f, Max=%.1f", 
-                            enemies_found, health, max_health or health))
-                    else
-                        table.insert(debug_info, string.format("      Enemy %d: Health=%.1f (dead?)", enemies_found, health))
                     end
-                else
-                    table.insert(debug_info, string.format("      Enemy %d: No health attribute", enemies_found))
                 end
             end
         end
-        
-        -- Print debug info
-        print("\n📊 HEALTH SCAN - Found", enemies_found, "NPCReplicator folders")
-        if #debug_info > 0 then
-            for _, info in ipairs(debug_info) do
-                print(info)
-            end
-        end
-        print("💰 TOTAL CUMULATIVE HEALTH:", total_health)
         
         return total_health
     end
@@ -1745,121 +1710,60 @@ local function start_smart_auto_skip()
         b = b and b:FindFirstChild("Frame")
         b = b and b:FindFirstChild("votes")
         b = b and b:FindFirstChild("vote", true)
-        local visible = b and b.Visible and b.Position == UDim2.new(0.5, 0, 0.5, 0)
-        if visible then
-            print("✅ DEBUG: Vote button is visible")
-        end
-        return visible
+        return b and b.Visible and b.Position == UDim2.new(0.5, 0, 0.5, 0)
     end
     
     local function click_vote()
-        print("🖱️ DEBUG: Attempting to click vote...")
         local b = player_gui:FindFirstChild("ReactOverridesVote")
         b = b and b:FindFirstChild("Frame")
         b = b and b:FindFirstChild("votes")
         b = b and b:FindFirstChild("vote", true)
         if b then
-            if b:IsA("GuiButton") then 
-                b:Click()
-                print("   ✅ Click() executed")
-            end
-            for _, e in ipairs(b:GetChildren()) do 
-                if e:IsA("BindableEvent") then 
-                    e:Fire()
-                    print("   ✅ BindableEvent fired")
-                end
-            end
+            if b:IsA("GuiButton") then b:Click() end
+            for _, e in ipairs(b:GetChildren()) do if e:IsA("BindableEvent") then e:Fire() end end
         end
-        pcall(function() 
-            remote_func:InvokeServer("Voting", "Skip")
-            print("   ✅ RemoteFunction invoked")
-        end)
-        pcall(function() 
-            remote_event:FireServer("Voting", "Skip")
-            print("   ✅ RemoteEvent fired")
-        end)
+        pcall(function() remote_func:InvokeServer("Voting", "Skip") end)
+        pcall(function() remote_event:FireServer("Voting", "Skip") end)
     end
     
     task.spawn(function()
-        print("🔄 Main loop started - checking every 0.2 seconds")
-        
         while _G.AutoSmartSkip do
             local current_wave = get_current_wave()
-            local time_on_wave = tick() - current_wave_tracking.wave_start_time
             
             if current_wave ~= current_wave_tracking.wave then
-                print("\n🆕 NEW WAVE DETECTED:", current_wave)
                 current_wave_tracking.wave = current_wave
                 current_wave_tracking.wave_start_time = tick()
                 current_wave_tracking.skip_active = false
             end
             
-            -- Check if we've been on this wave long enough
-            if not current_wave_tracking.skip_active and time_on_wave > 10 then
+            if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
                 local health = get_total_enemy_health()
-                
-                -- Get threshold based on current wave
                 local threshold = 5000
                 for w, t in pairs(HEALTH_THRESHOLDS) do 
-                    if current_wave >= w then 
-                        threshold = t 
-                    end 
+                    if current_wave >= w then threshold = t end 
                 end
                 
-                print(string.format("⚖️ Wave %d - Health: %.1f / Threshold: %.1f", 
-                    current_wave, health, threshold))
-                
                 if health < threshold then
-                    print("🎯 CONDITION MET! Health below threshold - ATTEMPTING SKIP!")
                     current_wave_tracking.skip_active = true
-                    
-                    -- Spawn skip handler
                     task.spawn(function()
-                        local skip_attempts = 0
-                        while current_wave_tracking.skip_active and _G.AutoSmartSkip and skip_attempts < 30 do
-                            skip_attempts = skip_attempts + 1
-                            
+                        while current_wave_tracking.skip_active and _G.AutoSmartSkip do
                             if get_current_wave() > current_wave_tracking.wave then
-                                print("✅ Wave advanced, skip handler stopping")
                                 current_wave_tracking.skip_active = false
                                 break
                             end
-                            
-                            if is_vote_visible() then 
-                                click_vote()
-                                print("   Vote clicked, attempt #" .. skip_attempts)
-                            else
-                                if skip_attempts % 10 == 0 then
-                                    print("⏳ Waiting for vote button... attempt #" .. skip_attempts)
-                                end
-                            end
+                            if is_vote_visible() then click_vote() end
                             task.wait(0.1)
                         end
-                        
-                        if skip_attempts >= 30 then
-                            print("⚠️ Skip handler timed out after 30 attempts")
-                            current_wave_tracking.skip_active = false
-                        end
                     end)
-                else
-                    print("❌ Condition NOT met - health above threshold")
-                end
-            elseif not current_wave_tracking.skip_active then
-                -- Only print occasionally to avoid spam
-                if math.floor(time_on_wave * 10) % 50 == 0 then
-                    print(string.format("⏱️ Wave %d - Waiting... (%.1f/10 seconds)", 
-                        current_wave, time_on_wave))
                 end
             end
             
-            task.wait(0.2)  -- Check every 0.2 seconds as requested
+            task.wait(0.2)
         end
-        
-        print("🛑 Smart Auto Skip stopped")
         auto_smart_skip_running = false  
     end)
 end
-
+                
 TDS = TDS or {}
 function TDS:AutoSmartSkip(state)
     _G.AutoSmartSkip = state == true or state == "T" or state == "t"
