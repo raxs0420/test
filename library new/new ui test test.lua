@@ -1670,50 +1670,47 @@ local function start_smart_auto_skip()
     if auto_smart_skip_running or not _G.AutoSmartSkip then return end
     auto_smart_skip_running = true
     
-    local HEALTH_THRESHOLDS = {
-        [1] = 10, [11] = 100, [17] = 250, [26] = 1000, [36] = 5000
-    }
+    -- Use the EXACT working version
+    local HEALTH_THRESHOLDS = { [1] = 10, [11] = 100, [17] = 250, [26] = 1000, [36] = 5000 }
+    local wave_data = { number = 0, start_time = 0, skipping = false }
     
-    local current_wave_tracking = {wave = 0, wave_start_time = 0, skip_active = false}
-    
-    local function get_current_wave()
-        local success, result = pcall(function()
-            local value = player_gui.ReactGameTopGameDisplay.Frame.wave.container.value
-            return tonumber(value.Text:match("^(%d+)")) or 0
+    local function get_wave()
+        local s, r = pcall(function()
+            return tonumber(player_gui.ReactGameTopGameDisplay.Frame.wave.container.value.Text:match("^(%d+)")) or 0
         end)
-        return success and result or 0
+        return s and r or 0
     end
     
-    local function get_total_enemy_health()
+    local function get_health()
         local total = 0
-        local function scan(h)
-            if not h then return end
-            local health = h:GetAttribute("Health") or h:GetAttribute("HP") or h:GetAttribute("CurHealth")
-            if health and type(health) == "number" and health > 0 then total = total + health end
-            for _, c in ipairs(h:GetChildren()) do scan(c) end
+        local function scan(obj)
+            if not obj then return end
+            local hp = obj:GetAttribute("Health") or obj:GetAttribute("HP") or obj:GetAttribute("CurHealth")
+            if hp and type(hp) == "number" and hp > 0 then total = total + hp end
+            for _, c in ipairs(obj:GetChildren()) do scan(c) end
         end
-        for _, loc in ipairs({workspace:FindFirstChild("NPCs"), workspace:FindFirstChild("Enemies"), workspace}) do
+        for _, loc in ipairs({ workspace:FindFirstChild("NPCs"), workspace:FindFirstChild("Enemies"), workspace }) do
             if loc then scan(loc) end
         end
         return total
     end
     
-    local function is_vote_visible()
-        local b = player_gui:FindFirstChild("ReactOverridesVote")
-        b = b and b:FindFirstChild("Frame")
-        b = b and b:FindFirstChild("votes")
-        b = b and b:FindFirstChild("vote", true)
-        return b and b.Visible and b.Position == UDim2.new(0.5, 0, 0.5, 0)
+    local function vote_visible()
+        local v = player_gui:FindFirstChild("ReactOverridesVote")
+        v = v and v:FindFirstChild("Frame")
+        v = v and v:FindFirstChild("votes")
+        v = v and v:FindFirstChild("vote", true)
+        return v and v.Visible and v.Position == UDim2.new(0.5, 0, 0.5, 0)
     end
     
     local function click_vote()
-        local b = player_gui:FindFirstChild("ReactOverridesVote")
-        b = b and b:FindFirstChild("Frame")
-        b = b and b:FindFirstChild("votes")
-        b = b and b:FindFirstChild("vote", true)
-        if b then
-            if b:IsA("GuiButton") then b:Click() end
-            for _, e in ipairs(b:GetChildren()) do if e:IsA("BindableEvent") then e:Fire() end end
+        local v = player_gui:FindFirstChild("ReactOverridesVote")
+        v = v and v:FindFirstChild("Frame")
+        v = v and v:FindFirstChild("votes")
+        v = v and v:FindFirstChild("vote", true)
+        if v then
+            if v:IsA("GuiButton") then v:Click() end
+            for _, e in ipairs(v:GetChildren()) do if e:IsA("BindableEvent") then e:Fire() end end
         end
         pcall(function() remote_func:InvokeServer("Voting", "Skip") end)
         pcall(function() remote_event:FireServer("Voting", "Skip") end)
@@ -1721,52 +1718,43 @@ local function start_smart_auto_skip()
     
     task.spawn(function()
         while _G.AutoSmartSkip do
-            local current_wave = get_current_wave()
+            local current_wave = get_wave()
             
-            if current_wave ~= current_wave_tracking.wave then
-                current_wave_tracking.wave = current_wave
-                current_wave_tracking.wave_start_time = tick()
-                current_wave_tracking.skip_active = false
-                print("New wave detected:", current_wave)  -- DEBUG
+            if current_wave ~= wave_data.number then
+                wave_data.number = current_wave
+                wave_data.start_time = tick()
+                wave_data.skipping = false
+                print("New wave:", current_wave)
             end
             
-            if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
-                local health = get_total_enemy_health()
+            if not wave_data.skipping and tick() - wave_data.start_time > 10 then
+                local health = get_health()
                 local threshold = 5000
                 for w, t in pairs(HEALTH_THRESHOLDS) do 
-                    if current_wave >= w then 
-                        threshold = t 
-                    end 
+                    if current_wave >= w then threshold = t end 
                 end
                 
-                print(string.format("Wave %d - Health: %d, Threshold: %d", current_wave, health, threshold))  -- DEBUG
+                print(string.format("Wave %d - Health: %d, Threshold: %d", current_wave, health, threshold))
                 
                 if health < threshold then
-                    print("Health below threshold! Attempting to skip...")  -- DEBUG
-                    current_wave_tracking.skip_active = true
+                    print("Skipping!")
+                    wave_data.skipping = true
                     task.spawn(function()
-                        while current_wave_tracking.skip_active and _G.AutoSmartSkip do
-                            if get_current_wave() > current_wave_tracking.wave then
-                                current_wave_tracking.skip_active = false
+                        while wave_data.skipping and _G.AutoSmartSkip do
+                            if get_wave() > wave_data.number then
+                                wave_data.skipping = false
                                 break
                             end
-                            if is_vote_visible() then 
-                                print("Vote visible, clicking...")  -- DEBUG
-                                click_vote() 
-                            else
-                                print("Vote not visible")  -- DEBUG
-                            end
+                            if vote_visible() then click_vote() end
                             task.wait(0.1)
                         end
                     end)
-                else
-                    print("Health above threshold, not skipping")  -- DEBUG
                 end
             end
             
             task.wait(0.5)
         end
-        auto_smart_skip_running = false  
+        auto_smart_skip_running = false
     end)
 end
 
