@@ -1671,7 +1671,7 @@ local function start_smart_auto_skip()
     auto_smart_skip_running = true
     
     local HEALTH_THRESHOLDS = {
-        [1] = 10, [11] = 100, [17] = 250, [26] = 1000, [36] = 5000
+        [1] = 10, [6] = 50, [16] = 150, [26] = 500, [36] = 2500
     }
     
     local current_wave_tracking = {wave = 0, wave_start_time = 0, skip_active = false}
@@ -1738,7 +1738,7 @@ local function start_smart_auto_skip()
             
             if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
                 local health = get_total_enemy_health()
-                local threshold = 5000
+                local threshold = 2500
                 for w, t in pairs(HEALTH_THRESHOLDS) do 
                     if current_wave >= w then threshold = t end 
                 end
