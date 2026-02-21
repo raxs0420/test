@@ -1727,14 +1727,22 @@ local function start_smart_auto_skip()
                 current_wave_tracking.wave = current_wave
                 current_wave_tracking.wave_start_time = tick()
                 current_wave_tracking.skip_active = false
+                print("New wave detected:", current_wave)  -- DEBUG
             end
             
             if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
                 local health = get_total_enemy_health()
                 local threshold = 5000
-                for w, t in pairs(HEALTH_THRESHOLDS) do if current_wave >= w then threshold = t end end
+                for w, t in pairs(HEALTH_THRESHOLDS) do 
+                    if current_wave >= w then 
+                        threshold = t 
+                    end 
+                end
+                
+                print(string.format("Wave %d - Health: %d, Threshold: %d", current_wave, health, threshold))  -- DEBUG
                 
                 if health < threshold then
+                    print("Health below threshold! Attempting to skip...")  -- DEBUG
                     current_wave_tracking.skip_active = true
                     task.spawn(function()
                         while current_wave_tracking.skip_active and _G.AutoSmartSkip do
@@ -1742,15 +1750,22 @@ local function start_smart_auto_skip()
                                 current_wave_tracking.skip_active = false
                                 break
                             end
-                            if is_vote_visible() then click_vote() end
+                            if is_vote_visible() then 
+                                print("Vote visible, clicking...")  -- DEBUG
+                                click_vote() 
+                            else
+                                print("Vote not visible")  -- DEBUG
+                            end
                             task.wait(0.1)
                         end
                     end)
+                else
+                    print("Health above threshold, not skipping")  -- DEBUG
                 end
             end
             
             task.wait(0.5)
-                end
+        end
         auto_smart_skip_running = false  
     end)
 end
