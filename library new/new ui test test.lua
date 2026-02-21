@@ -45,6 +45,7 @@ local auto_skip_running = false
 local anti_lag_running = false
 local hasSentLobbyWebhook = false
 local hasSentMatchStartWebhook = false
+local auto_smart_skip_running = false
 
 -- // icon item ids ill add more soon arghh
 local ItemNames = {
@@ -1665,10 +1666,113 @@ local function start_auto_necro()
     end)
 end
 
+local function start_smart_auto_skip()
+    if auto_skip_running or not _G.AutoSmartSkip then return end
+    auto_skip_running = true
+    
+    local HEALTH_THRESHOLDS = {
+        [1] = 10, [11] = 100, [17] = 250, [26] = 1000, [36] = 5000
+    }
+    
+    local current_wave_tracking = {wave = 0, wave_start_time = 0, skip_active = false}
+    
+    local function get_current_wave()
+        local success, result = pcall(function()
+            local value = player_gui.ReactGameTopGameDisplay.Frame.wave.container.value
+            return tonumber(value.Text:match("^(%d+)")) or 0
+        end)
+        return success and result or 0
+    end
+    
+    local function get_total_enemy_health()
+        local total = 0
+        local function scan(h)
+            if not h then return end
+            local health = h:GetAttribute("Health") or h:GetAttribute("HP") or h:GetAttribute("CurHealth")
+            if health and type(health) == "number" and health > 0 then total = total + health end
+            for _, c in ipairs(h:GetChildren()) do scan(c) end
+        end
+        for _, loc in ipairs({workspace:FindFirstChild("NPCs"), workspace:FindFirstChild("Enemies"), workspace}) do
+            if loc then scan(loc) end
+        end
+        return total
+    end
+    
+    local function is_vote_visible()
+        local b = player_gui:FindFirstChild("ReactOverridesVote")
+        b = b and b:FindFirstChild("Frame")
+        b = b and b:FindFirstChild("votes")
+        b = b and b:FindFirstChild("vote", true)
+        return b and b.Visible and b.Position == UDim2.new(0.5, 0, 0.5, 0)
+    end
+    
+    local function click_vote()
+        local b = player_gui:FindFirstChild("ReactOverridesVote")
+        b = b and b:FindFirstChild("Frame")
+        b = b and b:FindFirstChild("votes")
+        b = b and b:FindFirstChild("vote", true)
+        if b then
+            if b:IsA("GuiButton") then b:Click() end
+            for _, e in ipairs(b:GetChildren()) do if e:IsA("BindableEvent") then e:Fire() end end
+        end
+        pcall(function() remote_func:InvokeServer("Voting", "Skip") end)
+        pcall(function() remote_event:FireServer("Voting", "Skip") end)
+    end
+    
+    task.spawn(function()
+        while _G.AutoSmartSkip do
+            local current_wave = get_current_wave()
+            
+            if current_wave ~= current_wave_tracking.wave then
+                current_wave_tracking.wave = current_wave
+                current_wave_tracking.wave_start_time = tick()
+                current_wave_tracking.skip_active = false
+            end
+            
+            if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
+                local health = get_total_enemy_health()
+                local threshold = 5000
+                for w, t in pairs(HEALTH_THRESHOLDS) do if current_wave >= w then threshold = t end end
+                
+                if health < threshold then
+                    current_wave_tracking.skip_active = true
+                    task.spawn(function()
+                        while current_wave_tracking.skip_active and _G.AutoSmartSkip do
+                            if get_current_wave() > current_wave_tracking.wave then
+                                current_wave_tracking.skip_active = false
+                                break
+                            end
+                            if is_vote_visible() then click_vote() end
+                            task.wait(0.1)
+                        end
+                    end)
+                end
+            end
+            
+            task.wait(0.5)
+        end
+        auto_skip_running = false
+    end)
+end
+
+TDS = TDS or {}
+function TDS:AutoSmartSkip(state)
+    _G.AutoSmartSkip = state == true or state == "T" or state == "t"
+    start_smart_auto_skip()
+end
+
+if _G.AutoSmartSkip then
+    task.spawn(start_smart_auto_skip)
+end
+
 task.spawn(function()
     while true do
         if _G.AutoPickups and not auto_pickups_running then
             start_auto_pickups()
+        end
+
+        if _G.AutoSmartSkip and not auto_smart_skip_running then
+            start_smart_auto_skip()
         end
             
         if _G.AutoNecro and not auto_necro_running then
