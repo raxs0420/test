@@ -1668,7 +1668,7 @@ end
 
 local function start_smart_auto_skip()
     if auto_skip_running or not _G.AutoSmartSkip then return end
-    start_smart_auto_skip() = true
+    start_smart_auto_skip = true
     
     local HEALTH_THRESHOLDS = {
         [1] = 10, [11] = 100, [17] = 250, [26] = 1000, [36] = 5000
@@ -1751,7 +1751,7 @@ local function start_smart_auto_skip()
             
             task.wait(0.5)
                 end
-        start_smart_auto_skip() = false  
+        start_smart_auto_skip = false  
     end)
 end
 
