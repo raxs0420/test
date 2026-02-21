@@ -1751,7 +1751,7 @@ local function start_smart_auto_skip()
             
             task.wait(0.5)
                 end
-        auto_smart_skip_running = false  
+        start_smart_auto_skip() = false  
     end)
 end
 
