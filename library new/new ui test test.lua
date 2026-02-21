@@ -1667,8 +1667,8 @@ local function start_auto_necro()
 end
 
 local function start_smart_auto_skip()
-    if start_smart_auto_skip or not _G.AutoSmartSkip then return end
-    start_smart_auto_skip = true
+    if auto_smart_skip_running or not _G.AutoSmartSkip then return end
+    auto_smart_skip_running = true
     
     local HEALTH_THRESHOLDS = {
         [1] = 10, [11] = 100, [17] = 250, [26] = 1000, [36] = 5000
@@ -1751,7 +1751,7 @@ local function start_smart_auto_skip()
             
             task.wait(0.5)
                 end
-        start_smart_auto_skip = false  
+        auto_smart_skip_running = false  
     end)
 end
 
