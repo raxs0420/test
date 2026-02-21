@@ -1670,47 +1670,65 @@ local function start_smart_auto_skip()
     if auto_smart_skip_running or not _G.AutoSmartSkip then return end
     auto_smart_skip_running = true
     
-    -- Use the EXACT working version
-    local HEALTH_THRESHOLDS = { [1] = 10, [11] = 100, [17] = 250, [26] = 1000, [36] = 5000 }
-    local wave_data = { number = 0, start_time = 0, skipping = false }
+    local HEALTH_THRESHOLDS = {
+        [1] = 10,    -- Waves 1-10: total health < 10
+        [11] = 100,  -- Waves 11-16: total health < 100
+        [17] = 250,  -- Waves 17-25: total health < 250
+        [26] = 1000, -- Waves 26-35: total health < 1000
+        [36] = 5000  -- Waves 36+: total health < 5000
+    }
     
-    local function get_wave()
-        local s, r = pcall(function()
-            return tonumber(player_gui.ReactGameTopGameDisplay.Frame.wave.container.value.Text:match("^(%d+)")) or 0
+    local current_wave_tracking = {wave = 0, wave_start_time = 0, skip_active = false}
+    
+    local function get_current_wave()
+        local success, result = pcall(function()
+            local value = player_gui.ReactGameTopGameDisplay.Frame.wave.container.value
+            return tonumber(value.Text:match("^(%d+)")) or 0
         end)
-        return s and r or 0
+        return success and result or 0
     end
     
-    local function get_health()
-        local total = 0
-        local function scan(obj)
-            if not obj then return end
-            local hp = obj:GetAttribute("Health") or obj:GetAttribute("HP") or obj:GetAttribute("CurHealth")
-            if hp and type(hp) == "number" and hp > 0 then total = total + hp end
-            for _, c in ipairs(obj:GetChildren()) do scan(c) end
+    -- FIXED: Get cumulative health from all NPCReplicator folders in StateReplicators
+    local function get_total_enemy_health()
+        local total_health = 0
+        
+        -- Navigate to StateReplicators
+        local state_replicators = replicated_storage:FindFirstChild("StateReplicators")
+        if not state_replicators then
+            return 0
         end
-        for _, loc in ipairs({ workspace:FindFirstChild("NPCs"), workspace:FindFirstChild("Enemies"), workspace }) do
-            if loc then scan(loc) end
+        
+        -- Look for ALL folders named NPCReplicator inside StateReplicators
+        for _, folder in ipairs(state_replicators:GetChildren()) do
+            if folder.Name == "NPCReplicator" then
+                -- Get health attribute from this NPCReplicator folder
+                local health = folder:GetAttribute("Health")
+                
+                if health and type(health) == "number" and health > 0 then
+                    total_health = total_health + health
+                end
+            end
         end
-        return total
+        
+        return total_health
     end
     
-    local function vote_visible()
-        local v = player_gui:FindFirstChild("ReactOverridesVote")
-        v = v and v:FindFirstChild("Frame")
-        v = v and v:FindFirstChild("votes")
-        v = v and v:FindFirstChild("vote", true)
-        return v and v.Visible and v.Position == UDim2.new(0.5, 0, 0.5, 0)
+    local function is_vote_visible()
+        local b = player_gui:FindFirstChild("ReactOverridesVote")
+        b = b and b:FindFirstChild("Frame")
+        b = b and b:FindFirstChild("votes")
+        b = b and b:FindFirstChild("vote", true)
+        return b and b.Visible and b.Position == UDim2.new(0.5, 0, 0.5, 0)
     end
     
     local function click_vote()
-        local v = player_gui:FindFirstChild("ReactOverridesVote")
-        v = v and v:FindFirstChild("Frame")
-        v = v and v:FindFirstChild("votes")
-        v = v and v:FindFirstChild("vote", true)
-        if v then
-            if v:IsA("GuiButton") then v:Click() end
-            for _, e in ipairs(v:GetChildren()) do if e:IsA("BindableEvent") then e:Fire() end end
+        local b = player_gui:FindFirstChild("ReactOverridesVote")
+        b = b and b:FindFirstChild("Frame")
+        b = b and b:FindFirstChild("votes")
+        b = b and b:FindFirstChild("vote", true)
+        if b then
+            if b:IsA("GuiButton") then b:Click() end
+            for _, e in ipairs(b:GetChildren()) do if e:IsA("BindableEvent") then e:Fire() end end
         end
         pcall(function() remote_func:InvokeServer("Voting", "Skip") end)
         pcall(function() remote_event:FireServer("Voting", "Skip") end)
@@ -1718,43 +1736,47 @@ local function start_smart_auto_skip()
     
     task.spawn(function()
         while _G.AutoSmartSkip do
-            local current_wave = get_wave()
+            local current_wave = get_current_wave()
             
-            if current_wave ~= wave_data.number then
-                wave_data.number = current_wave
-                wave_data.start_time = tick()
-                wave_data.skipping = false
-                print("New wave:", current_wave)
+            if current_wave ~= current_wave_tracking.wave then
+                current_wave_tracking.wave = current_wave
+                current_wave_tracking.wave_start_time = tick()
+                current_wave_tracking.skip_active = false
             end
             
-            if not wave_data.skipping and tick() - wave_data.start_time > 10 then
-                local health = get_health()
+            -- Check every 0.2 seconds if health is below threshold
+            if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
+                local health = get_total_enemy_health()
+                
+                -- Get threshold based on current wave
                 local threshold = 5000
                 for w, t in pairs(HEALTH_THRESHOLDS) do 
-                    if current_wave >= w then threshold = t end 
+                    if current_wave >= w then 
+                        threshold = t 
+                    end 
                 end
                 
-                print(string.format("Wave %d - Health: %d, Threshold: %d", current_wave, health, threshold))
-                
                 if health < threshold then
-                    print("Skipping!")
-                    wave_data.skipping = true
+                    current_wave_tracking.skip_active = true
+                    -- Spawn skip handler
                     task.spawn(function()
-                        while wave_data.skipping and _G.AutoSmartSkip do
-                            if get_wave() > wave_data.number then
-                                wave_data.skipping = false
+                        while current_wave_tracking.skip_active and _G.AutoSmartSkip do
+                            if get_current_wave() > current_wave_tracking.wave then
+                                current_wave_tracking.skip_active = false
                                 break
                             end
-                            if vote_visible() then click_vote() end
+                            if is_vote_visible() then 
+                                click_vote() 
+                            end
                             task.wait(0.1)
                         end
                     end)
                 end
             end
             
-            task.wait(0.5)
+            task.wait(0.2)  -- Check every 0.2 seconds as requested
         end
-        auto_smart_skip_running = false
+        auto_smart_skip_running = false  
     end)
 end
 
