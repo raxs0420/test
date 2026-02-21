@@ -9,10 +9,81 @@ local LocalPlayer = Players.LocalPlayer
 
 repeat task.wait() until LocalPlayer:FindFirstChild("PlayerGui")
 
+local function applyNoRecoil()
+    local replicatedStorage = game:GetService("ReplicatedStorage")
+    
+    local ggchannel
+    local success, result = pcall(function()
+        return require(replicatedStorage.Resources.Universal.NewNetwork).Channel("GatlingGun")
+    end)
+    if success then
+        ggchannel = result
+    end
+    
+    success, result = pcall(function()
+        return require(replicatedStorage.Content.Tower["Gatling Gun"].Animator)
+    end)
+    if success then
+        local gganim = result
+        gganim._fireGun = function(self)
+            local camcontroller = require(replicatedStorage.Content.Tower["Gatling Gun"].Animator.CameraController)
+            local minigun = self.Replicator:Get("Minigun")
+            local canfire = minigun and self.Replicator:Get("CanFire") or false
+            
+            if (not self.Replicator:Get("Minigun") and true) or canfire then
+                local camera = workspace.CurrentCamera
+                local targetPos
+                if camera then
+                    targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 1000)
+                else
+                    targetPos = camcontroller.position
+                end
+                
+                self:_fire(camcontroller.position)
+                
+                if ggchannel then
+                    ggchannel:fireServer("Fire", targetPos, workspace:GetAttribute("Sync"), workspace:GetServerTimeNow())
+                end
+                
+                self:Wait(0.01)
+            end
+        end
+    end
+    
+    success, result = pcall(function()
+        return require(replicatedStorage.Content.Tower["Gatling Gun"].Animator.CameraController)
+    end)
+    if success and result.update then
+        local camController = result
+        local oldUpdate = camController.update
+        camController.update = function(self, ...)
+            if self.recoil then
+                self.recoil = Vector3.new(0, 0, 0)
+            end
+            if self.shake then
+                self.shake = Vector3.new(0, 0, 0)
+            end
+            return oldUpdate(self, ...)
+        end
+    end
+end
+
+spawn(function()
+    task.wait(1)
+    applyNoRecoil()
+end)
+
+spawn(function()
+    while true do
+        task.wait(5)
+        applyNoRecoil()
+    end
+end)
+
 local Settings = {
     On = true,
-    Burst = 45,
-    Cooldown = 0.02
+    Burst = 5,
+    Cooldown = 0.05
 }
 
 local Stats = {
@@ -33,12 +104,16 @@ local myTower = nil
 local isReloading = false
 local fpsOn = false
 local GatlingGunRemote = nil
-local firing = false
-local connection
 local lastDamageValue = 0
 
 local PathNodes = {}
 local MaxPathDistance = 0
+
+local PreviousPositions = {}
+local PreviousTimes = {}
+
+local WorkspaceNPCs = workspace:FindFirstChild("NPCs")
+local CurrentCamera = workspace.CurrentCamera
 
 local function FindPath()
     local MapFolder = workspace:FindFirstChild("Map")
@@ -73,25 +148,6 @@ local function TotalLength(nodes)
     return total
 end
 
-local function GetPointAtDistance(nodes, distance)
-    if not nodes or #nodes < 2 then return nil end
-    
-    local currentDist = 0
-    for i = 1, #nodes - 1 do
-        local startPos = nodes[i].Position
-        local endPos = nodes[i + 1].Position
-        local segmentLen = (endPos - startPos).Magnitude
-        
-        if currentDist + segmentLen >= distance then
-            local remaining = distance - currentDist
-            local direction = (endPos - startPos).Unit
-            return startPos + (direction * remaining)
-        end
-        currentDist = currentDist + segmentLen
-    end
-    return nodes[#nodes].Position
-end
-
 local function UpdatePath()
     local nodes = FindPath()
     if nodes and #nodes > 0 then
@@ -105,16 +161,8 @@ end
 UpdatePath()
 
 local function isDamageNumber(obj)
-    if obj:IsA("BillboardGui") then
-        return true
-    end
-    
-    if obj:IsA("TextLabel") then
-        if obj.Text and obj.Text:match("^%-?%d+") then
-            return true
-        end
-    end
-    
+    if obj:IsA("BillboardGui") then return true end
+    if obj:IsA("TextLabel") and obj.Text and obj.Text:match("^%-?%d+") then return true end
     return false
 end
 
@@ -128,9 +176,7 @@ for _, v in pairs(workspace:GetDescendants()) do
     checkAndRemove(v)
 end
 
-workspace.DescendantAdded:Connect(function(obj)
-    checkAndRemove(obj)
-end)
+workspace.DescendantAdded:Connect(checkAndRemove)
 
 local function setupWallPenetration()
     pcall(function()
@@ -183,7 +229,10 @@ local function setupRemote()
     if Network then
         local GatlingGun = Network:FindFirstChild("GatlingGun")
         if GatlingGun then
-            GatlingGunRemote = GatlingGun:FindFirstChild("RE:Fire") or GatlingGun:FindFirstChild("Fire")
+            GatlingGunRemote = GatlingGun:FindFirstChild("RE:Fire") or 
+                               GatlingGun:FindFirstChild("Fire") or
+                               GatlingGun:FindFirstChild("URE:ReplicateAimPosition") or
+                               GatlingGun:FindFirstChildOfClass("RemoteEvent")
         end
     end
 end
@@ -191,25 +240,20 @@ end
 spawn(function()
     while true do
         task.wait(0.5)
-        
         pcall(function()
             local rep, tower = findGatlingGun()
-            
             if rep and tower then
                 if not towerRep then
                     setupRemote()
                 end
-                
                 towerRep = rep
                 myTower = tower
                 Stats.TowerFound = true
-                
                 local fpsAttr = rep:GetAttribute("FPS")
                 if fpsAttr ~= nil then
                     fpsOn = fpsAttr == true
                     Stats.FPS = fpsOn
                 end
-                
                 local reloadAttr = rep:GetAttribute("Reloading")
                 if reloadAttr ~= nil then
                     if isReloading and not reloadAttr then
@@ -217,7 +261,6 @@ spawn(function()
                     end
                     isReloading = reloadAttr == true
                 end
-                
                 Stats.CanFire = fpsOn and not isReloading
             else
                 towerRep = nil
@@ -234,7 +277,7 @@ end)
 
 spawn(function()
     while true do
-        task.wait(0.1)
+        task.wait(0.01)
         pcall(function()
             if towerRep then
                 local currentDamage = towerRep:GetAttribute("TotalDamage") or 0
@@ -253,209 +296,190 @@ spawn(function()
     end
 end)
 
-local function getEnemyPathPosition(npc)
-    if #PathNodes == 0 then return nil end
-    
-    local humanoid = npc:FindFirstChildOfClass("Humanoid")
-    if not humanoid then return nil end
-    
+local function getEnemyPathProgress(npc)
+    if #PathNodes < 2 then return 0 end
     local rootPart = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-    if not rootPart then return nil end
-    
+    if not rootPart then return 0 end
     local closestDist = math.huge
-    local closestPoint = nil
-    local closestNodeIndex = 1
-    
+    local bestNodeIndex = 1
+    local bestT = 0
     for i = 1, #PathNodes - 1 do
         local startPos = PathNodes[i].Position
         local endPos = PathNodes[i + 1].Position
         local segmentDir = (endPos - startPos).Unit
+        local segmentLength = (endPos - startPos).Magnitude
         local toEnemy = rootPart.Position - startPos
-        
         local t = toEnemy:Dot(segmentDir)
-        t = math.max(0, math.min(t, (endPos - startPos).Magnitude))
-        
+        t = math.max(0, math.min(t, segmentLength))
         local pointOnSegment = startPos + segmentDir * t
         local dist = (rootPart.Position - pointOnSegment).Magnitude
-        
         if dist < closestDist then
             closestDist = dist
-            closestPoint = pointOnSegment
-            closestNodeIndex = i + (t / (endPos - startPos).Magnitude)
+            bestNodeIndex = i
+            bestT = t
         end
     end
-    
-    local pathDistance = 0
-    for i = 1, closestNodeIndex - 1 do
-        pathDistance = pathDistance + (PathNodes[i + 1].Position - PathNodes[i].Position).Magnitude
+    local distanceTraveled = 0
+    for i = 1, bestNodeIndex - 1 do
+        distanceTraveled = distanceTraveled + (PathNodes[i + 1].Position - PathNodes[i].Position).Magnitude
     end
-    
-    if closestNodeIndex > math.floor(closestNodeIndex) then
-        local i = math.floor(closestNodeIndex)
-        local t = closestNodeIndex - i
-        pathDistance = pathDistance + t * (PathNodes[i + 1].Position - PathNodes[i].Position).Magnitude
-    end
-    
-    return pathDistance
+    distanceTraveled = distanceTraveled + bestT
+    return distanceTraveled / MaxPathDistance
 end
 
-local function isEnemyMoving(npc)
-    local humanoid = npc:FindFirstChildOfClass("Humanoid")
-    if humanoid then
-        if humanoid.MoveDirection.Magnitude > 0 then
-            return true
+local function getPathDirection(progress)
+    if #PathNodes < 2 then return Vector3.new(0, 0, 0) end
+    local distance = progress * MaxPathDistance
+    local traveled = 0
+    for i = 1, #PathNodes - 1 do
+        local segmentLength = (PathNodes[i + 1].Position - PathNodes[i].Position).Magnitude
+        if traveled + segmentLength >= distance then
+            return (PathNodes[i + 1].Position - PathNodes[i].Position).Unit
         end
-        
-        local rootPart = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-        if rootPart and rootPart:IsA("BasePart") and rootPart.Velocity.Magnitude > 1 then
-            return true
-        end
+        traveled = traveled + segmentLength
     end
-    return false
+    return (PathNodes[#PathNodes].Position - PathNodes[#PathNodes - 1].Position).Unit
 end
 
-local function getEnemies()
+local function getAllEnemies()
     local enemies = {}
-    local movingEnemies = {}
-    
     local char = LocalPlayer.Character
     local root = char and char:FindFirstChild("HumanoidRootPart")
-    if not root then return enemies, movingEnemies end
+    if not root then return {} end
     
-    local npcs = workspace:FindFirstChild("NPCs")
-    if not npcs then return enemies, movingEnemies end
+    local npcs = WorkspaceNPCs or workspace:FindFirstChild("NPCs")
+    if not npcs then return {} end
+    
+    local currentTime = tick()
+    local rootPos = root.Position
     
     for _, npc in pairs(npcs:GetChildren()) do
         local humanoid = npc:FindFirstChildOfClass("Humanoid")
         if humanoid and humanoid.Health > 0 then
-            local part = npc:FindFirstChild("Hitbox")
+            local targetPart = npc:FindFirstChild("UpperTorso") or 
+                              npc:FindFirstChild("Torso") or
+                              npc:FindFirstChild("HumanoidRootPart") or
+                              npc:FindFirstChild("Hitbox") or
+                              npc.PrimaryPart
             
-            if part then
-                local dist = (root.Position - part.Position).Magnitude
+            if targetPart then
+                local currentPos = targetPart.Position
+                local dist = (rootPos - currentPos).Magnitude
                 if dist <= 500 then
-                    local moving = isEnemyMoving(npc)
-                    local pathPos = getEnemyPathPosition(npc) or 0
-                    
-                    local enemyData = {
-                        npc = npc,
-                        part = part,
-                        pos = part.Position,
-                        dist = dist,
-                        pathDist = pathPos,
-                        isMoving = moving
-                    }
-                    
-                    table.insert(enemies, enemyData)
-                    
-                    if moving then
-                        table.insert(movingEnemies, enemyData)
+                    local progress = getEnemyPathProgress(npc)
+                    if progress > 0 then
+                        local speed = 0
+                        local pathDir = Vector3.new(0, 0, 0)
+                        
+                        if PreviousPositions[npc] and PreviousTimes[npc] then
+                            local timeDiff = currentTime - PreviousTimes[npc]
+                            if timeDiff > 0 then
+                                local posDiff = (currentPos - PreviousPositions[npc]).Magnitude
+                                speed = posDiff / timeDiff
+                                pathDir = getPathDirection(progress)
+                            end
+                        end
+                        
+                        PreviousPositions[npc] = currentPos
+                        PreviousTimes[npc] = currentTime
+                        
+                        local predictionTime = 0.05
+                        local predictedPos = currentPos + (pathDir * speed * predictionTime)
+                        
+                        local targetPos = Vector3.new(
+                            (currentPos.X * 0.7) + (predictedPos.X * 0.3),
+                            currentPos.Y + 1.5,
+                            (currentPos.Z * 0.7) + (predictedPos.Z * 0.3)
+                        )
+                        
+                        table.insert(enemies, {
+                            pos = targetPos,
+                            progress = progress
+                        })
                     end
                 end
             end
         end
     end
     
-    table.sort(enemies, function(a, b) return a.pathDist > b.pathDist end)
-    table.sort(movingEnemies, function(a, b) return a.pathDist > b.pathDist end)
-    
     Stats.Enemies = #enemies
-    return enemies, movingEnemies
+    table.sort(enemies, function(a, b) return a.progress > b.progress end)
+    return enemies
 end
 
-local function findEnemiesInLine(primaryEnemy, allEnemies)
-    local root = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not root then return {primaryEnemy} end
+local PreviousPositions = {}
+local PreviousTimes = {}
+
+local function cleanupOldData()
+    local npcs = workspace:FindFirstChild("NPCs")
+    if not npcs then return end
     
-    local camera = workspace.CurrentCamera
-    local shootDir = (primaryEnemy.pos - camera.CFrame.Position).Unit
-    local targets = {primaryEnemy}
+    local currentTime = tick()
     
-    for _, enemy in ipairs(allEnemies) do
-        if enemy ~= primaryEnemy and #targets < 3 then 
-            local toEnemy = (enemy.pos - camera.CFrame.Position).Unit
-            local dot = shootDir:Dot(toEnemy)
-            
-            if dot > 0.7 then
-                local distToPrimary = (enemy.pos - primaryEnemy.pos).Magnitude
-                if distToPrimary <= 25 then
-                    table.insert(targets, enemy)
-                end
-            end
+    for npc in pairs(PreviousPositions) do
+        if not npc or not npc.Parent or not npcs:FindFirstChild(npc.Name) then
+            PreviousPositions[npc] = nil
+            PreviousTimes[npc] = nil
         end
     end
     
-    return targets
-end
-
-local function selectTargets()
-    local allEnemies, movingEnemies = getEnemies()
-    
-    local primaryList = #movingEnemies > 0 and movingEnemies or allEnemies
-    if #primaryList == 0 then return {} end
-    
-    local primary = primaryList[1]
-    
-    local targets = findEnemiesInLine(primary, primaryList)
-    
-    return targets
-end
-
-local function stopFiring()
-    firing = false
-    if connection then 
-        connection:Disconnect() 
-        connection = nil 
+    for npc, time in pairs(PreviousTimes) do
+        if currentTime - time > 5 then
+            PreviousPositions[npc] = nil
+            PreviousTimes[npc] = nil
+        end
     end
-end
-
-local function startFiring()
-    if firing then return end
-    firing = true
-    
-    connection = RunService.Heartbeat:Connect(function()
-        if not firing or not Settings.On or not Stats.TowerFound or not Stats.CanFire or not GatlingGunRemote then
-            return
-        end
-        
-        local targets = selectTargets()
-        if #targets == 0 then return end
-        
-        local sync = workspace:GetAttribute("Sync") or 0
-        local time = workspace:GetServerTimeNow() or 0
-        local camera = workspace.CurrentCamera
-        
-        if camera and targets[1] then
-            local dir = (targets[1].pos - camera.CFrame.Position).Unit
-            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, camera.CFrame.Position + dir)
-        end
-        
-        for _, target in ipairs(targets) do
-            if not firing or not Stats.CanFire then break end
-            
-            for i = 1, Settings.Burst do
-                if not firing or not Stats.CanFire then break end
-                pcall(function() 
-                    GatlingGunRemote:FireServer(target.pos, sync, time) 
-                end)
-                if i < Settings.Burst then task.wait(0.001) end
-            end
-        end
-        task.wait(Settings.Cooldown)
-    end)
 end
 
 spawn(function()
     while true do
-        task.wait(0.1)
-        if Stats.TowerFound and Stats.CanFire and GatlingGunRemote then
-            if not firing then
-                startFiring()
-            end
-        else
-            if firing then
-                stopFiring()
+        task.wait(15)  
+        pcall(cleanupOldData)  
+    end
+end)
+
+local function selectTargets()
+    local enemies = getAllEnemies()
+    if #enemies == 0 then return {} end
+    local targetCount = #enemies > 40 and 25 or math.min(10, #enemies)
+    local targets = {}
+    for i = 1, targetCount do
+        table.insert(targets, enemies[i])
+    end
+    return targets
+end
+
+local LastTargets = {}
+local LastFireTime = 0
+
+local function fireAtTargets(targets)
+    if not targets or #targets == 0 or not GatlingGunRemote then return end
+    local sync = workspace:GetAttribute("Sync") or 0
+    local time = workspace:GetServerTimeNow() or tick()
+    local currentTime = tick()
+    
+    if currentTime - LastFireTime >= Settings.Cooldown then
+        for _, target in ipairs(targets) do
+            local burstCount = Settings.Burst
+            for burst = 1, burstCount do
+                pcall(function()
+                    GatlingGunRemote:FireServer(target.pos, sync, time)
+                end)
             end
         end
+        LastFireTime = currentTime
+    end
+end
+
+spawn(function()
+    while true do
+        if Settings.On and Stats.TowerFound and Stats.CanFire and GatlingGunRemote then
+            local targets = selectTargets()
+            if #targets > 0 then
+                fireAtTargets(targets)
+            end
+        end
+        task.wait(0.01)
     end
 end)
 
@@ -525,7 +549,7 @@ content.BackgroundTransparency = 1
 content.Parent = mainFrame
 
 local statsFrame = Instance.new("Frame")
-statsFrame.Size = UDim2.new(1, 0, 0, 55)
+statsFrame.Size = UDim2.new(1, 0, 0, 70)
 statsFrame.Position = UDim2.new(0, 0, 0, 0)
 statsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 statsFrame.Parent = content
@@ -549,7 +573,7 @@ statsLabel.Parent = statsFrame
 
 local burstBtn = Instance.new("TextButton")
 burstBtn.Size = UDim2.new(0.45, 0, 0, 28)
-burstBtn.Position = UDim2.new(0, 0, 0, 60)
+burstBtn.Position = UDim2.new(0, 0, 0, 75)
 burstBtn.BackgroundColor3 = Color3.fromRGB(70, 140, 70)
 burstBtn.Text = "BURST"
 burstBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -563,7 +587,7 @@ burstCorner.Parent = burstBtn
 
 local cdBtn = Instance.new("TextButton")
 cdBtn.Size = UDim2.new(0.45, 0, 0, 28)
-cdBtn.Position = UDim2.new(0.55, 0, 0, 60)
+cdBtn.Position = UDim2.new(0.55, 0, 0, 75)
 cdBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
 cdBtn.Text = "COOLDOWN"
 cdBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -577,7 +601,7 @@ cdCorner.Parent = cdBtn
 
 local valueFrame = Instance.new("Frame")
 valueFrame.Size = UDim2.new(0.6, 0, 0, 24)
-valueFrame.Position = UDim2.new(0.2, 0, 0, 93)
+valueFrame.Position = UDim2.new(0.2, 0, 0, 108)
 valueFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 valueFrame.Parent = content
 
@@ -588,7 +612,7 @@ valueCorner.Parent = valueFrame
 local valueLabel = Instance.new("TextLabel")
 valueLabel.Size = UDim2.new(1, 0, 1, 0)
 valueLabel.BackgroundTransparency = 1
-valueLabel.Text = "45"
+valueLabel.Text = "5"
 valueLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
 valueLabel.Font = Enum.Font.GothamBold
 valueLabel.TextSize = 14
@@ -596,7 +620,7 @@ valueLabel.Parent = valueFrame
 
 local minusBtn = Instance.new("TextButton")
 minusBtn.Size = UDim2.new(0.15, 0, 0, 24)
-minusBtn.Position = UDim2.new(0.05, 0, 0, 93)
+minusBtn.Position = UDim2.new(0.05, 0, 0, 108)
 minusBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
 minusBtn.Text = "-"
 minusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -610,7 +634,7 @@ minusCorner.Parent = minusBtn
 
 local plusBtn = Instance.new("TextButton")
 plusBtn.Size = UDim2.new(0.15, 0, 0, 24)
-plusBtn.Position = UDim2.new(0.8, 0, 0, 93)
+plusBtn.Position = UDim2.new(0.8, 0, 0, 108)
 plusBtn.BackgroundColor3 = Color3.fromRGB(70, 140, 70)
 plusBtn.Text = "+"
 plusBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -652,9 +676,13 @@ end)
 
 minusBtn.MouseButton1Click:Connect(function()
     if activeControl == "burst" then
-        Settings.Burst = math.max(5, Settings.Burst - 5) 
+        Settings.Burst = math.max(1, Settings.Burst - 5) 
+        if Settings.Burst == 1 then
+            valueLabel.Text = "1"
+        else
+            valueLabel.Text = tostring(Settings.Burst)
+        end
         Stats.Burst = Settings.Burst
-        valueLabel.Text = tostring(Settings.Burst)
     else
         Settings.Cooldown = math.max(0.02, Settings.Cooldown - 0.01)
         Stats.Cooldown = Settings.Cooldown
@@ -664,11 +692,15 @@ end)
 
 plusBtn.MouseButton1Click:Connect(function()
     if activeControl == "burst" then
-        Settings.Burst = math.min(60, Settings.Burst + 5)
+        if Settings.Burst == 1 then
+            Settings.Burst = 5
+        else
+            Settings.Burst = math.min(45, Settings.Burst + 5)
+        end
         Stats.Burst = Settings.Burst
         valueLabel.Text = tostring(Settings.Burst)
     else
-        Settings.Cooldown = math.min(0.1, Settings.Cooldown + 0.01)
+        Settings.Cooldown = math.min(0.2, Settings.Cooldown + 0.01)
         Stats.Cooldown = Settings.Cooldown
         valueLabel.Text = string.format("%.2fs", Settings.Cooldown)
     end
@@ -677,9 +709,21 @@ end)
 spawn(function()
     while true do
         task.wait(0.1)
-        statsLabel.Text = string.format("Enemies: %d\nTotal: %s | Mag: %s", 
-            Stats.Enemies, 
+        local enemies = getAllEnemies()
+        local trackProgress = #enemies > 0 and math.floor(enemies[1].progress * 100) .. "%" or "0%"
+        local targetCount = 0
+        if Settings.On and Stats.TowerFound and Stats.CanFire then
+            targetCount = #enemies > 40 and 25 or math.min(10, #enemies)
+        end
+        statsLabel.Text = string.format(
+            "Enemies: %d | Targets: %d\nTotal: %s | Mag: %s\nBurst: %d | CD: %.2fs\nTrack: %s",
+            Stats.Enemies,
+            targetCount,
             tostring(Stats.TotalDamage),
-            tostring(Stats.MagazineDamage))
+            tostring(Stats.MagazineDamage),
+            Settings.Burst,
+            Settings.Cooldown,
+            trackProgress
+        )
     end
 end)
