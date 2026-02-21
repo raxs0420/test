@@ -1667,7 +1667,7 @@ local function start_auto_necro()
 end
 
 local function start_smart_auto_skip()
-    if auto_skip_running or not _G.AutoSmartSkip then return end
+    if start_smart_auto_skip or not _G.AutoSmartSkip then return end
     start_smart_auto_skip = true
     
     local HEALTH_THRESHOLDS = {
