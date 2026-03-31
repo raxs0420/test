@@ -1,6 +1,3 @@
--- // TDS Debug Overlay
--- // Starts minimized, shows newest on top, counts towers by type
-
 local function attachOverlay(TDS)
     if not TDS then
         warn("[TDS Overlay] Error: TDS table is nil")
@@ -12,24 +9,20 @@ local function attachOverlay(TDS)
     local localPlayer = Players.LocalPlayer
     local playerGui = localPlayer:WaitForChild("PlayerGui")
     
-    -- Remove old overlay
     local existingOverlay = playerGui:FindFirstChild("TDS_DebugOverlay")
     if existingOverlay then
         existingOverlay:Destroy()
     end
     
-    -- Create GUI
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "TDS_DebugOverlay"
     screenGui.ResetOnSpawn = false
     screenGui.DisplayOrder = 999
     screenGui.Parent = playerGui
     
-    -- Track towers by slot number and their counts
-    local slotTowers = {}      -- slot -> {name, number}
-    local towerCounts = {}     -- tower name -> count
+    local slotTowers = {}      
+    local towerCounts = {}
     
-    -- Main window (starts minimized)
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 80, 0, 80)
     mainFrame.Position = UDim2.new(0, 10, 0, 10)
@@ -41,7 +34,6 @@ local function attachOverlay(TDS)
     local corner = Instance.new("UICorner", mainFrame)
     corner.CornerRadius = UDim.new(0, 8)
     
-    -- Minimized button
     local minimizedButton = Instance.new("TextButton")
     minimizedButton.Size = UDim2.new(1, 0, 1, 0)
     minimizedButton.BackgroundTransparency = 1
@@ -51,7 +43,6 @@ local function attachOverlay(TDS)
     minimizedButton.TextSize = 14
     minimizedButton.Parent = mainFrame
     
-    -- Expanded window (hidden)
     local expandedFrame = Instance.new("Frame")
     expandedFrame.Size = UDim2.new(0, 600, 0, 500)
     expandedFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 23)
@@ -63,7 +54,6 @@ local function attachOverlay(TDS)
     local expandedCorner = Instance.new("UICorner", expandedFrame)
     expandedCorner.CornerRadius = UDim.new(0, 8)
     
-    -- Title bar
     local titleBar = Instance.new("Frame")
     titleBar.Size = UDim2.new(1, 0, 0, 40)
     titleBar.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
@@ -84,7 +74,6 @@ local function attachOverlay(TDS)
     titleText.TextSize = 13
     titleText.Parent = titleBar
     
-    -- Minimize button (only button)
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Text = "−"
     minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -99,7 +88,6 @@ local function attachOverlay(TDS)
     local minCorner = Instance.new("UICorner", minimizeBtn)
     minCorner.CornerRadius = UDim.new(0, 5)
     
-    -- Scroll frame
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Size = UDim2.new(1, -12, 1, -50)
     scrollFrame.Position = UDim2.new(0, 6, 0, 46)
@@ -127,7 +115,6 @@ local function attachOverlay(TDS)
     
     local isExpanded = false
     
-    -- Update layout orders (newest on top)
     local function updateLayoutOrders()
         local children = {}
         for _, child in pairs(scrollFrame:GetChildren()) do
@@ -148,13 +135,11 @@ local function attachOverlay(TDS)
         scrollFrame.CanvasPosition = Vector2.new(0, 0)
     end
     
-    -- Format number with proper decimal places
     local function formatNumber(num)
         if type(num) ~= "number" then return tostring(num) end
         return string.format("%.5f", num)
     end
     
-    -- Add action (shows spinner until markDone is called)
     local function addAction(text)
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1, 0, 0, 32)
@@ -186,8 +171,7 @@ local function attachOverlay(TDS)
         actionText.TextTruncate = Enum.TextTruncate.AtEnd
         actionText.Parent = row
         
-        -- Spinner animation
-        local spinFrames = {"◐", "◓", "◑", "◒"}
+        local spinFrames = {"◐", "◐", "◓", "◓", "◑", "◑", "◒", "◒"}
         local spinIndex = 1
         icon.Text = spinFrames[1]
         icon.TextColor3 = Color3.fromRGB(255, 210, 70)
@@ -217,7 +201,6 @@ local function attachOverlay(TDS)
         return markDone
     end
     
-    -- Expand/collapse
     local function expand()
         if isExpanded then return end
         isExpanded = true
@@ -238,10 +221,9 @@ local function attachOverlay(TDS)
     minimizedButton.MouseButton1Click:Connect(expand)
     minimizeBtn.MouseButton1Click:Connect(collapse)
     
-    -- Helper function to wait for a tower to appear in a specific slot
     local function waitForTowerInSlot(slot)
         local startTime = tick()
-        local timeout = 5 -- 5 second timeout
+        local timeout = 5
         
         while tick() - startTime < timeout do
             local towers = workspace:FindFirstChild("Towers")
@@ -251,7 +233,6 @@ local function attachOverlay(TDS)
                     if replicator then
                         local ownerId = replicator:GetAttribute("OwnerId")
                         if ownerId == localPlayer.UserId then
-                            -- Check if this tower's slot matches
                             local towerSlot = TDS.placed_towers and #TDS.placed_towers
                             if towerSlot == slot then
                                 return true
@@ -265,9 +246,6 @@ local function attachOverlay(TDS)
         return false
     end
     
-    -- WRAP TDS METHODS
-    
-    -- Wrap Place - shows spinner while placing, waits for completion
     local originalPlace = TDS.Place
     if originalPlace then
         TDS.Place = function(self, ...)
@@ -276,7 +254,6 @@ local function attachOverlay(TDS)
             local x = type(args[2]) == "number" and args[2] or 0
             local z = type(args[4]) == "number" and args[4] or 0
             
-            -- Format the raw command BEFORE placing
             local rawArgs = {}
             for i, arg in ipairs(args) do
                 if type(arg) == "number" then
@@ -290,16 +267,12 @@ local function attachOverlay(TDS)
             
             local rawCommand = "TDS:Place(" .. table.concat(rawArgs, ", ") .. ")"
             
-            -- Add action with spinner BEFORE placing
-            local displayText = rawCommand .. "  -- " .. towerName .. "#%d"
+            local displayText = rawCommand .. "  -- " .. towerName .. .. #%d ..
             local markDone = addAction(displayText)
             
-            -- Call original and get the slot number
             local slot = originalPlace(self, ...)
             
-            -- Wait for the tower to actually be placed in the game
             task.spawn(function()
-                -- Wait for the tower to appear (up to 5 seconds)
                 local maxWait = 5
                 local startWait = tick()
                 local towerPlaced = false
@@ -312,17 +285,13 @@ local function attachOverlay(TDS)
                     task.wait(0.1)
                 end
                 
-                -- Update counts and tracking
                 if slot and type(slot) == "number" then
                     towerCounts[towerName] = (towerCounts[towerName] or 0) + 1
                     local towerNumber = towerCounts[towerName]
                     slotTowers[slot] = {name = towerName, number = towerNumber}
                     
-                    -- Update the action text to show the actual number (we can't easily update, so we'll just mark done with correct info)
-                    -- For now, we mark done and the text stays as is, but the checkmark appears
                 end
                 
-                -- Mark as done
                 markDone()
             end)
             
@@ -330,7 +299,6 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Upgrade - shows spinner while upgrading
     local originalUpgrade = TDS.Upgrade
     if originalUpgrade then
         TDS.Upgrade = function(self, slot, ...)
@@ -351,7 +319,6 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Sell
     local originalSell = TDS.Sell
     if originalSell then
         TDS.Sell = function(self, slot)
@@ -376,7 +343,6 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Mode
     local originalMode = TDS.Mode
     if originalMode then
         TDS.Mode = function(self, mode)
@@ -388,7 +354,6 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Loadout
     local originalLoadout = TDS.Loadout
     if originalLoadout then
         TDS.Loadout = function(self, ...)
@@ -410,7 +375,6 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Ready
     local originalReady = TDS.Ready
     if originalReady then
         TDS.Ready = function(self)
@@ -421,7 +385,6 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Ability
     local originalAbility = TDS.Ability
     if originalAbility then
         TDS.Ability = function(self, slot, ability, data, loop)
@@ -441,7 +404,6 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap SetOption
     local originalSetOption = TDS.SetOption
     if originalSetOption then
         TDS.SetOption = function(self, slot, key, value, req_wave)
@@ -453,7 +415,6 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap AutoChain
     local originalAutoChain = TDS.AutoChain
     if originalAutoChain then
         TDS.AutoChain = function(self, ...)
@@ -465,18 +426,6 @@ local function attachOverlay(TDS)
             return result
         end
     end
-    
-    -- Welcome message
-    task.spawn(function()
-        wait(0.5)
-        local markDone = addAction("✓ TDS Debug Active")
-        wait(0.1)
-        markDone()
-    end)
-    
-    print("[TDS Overlay] Complete! Click 'Debug' cube to expand")
-    print("[TDS Overlay] Counts towers by type (Engineer #1, Engineer #2, etc.)")
-    return TDS
-end
+
 
 return attachOverlay
