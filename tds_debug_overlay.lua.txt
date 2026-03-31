@@ -1,531 +1,43 @@
--- // TDS Debug Overlay - FIXED DETECTION VERSION
+-- // TDS Debug Overlay - SIMPLE WORKING VERSION
+-- // Just copy this entire script and run it AFTER your TDS library
 
-local function attachOverlay(TDS)
-    print("[DEBUG] attachOverlay called")
-    print("[DEBUG] TDS type:", type(TDS))
-    
-    if not TDS then 
-        warn("[Overlay] TDS table is nil")
-        return 
-    end
-    
-    -- List ALL methods in your TDS table
-    print("[DEBUG] TDS methods found:")
-    local methodCount = 0
-    for k, v in pairs(TDS) do
-        if type(v) == "function" then
-            print("[DEBUG]   -", k)
-            methodCount = methodCount + 1
-        end
-    end
-    print("[DEBUG] Total methods:", methodCount)
-    
-    if methodCount == 0 then
-        warn("[Overlay] No methods found in TDS table")
-        return
-    end
-    
-    local Players = game:GetService("Players")
-    local UIS = game:GetService("UserInputService")
-    local localPlayer = Players.LocalPlayer
-    local playerGui = localPlayer:WaitForChild("PlayerGui")
-    
-    -- Remove old overlay
-    local existingOverlay = playerGui:FindFirstChild("TDS_DebugOverlay")
-    if existingOverlay then
-        existingOverlay:Destroy()
-        wait(0.1)
-    end
-    
-    -- Create main GUI
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "TDS_DebugOverlay"
-    screenGui.ResetOnSpawn = false
-    screenGui.DisplayOrder = 999
-    screenGui.IgnoreGuiInset = true
-    screenGui.Parent = playerGui
-    
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 500, 0, 450)
-    mainFrame.Position = UDim2.new(0.5, -250, 0.1, 0)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    mainFrame.BorderSizePixel = 1
-    mainFrame.BorderColor3 = Color3.fromRGB(60, 60, 80)
-    mainFrame.Parent = screenGui
-    
-    -- Corner radius
-    local corner = Instance.new("UICorner", mainFrame)
-    corner.CornerRadius = UDim.new(0, 8)
-    
-    -- Title bar
-    local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
-    titleBar.BorderSizePixel = 0
-    titleBar.Parent = mainFrame
-    
-    local titleCorner = Instance.new("UICorner", titleBar)
-    titleCorner.CornerRadius = UDim.new(0, 8)
-    
-    local titleText = Instance.new("TextLabel")
-    titleText.Text = "⚙ TDS Debug Monitor (" .. methodCount .. " methods)"
-    titleText.Size = UDim2.new(1, -90, 1, 0)
-    titleText.Position = UDim2.new(0, 10, 0, 0)
-    titleText.BackgroundTransparency = 1
-    titleText.TextColor3 = Color3.fromRGB(220, 220, 240)
-    titleText.TextXAlignment = Enum.TextXAlignment.Left
-    titleText.Font = Enum.Font.GothamBold
-    titleText.TextSize = 12
-    titleText.Parent = titleBar
-    
-    local counterText = Instance.new("TextLabel")
-    counterText.Text = "0 / 0"
-    counterText.Size = UDim2.new(0, 80, 1, 0)
-    counterText.Position = UDim2.new(1, -90, 0, 0)
-    counterText.BackgroundTransparency = 1
-    counterText.TextColor3 = Color3.fromRGB(150, 150, 170)
-    counterText.TextXAlignment = Enum.TextXAlignment.Right
-    counterText.Font = Enum.Font.Gotham
-    counterText.TextSize = 11
-    counterText.Parent = titleBar
-    
-    -- Close button
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Text = "✕"
-    closeBtn.Size = UDim2.new(0, 28, 0, 28)
-    closeBtn.Position = UDim2.new(1, -35, 0, 6)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 40)
-    closeBtn.TextColor3 = Color3.fromRGB(200, 100, 100)
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 14
-    closeBtn.BorderSizePixel = 0
-    closeBtn.Parent = titleBar
-    
-    local closeCorner = Instance.new("UICorner", closeBtn)
-    closeCorner.CornerRadius = UDim.new(0, 4)
-    
-    closeBtn.MouseButton1Click:Connect(function()
-        screenGui:Destroy()
-    end)
-    
-    -- Minimize button
-    local minBtn = Instance.new("TextButton")
-    minBtn.Text = "−"
-    minBtn.Size = UDim2.new(0, 28, 0, 28)
-    minBtn.Position = UDim2.new(1, -68, 0, 6)
-    minBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    minBtn.TextColor3 = Color3.fromRGB(180, 180, 200)
-    minBtn.Font = Enum.Font.GothamBold
-    minBtn.TextSize = 18
-    minBtn.BorderSizePixel = 0
-    minBtn.Parent = titleBar
-    
-    local minCorner = Instance.new("UICorner", minBtn)
-    minCorner.CornerRadius = UDim.new(0, 4)
-    
-    -- Clear button
-    local clearBtn = Instance.new("TextButton")
-    clearBtn.Text = "🗑"
-    clearBtn.Size = UDim2.new(0, 28, 0, 28)
-    clearBtn.Position = UDim2.new(1, -101, 0, 6)
-    clearBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    clearBtn.TextColor3 = Color3.fromRGB(180, 180, 200)
-    clearBtn.Font = Enum.Font.GothamBold
-    clearBtn.TextSize = 14
-    clearBtn.BorderSizePixel = 0
-    clearBtn.Parent = titleBar
-    
-    local clearCorner = Instance.new("UICorner", clearBtn)
-    clearCorner.CornerRadius = UDim.new(0, 4)
-    
-    -- Scroll frame for actions
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Size = UDim2.new(1, -10, 1, -50)
-    scrollFrame.Position = UDim2.new(0, 5, 0, 45)
-    scrollFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-    scrollFrame.BorderSizePixel = 0
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    scrollFrame.ScrollBarThickness = 6
-    scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(80, 80, 100)
-    scrollFrame.Parent = mainFrame
-    
-    local scrollCorner = Instance.new("UICorner", scrollFrame)
-    scrollCorner.CornerRadius = UDim.new(0, 6)
-    
-    local layout = Instance.new("UIListLayout")
-    layout.Padding = UDim.new(0, 2)
-    layout.Parent = scrollFrame
-    
-    local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0, 5)
-    padding.PaddingBottom = UDim.new(0, 5)
-    padding.PaddingLeft = UDim.new(0, 5)
-    padding.PaddingRight = UDim.new(0, 5)
-    padding.Parent = scrollFrame
-    
-    local queue = {}
-    local minimized = false
-    local spinnerFrames = {"◐", "◓", "◑", "◒"}
-    local spinnerIndex = 0
-    
-    minBtn.MouseButton1Click:Connect(function()
-        minimized = not minimized
-        if minimized then
-            mainFrame.Size = UDim2.new(0, 500, 0, 45)
-            scrollFrame.Visible = false
-            minBtn.Text = "+"
-        else
-            mainFrame.Size = UDim2.new(0, 500, 0, 450)
-            scrollFrame.Visible = true
-            minBtn.Text = "−"
-        end
-    end)
-    
-    -- Clear all actions
-    clearBtn.MouseButton1Click:Connect(function()
-        for _, entry in ipairs(queue) do
-            entry.row:Destroy()
-        end
-        queue = {}
-        counterText.Text = "0 / 0"
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-    end)
-    
-    -- Drag functionality
-    local dragging = false
-    local dragStart, startPos
-    
-    titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = mainFrame.Position
-        end
-    end)
-    
-    UIS.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            mainFrame.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + delta.X,
-                startPos.Y.Scale, startPos.Y.Offset + delta.Y
-            )
-        end
-    end)
-    
-    UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
-    end)
-    
-    -- Spinner animation
-    task.spawn(function()
-        while screenGui and screenGui.Parent do
-            spinnerIndex = (spinnerIndex % 4) + 1
-            for _, entry in ipairs(queue) do
-                if entry.status == "running" and entry.spinnerLabel then
-                    entry.spinnerLabel.Text = spinnerFrames[spinnerIndex]
-                end
-            end
-            task.wait(0.12)
-        end
-    end)
-    
-    -- Add action row
-    local function addAction(text, statusType)
-        local row = Instance.new("Frame")
-        row.Size = UDim2.new(1, 0, 0, 32)
-        row.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
-        row.BorderSizePixel = 0
-        row.Parent = scrollFrame
-        
-        local rowCorner = Instance.new("UICorner", row)
-        rowCorner.CornerRadius = UDim.new(0, 4)
-        
-        -- Spinner/status icon
-        local spinnerLabel = Instance.new("TextLabel")
-        spinnerLabel.Size = UDim2.new(0, 25, 1, 0)
-        spinnerLabel.Position = UDim2.new(0, 5, 0, 0)
-        spinnerLabel.BackgroundTransparency = 1
-        spinnerLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-        spinnerLabel.TextXAlignment = Enum.TextXAlignment.Center
-        spinnerLabel.Font = Enum.Font.Gotham
-        spinnerLabel.TextSize = 14
-        spinnerLabel.Parent = row
-        
-        -- Timestamp
-        local timestamp = Instance.new("TextLabel")
-        timestamp.Text = os.date("%H:%M:%S")
-        timestamp.Size = UDim2.new(0, 55, 1, 0)
-        timestamp.Position = UDim2.new(0, 35, 0, 0)
-        timestamp.BackgroundTransparency = 1
-        timestamp.TextColor3 = Color3.fromRGB(120, 120, 140)
-        timestamp.TextXAlignment = Enum.TextXAlignment.Left
-        timestamp.Font = Enum.Font.Code
-        timestamp.TextSize = 9
-        timestamp.Parent = row
-        
-        -- Action text
-        local actionText = Instance.new("TextLabel")
-        actionText.Text = text
-        actionText.Size = UDim2.new(1, -160, 1, 0)
-        actionText.Position = UDim2.new(0, 95, 0, 0)
-        actionText.BackgroundTransparency = 1
-        actionText.TextColor3 = Color3.fromRGB(210, 210, 230)
-        actionText.TextXAlignment = Enum.TextXAlignment.Left
-        actionText.Font = Enum.Font.Code
-        actionText.TextSize = 10
-        actionText.TextTruncate = Enum.TextTruncate.AtEnd
-        actionText.Parent = row
-        
-        -- Status label
-        local statusLabel = Instance.new("TextLabel")
-        statusLabel.Size = UDim2.new(0, 65, 1, 0)
-        statusLabel.Position = UDim2.new(1, -70, 0, 0)
-        statusLabel.BackgroundTransparency = 1
-        statusLabel.TextXAlignment = Enum.TextXAlignment.Right
-        statusLabel.Font = Enum.Font.GothamBold
-        statusLabel.TextSize = 9
-        statusLabel.Parent = row
-        
-        local entry = {
-            row = row, 
-            spinnerLabel = spinnerLabel,
-            actionText = actionText, 
-            statusLabel = statusLabel, 
-            status = statusType
-        }
-        
-        if statusType == "pending" then
-            spinnerLabel.Text = "○"
-            spinnerLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
-            statusLabel.Text = "PENDING"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 150, 100)
-        elseif statusType == "running" then
-            spinnerLabel.Text = spinnerFrames[1]
-            spinnerLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-            statusLabel.Text = "RUNNING"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-        elseif statusType == "done" then
-            spinnerLabel.Text = "✓"
-            spinnerLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-            statusLabel.Text = "DONE"
-            statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        elseif statusType == "error" then
-            spinnerLabel.Text = "✗"
-            spinnerLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-            statusLabel.Text = "ERROR"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-        else
-            spinnerLabel.Text = "●"
-            spinnerLabel.TextColor3 = Color3.fromRGB(80, 150, 255)
-            statusLabel.Text = "ACTIVE"
-            statusLabel.TextColor3 = Color3.fromRGB(80, 150, 255)
-        end
-        
-        table.insert(queue, entry)
-        
-        -- Update counter
-        local total = #queue
-        local done = 0
-        for _, e in ipairs(queue) do
-            if e.status == "done" or e.status == "active" then
-                done = done + 1
-            end
-        end
-        counterText.Text = done .. " / " .. total
-        
-        -- Auto-scroll
-        task.defer(function()
-            scrollFrame.CanvasPosition = Vector2.new(0, scrollFrame.CanvasSize.Y.Offset)
-        end)
-        
-        return entry
-    end
-    
-    -- Update status function
-    local function updateStatus(entry, newStatus)
-        entry.status = newStatus
-        if newStatus == "done" then
-            entry.spinnerLabel.Text = "✓"
-            entry.spinnerLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-            entry.statusLabel.Text = "DONE"
-            entry.statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-        elseif newStatus == "error" then
-            entry.spinnerLabel.Text = "✗"
-            entry.spinnerLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-            entry.statusLabel.Text = "ERROR"
-            entry.statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-            entry.actionText.TextColor3 = Color3.fromRGB(255, 150, 150)
-        elseif newStatus == "running" then
-            entry.spinnerLabel.Text = spinnerFrames[1]
-            entry.spinnerLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-            entry.statusLabel.Text = "RUNNING"
-            entry.statusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-        end
-        
-        -- Update counter
-        local total = #queue
-        local done = 0
-        for _, e in ipairs(queue) do
-            if e.status == "done" or e.status == "active" then
-                done = done + 1
-            end
-        end
-        counterText.Text = done .. " / " .. total
-    end
-    
-    -- WRAP YOUR ACTUAL TDS METHODS
-    print("[DEBUG] Wrapping TDS methods...")
-    
-    local wrappedCount = 0
-    for methodName, methodFunc in pairs(TDS) do
-        if type(methodFunc) == "function" then
-            print("[DEBUG] Wrapping:", methodName)
-            
-            local originalMethod = methodFunc
-            TDS[methodName] = function(self, ...)
-                local args = {...}
-                
-                -- Create a readable label
-                local label = methodName
-                if #args > 0 then
-                    local argStr = {}
-                    for i, arg in ipairs(args) do
-                        if type(arg) == "string" then
-                            argStr[i] = '"' .. arg .. '"'
-                        elseif type(arg) == "number" then
-                            argStr[i] = string.format("%g", arg)
-                        elseif type(arg) == "boolean" then
-                            argStr[i] = tostring(arg)
-                        elseif type(arg) == "table" then
-                            argStr[i] = "{...}"
-                        else
-                            argStr[i] = tostring(arg)
-                        end
-                    end
-                    label = label .. "(" .. table.concat(argStr, ", ") .. ")"
-                else
-                    label = label .. "()"
-                end
-                
-                -- Truncate if too long
-                if #label > 70 then
-                    label = label:sub(1, 67) .. "..."
-                end
-                
-                -- Add to queue
-                local entry = addAction(label, "running")
-                
-                -- Call original method with pcall to catch errors
-                local success, result = pcall(originalMethod, self, table.unpack(args))
-                
-                if success then
-                    updateStatus(entry, "done")
-                else
-                    updateStatus(entry, "error")
-                    warn("[Overlay] Error in " .. methodName .. ": " .. tostring(result))
-                end
-                
-                return result
-            end
-            
-            wrappedCount = wrappedCount + 1
-        end
-    end
-    
-    print("[DEBUG] Successfully wrapped", wrappedCount, "methods")
-    
-    -- Add welcome message
-    addAction("✓ Overlay active - monitoring " .. wrappedCount .. " methods", "done")
-    addAction("→ Ready for TDS calls", "pending")
-    
-    -- Test message
-    task.spawn(function()
-        wait(0.5)
-        print("[Overlay] Ready! Any TDS method calls will appear here")
-        addAction("Test: Overlay is working correctly", "done")
-    end)
-    
-    return TDS
+print("[TDS Overlay] Loading...")
+
+-- Wait a moment to ensure TDS is loaded
+wait(1)
+
+-- Try to find TDS in different places
+local TDS = nil
+
+-- Check if TDS is in _G
+if _G.TDS then
+    TDS = _G.TDS
+    print("[TDS Overlay] Found TDS in _G")
 end
 
--- MAIN EXECUTION - IMPROVED DETECTION
-print("=" .. string.rep("=", 60))
-print("TDS Debug Overlay - Loading...")
-print("=" .. string.rep("=", 60))
-
--- CRITICAL: Capture the TDS instance from the calling environment
--- When you do: loadstring(script)(TDS)
--- The TDS variable is passed as an argument to the returned function
-
--- The script returns attachOverlay, so the correct usage is:
--- local attach = loadstring(game:HttpGet(...))()
--- attach(TDS)
-
--- But if the user just does loadstring(...)(TDS), then TDS is the first argument
--- Let's check what was passed
-
--- In the execution environment, we need to get the TDS that was passed
-local tdsInstance = nil
-
--- Check if this script was called with a parameter
--- The parameter would be in the ... or in the environment
-if select('#', ...) > 0 then
-    tdsInstance = select(1, ...)
-    print("[INFO] TDS passed as parameter")
+-- Check if TDS is a global variable
+if not TDS and getfenv().TDS then
+    TDS = getfenv().TDS
+    print("[TDS Overlay] Found TDS as global variable")
 end
 
--- If not found, check common locations
-if not tdsInstance then
-    print("[INFO] Checking for TDS in common locations...")
-    
-    -- Check global
-    if _G.TDS then
-        tdsInstance = _G.TDS
-        print("[INFO] Found TDS in _G.TDS")
-    end
-    
-    -- Check local variable TDS
-    if not tdsInstance and TDS then
-        tdsInstance = TDS
-        print("[INFO] Found TDS as global variable TDS")
-    end
-    
-    -- Check for any table with TDS methods
-    if not tdsInstance then
-        for k, v in pairs(getfenv()) do
-            if type(v) == "table" and (v.Mode or v.Place or v.Upgrade or v.Sell) then
-                print("[INFO] Found potential TDS in:", k)
-                tdsInstance = v
-                break
-            end
+-- Check for any table with TDS methods
+if not TDS then
+    for k, v in pairs(getfenv()) do
+        if type(v) == "table" and (v.Mode or v.Place or v.Upgrade or v.Sell or v.Loadout) then
+            print("[TDS Overlay] Found TDS-like table:", k)
+            TDS = v
+            break
         end
     end
 end
 
-if tdsInstance then
-    print("[SUCCESS] TDS instance found! Attaching overlay...")
-    local result = attachOverlay(tdsInstance)
-    print("[SUCCESS] Overlay attached successfully!")
-    print("[INFO] The debug window should now be visible on your screen")
-else
-    print("[ERROR] No TDS instance found!")
-    print("[ERROR] Please use the correct syntax:")
-    print("")
-    print("  local TDS = loadstring(game:HttpGet('your_tds_library'))()")
-    print("  loadstring(game:HttpGet('this_overlay_script'))()(TDS)")
-    print("")
-    print("  OR")
-    print("")
-    print("  local TDS = loadstring(game:HttpGet('your_tds_library'))()")
-    print("  local overlay = loadstring(game:HttpGet('this_overlay_script'))()")
-    print("  overlay(TDS)")
-    print("")
+-- If still not found, show error
+if not TDS then
+    print("[TDS Overlay] ERROR: Could not find TDS library!")
+    print("[TDS Overlay] Make sure TDS is loaded before this script")
     
-    -- Create error message GUI
+    -- Show error message on screen
     local player = game.Players.LocalPlayer
     if player and player.PlayerGui then
         local errorGui = Instance.new("ScreenGui")
@@ -533,56 +45,362 @@ else
         errorGui.Parent = player.PlayerGui
         
         local errorFrame = Instance.new("Frame")
-        errorFrame.Size = UDim2.new(0, 450, 0, 180)
-        errorFrame.Position = UDim2.new(0.5, -225, 0.5, -90)
-        errorFrame.BackgroundColor3 = Color3.fromRGB(35, 20, 20)
+        errorFrame.Size = UDim2.new(0, 400, 0, 120)
+        errorFrame.Position = UDim2.new(0.5, -200, 0.5, -60)
+        errorFrame.BackgroundColor3 = Color3.fromRGB(30, 20, 20)
         errorFrame.BorderSizePixel = 2
         errorFrame.BorderColor3 = Color3.fromRGB(200, 50, 50)
         errorFrame.Parent = errorGui
         
-        local errorCorner = Instance.new("UICorner", errorFrame)
-        errorCorner.CornerRadius = UDim.new(0, 8)
-        
-        local errorTitle = Instance.new("TextLabel")
-        errorTitle.Text = "⚠ TDS Overlay Error"
-        errorTitle.Size = UDim2.new(1, 0, 0, 35)
-        errorTitle.BackgroundColor3 = Color3.fromRGB(50, 30, 30)
-        errorTitle.TextColor3 = Color3.fromRGB(255, 200, 200)
-        errorTitle.Font = Enum.Font.GothamBold
-        errorTitle.TextSize = 14
-        errorTitle.Parent = errorFrame
-        
         local errorText = Instance.new("TextLabel")
-        errorText.Text = "TDS library not found!\n\nMake sure to pass TDS to the overlay:\n\nlocal TDS = loadstring(...)()\nloadstring(game:HttpGet(...))()(TDS)"
-        errorText.Size = UDim2.new(1, -20, 1, -50)
-        errorText.Position = UDim2.new(0, 10, 0, 40)
+        errorText.Text = "ERROR: TDS Library Not Found!\n\nMake sure TDS is loaded BEFORE this script\n\nTDS must be loaded first, then run this overlay"
+        errorText.Size = UDim2.new(1, -20, 1, -20)
+        errorText.Position = UDim2.new(0, 10, 0, 10)
         errorText.BackgroundTransparency = 1
-        errorText.TextColor3 = Color3.fromRGB(255, 220, 220)
+        errorText.TextColor3 = Color3.fromRGB(255, 200, 200)
         errorText.TextWrapped = true
         errorText.Font = Enum.Font.Gotham
-        errorText.TextSize = 11
+        errorText.TextSize = 12
         errorText.Parent = errorFrame
         
         local closeBtn = Instance.new("TextButton")
         closeBtn.Text = "OK"
-        closeBtn.Size = UDim2.new(0, 80, 0, 30)
-        closeBtn.Position = UDim2.new(0.5, -40, 1, -45)
+        closeBtn.Size = UDim2.new(0, 60, 0, 30)
+        closeBtn.Position = UDim2.new(0.5, -30, 1, -40)
         closeBtn.BackgroundColor3 = Color3.fromRGB(100, 50, 50)
         closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        closeBtn.Font = Enum.Font.GothamBold
-        closeBtn.TextSize = 12
         closeBtn.Parent = errorFrame
-        
-        local closeCorner = Instance.new("UICorner", closeBtn)
-        closeCorner.CornerRadius = UDim.new(0, 4)
-        
         closeBtn.MouseButton1Click:Connect(function()
             errorGui:Destroy()
         end)
-        
-        -- Auto-close after 5 seconds
-        task.delay(5, function()
-            if errorGui then errorGui:Destroy() end
-        end)
+    end
+    return
+end
+
+-- Create the overlay GUI
+print("[TDS Overlay] Creating GUI...")
+
+local Players = game:GetService("Players")
+local UIS = game:GetService("UserInputService")
+local localPlayer = Players.LocalPlayer
+local playerGui = localPlayer:WaitForChild("PlayerGui")
+
+-- Remove old overlay if exists
+local existingOverlay = playerGui:FindFirstChild("TDS_DebugOverlay")
+if existingOverlay then
+    existingOverlay:Destroy()
+    wait(0.1)
+end
+
+-- Create main GUI
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TDS_DebugOverlay"
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 999
+screenGui.Parent = playerGui
+
+-- Main window
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 500, 0, 400)
+mainFrame.Position = UDim2.new(0.5, -250, 0.1, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+mainFrame.BorderSizePixel = 1
+mainFrame.BorderColor3 = Color3.fromRGB(60, 60, 80)
+mainFrame.Parent = screenGui
+
+-- Title bar
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 35)
+titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = mainFrame
+
+local titleText = Instance.new("TextLabel")
+titleText.Text = "⚙ TDS Debug Monitor"
+titleText.Size = UDim2.new(1, -90, 1, 0)
+titleText.Position = UDim2.new(0, 10, 0, 0)
+titleText.BackgroundTransparency = 1
+titleText.TextColor3 = Color3.fromRGB(220, 220, 240)
+titleText.TextXAlignment = Enum.TextXAlignment.Left
+titleText.Font = Enum.Font.GothamBold
+titleText.TextSize = 12
+titleText.Parent = titleBar
+
+local counterText = Instance.new("TextLabel")
+counterText.Text = "0 / 0"
+counterText.Size = UDim2.new(0, 70, 0, 35)
+counterText.Position = UDim2.new(1, -80, 0, 0)
+counterText.BackgroundTransparency = 1
+counterText.TextColor3 = Color3.fromRGB(150, 150, 170)
+counterText.TextXAlignment = Enum.TextXAlignment.Right
+counterText.Font = Enum.Font.Gotham
+counterText.TextSize = 11
+counterText.Parent = titleBar
+
+-- Buttons
+local closeBtn = Instance.new("TextButton")
+closeBtn.Text = "X"
+closeBtn.Size = UDim2.new(0, 28, 0, 28)
+closeBtn.Position = UDim2.new(1, -35, 0, 3)
+closeBtn.BackgroundColor3 = Color3.fromRGB(50, 40, 40)
+closeBtn.TextColor3 = Color3.fromRGB(200, 100, 100)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 14
+closeBtn.BorderSizePixel = 0
+closeBtn.Parent = titleBar
+closeBtn.MouseButton1Click:Connect(function()
+    screenGui:Destroy()
+end)
+
+local minBtn = Instance.new("TextButton")
+minBtn.Text = "-"
+minBtn.Size = UDim2.new(0, 28, 0, 28)
+minBtn.Position = UDim2.new(1, -68, 0, 3)
+minBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+minBtn.TextColor3 = Color3.fromRGB(180, 180, 200)
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 18
+minBtn.BorderSizePixel = 0
+minBtn.Parent = titleBar
+
+local clearBtn = Instance.new("TextButton")
+clearBtn.Text = "C"
+clearBtn.Size = UDim2.new(0, 28, 0, 28)
+clearBtn.Position = UDim2.new(1, -101, 0, 3)
+clearBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+clearBtn.TextColor3 = Color3.fromRGB(180, 180, 200)
+clearBtn.Font = Enum.Font.GothamBold
+clearBtn.TextSize = 14
+clearBtn.BorderSizePixel = 0
+clearBtn.Parent = titleBar
+
+-- Scroll frame
+local scrollFrame = Instance.new("ScrollingFrame")
+scrollFrame.Size = UDim2.new(1, -10, 1, -45)
+scrollFrame.Position = UDim2.new(0, 5, 0, 40)
+scrollFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+scrollFrame.BorderSizePixel = 0
+scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scrollFrame.ScrollBarThickness = 6
+scrollFrame.Parent = mainFrame
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 2)
+layout.Parent = scrollFrame
+
+local padding = Instance.new("UIPadding")
+padding.PaddingTop = UDim.new(0, 5)
+padding.PaddingBottom = UDim.new(0, 5)
+padding.PaddingLeft = UDim.new(0, 5)
+padding.PaddingRight = UDim.new(0, 5)
+padding.Parent = scrollFrame
+
+-- Minimize functionality
+local minimized = false
+minBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        mainFrame.Size = UDim2.new(0, 500, 0, 40)
+        scrollFrame.Visible = false
+        minBtn.Text = "+"
+    else
+        mainFrame.Size = UDim2.new(0, 500, 0, 400)
+        scrollFrame.Visible = true
+        minBtn.Text = "-"
+    end
+end)
+
+-- Clear functionality
+clearBtn.MouseButton1Click:Connect(function()
+    for _, child in pairs(scrollFrame:GetChildren()) do
+        if child:IsA("Frame") and child ~= layout and child ~= padding then
+            child:Destroy()
+        end
+    end
+    counterText.Text = "0 / 0"
+end)
+
+-- Drag functionality
+local dragging = false
+local dragStart, startPos
+
+titleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+UIS.InputChanged:Connect(function(input)
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UIS.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
+end)
+
+-- Queue and counter
+local actionCount = 0
+local completedCount = 0
+
+-- Function to add an action
+local function addAction(text, status)
+    actionCount = actionCount + 1
+    
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 30)
+    row.BackgroundColor3 = Color3.fromRGB(25, 25, 32)
+    row.BorderSizePixel = 0
+    row.Parent = scrollFrame
+    
+    local icon = Instance.new("TextLabel")
+    icon.Size = UDim2.new(0, 25, 1, 0)
+    icon.Position = UDim2.new(0, 5, 0, 0)
+    icon.BackgroundTransparency = 1
+    icon.TextXAlignment = Enum.TextXAlignment.Center
+    icon.Font = Enum.Font.Gotham
+    icon.TextSize = 14
+    icon.Parent = row
+    
+    local actionText = Instance.new("TextLabel")
+    actionText.Text = text
+    actionText.Size = UDim2.new(1, -120, 1, 0)
+    actionText.Position = UDim2.new(0, 35, 0, 0)
+    actionText.BackgroundTransparency = 1
+    actionText.TextColor3 = Color3.fromRGB(210, 210, 230)
+    actionText.TextXAlignment = Enum.TextXAlignment.Left
+    actionText.Font = Enum.Font.Code
+    actionText.TextSize = 10
+    actionText.TextTruncate = Enum.TextTruncate.AtEnd
+    actionText.Parent = row
+    
+    local statusText = Instance.new("TextLabel")
+    statusText.Size = UDim2.new(0, 70, 1, 0)
+    statusText.Position = UDim2.new(1, -75, 0, 0)
+    statusText.BackgroundTransparency = 1
+    statusText.TextXAlignment = Enum.TextXAlignment.Right
+    statusText.Font = Enum.Font.GothamBold
+    statusText.TextSize = 9
+    statusText.Parent = row
+    
+    if status == "running" then
+        icon.Text = "●"
+        icon.TextColor3 = Color3.fromRGB(255, 200, 50)
+        statusText.Text = "RUNNING"
+        statusText.TextColor3 = Color3.fromRGB(255, 200, 50)
+    elseif status == "done" then
+        icon.Text = "✓"
+        icon.TextColor3 = Color3.fromRGB(100, 255, 100)
+        statusText.Text = "DONE"
+        statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+        completedCount = completedCount + 1
+    elseif status == "error" then
+        icon.Text = "✗"
+        icon.TextColor3 = Color3.fromRGB(255, 80, 80)
+        statusText.Text = "ERROR"
+        statusText.TextColor3 = Color3.fromRGB(255, 80, 80)
+    else
+        icon.Text = "○"
+        icon.TextColor3 = Color3.fromRGB(255, 150, 100)
+        statusText.Text = "PENDING"
+        statusText.TextColor3 = Color3.fromRGB(255, 150, 100)
+    end
+    
+    counterText.Text = completedCount .. " / " .. actionCount
+    
+    -- Auto-scroll
+    task.defer(function()
+        scrollFrame.CanvasPosition = Vector2.new(0, scrollFrame.CanvasSize.Y.Offset)
+    end)
+    
+    return {row = row, icon = icon, statusText = statusText, actionText = actionText}
+end
+
+-- Function to update status
+local function updateStatus(entry, newStatus)
+    if newStatus == "done" then
+        entry.icon.Text = "✓"
+        entry.icon.TextColor3 = Color3.fromRGB(100, 255, 100)
+        entry.statusText.Text = "DONE"
+        entry.statusText.TextColor3 = Color3.fromRGB(100, 255, 100)
+        completedCount = completedCount + 1
+        counterText.Text = completedCount .. " / " .. actionCount
+    elseif newStatus == "error" then
+        entry.icon.Text = "✗"
+        entry.icon.TextColor3 = Color3.fromRGB(255, 80, 80)
+        entry.statusText.Text = "ERROR"
+        entry.statusText.TextColor3 = Color3.fromRGB(255, 80, 80)
+        entry.actionText.TextColor3 = Color3.fromRGB(255, 150, 150)
     end
 end
+
+-- WRAP TDS METHODS
+print("[TDS Overlay] Wrapping TDS methods...")
+
+local wrappedCount = 0
+for methodName, methodFunc in pairs(TDS) do
+    if type(methodFunc) == "function" then
+        print("[TDS Overlay] Wrapping:", methodName)
+        
+        local originalMethod = methodFunc
+        TDS[methodName] = function(self, ...)
+            local args = {...}
+            
+            -- Create label
+            local label = methodName
+            if #args > 0 then
+                local parts = {}
+                for i, arg in ipairs(args) do
+                    if type(arg) == "string" then
+                        parts[i] = '"' .. arg .. '"'
+                    elseif type(arg) == "number" then
+                        parts[i] = string.format("%g", arg)
+                    else
+                        parts[i] = tostring(arg)
+                    end
+                end
+                label = label .. "(" .. table.concat(parts, ", ") .. ")"
+            else
+                label = label .. "()"
+            end
+            
+            -- Truncate if needed
+            if #label > 60 then
+                label = label:sub(1, 57) .. "..."
+            end
+            
+            local entry = addAction(label, "running")
+            
+            local success, result = pcall(originalMethod, self, table.unpack(args))
+            
+            if success then
+                updateStatus(entry, "done")
+            else
+                updateStatus(entry, "error")
+                warn("[Overlay] Error in " .. methodName .. ": " .. tostring(result))
+            end
+            
+            return result
+        end
+        
+        wrappedCount = wrappedCount + 1
+    end
+end
+
+print("[TDS Overlay] Wrapped", wrappedCount, "methods")
+
+-- Add welcome message
+addAction("✓ Overlay active - monitoring " .. wrappedCount .. " methods", "done")
+addAction("→ Ready for TDS calls", "pending")
+
+print("[TDS Overlay] Setup complete! Window should be visible")
