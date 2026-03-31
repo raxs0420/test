@@ -35,6 +35,7 @@ local function attachOverlay(TDS)
     local Players = game:GetService("Players")
     local UIS = game:GetService("UserInputService")
     local TweenService = game:GetService("TweenService")
+    local RunService = game:GetService("RunService")
     local localPlayer = Players.LocalPlayer
     local playerGui = localPlayer:WaitForChild("PlayerGui")
     
@@ -51,7 +52,7 @@ local function attachOverlay(TDS)
     screenGui.DisplayOrder = 999
     screenGui.Parent = playerGui
     
-    -- Main window (SMALLER SIZE)
+    -- Main window
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 420, 0, 380)
     mainFrame.Position = UDim2.new(0.5, -210, 0.05, 0)
@@ -65,18 +66,7 @@ local function attachOverlay(TDS)
     local corner = Instance.new("UICorner", mainFrame)
     corner.CornerRadius = UDim.new(0, 8)
     
-    -- Shadow effect
-    local shadow = Instance.new("Frame", mainFrame)
-    shadow.Size = UDim2.new(1, 8, 1, 8)
-    shadow.Position = UDim2.new(0, -4, 0, -4)
-    shadow.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-    shadow.BackgroundTransparency = 0.7
-    shadow.BorderSizePixel = 0
-    shadow.ZIndex = -1
-    local shadowCorner = Instance.new("UICorner", shadow)
-    shadowCorner.CornerRadius = UDim.new(0, 10)
-    
-    -- Title bar (taller for easier dragging on mobile)
+    -- Title bar
     local titleBar = Instance.new("Frame")
     titleBar.Size = UDim2.new(1, 0, 0, 42)
     titleBar.BackgroundColor3 = Color3.fromRGB(28, 28, 35)
@@ -86,22 +76,22 @@ local function attachOverlay(TDS)
     local titleCorner = Instance.new("UICorner", titleBar)
     titleCorner.CornerRadius = UDim.new(0, 8)
     
-    -- Drag handle icon (three lines)
+    -- Drag handle icon
     local dragHandle = Instance.new("TextLabel")
-    dragHandle.Text = "☰"
-    dragHandle.Size = UDim2.new(0, 30, 1, 0)
-    dragHandle.Position = UDim2.new(0, 5, 0, 0)
+    dragHandle.Text = "⋮⋮"
+    dragHandle.Size = UDim2.new(0, 35, 1, 0)
+    dragHandle.Position = UDim2.new(0, 8, 0, 0)
     dragHandle.BackgroundTransparency = 1
     dragHandle.TextColor3 = Color3.fromRGB(140, 140, 165)
     dragHandle.TextXAlignment = Enum.TextXAlignment.Center
     dragHandle.Font = Enum.Font.Gotham
-    dragHandle.TextSize = 18
+    dragHandle.TextSize = 16
     dragHandle.Parent = titleBar
     
     local titleText = Instance.new("TextLabel")
-    titleText.Text = "⚡ TDS Debug (" .. methodCount .. ")"
-    titleText.Size = UDim2.new(1, -140, 1, 0)
-    titleText.Position = UDim2.new(0, 40, 0, 0)
+    titleText.Text = "TDS Debug (" .. methodCount .. ")"
+    titleText.Size = UDim2.new(1, -150, 1, 0)
+    titleText.Position = UDim2.new(0, 45, 0, 0)
     titleText.BackgroundTransparency = 1
     titleText.TextColor3 = Color3.fromRGB(225, 225, 245)
     titleText.TextXAlignment = Enum.TextXAlignment.Left
@@ -112,7 +102,7 @@ local function attachOverlay(TDS)
     local counterText = Instance.new("TextLabel")
     counterText.Text = "0/0"
     counterText.Size = UDim2.new(0, 50, 1, 0)
-    counterText.Position = UDim2.new(1, -110, 0, 0)
+    counterText.Position = UDim2.new(1, -115, 0, 0)
     counterText.BackgroundTransparency = 1
     counterText.TextColor3 = Color3.fromRGB(140, 140, 165)
     counterText.TextXAlignment = Enum.TextXAlignment.Right
@@ -124,7 +114,7 @@ local function attachOverlay(TDS)
     local closeBtn = Instance.new("TextButton")
     closeBtn.Text = "✕"
     closeBtn.Size = UDim2.new(0, 28, 0, 28)
-    closeBtn.Position = UDim2.new(1, -34, 0, 7)
+    closeBtn.Position = UDim2.new(1, -36, 0, 7)
     closeBtn.BackgroundColor3 = Color3.fromRGB(55, 40, 40)
     closeBtn.TextColor3 = Color3.fromRGB(210, 110, 110)
     closeBtn.Font = Enum.Font.GothamBold
@@ -139,10 +129,15 @@ local function attachOverlay(TDS)
         screenGui:Destroy()
     end)
     
+    -- For mobile touch
+    closeBtn.TouchTap:Connect(function()
+        screenGui:Destroy()
+    end)
+    
     local minBtn = Instance.new("TextButton")
     minBtn.Text = "−"
     minBtn.Size = UDim2.new(0, 28, 0, 28)
-    minBtn.Position = UDim2.new(1, -68, 0, 7)
+    minBtn.Position = UDim2.new(1, -72, 0, 7)
     minBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
     minBtn.TextColor3 = Color3.fromRGB(190, 190, 215)
     minBtn.Font = Enum.Font.GothamBold
@@ -156,7 +151,7 @@ local function attachOverlay(TDS)
     local clearBtn = Instance.new("TextButton")
     clearBtn.Text = "🗑"
     clearBtn.Size = UDim2.new(0, 28, 0, 28)
-    clearBtn.Position = UDim2.new(1, -102, 0, 7)
+    clearBtn.Position = UDim2.new(1, -108, 0, 7)
     clearBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
     clearBtn.TextColor3 = Color3.fromRGB(190, 190, 215)
     clearBtn.Font = Enum.Font.GothamBold
@@ -167,7 +162,7 @@ local function attachOverlay(TDS)
     local clearCorner = Instance.new("UICorner", clearBtn)
     clearCorner.CornerRadius = UDim.new(0, 5)
     
-    -- Scroll frame (REVERSED ORDER - newest on top)
+    -- Scroll frame
     local scrollFrame = Instance.new("ScrollingFrame")
     scrollFrame.Size = UDim2.new(1, -12, 1, -52)
     scrollFrame.Position = UDim2.new(0, 6, 0, 48)
@@ -182,7 +177,7 @@ local function attachOverlay(TDS)
     local scrollCorner = Instance.new("UICorner", scrollFrame)
     scrollCorner.CornerRadius = UDim.new(0, 6)
     
-    -- UIListLayout with reverse order (newest on top)
+    -- UIListLayout for vertical stacking
     local layout = Instance.new("UIListLayout")
     layout.SortOrder = Enum.SortOrder.LayoutOrder
     layout.Padding = UDim.new(0, 2)
@@ -218,20 +213,33 @@ local function attachOverlay(TDS)
         end
     end)
     
-    -- Function to update canvas size and scroll to top (for newest items)
-    local function updateCanvasAndScroll()
-        local totalHeight = 0
+    -- Function to update all layout orders (newest at top = lowest LayoutOrder)
+    local function updateLayoutOrders()
+        local children = {}
         for _, child in pairs(scrollFrame:GetChildren()) do
             if child:IsA("Frame") and child ~= layout and child ~= padding then
-                totalHeight = totalHeight + child.Size.Y.Offset + 2
+                table.insert(children, child)
             end
         end
+        
+        -- Reverse order so newest (last in table) gets lowest LayoutOrder
+        for i = #children, 1, -1 do
+            local orderIndex = (#children - i)
+            children[i].LayoutOrder = orderIndex
+        end
+        
+        -- Update canvas size
+        local totalHeight = 0
+        for _, child in ipairs(children) do
+            totalHeight = totalHeight + child.Size.Y.Offset + 2
+        end
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight + 10)
-        -- Scroll to top to see newest items
+        
+        -- Scroll to top to show newest
         scrollFrame.CanvasPosition = Vector2.new(0, 0)
     end
     
-    -- Add action function (inserts at top)
+    -- Add action function (adds to end of list but will be ordered to top)
     local function addAction(text, status)
         actionCount = actionCount + 1
         
@@ -239,8 +247,7 @@ local function attachOverlay(TDS)
         row.Size = UDim2.new(1, 0, 0, 32)
         row.BackgroundColor3 = Color3.fromRGB(23, 23, 30)
         row.BorderSizePixel = 0
-        -- Set layout order to 0 to make it appear at top
-        row.LayoutOrder = 0
+        row.Parent = scrollFrame
         
         local rowCorner = Instance.new("UICorner", row)
         rowCorner.CornerRadius = UDim.new(0, 4)
@@ -311,28 +318,13 @@ local function attachOverlay(TDS)
             statusText.TextColor3 = Color3.fromRGB(255, 160, 110)
         end
         
-        -- Insert at beginning of queue (newest first)
-        table.insert(queue, 1, entry)
+        -- Add to queue
+        table.insert(queue, entry)
         
-        -- Insert row at top of scroll frame
-        row.Parent = scrollFrame
-        row.LayoutOrder = 0
-        
-        -- Update all layout orders to maintain proper stacking
-        local orderIndex = 0
-        for _, child in pairs(scrollFrame:GetChildren()) do
-            if child:IsA("Frame") and child ~= layout and child ~= padding then
-                child.LayoutOrder = orderIndex
-                orderIndex = orderIndex + 1
-            end
-        end
+        -- Update layout orders to put newest at top
+        updateLayoutOrders()
         
         counterText.Text = completedCount .. "/" .. actionCount
-        
-        -- Update canvas and scroll to top
-        task.defer(function()
-            updateCanvasAndScroll()
-        end)
         
         return entry
     end
@@ -374,7 +366,29 @@ local function attachOverlay(TDS)
             scrollFrame.Visible = true
             minBtn.Text = "−"
             task.wait(0.2)
-            updateCanvasAndScroll()
+            updateLayoutOrders()
+        end
+    end)
+    
+    -- Also handle touch for mobile
+    minBtn.TouchTap:Connect(function()
+        minimized = not minimized
+        if minimized then
+            local tween = TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+                Size = UDim2.new(0, 420, 0, 46)
+            })
+            tween:Play()
+            scrollFrame.Visible = false
+            minBtn.Text = "+"
+        else
+            local tween = TweenService:Create(mainFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quad), {
+                Size = UDim2.new(0, 420, 0, 380)
+            })
+            tween:Play()
+            scrollFrame.Visible = true
+            minBtn.Text = "−"
+            task.wait(0.2)
+            updateLayoutOrders()
         end
     end)
     
@@ -392,71 +406,77 @@ local function attachOverlay(TDS)
         scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     end)
     
-    -- DRAG FUNCTIONALITY (Works on PC and Mobile)
-    local dragging = false
-    local dragStartPos = nil
-    local dragStartMousePos = nil
-    local dragConnection = nil
-    local dragEndConnection = nil
+    clearBtn.TouchTap:Connect(function()
+        for _, child in pairs(scrollFrame:GetChildren()) do
+            if child:IsA("Frame") and child ~= layout and child ~= padding then
+                child:Destroy()
+            end
+        end
+        queue = {}
+        actionCount = 0
+        completedCount = 0
+        counterText.Text = "0/0"
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    end)
+    
+    -- DRAG FUNCTIONALITY - FIXED FOR MOBILE
+    local dragData = {
+        dragging = false,
+        startPos = nil,
+        startMousePos = nil,
+        connections = {}
+    }
     
     local function startDrag(input)
-        dragging = true
-        dragStartPos = mainFrame.Position
-        dragStartMousePos = input.Position
+        dragData.dragging = true
+        dragData.startPos = mainFrame.Position
+        dragData.startMousePos = input.Position
+        
+        -- Clean up old connections
+        if dragData.connections.drag then
+            dragData.connections.drag:Disconnect()
+        end
+        if dragData.connections.release then
+            dragData.connections.release:Disconnect()
+        end
+        
+        -- Create new connections
+        dragData.connections.drag = UIS.InputChanged:Connect(function(dragInput)
+            if dragData.dragging and (dragInput.UserInputType == Enum.UserInputType.MouseMovement or 
+               dragInput.UserInputType == Enum.UserInputType.Touch) then
+                local delta = dragInput.Position - dragData.startMousePos
+                mainFrame.Position = UDim2.new(
+                    dragData.startPos.X.Scale,
+                    dragData.startPos.X.Offset + delta.X,
+                    dragData.startPos.Y.Scale,
+                    dragData.startPos.Y.Offset + delta.Y
+                )
+            end
+        end)
+        
+        dragData.connections.release = UIS.InputEnded:Connect(function(endedInput)
+            if dragData.dragging and (endedInput.UserInputType == Enum.UserInputType.MouseButton1 or
+               endedInput.UserInputType == Enum.UserInputType.Touch) then
+                dragData.dragging = false
+                dragData.connections.drag:Disconnect()
+                dragData.connections.release:Disconnect()
+                dragData.connections = {}
+            end
+        end)
     end
     
-    local function onDrag(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement or 
-           input.UserInputType == Enum.UserInputType.Touch then
-            local delta = input.Position - dragStartMousePos
-            mainFrame.Position = UDim2.new(
-                dragStartPos.X.Scale,
-                dragStartPos.X.Offset + delta.X,
-                dragStartPos.Y.Scale,
-                dragStartPos.Y.Offset + delta.Y
-            )
-        end
-    end
-    
-    local function endDrag()
-        dragging = false
-        if dragConnection then
-            dragConnection:Disconnect()
-            dragConnection = nil
-        end
-        if dragEndConnection then
-            dragEndConnection:Disconnect()
-            dragEndConnection = nil
-        end
-    end
-    
-    -- Make the entire title bar draggable
+    -- Make title bar and drag handle draggable for both mouse and touch
     titleBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or 
            input.UserInputType == Enum.UserInputType.Touch then
             startDrag(input)
-            
-            dragConnection = UIS.InputChanged:Connect(onDrag)
-            dragEndConnection = UIS.InputEnded:Connect(function(endInput)
-                if endInput.UserInputType == input.UserInputType then
-                    endDrag()
-                end
-            end)
         end
     end)
     
-    -- Also make the drag handle draggable (for mobile)
     dragHandle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or 
            input.UserInputType == Enum.UserInputType.Touch then
             startDrag(input)
-            
-            dragConnection = UIS.InputChanged:Connect(onDrag)
-            dragEndConnection = UIS.InputEnded:Connect(function(endInput)
-                if endInput.UserInputType == input.UserInputType then
-                    endDrag()
-                end
-            end)
         end
     end)
     
@@ -512,13 +532,13 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Welcome messages (these will appear at the top)
+    -- Welcome messages
     addAction("✓ Overlay Active", "done")
     addAction("→ Monitoring " .. methodCount .. " methods", "pending")
     
     print("[TDS Overlay] Successfully attached to TDS!")
     print("[TDS Overlay] Window is draggable on PC and mobile")
-    print("[TDS Overlay] Newest actions appear at the top")
+    print("[TDS Overlay] Newest actions appear at the TOP of the list")
     
     return TDS
 end
