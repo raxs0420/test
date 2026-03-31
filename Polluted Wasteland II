@@ -5,9 +5,8 @@ _G.ClaimRewards = true
 _G.AutoRejoin = true
 _G.AutoNecro = true
 
--- [[ INITIALIZE LIBRARY ]]
-local TDS =
-loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+-- Library 
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 TDS:Mode("Polluted")
 TDS:Loadout("DJ Booth", "Mercenary Base", "Engineer", "Hacker", "Commander")
 
@@ -283,10 +282,20 @@ TDS:Upgrade(40)
 TDS:Upgrade(40)
 TDS:Upgrade(40)
 
+TDS:Upgrade(22)
+TDS:Upgrade(23)
+TDS:Upgrade(24)
+TDS:Upgrade(25)
+TDS:Upgrade(26)
+
 TDS:SetOption(11, "Track", "Red")
 TDS:Ability(14, "Support Caravan", {Nill} , true)
 TDS:Ability(13, "Support Caravan", {Nill} , true)
 TDS:Ability(12, "Support Caravan", {Nill} , true)
+
+TDS:SetOption(15, "Unit 1", "Field Medic")
+TDS:SetOption(10, "Unit 1", "Field Medic")
+TDS:SetOption(9, "Unit 1", "Field Medic")
 
 TDS:Ability(15, "Air-Drop", {pathName = 1, directionCFrame = CFrame.new(), dist = 250}, true)
 TDS:Ability(10, "Air-Drop", {pathName = 1, directionCFrame = CFrame.new(), dist = 250}, true)
