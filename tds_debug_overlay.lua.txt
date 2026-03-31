@@ -1,0 +1,284 @@
+-- // TDS Debug Overlay
+-- // Load AFTER your library, BEFORE your automation calls.
+-- //
+-- // Usage:
+-- //   local TDS = loadstring(game:HttpGet("...library..."))()
+-- //   loadstring(game:HttpGet("...tds_debug_overlay.lua"))()(TDS)
+-- //   TDS:Mode("Polluted")  ← every call below now shows as a row
+
+local function attachOverlay(TDS)
+    if not TDS then warn("[Overlay] TDS table is nil") return end
+
+    local Players     = game:GetService("Players")
+    local UIS         = game:GetService("UserInputService")
+    local localPlayer = Players.LocalPlayer
+    local playerGui   = localPlayer:WaitForChild("PlayerGui")
+
+    local WIN_W     = 272
+    local ROW_H     = 21
+    local PAD       = 8
+    local MAX_WIN_H = 430
+
+    local C = {
+        bg       = Color3.fromRGB(13, 13, 18),
+        titlebar = Color3.fromRGB(22, 22, 32),
+        rowBg    = Color3.fromRGB(20, 20, 28),
+        rowAlt   = Color3.fromRGB(17, 17, 24),
+        text     = Color3.fromRGB(190, 190, 210),
+        dim      = Color3.fromRGB(95, 95, 115),
+        border   = Color3.fromRGB(45, 45, 65),
+        pending  = Color3.fromRGB(210, 55,  55),
+        running  = Color3.fromRGB(220, 175, 20),
+        done     = Color3.fromRGB(55,  195, 85),
+        active   = Color3.fromRGB(80,  155, 255),
+        err      = Color3.fromRGB(255, 80,  80),
+    }
+
+    local queue = {}
+
+    -- remove old overlay if reloaded
+    if playerGui:FindFirstChild("TDS_DebugOverlay") then
+        playerGui.TDS_DebugOverlay:Destroy()
+    end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name           = "TDS_DebugOverlay"
+    screenGui.ResetOnSpawn   = false
+    screenGui.DisplayOrder   = 99
+    screenGui.IgnoreGuiInset = true
+    screenGui.Parent         = playerGui
+
+    local win = Instance.new("Frame")
+    win.Name             = "Win"
+    win.BackgroundColor3 = C.bg
+    win.BorderSizePixel  = 0
+    win.Position         = UDim2.new(1, -(WIN_W + 20), 0, 60)
+    win.Size             = UDim2.new(0, WIN_W, 0, 34)
+    win.ClipsDescendants = false
+    win.Parent           = screenGui
+    Instance.new("UICorner", win).CornerRadius = UDim.new(0, 8)
+    local ws = Instance.new("UIStroke", win)
+    ws.Color = C.border ; ws.Thickness = 1
+
+    -- title bar
+    local titleBar = Instance.new("Frame")
+    titleBar.Name             = "TitleBar"
+    titleBar.BackgroundColor3 = C.titlebar
+    titleBar.BorderSizePixel  = 0
+    titleBar.Size             = UDim2.new(1, 0, 0, 32)
+    titleBar.ZIndex           = 3
+    titleBar.Parent           = win
+    Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 8)
+    local tbp = Instance.new("Frame", titleBar)
+    tbp.BackgroundColor3 = C.titlebar ; tbp.BorderSizePixel = 0
+    tbp.Size = UDim2.new(1,0,0,8) ; tbp.Position = UDim2.new(0,0,1,-8) ; tbp.ZIndex = 3
+
+    local titleLbl = Instance.new("TextLabel", titleBar)
+    titleLbl.Text = "⚙  TDS Debug" ; titleLbl.Font = Enum.Font.GothamBold
+    titleLbl.TextSize = 12 ; titleLbl.TextColor3 = Color3.fromRGB(200,200,225)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Size = UDim2.new(1,-60,1,0) ; titleLbl.Position = UDim2.new(0,PAD,0,0)
+    titleLbl.TextXAlignment = Enum.TextXAlignment.Left ; titleLbl.ZIndex = 4
+
+    local counterLbl = Instance.new("TextLabel", titleBar)
+    counterLbl.Text = "0 / 0" ; counterLbl.Font = Enum.Font.Gotham
+    counterLbl.TextSize = 10 ; counterLbl.TextColor3 = C.dim
+    counterLbl.BackgroundTransparency = 1
+    counterLbl.Size = UDim2.new(0,55,1,0) ; counterLbl.Position = UDim2.new(1,-82,0,0)
+    counterLbl.TextXAlignment = Enum.TextXAlignment.Right ; counterLbl.ZIndex = 4
+
+    local minBtn = Instance.new("TextButton", titleBar)
+    minBtn.Text = "−" ; minBtn.Font = Enum.Font.GothamBold ; minBtn.TextSize = 16
+    minBtn.TextColor3 = Color3.fromRGB(160,160,185)
+    minBtn.BackgroundColor3 = Color3.fromRGB(38,38,55)
+    minBtn.Size = UDim2.new(0,22,0,22) ; minBtn.Position = UDim2.new(1,-26,0.5,-11)
+    minBtn.BorderSizePixel = 0 ; minBtn.ZIndex = 5
+    Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0,4)
+
+    -- scroll list
+    local scroll = Instance.new("ScrollingFrame")
+    scroll.Name = "List" ; scroll.BackgroundTransparency = 1
+    scroll.BorderSizePixel = 0
+    scroll.Position = UDim2.new(0,0,0,32) ; scroll.Size = UDim2.new(1,0,1,-32)
+    scroll.CanvasSize = UDim2.new(0,0,0,0)
+    scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    scroll.ScrollBarThickness = 3
+    scroll.ScrollBarImageColor3 = Color3.fromRGB(65,65,95)
+    scroll.Parent = win
+    local layout = Instance.new("UIListLayout", scroll)
+    layout.SortOrder = Enum.SortOrder.LayoutOrder ; layout.Padding = UDim.new(0,1)
+    local lp = Instance.new("UIPadding", scroll)
+    lp.PaddingTop=UDim.new(0,3) ; lp.PaddingBottom=UDim.new(0,3)
+    lp.PaddingLeft=UDim.new(0,PAD-2) ; lp.PaddingRight=UDim.new(0,PAD-2)
+
+    -- row factory
+    local function makeRow(label, index)
+        local row = Instance.new("Frame")
+        row.Name = "R"..index
+        row.BackgroundColor3 = (index%2==0) and C.rowAlt or C.rowBg
+        row.BorderSizePixel = 0
+        row.Size = UDim2.new(1,0,0,ROW_H) ; row.LayoutOrder = index ; row.Parent = scroll
+        Instance.new("UICorner", row).CornerRadius = UDim.new(0,3)
+
+        local idxL = Instance.new("TextLabel", row)
+        idxL.Text = string.format("%2d", index) ; idxL.Font = Enum.Font.Code
+        idxL.TextSize = 10 ; idxL.TextColor3 = C.dim ; idxL.BackgroundTransparency = 1
+        idxL.Size = UDim2.new(0,18,1,0) ; idxL.TextXAlignment = Enum.TextXAlignment.Center
+
+        local dot = Instance.new("TextLabel", row)
+        dot.Text = "●" ; dot.Font = Enum.Font.Gotham ; dot.TextSize = 10
+        dot.TextColor3 = C.pending ; dot.BackgroundTransparency = 1
+        dot.Size = UDim2.new(0,14,1,0) ; dot.Position = UDim2.new(0,19,0,0)
+        dot.TextXAlignment = Enum.TextXAlignment.Center
+
+        local nameLbl = Instance.new("TextLabel", row)
+        nameLbl.Text = label ; nameLbl.Font = Enum.Font.Code ; nameLbl.TextSize = 11
+        nameLbl.TextColor3 = C.text ; nameLbl.BackgroundTransparency = 1
+        nameLbl.Size = UDim2.new(1,-90,1,0) ; nameLbl.Position = UDim2.new(0,34,0,0)
+        nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+        nameLbl.TextTruncate = Enum.TextTruncate.AtEnd
+
+        local tag = Instance.new("TextLabel", row)
+        tag.Text = "PENDING" ; tag.Font = Enum.Font.GothamBold ; tag.TextSize = 9
+        tag.TextColor3 = C.pending ; tag.BackgroundTransparency = 1
+        tag.Size = UDim2.new(0,52,1,0) ; tag.Position = UDim2.new(1,-53,0,0)
+        tag.TextXAlignment = Enum.TextXAlignment.Right
+
+        return {frame=row, dot=dot, tag=tag, nameLbl=nameLbl}
+    end
+
+    -- status setter
+    local function setStatus(entry, status)
+        entry.status = status
+        local col = C[status] or C.pending
+        entry.dot.TextColor3 = col ; entry.tag.TextColor3 = col
+        if     status=="pending" then entry.dot.Text="●" ; entry.tag.Text="PENDING"
+        elseif status=="running" then entry.tag.Text="RUNNING"
+        elseif status=="done"    then entry.dot.Text="●" ; entry.tag.Text="DONE"
+        elseif status=="active"  then entry.dot.Text="■" ; entry.tag.Text="ACTIVE"
+        elseif status=="err"     then entry.dot.Text="✕" ; entry.tag.Text="ERROR"
+        end
+    end
+
+    -- spinner
+    local spinF = {"◐","◓","◑","◒"} ; local spinI = 0
+    task.spawn(function()
+        while screenGui.Parent do
+            spinI = (spinI%4)+1
+            for _,e in ipairs(queue) do
+                if e.status=="running" then e.dot.Text=spinF[spinI] end
+            end
+            task.wait(0.14)
+        end
+    end)
+
+    -- refresh counter + height
+    local function refreshMeta()
+        local total,done = #queue,0
+        for _,e in ipairs(queue) do
+            if e.status=="done" or e.status=="active" then done=done+1 end
+        end
+        counterLbl.Text = done.." / "..total
+        local h = math.clamp(total*(ROW_H+1)+6, 0, MAX_WIN_H-32)
+        win.Size = UDim2.new(0,WIN_W,0,32+h)
+        scroll.CanvasPosition = Vector2.new(0, math.huge)
+    end
+
+    -- register action
+    local function registerAction(label, initStatus)
+        local idx = #queue+1
+        local row = makeRow(label, idx)
+        local e = {label=label, status="pending",
+                   frame=row.frame, dot=row.dot, tag=row.tag, nameLbl=row.nameLbl}
+        queue[idx] = e
+        setStatus(e, initStatus or "pending")
+        refreshMeta()
+        return e
+    end
+
+    -- method wrapper
+    local function wrap(name, labelFn)
+        local orig = TDS[name]
+        if type(orig)~="function" then return end
+        TDS[name] = function(self, ...)
+            local args = {...}
+            local entry = registerAction(labelFn(table.unpack(args)), "running")
+            local ok, res = pcall(orig, self, table.unpack(args))
+            setStatus(entry, ok and "done" or "err")
+            if not ok then
+                entry.nameLbl.TextColor3 = C.err
+                warn("[Overlay] "..name.." error: "..tostring(res))
+            end
+            refreshMeta()
+            return res
+        end
+    end
+
+    -- wrap all TDS methods
+    wrap("Mode",      function(m)        return "Mode: "..tostring(m) end)
+    wrap("Loadout",   function(...)
+        local t={...}
+        if #t>4 then return "Loadout: "..t[1]..", +"..#t-1 .." more" end
+        return "Loadout: "..table.concat(t,", ")
+    end)
+    wrap("Ready",     function()         return "Ready() — waiting for wave" end)
+    wrap("Place",     function(n,x,y,z)  return string.format("Place %-13s %.1f, %.1f", tostring(n), x or 0, z or 0) end)
+    wrap("Upgrade",   function(s)        return string.format("Upgrade  slot [%d]", s or 0) end)
+    wrap("SetOption", function(s,k,v)    return string.format("SetOption[%d] %s=%s", s or 0, tostring(k), tostring(v)) end)
+    wrap("Ability",   function(s,n)      return string.format("Ability  [%d] %s", s or 0, tostring(n)) end)
+    wrap("Sell",      function(s)        return string.format("Sell     slot [%d]", s or 0) end)
+
+    -- _G feature flags shown as blue ACTIVE rows
+    local flags = {
+        {key="AutoPickups",   label="Auto Pickups"},
+        {key="AntiLag",       label="Anti-Lag"},
+        {key="ClaimRewards",  label="Claim Rewards"},
+        {key="AutoRejoin",    label="Auto Rejoin"},
+        {key="AutoNecro",     label="Auto Necromancer"},
+        {key="AutoSkip",      label="Auto Skip"},
+        {key="AutoSmartSkip", label="Smart Auto-Skip"},
+        {key="AutoChain",     label="Auto Chain"},
+        {key="AutoDJ",        label="Auto DJ Booth"},
+        {key="SendWebhook",   label="Webhook"},
+    }
+    task.defer(function()
+        for _,f in ipairs(flags) do
+            if _G[f.key] then registerAction("[ "..f.label.." ]", "active") end
+        end
+        refreshMeta()
+    end)
+
+    -- drag
+    local dragging, dragStart, startPos
+    titleBar.InputBegan:Connect(function(inp)
+        if inp.UserInputType==Enum.UserInputType.MouseButton1
+        or inp.UserInputType==Enum.UserInputType.Touch then
+            dragging=true ; dragStart=inp.Position ; startPos=win.Position
+        end
+    end)
+    titleBar.InputChanged:Connect(function(inp)
+        if dragging and (inp.UserInputType==Enum.UserInputType.MouseMovement
+                      or inp.UserInputType==Enum.UserInputType.Touch) then
+            local d=inp.Position-dragStart
+            win.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,
+                                   startPos.Y.Scale,startPos.Y.Offset+d.Y)
+        end
+    end)
+    UIS.InputEnded:Connect(function(inp)
+        if inp.UserInputType==Enum.UserInputType.MouseButton1
+        or inp.UserInputType==Enum.UserInputType.Touch then dragging=false end
+    end)
+
+    -- minimise
+    local minimised=false
+    minBtn.MouseButton1Click:Connect(function()
+        minimised=not minimised
+        scroll.Visible=not minimised
+        minBtn.Text=minimised and "+" or "−"
+        if minimised then win.Size=UDim2.new(0,WIN_W,0,32) else refreshMeta() end
+    end)
+
+    print("[TDS Debug Overlay] Attached OK")
+end
+
+return attachOverlay
