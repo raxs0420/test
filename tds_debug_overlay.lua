@@ -1,22 +1,14 @@
--- // TDS Debug Overlay - COMPLETE WORKING VERSION
--- // GitHub: https://raw.githubusercontent.com/yourusername/yourrepo/main/tds_debug_overlay.lua
--- //
--- // USAGE (MUST USE THIS EXACT SYNTAX):
--- //   local TDS = loadstring(game:HttpGet("your_tds_library_url"))()
--- //   loadstring(game:HttpGet("https://raw.githubusercontent.com/yourusername/yourrepo/main/tds_debug_overlay.lua"))()(TDS)
+-- // TDS Debug Overlay
+-- // GitHub: https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/tds_debug_overlay.lua
 
-print("[TDS Overlay] Script loaded, waiting for TDS...")
+print("[TDS Overlay] Loading...")
 
--- Create a function that will be returned
-local function setupOverlay(TDS)
-    print("[TDS Overlay] Setup function called with TDS:", TDS)
-    
+local function attachOverlay(TDS)
     if not TDS then
-        warn("[TDS Overlay] Error: No TDS provided!")
+        warn("[TDS Overlay] Error: TDS table is nil")
         return nil
     end
     
-    -- Create the GUI
     local Players = game:GetService("Players")
     local UIS = game:GetService("UserInputService")
     local TweenService = game:GetService("TweenService")
@@ -137,8 +129,6 @@ local function setupOverlay(TDS)
     padding.PaddingRight = UDim.new(0, 6)
     padding.Parent = scrollFrame
     
-    -- Variables
-    local queue = {}
     local isExpanded = false
     
     -- Update layout orders
@@ -210,7 +200,6 @@ local function setupOverlay(TDS)
             end
         end)
         
-        table.insert(queue, row)
         updateLayoutOrders()
         
         local function markDone()
@@ -270,7 +259,6 @@ local function setupOverlay(TDS)
             local success, result = pcall(original, self, ...)
             markDone()
             
-            -- Try to track slot
             for i, arg in ipairs(args) do
                 if type(arg) == "number" and arg > 0 and arg < 100 then
                     slotTowers[arg] = towerName
@@ -283,7 +271,6 @@ local function setupOverlay(TDS)
             end
             return result
         end
-        print("[TDS Overlay] Wrapped: Place")
     end
     
     -- Wrap Upgrade
@@ -302,7 +289,6 @@ local function setupOverlay(TDS)
             end
             return result
         end
-        print("[TDS Overlay] Wrapped: Upgrade")
     end
     
     -- Wrap Sell
@@ -323,7 +309,6 @@ local function setupOverlay(TDS)
             end
             return result
         end
-        print("[TDS Overlay] Wrapped: Sell")
     end
     
     -- Wrap Mode
@@ -336,7 +321,6 @@ local function setupOverlay(TDS)
             if not success then warn("[TDS Overlay] Mode error:", result) end
             return result
         end
-        print("[TDS Overlay] Wrapped: Mode")
     end
     
     -- Wrap Loadout
@@ -353,7 +337,6 @@ local function setupOverlay(TDS)
             if not success then warn("[TDS Overlay] Loadout error:", result) end
             return result
         end
-        print("[TDS Overlay] Wrapped: Loadout")
     end
     
     -- Wrap Ready
@@ -366,7 +349,6 @@ local function setupOverlay(TDS)
             if not success then warn("[TDS Overlay] Ready error:", result) end
             return result
         end
-        print("[TDS Overlay] Wrapped: Ready")
     end
     
     -- Wrap Ability
@@ -382,7 +364,6 @@ local function setupOverlay(TDS)
             if not success then warn("[TDS Overlay] Ability error:", result) end
             return result
         end
-        print("[TDS Overlay] Wrapped: Ability")
     end
     
     -- Wrap SetOption
@@ -397,7 +378,6 @@ local function setupOverlay(TDS)
             if not success then warn("[TDS Overlay] SetOption error:", result) end
             return result
         end
-        print("[TDS Overlay] Wrapped: SetOption")
     end
     
     -- Add welcome action
@@ -412,5 +392,4 @@ local function setupOverlay(TDS)
     return TDS
 end
 
--- Return the setup function
-return setupOverlay
+return attachOverlay
