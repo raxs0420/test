@@ -246,58 +246,57 @@ local function attachOverlay(TDS)
         return false
     end
     
-    local originalPlace = TDS.Place
-    if originalPlace then
-        TDS.Place = function(self, ...)
-            local args = {...}
-            local towerName = tostring(args[1])
-            local x = type(args[2]) == "number" and args[2] or 0
-            local z = type(args[4]) == "number" and args[4] or 0
+local originalPlace = TDS.Place
+if originalPlace then
+    TDS.Place = function(self, ...)
+        local args = {...}
+        local towerName = tostring(args[1])
+        local x = type(args[2]) == "number" and args[2] or 0
+        local z = type(args[4]) == "number" and args[4] or 0
+        
+        local rawArgs = {}
+        for i, arg in ipairs(args) do
+            if type(arg) == "number" then
+                rawArgs[i] = formatNumber(arg)
+            elseif type(arg) == "string" then
+                rawArgs[i] = '"' .. arg .. '"'
+            else
+                rawArgs[i] = tostring(arg)
+            end
+        end
+        
+        local rawCommand = "TDS:Place(" .. table.concat(rawArgs, ", ") .. ")"
+        local nextNumber = (towerCounts[towerName] or 0) + 1
+        local displayText = rawCommand .. "  -- " .. towerName .. " #" .. nextNumber .. " (placing...)"
+        local markDone = addAction(displayText)
+        
+        local slot = originalPlace(self, ...)
+        
+        task.spawn(function()
+            local maxWait = 5
+            local startWait = tick()
+            local towerPlaced = false
             
-            local rawArgs = {}
-            for i, arg in ipairs(args) do
-                if type(arg) == "number" then
-                    rawArgs[i] = formatNumber(arg)
-                elseif type(arg) == "string" then
-                    rawArgs[i] = '"' .. arg .. '"'
-                else
-                    rawArgs[i] = tostring(arg)
+            while tick() - startWait < maxWait do
+                if TDS.placed_towers and TDS.placed_towers[slot] then
+                    towerPlaced = true
+                    break
                 end
+                task.wait(0.1)
             end
             
-            local rawCommand = "TDS:Place(" .. table.concat(rawArgs, ", ") .. ")"
+            if slot and type(slot) == "number" then
+                towerCounts[towerName] = (towerCounts[towerName] or 0) + 1
+                local towerNumber = towerCounts[towerName]
+                slotTowers[slot] = {name = towerName, number = towerNumber}
+            end
             
-            local displayText = rawCommand .. "  -- " .. towerName .. " #" .. (towerCounts[towerName] or 0) + 1
-            local markDone = addAction(displayText)
-            
-            local slot = originalPlace(self, ...)
-            
-            task.spawn(function()
-                local maxWait = 5
-                local startWait = tick()
-                local towerPlaced = false
-                
-                while tick() - startWait < maxWait do
-                    if TDS.placed_towers and TDS.placed_towers[slot] then
-                        towerPlaced = true
-                        break
-                    end
-                    task.wait(0.1)
-                end
-                
-                if slot and type(slot) == "number" then
-                    towerCounts[towerName] = (towerCounts[towerName] or 0) + 1
-                    local towerNumber = towerCounts[towerName]
-                    slotTowers[slot] = {name = towerName, number = towerNumber}
-                    
-                end
-                
-                markDone()
-            end)
-            
-            return slot
-        end
+            markDone()
+        end)
+        
+        return slot
     end
+end
     
     local originalUpgrade = TDS.Upgrade
     if originalUpgrade then
