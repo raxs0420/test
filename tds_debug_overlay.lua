@@ -151,7 +151,7 @@ local function attachOverlay(TDS)
     -- Format number with proper decimal places
     local function formatNumber(num)
         if type(num) ~= "number" then return tostring(num) end
-        return string.format("%.2f", num)
+        return string.format("%.5f", num)
     end
     
     -- Add action (shows spinner until markDone is called)
@@ -291,7 +291,7 @@ local function attachOverlay(TDS)
             local rawCommand = "TDS:Place(" .. table.concat(rawArgs, ", ") .. ")"
             
             -- Add action with spinner BEFORE placing
-            local displayText = rawCommand .. "  -- " .. towerName .. " (placing...)"
+            local displayText = rawCommand .. "  -- " .. towerName .. "#%d"
             local markDone = addAction(displayText)
             
             -- Call original and get the slot number
