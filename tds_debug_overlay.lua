@@ -238,9 +238,36 @@ local function attachOverlay(TDS)
     minimizedButton.MouseButton1Click:Connect(expand)
     minimizeBtn.MouseButton1Click:Connect(collapse)
     
+    -- Helper function to wait for a tower to appear in a specific slot
+    local function waitForTowerInSlot(slot)
+        local startTime = tick()
+        local timeout = 5 -- 5 second timeout
+        
+        while tick() - startTime < timeout do
+            local towers = workspace:FindFirstChild("Towers")
+            if towers then
+                for _, tower in ipairs(towers:GetChildren()) do
+                    local replicator = tower:FindFirstChild("TowerReplicator")
+                    if replicator then
+                        local ownerId = replicator:GetAttribute("OwnerId")
+                        if ownerId == localPlayer.UserId then
+                            -- Check if this tower's slot matches
+                            local towerSlot = TDS.placed_towers and #TDS.placed_towers
+                            if towerSlot == slot then
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.1)
+        end
+        return false
+    end
+    
     -- WRAP TDS METHODS
     
-    -- Wrap Place - shows spinner while placing, then checkmark
+    -- Wrap Place - shows spinner while placing, waits for completion
     local originalPlace = TDS.Place
     if originalPlace then
         TDS.Place = function(self, ...)
@@ -270,21 +297,34 @@ local function attachOverlay(TDS)
             -- Call original and get the slot number
             local slot = originalPlace(self, ...)
             
-            -- Update counts and tracking
-            if slot and type(slot) == "number" then
-                towerCounts[towerName] = (towerCounts[towerName] or 0) + 1
-                local towerNumber = towerCounts[towerName]
-                slotTowers[slot] = {name = towerName, number = towerNumber}
+            -- Wait for the tower to actually be placed in the game
+            task.spawn(function()
+                -- Wait for the tower to appear (up to 5 seconds)
+                local maxWait = 5
+                local startWait = tick()
+                local towerPlaced = false
                 
-                -- Update the action text to show the actual number
-                local finalText = rawCommand .. "  -- " .. towerName .. " #" .. towerNumber
-                if markDone and markDone.updateText then
-                    -- If we had a way to update text, we would
+                while tick() - startWait < maxWait do
+                    if TDS.placed_towers and TDS.placed_towers[slot] then
+                        towerPlaced = true
+                        break
+                    end
+                    task.wait(0.1)
                 end
-            end
-            
-            -- Mark as done
-            markDone()
+                
+                -- Update counts and tracking
+                if slot and type(slot) == "number" then
+                    towerCounts[towerName] = (towerCounts[towerName] or 0) + 1
+                    local towerNumber = towerCounts[towerName]
+                    slotTowers[slot] = {name = towerName, number = towerNumber}
+                    
+                    -- Update the action text to show the actual number (we can't easily update, so we'll just mark done with correct info)
+                    -- For now, we mark done and the text stays as is, but the checkmark appears
+                end
+                
+                -- Mark as done
+                markDone()
+            end)
             
             return slot
         end
