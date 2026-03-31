@@ -8,8 +8,6 @@ local function attachOverlay(TDS)
     end
     
     local Players = game:GetService("Players")
-    local UIS = game:GetService("UserInputService")
-    local TweenService = game:GetService("TweenService")
     local RunService = game:GetService("RunService")
     local localPlayer = Players.LocalPlayer
     local playerGui = localPlayer:WaitForChild("PlayerGui")
@@ -42,7 +40,7 @@ local function attachOverlay(TDS)
     local corner = Instance.new("UICorner", mainFrame)
     corner.CornerRadius = UDim.new(0, 8)
     
-    -- Minimized button (cube)
+    -- Minimized button
     local minimizedButton = Instance.new("TextButton")
     minimizedButton.Size = UDim2.new(1, 0, 1, 0)
     minimizedButton.BackgroundTransparency = 1
@@ -52,10 +50,9 @@ local function attachOverlay(TDS)
     minimizedButton.TextSize = 14
     minimizedButton.Parent = mainFrame
     
-    -- Expanded window content (hidden initially)
+    -- Expanded window (hidden)
     local expandedFrame = Instance.new("Frame")
     expandedFrame.Size = UDim2.new(0, 450, 0, 400)
-    expandedFrame.Position = UDim2.new(0, 0, 0, 0)
     expandedFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 23)
     expandedFrame.BorderSizePixel = 1
     expandedFrame.BorderColor3 = Color3.fromRGB(55, 55, 75)
@@ -86,7 +83,7 @@ local function attachOverlay(TDS)
     titleText.TextSize = 13
     titleText.Parent = titleBar
     
-    -- Minimize button (to go back to cube)
+    -- Minimize button
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Text = "−"
     minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -101,7 +98,7 @@ local function attachOverlay(TDS)
     local minCorner = Instance.new("UICorner", minimizeBtn)
     minCorner.CornerRadius = UDim.new(0, 5)
     
-    -- Close button (X)
+    -- Close button
     local closeBtn = Instance.new("TextButton")
     closeBtn.Text = "✕"
     closeBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -165,7 +162,7 @@ local function attachOverlay(TDS)
         scrollFrame.CanvasPosition = Vector2.new(0, 0)
     end
     
-    -- Add action (spinner then check)
+    -- Add action
     local function addAction(text)
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1, 0, 0, 28)
@@ -228,49 +225,35 @@ local function attachOverlay(TDS)
         return markDone
     end
     
-    -- Expand
+    -- Expand/collapse
     local function expand()
         if isExpanded then return end
         isExpanded = true
-        local tween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 450, 0, 400)
-        })
-        tween:Play()
-        tween:Completed:Connect(function()
-            expandedFrame.Visible = true
-            minimizedButton.Visible = false
-            updateLayoutOrders()
-        end)
+        expandedFrame.Visible = true
+        minimizedButton.Visible = false
+        mainFrame.Size = UDim2.new(0, 450, 0, 400)
+        updateLayoutOrders()
     end
     
-    -- Collapse (minimize)
     local function collapse()
         if not isExpanded then return end
         isExpanded = false
         expandedFrame.Visible = false
         minimizedButton.Visible = true
-        local tween = TweenService:Create(mainFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
-            Size = UDim2.new(0, 80, 0, 80)
-        })
-        tween:Play()
+        mainFrame.Size = UDim2.new(0, 80, 0, 80)
     end
     
-    -- Close (destroy)
     local function close()
         screenGui:Destroy()
     end
     
-    -- Connect buttons
     minimizedButton.MouseButton1Click:Connect(expand)
     minimizeBtn.MouseButton1Click:Connect(collapse)
     closeBtn.MouseButton1Click:Connect(close)
     
     -- WRAP TDS METHODS
-    print("[TDS Overlay] Wrapping TDS methods...")
-    
-    -- Wrap Place
-    local originalPlace = TDS.Place
-    if originalPlace then
+    if TDS.Place then
+        local original = TDS.Place
         TDS.Place = function(self, ...)
             local args = {...}
             local towerName = tostring(args[1])
@@ -279,12 +262,15 @@ local function attachOverlay(TDS)
             local text = string.format("Place: %s (%.0f, %.0f)", towerName, x, z)
             
             local markDone = addAction(text)
-            local success, result = pcall(originalPlace, self, ...)
+            local success, result = pcall(original, self, ...)
             markDone()
             
-            -- Track slot (usually the 5th parameter)
-            if args[5] and type(args[5]) == "number" then
-                slotTowers[args[5]] = towerName
+            -- Track slot
+            for i, arg in ipairs(args) do
+                if type(arg) == "number" and arg > 0 and arg < 100 then
+                    slotTowers[arg] = towerName
+                    break
+                end
             end
             
             if not success then
@@ -294,15 +280,14 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Upgrade
-    local originalUpgrade = TDS.Upgrade
-    if originalUpgrade then
+    if TDS.Upgrade then
+        local original = TDS.Upgrade
         TDS.Upgrade = function(self, slot)
             local towerName = slotTowers[slot]
             local text = towerName and string.format("Upgrade: %s (slot %d)", towerName, slot) or string.format("Upgrade: slot %d", slot)
             
             local markDone = addAction(text)
-            local success, result = pcall(originalUpgrade, self, slot)
+            local success, result = pcall(original, self, slot)
             markDone()
             
             if not success then
@@ -312,15 +297,14 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Sell
-    local originalSell = TDS.Sell
-    if originalSell then
+    if TDS.Sell then
+        local original = TDS.Sell
         TDS.Sell = function(self, slot)
             local towerName = slotTowers[slot]
             local text = towerName and string.format("Sell: %s (slot %d)", towerName, slot) or string.format("Sell: slot %d", slot)
             
             local markDone = addAction(text)
-            local success, result = pcall(originalSell, self, slot)
+            local success, result = pcall(original, self, slot)
             markDone()
             
             if success then
@@ -332,69 +316,64 @@ local function attachOverlay(TDS)
         end
     end
     
-    -- Wrap Mode
-    local originalMode = TDS.Mode
-    if originalMode then
+    if TDS.Mode then
+        local original = TDS.Mode
         TDS.Mode = function(self, mode)
             local markDone = addAction("Mode: " .. tostring(mode))
-            local success, result = pcall(originalMode, self, mode)
+            local success, result = pcall(original, self, mode)
             markDone()
             if not success then warn("[TDS Overlay] Mode error:", result) end
             return result
         end
     end
     
-    -- Wrap Loadout
-    local originalLoadout = TDS.Loadout
-    if originalLoadout then
+    if TDS.Loadout then
+        local original = TDS.Loadout
         TDS.Loadout = function(self, ...)
             local args = {...}
             local text = "Loadout: " .. table.concat(args, ", ")
             if #text > 50 then text = text:sub(1, 47) .. "..." end
             
             local markDone = addAction(text)
-            local success, result = pcall(originalLoadout, self, ...)
+            local success, result = pcall(original, self, ...)
             markDone()
             if not success then warn("[TDS Overlay] Loadout error:", result) end
             return result
         end
     end
     
-    -- Wrap Ready
-    local originalReady = TDS.Ready
-    if originalReady then
+    if TDS.Ready then
+        local original = TDS.Ready
         TDS.Ready = function(self)
             local markDone = addAction("Ready - waiting for wave")
-            local success, result = pcall(originalReady, self)
+            local success, result = pcall(original, self)
             markDone()
             if not success then warn("[TDS Overlay] Ready error:", result) end
             return result
         end
     end
     
-    -- Wrap Ability
-    local originalAbility = TDS.Ability
-    if originalAbility then
+    if TDS.Ability then
+        local original = TDS.Ability
         TDS.Ability = function(self, slot, ability)
             local towerName = slotTowers[slot]
             local text = towerName and string.format("Ability: %s (%s)", towerName, tostring(ability)) or string.format("Ability: slot %d - %s", slot, tostring(ability))
             
             local markDone = addAction(text)
-            local success, result = pcall(originalAbility, self, slot, ability)
+            local success, result = pcall(original, self, slot, ability)
             markDone()
             if not success then warn("[TDS Overlay] Ability error:", result) end
             return result
         end
     end
     
-    -- Wrap SetOption
-    local originalSetOption = TDS.SetOption
-    if originalSetOption then
+    if TDS.SetOption then
+        local original = TDS.SetOption
         TDS.SetOption = function(self, slot, key, value)
             local text = string.format("SetOption: slot %d - %s = %s", slot or 0, tostring(key), tostring(value))
             
             local markDone = addAction(text)
-            local success, result = pcall(originalSetOption, self, slot, key, value)
+            local success, result = pcall(original, self, slot, key, value)
             markDone()
             if not success then warn("[TDS Overlay] SetOption error:", result) end
             return result
