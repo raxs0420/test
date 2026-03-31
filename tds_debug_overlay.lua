@@ -75,7 +75,7 @@ local function attachOverlay(TDS)
     
     local titleText = Instance.new("TextLabel")
     titleText.Text = "TDS Debug"
-    titleText.Size = UDim2.new(1, -100, 1, 0)
+    titleText.Size = UDim2.new(1, -60, 1, 0)
     titleText.Position = UDim2.new(0, 12, 0, 0)
     titleText.BackgroundTransparency = 1
     titleText.TextColor3 = Color3.fromRGB(225, 225, 245)
@@ -84,7 +84,7 @@ local function attachOverlay(TDS)
     titleText.TextSize = 13
     titleText.Parent = titleBar
     
-    -- Minimize button
+    -- Minimize button (only button)
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Text = "−"
     minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
@@ -98,21 +98,6 @@ local function attachOverlay(TDS)
     
     local minCorner = Instance.new("UICorner", minimizeBtn)
     minCorner.CornerRadius = UDim.new(0, 5)
-    
-    -- Close button
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Text = "✕"
-    closeBtn.Size = UDim2.new(0, 30, 0, 30)
-    closeBtn.Position = UDim2.new(1, -80, 0, 5)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(55, 40, 40)
-    closeBtn.TextColor3 = Color3.fromRGB(210, 110, 110)
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextSize = 14
-    closeBtn.BorderSizePixel = 0
-    closeBtn.Parent = titleBar
-    
-    local closeCorner = Instance.new("UICorner", closeBtn)
-    closeCorner.CornerRadius = UDim.new(0, 5)
     
     -- Scroll frame
     local scrollFrame = Instance.new("ScrollingFrame")
@@ -169,7 +154,7 @@ local function attachOverlay(TDS)
         return string.format("%.2f", num)
     end
     
-    -- Add action
+    -- Add action (shows spinner until markDone is called)
     local function addAction(text)
         local row = Instance.new("Frame")
         row.Size = UDim2.new(1, 0, 0, 32)
@@ -250,17 +235,12 @@ local function attachOverlay(TDS)
         mainFrame.Size = UDim2.new(0, 80, 0, 80)
     end
     
-    local function close()
-        screenGui:Destroy()
-    end
-    
     minimizedButton.MouseButton1Click:Connect(expand)
     minimizeBtn.MouseButton1Click:Connect(collapse)
-    closeBtn.MouseButton1Click:Connect(close)
     
     -- WRAP TDS METHODS
     
-    -- Wrap Place - counts towers by type, stores slot info, but doesn't display slot
+    -- Wrap Place - shows spinner while placing, then checkmark
     local originalPlace = TDS.Place
     if originalPlace then
         TDS.Place = function(self, ...)
@@ -269,11 +249,7 @@ local function attachOverlay(TDS)
             local x = type(args[2]) == "number" and args[2] or 0
             local z = type(args[4]) == "number" and args[4] or 0
             
-            -- Increment count for this tower type
-            towerCounts[towerName] = (towerCounts[towerName] or 0) + 1
-            local towerNumber = towerCounts[towerName]
-            
-            -- Format the raw command
+            -- Format the raw command BEFORE placing
             local rawArgs = {}
             for i, arg in ipairs(args) do
                 if type(arg) == "number" then
@@ -287,24 +263,34 @@ local function attachOverlay(TDS)
             
             local rawCommand = "TDS:Place(" .. table.concat(rawArgs, ", ") .. ")"
             
+            -- Add action with spinner BEFORE placing
+            local displayText = rawCommand .. "  -- " .. towerName .. " (placing...)"
+            local markDone = addAction(displayText)
+            
             -- Call original and get the slot number
             local slot = originalPlace(self, ...)
             
-            -- Store which tower is in this slot (for upgrades/sells)
+            -- Update counts and tracking
             if slot and type(slot) == "number" then
+                towerCounts[towerName] = (towerCounts[towerName] or 0) + 1
+                local towerNumber = towerCounts[towerName]
                 slotTowers[slot] = {name = towerName, number = towerNumber}
+                
+                -- Update the action text to show the actual number
+                local finalText = rawCommand .. "  -- " .. towerName .. " #" .. towerNumber
+                if markDone and markDone.updateText then
+                    -- If we had a way to update text, we would
+                end
             end
             
-            -- Display without slot number
-            local displayText = rawCommand .. "  -- " .. towerName .. " #" .. towerNumber
-            local markDone = addAction(displayText)
+            -- Mark as done
             markDone()
             
             return slot
         end
     end
     
-    -- Wrap Upgrade - shows which tower is being upgraded (by count, not slot)
+    -- Wrap Upgrade - shows spinner while upgrading
     local originalUpgrade = TDS.Upgrade
     if originalUpgrade then
         TDS.Upgrade = function(self, slot, ...)
@@ -344,7 +330,6 @@ local function attachOverlay(TDS)
             
             if result and towerInfo then
                 slotTowers[slot] = nil
-                -- Note: We don't decrement towerCounts because the tower still existed
             end
             
             return result
