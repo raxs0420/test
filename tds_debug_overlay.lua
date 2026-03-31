@@ -162,10 +162,16 @@ local function attachOverlay(TDS)
         scrollFrame.CanvasPosition = Vector2.new(0, 0)
     end
     
-    -- Format number with proper decimal places
+    -- Format number with proper decimal places (coordinates only)
     local function formatNumber(num)
         if type(num) ~= "number" then return tostring(num) end
         return string.format("%.2f", num)
+    end
+    
+    -- Format slot number (whole number)
+    local function formatSlot(num)
+        if type(num) ~= "number" then return tostring(num) end
+        return tostring(math.floor(num)) -- Convert to whole number
     end
     
     -- Add action
@@ -271,7 +277,7 @@ local function attachOverlay(TDS)
             for i = 2, #args do
                 local val = args[i]
                 if type(val) == "number" and val >= 1 and val <= 100 then
-                    slot = val
+                    slot = math.floor(val) -- Convert to whole number
                     break
                 end
             end
@@ -279,13 +285,19 @@ local function attachOverlay(TDS)
             -- Track slot
             if slot then
                 slotTowers[slot] = towerName
+                print(string.format("[TDS Overlay] Tower placed: %s in slot %d", towerName, slot))
             end
             
             -- Format the raw command
             local rawArgs = {}
             for i, arg in ipairs(args) do
                 if type(arg) == "number" then
-                    rawArgs[i] = formatNumber(arg)
+                    -- Check if this is likely a slot number (1-100) or coordinate
+                    if arg >= 1 and arg <= 100 and i > 1 then
+                        rawArgs[i] = formatSlot(arg)
+                    else
+                        rawArgs[i] = formatNumber(arg)
+                    end
                 elseif type(arg) == "string" then
                     rawArgs[i] = '"' .. arg .. '"'
                 else
@@ -311,13 +323,15 @@ local function attachOverlay(TDS)
     if TDS.Upgrade then
         local original = TDS.Upgrade
         TDS.Upgrade = function(self, slot)
-            local towerName = slotTowers[slot]
+            -- Ensure slot is a whole number
+            local slotNum = math.floor(slot)
+            local towerName = slotTowers[slotNum]
             local displayText
             
             if towerName then
-                displayText = string.format("TDS:Upgrade(%d)  -- %s", slot, towerName)
+                displayText = string.format("TDS:Upgrade(%d)  -- %s", slotNum, towerName)
             else
-                displayText = string.format("TDS:Upgrade(%d)", slot)
+                displayText = string.format("TDS:Upgrade(%d)", slotNum)
             end
             
             local markDone = addAction(displayText)
@@ -335,13 +349,14 @@ local function attachOverlay(TDS)
     if TDS.Sell then
         local original = TDS.Sell
         TDS.Sell = function(self, slot)
-            local towerName = slotTowers[slot]
+            local slotNum = math.floor(slot)
+            local towerName = slotTowers[slotNum]
             local displayText
             
             if towerName then
-                displayText = string.format("TDS:Sell(%d)  -- %s", slot, towerName)
+                displayText = string.format("TDS:Sell(%d)  -- %s", slotNum, towerName)
             else
-                displayText = string.format("TDS:Sell(%d)", slot)
+                displayText = string.format("TDS:Sell(%d)", slotNum)
             end
             
             local markDone = addAction(displayText)
@@ -349,7 +364,7 @@ local function attachOverlay(TDS)
             markDone()
             
             if success then
-                slotTowers[slot] = nil
+                slotTowers[slotNum] = nil
             end
             
             if not success then
@@ -411,13 +426,14 @@ local function attachOverlay(TDS)
     if TDS.Ability then
         local original = TDS.Ability
         TDS.Ability = function(self, slot, ability)
-            local towerName = slotTowers[slot]
+            local slotNum = math.floor(slot)
+            local towerName = slotTowers[slotNum]
             local displayText
             
             if towerName then
-                displayText = string.format('TDS:Ability(%d, "%s")  -- %s', slot, tostring(ability), towerName)
+                displayText = string.format('TDS:Ability(%d, "%s")  -- %s', slotNum, tostring(ability), towerName)
             else
-                displayText = string.format('TDS:Ability(%d, "%s")', slot, tostring(ability))
+                displayText = string.format('TDS:Ability(%d, "%s")', slotNum, tostring(ability))
             end
             
             local markDone = addAction(displayText)
