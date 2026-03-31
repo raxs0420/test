@@ -240,7 +240,7 @@ local function attachOverlay(TDS)
             
             local rawCommand = "TDS:Place(" .. table.concat(rawArgs, ", ") .. ")"
             local nextNumber = (towerCounts[towerName] or 0) + 1
-            local displayText = rawCommand .. "  -- " .. towerName .. " #" .. nextNumber ..
+            local displayText = rawCommand .. "  -- " .. towerName .. " #" .. nextNumber
             local markDone = addAction(displayText)
             
             local slot = originalPlace(self, ...)
