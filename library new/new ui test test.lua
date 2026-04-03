@@ -1329,7 +1329,7 @@ local function start_auto_pickups()
                 for _, item in ipairs(folder:GetChildren()) do
                     if not _G.AutoPickups then break end
 
-                    if item:IsA("MeshPart") and (item.Name == "SnowCharm" or item.Name == "Lorebook") then
+                    if item:IsA("MeshPart") and (item.Name == "Bunz" or item.Name == "Lorebook") then
                         if not is_void_charm(item) then
                             local old_pos = hrp.CFrame
                             hrp.CFrame = item.CFrame * CFrame.new(0, 3, 0)
