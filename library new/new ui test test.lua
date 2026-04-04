@@ -1986,11 +1986,6 @@ task.spawn(function()
             start_auto_support()
         end
 
-      
-        if _G.SellFarms and not SellFarmsRunning then
-            StartSellFarm()
-        end
-
         task.wait(1)
     end
 end)
