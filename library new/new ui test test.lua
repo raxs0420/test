@@ -1811,6 +1811,49 @@ if _G.AutoSmartSkip then
     task.spawn(start_smart_auto_skip)
 end
 
+local function start_auto_mercenary()
+    if auto_mercenary_running or not _G.AutoMercenary then return end
+    auto_mercenary_running = true
+
+    task.spawn(function()
+        while _G.AutoMercenary do
+            local towers_folder = workspace:FindFirstChild("Towers")
+
+            if towers_folder then
+                for _, towers in ipairs(towers_folder:GetDescendants()) do
+                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
+                    and towers:GetAttribute("Name") == "Mercenary Base"
+                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                    and (towers:GetAttribute("Upgrade") or 0) >= 5 then
+                        local mercenary = towers.Parent
+                        
+                        remote_func:InvokeServer(
+                            "Troops",
+                            "Abilities",
+                            "Activate",
+                            { 
+                                Troop = mercenary, 
+                                Name = "Air-Drop", 
+                                Data = {
+                                    pathName = 1, 
+                                    directionCFrame = CFrame.new(), 
+                                    dist = _G.MercDistance or 195
+                                } 
+                            }
+                        )
+                        
+                        task.wait(0.5)
+                    end
+                end
+            end
+
+            task.wait(0.2)
+        end
+
+        auto_mercenary_running = false
+    end)
+end
+
 task.spawn(function()
     while true do
         if _G.AutoPickups and not auto_pickups_running then
@@ -1839,6 +1882,10 @@ task.spawn(function()
         
         if _G.AntiLag and not anti_lag_running then
             start_anti_lag()
+        end
+
+        if _G.AutoMercenary and not auto_mercenary_running then
+            start_auto_mercenary()
         end
 
         if _G.AutoUber and not auto_uber_running then
