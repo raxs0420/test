@@ -47,7 +47,6 @@ local hasSentLobbyWebhook = false
 local hasSentMatchStartWebhook = false
 local auto_smart_skip_running = false
 local auto_mercenary_running = false
-local SellFarmsRunning = false
 local auto_uber_running = false
 
 -- // icon item ids ill add more soon arghh
@@ -1901,42 +1900,6 @@ local function start_auto_mercenary()
     end)
 end
 
-local function StartSellFarm()
-    if SellFarmsRunning or not _G.SellFarms then return end
-    SellFarmsRunning = true
-
-    task.spawn(function()
-        while _G.SellFarms do
-            local towers_folder = workspace:FindFirstChild("Towers")
-
-            if towers_folder then
-                local CurrentWave = get_current_wave()
-                local sellAtWave = _G.WaveFS or 40
-                
-                if CurrentWave >= sellAtWave and CurrentWave > 0 then
-                    for _, replicator in ipairs(towers_folder:GetDescendants()) do
-                        if replicator:IsA("Folder") and replicator.Name == "TowerReplicator" then
-                            local IsFarm = replicator:GetAttribute("Name") == "Farm"
-                            local IsMine = replicator:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
-
-                            if IsFarm and IsMine then
-                                local TowerModel = replicator.Parent
-                                pcall(function()
-                                    remote_func:InvokeServer("Troops", "Sell", { Troop = TowerModel })
-                                end)
-                                task.wait(0.2)
-                            end
-                        end
-                    end
-                end
-            end
-
-            task.wait(0.2)
-        end
-
-        SellFarmsRunning = false
-    end)
-end
 
 task.spawn(function()
     while true do
