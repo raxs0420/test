@@ -747,8 +747,17 @@ local function trigger_restart()
 end
 
 local function get_current_wave()
-    local label = player_gui:WaitForChild("ReactGameTopGameDisplay").Frame.wave.container.value
-    local wave_num = label.Text:match("^(%d+)")
+    local label
+
+    repeat
+        task.wait(0.5)
+        label = player_gui:FindFirstChild("ReactGameTopGameDisplay", true) 
+            and player_gui.ReactGameTopGameDisplay.Frame.wave.container:FindFirstChild("value")
+    until label ~= nil
+
+    local text = label.Text
+    local wave_num = text:match("(%d+)")
+
     return tonumber(wave_num) or 0
 end
 
