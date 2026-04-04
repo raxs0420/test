@@ -938,102 +938,104 @@ function TDS:Mode(difficulty)
 end
 
 function TDS:Loadout(...)
-    -- normalize arguments: allow either a bunch of string args or a single table
     local raw_args = {...}
-    local towers = {}
+    local desiredTowers = {}
     if #raw_args == 1 and type(raw_args[1]) == "table" then
-        towers = raw_args[1]
+        desiredTowers = raw_args[1]
     else
-        towers = raw_args
+        desiredTowers = raw_args
     end
 
-    if #towers == 0 then
+    if #desiredTowers == 0 then
         return false, "no towers provided"
     end
 
-    -- Accept both LOBBY and GAME states.
-    -- If `game_state` global exists and is a string, use it; otherwise try to infer via PlayerGui.
-    local state = nil
-    if type(game_state) == "string" then
-        state = game_state
-    end
-
-    if state ~= "LOBBY" and state ~= "GAME" then
-        -- try to infer from player's GUI presence (best-effort)
-        local player = game:GetService("Players").LocalPlayer
-        if player and player:FindFirstChild("PlayerGui") then
-            local pg = player.PlayerGui
-            if pg:FindFirstChild("ReactLobbyHud") then
-                state = "LOBBY"
-            elseif pg:FindFirstChild("ReactIngameHud") or pg:FindFirstChild("GameGui") then
-                state = "GAME"
-            end
-        end
-    end
-
-    if state ~= "LOBBY" and state ~= "GAME" then
-        -- If we still can't determine a valid state, reject the call
-        return false, ("unsupported or unknown game state: %s"):format(tostring(state))
-    end
-
-    -- Try to locate the remote function in ReplicatedStorage
     local replicated = game:GetService("ReplicatedStorage")
-    local remote = nil
-    -- prefer WaitForChild but with a small timeout in case name differs
-    local ok, res = pcall(function()
-        return replicated:WaitForChild("RemoteFunction", 5)
-    end)
-    if ok then
-        remote = res
-    else
-        -- fallback to FindFirstChild if WaitForChild failed
-        remote = replicated:FindFirstChild("RemoteFunction")
-    end
-
+    local httpService = game:GetService("HttpService")
+    local player = game:GetService("Players").LocalPlayer
+    
+    local remote = replicated:FindFirstChild("RemoteFunction")
     if not remote then
-        return false, "RemoteFunction not found in ReplicatedStorage"
+        return false, "RemoteFunction not found"
     end
-
-    -- If we're in the lobby, wait briefly for matchmaking UI (best-effort). If not found, continue anyway.
-    if state == "LOBBY" then
-        local player = game:GetService("Players").LocalPlayer
-        if player then
-            local player_gui = player:FindFirstChild("PlayerGui")
-            if player_gui then
-                local lobby_hud = player_gui:FindFirstChild("ReactLobbyHud")
-                if lobby_hud then
-                    local frame = lobby_hud:FindFirstChild("Frame")
-                    if frame then
-                        -- don't block forever; just wait a short moment for matchmaking node
-                        local matchmaking = frame:FindFirstChild("matchmaking")
-                        if not matchmaking then
-                            -- attempt to wait a couple seconds for the node to appear (best-effort)
-                            pcall(function()
-                                frame:WaitForChild("matchmaking", 2)
-                            end)
-                        end
+    
+    local currentlyEquipped = {}
+    local StateReplicators = replicated:FindFirstChild("StateReplicators")
+    
+    if StateReplicators then
+        for _, folder in ipairs(StateReplicators:GetChildren()) do
+            if folder.Name == "PlayerReplicator" and folder:GetAttribute("UserId") == player.UserId then
+                local equippedAttr = folder:GetAttribute("EquippedTowers")
+                if type(equippedAttr) == "string" then
+                    local cleanedJson = equippedAttr:match("%[.*%]")
+                    local success, decoded = pcall(function()
+                        return httpService:JSONDecode(cleanedJson)
+                    end)
+                    
+                    if success and type(decoded) == "table" then
+                        currentlyEquipped = decoded
                     end
                 end
+                break
             end
         end
     end
-
-    -- Equip towers one-by-one. Use pcall around each invocation so one failure doesn't stop the rest.
-    for _, tower_name in ipairs(towers) do
-        if tower_name and tower_name ~= "" then
-            local ok, err = pcall(function()
-                -- remote:InvokeServer expects ("Inventory", "Equip", "tower", tower_name) in the original code
-                remote:InvokeServer("Inventory", "Equip", "tower", tower_name)
-            end)
-            if not ok then
-                -- warn but continue with the next tower
-                warn(("TDS:Loadout - failed to equip %s: %s"):format(tostring(tower_name), tostring(err)))
-            end
-            -- small delay between equips to emulate original behavior / prevent flooding
-            task.wait(0.5)
+    
+    local desiredLookup = {}
+    for _, towerName in ipairs(desiredTowers) do
+        if towerName and towerName ~= "" then
+            desiredLookup[towerName] = true
         end
     end
-
+    
+    for _, currentTower in ipairs(currentlyEquipped) do
+        if currentTower ~= "None" and not desiredLookup[currentTower] then
+            local unequipSuccess = false
+            repeat
+                local ok = pcall(function()
+                    remote:InvokeServer("Inventory", "Unequip", "tower", currentTower)
+                end)
+                if ok then
+                    unequipSuccess = true
+                else
+                    task.wait(0.2)
+                end
+            until unequipSuccess
+            task.wait(0.3)
+        end
+    end
+    
+    task.wait(0.5)
+    
+    for _, towerName in ipairs(desiredTowers) do
+        if towerName and towerName ~= "" then
+            local alreadyEquipped = false
+            for _, equippedTower in ipairs(currentlyEquipped) do
+                if equippedTower == towerName then
+                    alreadyEquipped = true
+                    break
+                end
+            end
+            
+            if not alreadyEquipped then
+                local equipSuccess = false
+                repeat
+                    local ok = pcall(function()
+                        remote:InvokeServer("Inventory", "Equip", "tower", towerName)
+                    end)
+                    if ok then
+                        equipSuccess = true
+                    else
+                        task.wait(0.2)
+                    end
+                until equipSuccess
+                task.wait(0.3)
+            end
+        end
+    end
+    
+    task.wait(0.5)
+    
     return true
 end
 
