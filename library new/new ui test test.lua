@@ -1644,6 +1644,41 @@ local function start_auto_uber()
     end)
 end
 
+local function start_auto_support()
+    if auto_support_running or not _G.AutoSupport then return end
+    auto_support_running = true
+
+    task.spawn(function()
+        while _G.AutoSupport do
+            local towers_folder = workspace:FindFirstChild("Towers")
+
+            if towers_folder then
+                for _, towers in ipairs(towers_folder:GetDescendants()) do
+                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
+                    and towers:GetAttribute("Name") == "Commander"
+                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                    and (towers:GetAttribute("Upgrade") or 0) >= 4 then
+                        local commander = towers.Parent
+                        
+                        remote_func:InvokeServer(
+                            "Troops",
+                            "Abilities",
+                            "Activate",
+                            { Troop = commander, Name = "Support Caravan", Data = {} }
+                        )
+                        
+                        task.wait(0.5)
+                    end
+                end
+            end
+
+            task.wait(0.2)
+        end
+
+        auto_support_running = false
+    end)
+end
+
 local NECRO_DELAY = 1.5
 local necroTimers = {}
 local auto_necro_running = false
@@ -1890,6 +1925,10 @@ task.spawn(function()
 
         if _G.AutoUber and not auto_uber_running then
             start_auto_uber()
+        end
+
+        if _G.AutoSupport and not auto_support_running then
+            start_auto_support()
         end
         
         task.wait(1)
