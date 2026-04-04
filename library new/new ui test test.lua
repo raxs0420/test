@@ -35,6 +35,7 @@ local remote_event = replicated_storage:WaitForChild("RemoteEvent")
 local players_service = game:GetService("Players")
 local local_player = players_service.LocalPlayer or players_service.PlayerAdded:Wait()
 local player_gui = local_player:WaitForChild("PlayerGui")
+local player_gui = player:WaitForChild("PlayerGui")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
@@ -1909,12 +1910,16 @@ local function StartSellFarm()
 
     task.spawn(function()
         while _G.SellFarms do
+            local gameState = GetGameState()
+            if gameState ~= "GAME" then
+                task.wait(1)
+                continue
+            end
+            
             local CurrentWave = get_current_wave()
             local sellAtWave = _G.WaveFS or 40
             
-            if CurrentWave < sellAtWave then
-                task.wait(1)
-            else
+            if CurrentWave >= sellAtWave and CurrentWave > 0 then
                 local TowersFolder = workspace:FindFirstChild("Towers")
                 if TowersFolder then
                     for _, replicator in ipairs(TowersFolder:GetDescendants()) do
@@ -1927,7 +1932,6 @@ local function StartSellFarm()
                                 pcall(function()
                                     RemoteFunction:InvokeServer("Troops", "Sell", { Troop = TowerModel })
                                 end)
-
                                 task.wait(0.2)
                             end
                         end
