@@ -1901,27 +1901,20 @@ local function start_auto_mercenary()
     end)
 end
 
-local remote_func = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
-
 local function StartSellFarm()
     if SellFarmsRunning or not _G.SellFarms then return end
     SellFarmsRunning = true
 
     task.spawn(function()
         while _G.SellFarms do
-            local gameState = identify_game_state()
-            if gameState ~= "GAME" then
-                task.wait(1)
-                continue
-            end
-            
-            local CurrentWave = get_current_wave()
-            local sellAtWave = _G.WaveFS or 40
-            
-            if CurrentWave >= sellAtWave and CurrentWave > 0 then
-                local TowersFolder = workspace:FindFirstChild("Towers")
-                if TowersFolder then
-                    for _, replicator in ipairs(TowersFolder:GetDescendants()) do
+            local towers_folder = workspace:FindFirstChild("Towers")
+
+            if towers_folder then
+                local CurrentWave = get_current_wave()
+                local sellAtWave = _G.WaveFS or 40
+                
+                if CurrentWave >= sellAtWave and CurrentWave > 0 then
+                    for _, replicator in ipairs(towers_folder:GetDescendants()) do
                         if replicator:IsA("Folder") and replicator.Name == "TowerReplicator" then
                             local IsFarm = replicator:GetAttribute("Name") == "Farm"
                             local IsMine = replicator:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
@@ -1938,8 +1931,9 @@ local function StartSellFarm()
                 end
             end
 
-            task.wait(1)
+            task.wait(0.2)
         end
+
         SellFarmsRunning = false
     end)
 end
