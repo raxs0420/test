@@ -1629,7 +1629,7 @@ local function start_auto_uber()
                             "Troops",
                             "Abilities",
                             "Activate",
-                            { Troop = medic, Name = "Ubercharge", Data = {} }
+                            { Troop = tower, Name = "Ubercharge", Data = {} }
                         )
                         
                         task.wait(0.5) 
