@@ -1609,6 +1609,41 @@ local function start_auto_dj_booth()
     end)
 end
 
+local function start_auto_uber()
+    if auto_uber_running or not _G.AutoUber then return end
+    auto_uber_running = true
+
+    task.spawn(function()
+        while _G.AutoUber do
+            local towers_folder = workspace:FindFirstChild("Towers")
+
+            if towers_folder then
+                for _, towers in ipairs(towers_folder:GetDescendants()) do
+                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
+                    and towers:GetAttribute("Name") == "Medic"
+                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                    and (towers:GetAttribute("Level") or 0) >= 3 then
+                        local medic = towers.Parent
+                        
+                        remote_func:InvokeServer(
+                            "Troops",
+                            "Abilities",
+                            "Activate",
+                            { Troop = medic, Name = "Ubercharge", Data = {} }
+                        )
+                        
+                        task.wait(0.5) 
+                    end
+                end
+            end
+
+            task.wait(0.2)
+        end
+
+        auto_uber_running = false
+    end)
+end
+
 local NECRO_DELAY = 1.5
 local necroTimers = {}
 local auto_necro_running = false
@@ -1804,6 +1839,10 @@ task.spawn(function()
         
         if _G.AntiLag and not anti_lag_running then
             start_anti_lag()
+        end
+
+        if _G.AutoUber and not auto_uber_running then
+            start_auto_uber()
         end
         
         task.wait(1)
