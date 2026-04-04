@@ -1929,7 +1929,7 @@ local function StartSellFarm()
                             if IsFarm and IsMine then
                                 local TowerModel = replicator.Parent
                                 pcall(function()
-                                    RemoteFunction:InvokeServer("Troops", "Sell", { Troop = TowerModel })
+                                    remote_func:InvokeServer("Troops", "Sell", { Troop = TowerModel })
                                 end)
                                 task.wait(0.2)
                             end
