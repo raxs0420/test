@@ -46,7 +46,9 @@ local anti_lag_running = false
 local hasSentLobbyWebhook = false
 local hasSentMatchStartWebhook = false
 local auto_smart_skip_running = false
+local auto_mercenary_running = false
 local SellFarmsRunning = false
+local auto_uber_running = false
 
 -- // icon item ids ill add more soon arghh
 local ItemNames = {
@@ -1969,7 +1971,12 @@ task.spawn(function()
         if _G.AutoSupport and not auto_support_running then
             start_auto_support()
         end
-        
+
+      
+        if _G.SellFarms and not SellFarmsRunning then
+            StartSellFarm()
+        end
+
         task.wait(1)
     end
 end)
