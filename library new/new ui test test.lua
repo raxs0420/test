@@ -1909,7 +1909,7 @@ local function StartSellFarm()
 
     task.spawn(function()
         while _G.SellFarms do
-            local gameState = GetGameState()
+            local gameState = identify_game_state()
             if gameState ~= "GAME" then
                 task.wait(1)
                 continue
