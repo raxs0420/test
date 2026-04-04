@@ -1622,7 +1622,7 @@ local function start_auto_uber()
                     if towers:IsA("Folder") and towers.Name == "TowerReplicator"
                     and towers:GetAttribute("Name") == "Medic"
                     and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
-                    and (towers:GetAttribute("Level") or 0) >= 3 then
+                    and (towers:GetAttribute("Upgrade") or 0) >= 3 then
                         local medic = towers.Parent
                         
                         remote_func:InvokeServer(
