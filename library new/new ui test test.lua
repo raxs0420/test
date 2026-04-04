@@ -1907,7 +1907,7 @@ local function StartSellFarm()
 
     task.spawn(function()
         while _G.SellFarms do
-            local CurrentWave = get_current_wave() 
+            local CurrentWave = get_current_wave()
             local sellAtWave = _G.WaveFS or 40
             
             if CurrentWave < sellAtWave then
