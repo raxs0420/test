@@ -1901,6 +1901,8 @@ local function start_auto_mercenary()
     end)
 end
 
+local remote_func = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
+
 local function StartSellFarm()
     if SellFarmsRunning or not _G.SellFarms then return end
     SellFarmsRunning = true
