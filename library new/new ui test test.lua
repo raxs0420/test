@@ -1896,28 +1896,27 @@ local function StartSellFarm()
 
     task.spawn(function()
         while _G.SellFarms do
-            local CurrentWave = GetCurrentWave() -- Your existing function
+            local CurrentWave = GetCurrentWave() 
             local sellAtWave = _G.WaveFS or 40
             
             if CurrentWave < sellAtWave then
                 task.wait(1)
-                continue
-            end
+            else
+                local TowersFolder = workspace:FindFirstChild("Towers")
+                if TowersFolder then
+                    for _, replicator in ipairs(TowersFolder:GetDescendants()) do
+                        if replicator:IsA("Folder") and replicator.Name == "TowerReplicator" then
+                            local IsFarm = replicator:GetAttribute("Name") == "Farm"
+                            local IsMine = replicator:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
 
-            local TowersFolder = workspace:FindFirstChild("Towers")
-            if TowersFolder then
-                for _, replicator in ipairs(TowersFolder:GetDescendants()) do
-                    if replicator:IsA("Folder") and replicator.Name == "TowerReplicator" then
-                        local IsFarm = replicator:GetAttribute("Name") == "Farm"
-                        local IsMine = replicator:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                            if IsFarm and IsMine then
+                                local TowerModel = replicator.Parent
+                                pcall(function()
+                                    RemoteFunction:InvokeServer("Troops", "Sell", { Troop = TowerModel })
+                                end)
 
-                        if IsFarm and IsMine then
-                            local TowerModel = replicator.Parent
-                            pcall(function()
-                                RemoteFunction:InvokeServer("Troops", "Sell", { Troop = TowerModel })
-                            end)
-
-                            task.wait(0.2)
+                                task.wait(0.2)
+                            end
                         end
                     end
                 end
