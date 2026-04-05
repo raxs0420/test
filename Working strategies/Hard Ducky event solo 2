@@ -2,7 +2,7 @@
 _G.AutoPickups = true
 _G.AntiLag = false
 _G.ClaimRewards = true
-_G.AutoRejoin = false
+_G.AutoRejoin = true
 _G.AutoSmartSkip = false
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
@@ -13,8 +13,8 @@ TDS:Ready()
 TDS:AutoSkip(true)
 TDS:Place("Tesla", -1.522, 110, -58.923)
 TDS:Place("Tesla", -24.257, 110, -11.338)
-TDS:AutoSkip(false)
 TDS:Upgrade(1)
+TDS:AutoSkip(false)
 TDS:Upgrade(2)
 TDS:Place("Minigunner", -5.093, 110, -59.173)
 TDS:Upgrade(3)
