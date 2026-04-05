@@ -211,11 +211,13 @@ TDS:Upgrade(34)
 
 TDS:Upgrade(16)
 TDS:Upgrade(16)
+TDS:Ability(16, "Support Caravan", {Nill} , true)
 TDS:Upgrade(15)
 TDS:Upgrade(15)
+TDS:Ability(15, "Support Caravan", {Nill} , true)
 TDS:Upgrade(13)
 TDS:Upgrade(13)
-
+TDS:Ability(13, "Support Caravan", {Nill} , true)
 TDS:Upgrade(8)
 TDS:Upgrade(9)
 TDS:Upgrade(11)
@@ -245,10 +247,13 @@ TDS:Upgrade(41)
 
 TDS:Upgrade(18)
 TDS:Upgrade(18)
+TDS:Ability(18, "Support Caravan", {Nill} , true)
 TDS:Upgrade(20)
 TDS:Upgrade(20)
+TDS:Ability(20, "Support Caravan", {Nill} , true)
 TDS:Upgrade(25)
 TDS:Upgrade(25)
+TDS:Ability(25, "Support Caravan", {Nill} , true)
 
 TDS:Upgrade(8)
 TDS:Upgrade(9)
@@ -259,12 +264,12 @@ TDS:Upgrade(17)
 TDS:Upgrade(19)
 TDS:Upgrade(10)
 
-TDS:Ability(25, "Support Caravan", {Nill} , true)
-TDS:Ability(20, "Support Caravan", {Nill} , true)
-TDS:Ability(18, "Support Caravan", {Nill} , true)
-TDS:Ability(16, "Support Caravan", {Nill} , true)
-TDS:Ability(15, "Support Caravan", {Nill} , true)
-TDS:Ability(13, "Support Caravan", {Nill} , true)
+
+
+
+
+
+
 
 TDS:Place("Turret", -6.934534, 110, -55.792403) -- 42
 TDS:Upgrade(42)
