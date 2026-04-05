@@ -1,8 +1,9 @@
 _G.AutoPickups = true
 _G.AntiLag = false
 _G.ClaimRewards = true
-_G.AutoRejoin = false
+_G.AutoRejoin = true
 _G.AutoSmartSkip = false
+_G.AutoSupport = true
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
