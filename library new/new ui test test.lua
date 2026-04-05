@@ -1168,7 +1168,7 @@ function TDS:Place(t_name, px, py, pz, ...)
     local stack = false
 
     if args[#args] == "stack" or args[#args] == true then
-        py = 95
+        py = py+25
     end
     if game_state ~= "GAME" then
         return false 
