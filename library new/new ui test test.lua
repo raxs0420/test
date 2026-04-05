@@ -15,7 +15,7 @@ local function identify_game_state()
     end
 end
 
-local game_state = identify_game_state()
+game_state = identify_game_state()
 
 
 local send_request = request or http_request or httprequest
