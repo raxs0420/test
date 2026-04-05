@@ -6,17 +6,17 @@ local function identify_game_state()
     local temp_gui = temp_player:WaitForChild("PlayerGui")
     
     while true do
-        if temp_gui:FindFirstChild("LobbyGui") then
+        if temp_gui:FindFirstChild("ReactLobbyHud") then
             return "LOBBY"
-        elseif temp_gui:FindFirstChild("GameGui") then
+        elseif temp_gui:FindFirstChild("ReactUniversalHotbar") then
             return "GAME"
         end
         task.wait(1)
     end
 end
 
-
 local game_state = identify_game_state()
+
 
 local send_request = request or http_request or httprequest
     or GetDevice and GetDevice().request
