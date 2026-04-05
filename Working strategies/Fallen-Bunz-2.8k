@@ -17,7 +17,7 @@ local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/
 TDS:Loadout("Commander", "Ranger", "Freezer", "DJ Booth", "Cowboy")
 TDS:Mode("Fallen")
 TDS:GameInfo("Summer Castle", {
-    Glass = true,
+    Glass = false,
 })  -- You can add more modifiers if you wanna (just use right name/Id)
 
 TDS:Place("Cowboy", 13.62656, 60, 24.12277) 
