@@ -762,18 +762,23 @@ end
 
 local function do_place_tower(t_name, t_pos)
     while true do
-        -- Generate random offsets for x and z
         local random_x_offset = (math.random(-99, 99)) / 1000000
         local random_z_offset = (math.random(-99, 99)) / 1000000
-        
-        -- Apply random offsets
+
         local new_x = t_pos.X + random_x_offset
         local new_z = t_pos.Z + random_z_offset
         
-        local randomized_pos = Vector3.new(new_x, t_pos.Y, new_z)
-        
-    
-        
+        local final_y = t_pos.Y
+        for _, child in ipairs(workspace.Towers:GetChildren()) do
+            local tower_pos = child:GetPivot().Position
+            if math.abs(tower_pos.X - new_x) < 1 and math.abs(tower_pos.Z - new_z) < 1 then
+                final_y = t_pos.Y + 25
+                break
+            end
+        end
+
+        local randomized_pos = Vector3.new(new_x, final_y, new_z)
+
         local ok, res = pcall(function()
             return remote_func:InvokeServer("Troops", "Pl\208\176ce", {
                 Rotation = CFrame.new(),
@@ -781,7 +786,9 @@ local function do_place_tower(t_name, t_pos)
             }, t_name)
         end)
 
-        if ok and check_res_ok(res) then return true end
+        if ok and check_res_ok(res) then 
+            return true 
+        end
         task.wait(0.25)
     end
 end
