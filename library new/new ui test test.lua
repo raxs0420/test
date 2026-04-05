@@ -913,14 +913,47 @@ function TDS:Mode(difficulty)
         return false 
     end
 
+    -- Add Trial difficulty handling
+    if difficulty == "Trial" then
+        local Elevators = workspace:WaitForChild("Elevators")
+        local Network = game:GetService("ReplicatedStorage"):WaitForChild("Network")
+        
+        if Elevators and Network then
+            local targetElevator = nil
+            
+            repeat
+                for _, v in pairs(Elevators:GetChildren()) do
+                    if v.Name:match("Trial") or v.Name:match("Event") then
+                        targetElevator = v
+                        break
+                    end
+                end
+                if not targetElevator then task.wait(0.5) end
+            until targetElevator
+
+            task.spawn(function()
+                local ElevatorsNet = Network:WaitForChild("Elevators")
+                local EnterRemote = ElevatorsNet:WaitForChild("RF:Enter")
+                local SetSizeRemote = ElevatorsNet:WaitForChild("RF:SetSize")
+                local SetReadyRemote = ElevatorsNet:WaitForChild("RF:SetReady")
+                
+                pcall(function() EnterRemote:InvokeServer(targetElevator) end)
+                pcall(function() SetSizeRemote:InvokeServer(1) end)
+                pcall(function() SetReadyRemote:InvokeServer(true) end)
+            end)
+            
+            return true
+        end
+    end
+
     local lobby_hud = player_gui:WaitForChild("ReactLobbyHud", 30)
     local frame = lobby_hud and lobby_hud:WaitForChild("Frame", 30)
     local match_making = frame and frame:WaitForChild("matchmaking", 30)
 
     if match_making then
-    local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
-    local success = false
-    local res
+        local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
+        local success = false
+        local res
         repeat
             local ok, result = pcall(function()
                 local mode = TDS.matchmaking_map[difficulty]
