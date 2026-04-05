@@ -1,0 +1,268 @@
+_G.AutoPickups = true
+_G.AntiLag = false
+_G.ClaimRewards = true
+_G.AutoRejoin = false
+_G.AutoSmartSkip = false
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("DJ Booth", "Ranger", "Commander", "Cowboy", "Minigunner")
+
+TDS:Ready()
+TDS:AutoSkip(true)
+TDS:Place("Cowboy", -24.454928, 110, -11.416990) -- 1
+TDS:Place("Cowboy", -21.004866, 110, -11.384217) -- 2
+TDS:Place("Cowboy", -2.254442, 110, -67.553504) -- 3
+TDS:Place("Cowboy", 0.315043, 110, -67.594069) -- 4
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Place("Cowboy", -27.077108, 110, -11.522877) -- 5
+TDS:Place("Cowboy", -0.908194, 110, -65.293520) -- 6
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:AutoSkip(false)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+TDS:Upgrade(1)
+TDS:Place("DJ Booth", -6.904778, 110, -59.813360) -- 7
+TDS:Upgrade(7)
+TDS:SetOption(7, "Track", "Green")
+TDS:Upgrade(7)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Ability(7, "Drop The Beat", {Nill} , true)
+TDS:Place("Ranger", -4.690047, 110, -50.964322) -- 8
+TDS:Place("Ranger", -4.690047, 110, -50.964322) -- 9
+TDS:Upgrade(1)
+TDS:Upgrade(6)
+TDS:Place("Ranger", -4.690047, 110, -50.964322) -- 10
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Place("Ranger", -4.690047, 110, -50.964322) -- 11
+TDS:Place("Ranger", -4.690047, 110, -50.964322) -- 12
+TDS:Place("Commander", -6.934534, 110, -55.792403) -- 13
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+TDS:Place("Ranger", -4.690047, 110, -50.964322) -- 14
+TDS:Place("Commander", -2.926408, 110, -59.318727) -- 15
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Place("Commander", 0.284546, 110, -58.793741) -- 16
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:AutoChain(16, 15, 13)
+TDS:Place("Ranger", -4.690047, 110, -50.964322) -- 17
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+TDS:Place("Commander", -33.717102, 110, -15.047244) -- 18
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Place("Ranger", -4.690047, 110, -50.964322) -- 19
+TDS:Place("Commander", -33.380159, 110, -18.245215) -- 20
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 21
+TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 22
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 23
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 24
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Place("Commander", -30.067465, 110, -18.004729) -- 25
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:AutoChain(18, 20, 25)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:SetTarget(8, "Strongest") 
+TDS:SetTarget(9, "Strongest") 
+TDS:SetTarget(14, "Strongest") 
+TDS:SetTarget(17, "Strongest") 
+TDS:SetTarget(19, "Strongest") 
+TDS:SetTarget(10, "Strongest") 
+TDS:SetTarget(12, "Strongest") 
+TDS:SetTarget(11, "Strongest") 
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:SetTarget(8, "First") 
+TDS:SetTarget(9, "First") 
+TDS:SetTarget(14, "First") 
+TDS:SetTarget(17, "First") 
+
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 26
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 27
+TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 28
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+TDS:SetTarget(19, "First") 
+TDS:SetTarget(26, "First") 
+TDS:SetTarget(12, "First") 
+TDS:SetTarget(11, "First") 
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 29
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 30
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 31
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 32
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 33
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Place("Minigunner", -29.997082, 110, -14.609071) -- 34
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+
+TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 35
+TDS:Upgrade(35)
+TDS:Upgrade(35)
+TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 36
+TDS:Upgrade(36)
+TDS:Upgrade(36)
+TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 37
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 38
+TDS:Upgrade(38)
+TDS:Upgrade(38)
+TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 39
+TDS:Upgrade(39)
+TDS:Upgrade(39)
+
+TDS:Loadout("DJ Booth", "Ranger", "Commander", "Mercenary Base", "Gatling Gun")
+TDS:Place("Gatling Gun", -4.690047, 110, -50.964322) -- 40
+
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(28)
+TDS:Upgrade(35)
+TDS:Upgrade(23)
+TDS:Upgrade(24)
+TDS:Upgrade(27)
+TDS:Upgrade(29)
+TDS:Upgrade(36)
+TDS:Upgrade(37)
+TDS:Upgrade(38)
+TDS:Upgrade(39)
+
+TDS:SetOption(7, "Track", "Red")
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/DeadSignalFound/Library/refs/heads/main/AutoGatlin.lua"))()
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+
+TDS:Upgrade(36)
+TDS:Upgrade(37)
+TDS:Upgrade(38)
+TDS:Upgrade(39)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(28)
+TDS:Upgrade(35)
+
+TDS:Upgrade(30)
+TDS:Upgrade(31)
+TDS:Upgrade(32)
+TDS:Upgrade(33)
+TDS:Upgrade(34)
+
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(14)
+TDS:Upgrade(17)
+TDS:Upgrade(19)
+TDS:Upgrade(10)
+
+TDS:Upgrade(23)
+TDS:Upgrade(24)
+TDS:Upgrade(27)
+TDS:Upgrade(29)
+TDS:Upgrade(30)
+TDS:Upgrade(31)
+TDS:Upgrade(32)
+TDS:Upgrade(33)
+TDS:Upgrade(34)
+
+TDS:Place("Mercenary Base", -6.934534, 110, -55.792403) -- 41
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+TDS:Upgrade(41)
+
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(14)
+TDS:Upgrade(17)
+TDS:Upgrade(19)
+TDS:Upgrade(10)
+
+TDS:Ability(25, "Support Caravan", {Nill} , true)
+TDS:Ability(20, "Support Caravan", {Nill} , true)
+TDS:Ability(18, "Support Caravan", {Nill} , true)
+TDS:Ability(16, "Support Caravan", {Nill} , true)
+TDS:Ability(15, "Support Caravan", {Nill} , true)
+TDS:Ability(13, "Support Caravan", {Nill} , true)
+
