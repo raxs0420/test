@@ -266,3 +266,59 @@ TDS:Ability(16, "Support Caravan", {Nill} , true)
 TDS:Ability(15, "Support Caravan", {Nill} , true)
 TDS:Ability(13, "Support Caravan", {Nill} , true)
 
+TDS:Place("Turret", -6.934534, 110, -55.792403) -- 42
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+TDS:Upgrade(42)
+
+TDS:Place("Turret", -6.934534, 110, -55.792403) -- 43
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+TDS:Upgrade(43)
+
+TDS:Place("Turret", -6.934534, 110, -55.792403) -- 44
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+TDS:Upgrade(44)
+
+TDS:Place("Accelerator", -6.934534, 110, -55.792403) -- 45
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+TDS:Upgrade(45)
+
+TDS:Place("Accelerator", -6.934534, 110, -55.792403) -- 46
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+TDS:Upgrade(46)
+
+TDS:Place("Accelerator", -6.934534, 110, -55.792403) -- 47
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+TDS:Upgrade(47)
+
+TDS:Place("Accelerator", -6.934534, 110, -55.792403) -- 48
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+TDS:Upgrade(48)
+
+TDS:Place("Accelerator", -6.934534, 110, -55.792403) -- 49
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+TDS:Upgrade(49)
+
