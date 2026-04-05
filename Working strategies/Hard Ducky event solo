@@ -166,7 +166,7 @@ TDS:Place("Minigunner", 2.585066, 110, -55.265349) -- 39
 TDS:Upgrade(39)
 TDS:Upgrade(39)
 
-TDS:Loadout("DJ Booth", "Ranger", "Commander", "Mercenary Base", "Gatling Gun")
+TDS:Loadout("DJ Booth", "Accelerator", "Turret", "Mercenary Base", "Gatling Gun")
 TDS:Place("Gatling Gun", -4.690047, 110, -50.964322) -- 40
 
 TDS:Upgrade(21)
