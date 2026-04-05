@@ -946,47 +946,71 @@ function TDS:Mode(difficulty)
         end
     end
 
-    local lobby_hud = player_gui:WaitForChild("ReactLobbyHud", 30)
-    local frame = lobby_hud and lobby_hud:WaitForChild("Frame", 30)
-    local match_making = frame and frame:WaitForChild("matchmaking", 30)
-
-    if match_making then
-        local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
-        local success = false
-        local res
-        repeat
-            local ok, result = pcall(function()
-                local mode = TDS.matchmaking_map[difficulty]
-
-                local payload
-
-                if mode then
-                    payload = {
-                        mode = mode,
-                        count = 1
-                    }
-                else
-                    payload = {
-                        difficulty = difficulty,
-                        mode = "survival",
-                        count = 1
-                    }
-                end
-
-                return remote:InvokeServer("Multiplayer", "v2:start", payload)
-            end)
-
-            if ok and check_res_ok(result) then
-                success = true
-                res = result
-            else
-                task.wait(0.5) 
-            end
-        until success
+    -- Wait for lobby UI with better error handling
+    local lobby_hud = player_gui:FindFirstChild("ReactLobbyHud")
+    if not lobby_hud then
+        lobby_hud = player_gui:WaitForChild("ReactLobbyHud", 30)
     end
+    
+    local frame = lobby_hud:FindFirstChild("Frame")
+    if not frame then
+        frame = lobby_hud:WaitForChild("Frame", 30)
+    end
+    
+    local match_making = frame:FindFirstChild("matchmaking")
+    if not match_making then
+        -- Try to find the matchmaking button by other means
+        match_making = frame:FindFirstChildWhichIsA("TextButton")
+        if not match_making or not match_making.Name:lower():match("match") then
+            warn("Could not find matchmaking button, cannot start game")
+            return false
+        end
+    end
+
+    -- Matchmaking with proper retry logic
+    local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
+    local maxAttempts = 5
+    local attempt = 0
+    local success = false
+    
+    repeat
+        attempt = attempt + 1
+        local ok, result = pcall(function()
+            local mode = TDS.matchmaking_map[difficulty]
+            local payload
+
+            if mode then
+                payload = {
+                    mode = mode,
+                    count = 1
+                }
+            else
+                payload = {
+                    difficulty = difficulty,
+                    mode = "survival",
+                    count = 1
+                }
+            end
+
+            return remote:InvokeServer("Multiplayer", "v2:start", payload)
+        end)
+
+        if ok and check_res_ok(result) then
+            success = true
+            print("Successfully started " .. difficulty .. " mode!")
+        else
+            if attempt >= maxAttempts then
+                warn("Failed to start " .. difficulty .. " mode after " .. maxAttempts .. " attempts")
+                return false
+            end
+            task.wait(1) -- Wait longer between retries
+        end
+    until success
 
     return true
 end
+
+
 
 function TDS:Loadout(...)
     local raw_args = {...}
