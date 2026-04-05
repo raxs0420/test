@@ -772,7 +772,7 @@ local function do_place_tower(t_name, t_pos)
         for _, child in ipairs(workspace.Towers:GetChildren()) do
             local tower_pos = child:GetPivot().Position
             if math.abs(tower_pos.X - new_x) < 1 and math.abs(tower_pos.Z - new_z) < 1 then
-                final_y = t_pos.Y + 25
+                final_y = t_pos.Y 
                 break
             end
         end
