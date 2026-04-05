@@ -1168,10 +1168,25 @@ function TDS:Place(t_name, px, py, pz, ...)
     local stack = false
 
     if args[#args] == "stack" or args[#args] == true then
-        py = py+25
+        py = 95
     end
     if game_state ~= "GAME" then
         return false 
+    end
+   
+    local final_y = py
+    local above_existing = false
+    
+    for _, child in ipairs(workspace.Towers:GetChildren()) do
+        local tower_pos = child:GetPivot().Position
+        if math.abs(tower_pos.X - px) < 0.5 and math.abs(tower_pos.Z - pz) < 0.5 then
+            above_existing = true
+            break
+        end
+    end
+    
+    if above_existing then
+        final_y = py + 25
     end
     
     local existing = {}
@@ -1184,7 +1199,7 @@ function TDS:Place(t_name, px, py, pz, ...)
         end
     end
 
-    do_place_tower(t_name, Vector3.new(px, py, pz))
+    do_place_tower(t_name, Vector3.new(px, final_y, pz))
 
     local new_t
     repeat
