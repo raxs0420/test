@@ -1826,19 +1826,17 @@ local function start_smart_auto_skip()
         return success and result or 0
     end
 
-    -- Helper function to check if enemy has all three modifier attributes (14, 27, 7)
-    local function has_ignored_modifiers(enemy)
-        local modifiers = enemy:FindFirstChild("Modifiers")
-        if not modifiers then return false end
-        
-        -- Check if all three attributes exist (by name) in the Modifiers folder
-        local has_14 = modifiers:FindFirstChild("14") ~= nil
-        local has_27 = modifiers:FindFirstChild("27") ~= nil
-        local has_7 = modifiers:FindFirstChild("7") ~= nil
-        
-        -- Return true only if ALL THREE modifiers exist
-        return has_14 and has_27 and has_7
-    end
+
+local function has_ignored_modifiers(enemy)
+    local modifiers = enemy:FindFirstChild("Modifiers")
+    if not modifiers then return false end
+
+    local has_14 = modifiers:FindFirstChild("14") ~= nil
+    local has_27 = modifiers:FindFirstChild("27") ~= nil
+    local has_7 = modifiers:FindFirstChild("7") ~= nil
+    
+    return has_14 and has_27 and has_7
+end
 
 local function get_total_enemy_health()
     local total_health = 0
