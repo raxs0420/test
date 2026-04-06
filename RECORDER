@@ -3,11 +3,20 @@ local players = game:GetService("Players")
 local player = players.LocalPlayer
 local player_gui = player:WaitForChild("PlayerGui")
 local user_input_service = game:GetService("UserInputService")
+local replicated_storage = game:GetService("ReplicatedStorage")
 
-local file_name = "Strat.txt"
+local file_name = "Pancake.txt"
 local placement_count = 0
-local towers_list = {} 
+local towers_list = {}  
+local tower_id_map = {} 
 _G.record_strat = false
+_G.playback_active = false
+
+local remote_function = replicated_storage:WaitForChild("RemoteFunction")
+
+if screen_gui and screen_gui.Parent then
+    screen_gui:Destroy()
+end
 
 local screen_gui = Instance.new("ScreenGui")
 screen_gui.Name = "strat_recorder_ui"
@@ -16,8 +25,8 @@ screen_gui.Parent = player_gui
 
 local main_frame = Instance.new("Frame", screen_gui)
 main_frame.Name = "main_frame"
-main_frame.Size = UDim2.new(0, 300, 0, 350)
-main_frame.Position = UDim2.new(0.35, 0, 0.3, 0)
+main_frame.Size = UDim2.new(0, 500, 0, 450)
+main_frame.Position = UDim2.new(0.35, 0, 0.25, 0)
 main_frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 main_frame.Active = true
 main_frame.Draggable = true
@@ -47,7 +56,7 @@ user_input_service.InputChanged:Connect(function(input)
         local frame_pos = main_frame.AbsolutePosition
         local new_size_x = mouse_pos.X - frame_pos.X
         local new_size_y = mouse_pos.Y - frame_pos.Y
-        main_frame.Size = UDim2.new(0, math.max(200, new_size_x), 0, math.max(150, new_size_y))
+        main_frame.Size = UDim2.new(0, math.max(450, new_size_x), 0, math.max(350, new_size_y))
     end
 end)
 
@@ -58,10 +67,9 @@ user_input_service.InputEnded:Connect(function(input)
 end)
 
 local title_label = Instance.new("TextLabel", main_frame)
-title_label.Name = "title_label"
 title_label.Size = UDim2.new(1, -50, 0, 30)
 title_label.Position = UDim2.new(0, 10, 0, 5)
-title_label.Text = "Strat Recorder"
+title_label.Text = "Strat Recorder / Player"
 title_label.TextColor3 = Color3.new(1, 1, 1)
 title_label.BackgroundTransparency = 1
 title_label.Font = Enum.Font.GothamBold
@@ -69,7 +77,6 @@ title_label.TextSize = 18
 title_label.TextXAlignment = Enum.TextXAlignment.Left
 
 local close_btn = Instance.new("TextButton", main_frame)
-close_btn.Name = "close_btn"
 close_btn.Size = UDim2.new(0, 30, 0, 30)
 close_btn.Position = UDim2.new(1, -35, 0, 5)
 close_btn.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
@@ -78,10 +85,36 @@ close_btn.TextColor3 = Color3.fromRGB(255, 100, 100)
 close_btn.TextSize = 20
 Instance.new("UICorner", close_btn)
 
-local log_box = Instance.new("ScrollingFrame", main_frame)
-log_box.Name = "log_box"
-log_box.Size = UDim2.new(0.9, 0, 0.7, 0)
-log_box.Position = UDim2.new(0.05, 0, 0.15, 0)
+local record_tab_btn = Instance.new("TextButton", main_frame)
+record_tab_btn.Size = UDim2.new(0, 100, 0, 30)
+record_tab_btn.Position = UDim2.new(0, 10, 0, 40)
+record_tab_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+record_tab_btn.Text = "RECORDER"
+record_tab_btn.TextColor3 = Color3.new(1, 1, 1)
+record_tab_btn.Font = Enum.Font.GothamBold
+record_tab_btn.TextSize = 14
+Instance.new("UICorner", record_tab_btn)
+
+local play_tab_btn = Instance.new("TextButton", main_frame)
+play_tab_btn.Size = UDim2.new(0, 100, 0, 30)
+play_tab_btn.Position = UDim2.new(0, 115, 0, 40)
+play_tab_btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+play_tab_btn.Text = "PLAYER"
+play_tab_btn.TextColor3 = Color3.new(1, 1, 1)
+play_tab_btn.Font = Enum.Font.GothamBold
+play_tab_btn.TextSize = 14
+Instance.new("UICorner", play_tab_btn)
+
+local recorder_frame = Instance.new("Frame", main_frame)
+recorder_frame.Size = UDim2.new(1, -20, 1, -85)
+recorder_frame.Position = UDim2.new(0, 10, 0, 75)
+recorder_frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+recorder_frame.Visible = true
+Instance.new("UICorner", recorder_frame)
+
+local log_box = Instance.new("ScrollingFrame", recorder_frame)
+log_box.Size = UDim2.new(0.95, 0, 0.75, 0)
+log_box.Position = UDim2.new(0.025, 0, 0.05, 0)
 log_box.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
 log_box.ScrollBarThickness = 4
 log_box.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -89,31 +122,100 @@ log_box.CanvasSize = UDim2.new(0, 0, 0, 0)
 local log_layout = Instance.new("UIListLayout", log_box)
 log_layout.Padding = UDim.new(0, 2)
 
-local record_btn = Instance.new("TextButton", main_frame)
-record_btn.Name = "record_btn"
-record_btn.Size = UDim2.new(0.42, 0, 0.1, 0)
-record_btn.Position = UDim2.new(0.05, 0, 0.87, 0)
+local record_btn = Instance.new("TextButton", recorder_frame)
+record_btn.Size = UDim2.new(0.45, -5, 0, 35)
+record_btn.Position = UDim2.new(0.025, 0, 0.88, 0)
 record_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-record_btn.Text = "START"
-record_btn.Font = Enum.Font.GothamBold
+record_btn.Text = "START RECORDING"
 record_btn.TextColor3 = Color3.new(1, 1, 1)
-record_btn.TextScaled = true
+record_btn.Font = Enum.Font.GothamBold
+record_btn.TextSize = 14
 Instance.new("UICorner", record_btn)
 
-local copy_btn = Instance.new("TextButton", main_frame)
-copy_btn.Name = "copy_btn"
-copy_btn.Size = UDim2.new(0.42, 0, 0.1, 0)
-copy_btn.Position = UDim2.new(0.53, 0, 0.87, 0)
+local copy_btn = Instance.new("TextButton", recorder_frame)
+copy_btn.Size = UDim2.new(0.45, -5, 0, 35)
+copy_btn.Position = UDim2.new(0.525, 0, 0.88, 0)
 copy_btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
-copy_btn.Text = "COPY"
-copy_btn.Font = Enum.Font.GothamBold
+copy_btn.Text = "COPY SCRIPT"
 copy_btn.TextColor3 = Color3.new(1, 1, 1)
-copy_btn.TextScaled = true
+copy_btn.Font = Enum.Font.GothamBold
+copy_btn.TextSize = 14
 Instance.new("UICorner", copy_btn)
+
+local player_frame = Instance.new("Frame", main_frame)
+player_frame.Size = UDim2.new(1, -20, 1, -85)
+player_frame.Position = UDim2.new(0, 10, 0, 75)
+player_frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+player_frame.Visible = false
+Instance.new("UICorner", player_frame)
+
+local script_label = Instance.new("TextLabel", player_frame)
+script_label.Size = UDim2.new(1, -10, 0, 25)
+script_label.Position = UDim2.new(0, 5, 0, 5)
+script_label.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+script_label.Text = "Loaded Script:"
+script_label.TextColor3 = Color3.fromRGB(200, 200, 200)
+script_label.TextSize = 12
+script_label.Font = Enum.Font.GothamBold
+script_label.TextXAlignment = Enum.TextXAlignment.Left
+Instance.new("UICorner", script_label)
+
+local script_name_label = Instance.new("TextLabel", player_frame)
+script_name_label.Size = UDim2.new(1, -10, 0, 20)
+script_name_label.Position = UDim2.new(0, 5, 0, 32)
+script_name_label.BackgroundTransparency = 1
+script_name_label.Text = "None"
+script_name_label.TextColor3 = Color3.fromRGB(150, 150, 150)
+script_name_label.TextSize = 11
+script_name_label.TextXAlignment = Enum.TextXAlignment.Left
+
+local load_script_btn = Instance.new("TextButton", player_frame)
+load_script_btn.Size = UDim2.new(0.3, -5, 0, 30)
+load_script_btn.Position = UDim2.new(0, 5, 0, 55)
+load_script_btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+load_script_btn.Text = "LOAD SCRIPT"
+load_script_btn.TextColor3 = Color3.new(1, 1, 1)
+load_script_btn.Font = Enum.Font.GothamBold
+load_script_btn.TextSize = 12
+Instance.new("UICorner", load_script_btn)
+
+local play_log_box = Instance.new("ScrollingFrame", player_frame)
+play_log_box.Size = UDim2.new(1, -10, 1, -100)
+play_log_box.Position = UDim2.new(0, 5, 0, 90)
+play_log_box.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+play_log_box.ScrollBarThickness = 4
+play_log_box.CanvasSize = UDim2.new(0, 0, 0, 0)
+
+local play_log_layout = Instance.new("UIListLayout", play_log_box)
+play_log_layout.Padding = UDim.new(0, 2)
+
+local play_btn = Instance.new("TextButton", player_frame)
+play_btn.Size = UDim2.new(0.45, -5, 0, 35)
+play_btn.Position = UDim2.new(0, 5, 1, -40)
+play_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+play_btn.Text = "PLAY STRAT"
+play_btn.TextColor3 = Color3.new(1, 1, 1)
+play_btn.Font = Enum.Font.GothamBold
+play_btn.TextSize = 14
+Instance.new("UICorner", play_btn)
+
+local stop_btn = Instance.new("TextButton", player_frame)
+stop_btn.Size = UDim2.new(0.45, -5, 0, 35)
+stop_btn.Position = UDim2.new(0.55, 0, 1, -40)
+stop_btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
+stop_btn.Text = "STOP"
+stop_btn.TextColor3 = Color3.new(1, 1, 1)
+stop_btn.Font = Enum.Font.GothamBold
+stop_btn.TextSize = 14
+Instance.new("UICorner", stop_btn)
+
+local loaded_commands = {}
+local playback_running = false
+local playback_cancel = false
+local old_namecall = nil
 
 local function add_log(msg)
     local log_item = Instance.new("TextLabel", log_box)
-    log_item.Name = "log_item"
     log_item.Size = UDim2.new(1, -10, 0, 18)
     log_item.BackgroundTransparency = 1
     log_item.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -127,6 +229,21 @@ local function add_log(msg)
     log_box.CanvasPosition = Vector2.new(0, log_box.CanvasSize.Y.Offset)
 end
 
+local function add_play_log(msg)
+    local log_item = Instance.new("TextLabel", play_log_box)
+    log_item.Size = UDim2.new(1, -10, 0, 18)
+    log_item.BackgroundTransparency = 1
+    log_item.TextColor3 = Color3.fromRGB(200, 200, 200)
+    log_item.Text = "> " .. msg
+    log_item.Font = Enum.Font.Code
+    log_item.TextSize = 10
+    log_item.TextXAlignment = Enum.TextXAlignment.Left
+    log_item.TextWrapped = true
+    
+    play_log_box.CanvasSize = UDim2.new(0, 0, 0, play_log_layout.AbsoluteContentSize.Y)
+    play_log_box.CanvasPosition = Vector2.new(0, play_log_box.CanvasSize.Y.Offset)
+end
+
 local function record_action(command_str)
     if not _G.record_strat then return end
     if appendfile then
@@ -134,135 +251,472 @@ local function record_action(command_str)
     end
 end
 
-local pending_placements = {}
+local function get_random_offset()
+    return (math.random(-99, 99)) / 1000000
+end
 
-workspace_service.Towers.ChildAdded:Connect(function(tower)
-    if not _G.record_strat then return end
-    
-    task.wait(0.1)
-    
-    local placement_data = nil
-    for i = 1, #pending_placements do
-        local data = pending_placements[i]
-        if not data.processed then
-            placement_data = data
-            table.remove(pending_placements, i)
-            break
+local function get_current_loadout()
+    local towers = {}
+    local StateReplicators = replicated_storage:FindFirstChild("StateReplicators")
+    local http_service = game:GetService("HttpService")
+
+    if StateReplicators then
+        for _, folder in ipairs(StateReplicators:GetChildren()) do
+            if folder.Name == "PlayerReplicator" and folder:GetAttribute("UserId") == player.UserId then
+                local equipped = folder:GetAttribute("EquippedTowers")
+                if type(equipped) == "string" then
+                    local CleanedJson = equipped:match("%[.*%]") 
+                    local success, TowerTable = pcall(function()
+                        return http_service:JSONDecode(CleanedJson)
+                    end)
+
+                    if success and type(TowerTable) == "table" then
+                        for i = 1, 5 do
+                            if TowerTable[i] and TowerTable[i] ~= "None" then
+                                table.insert(towers, TowerTable[i])
+                            end
+                        end
+                    end
+                end
+                break
+            end
         end
     end
-    
-    if placement_data then
-        placement_count = placement_count + 1
-        towers_list[tower] = placement_count
-        tower.Name = tostring(placement_count)
-        
-        local x = math.floor(placement_data.pos.X * 100000) / 100000
-        local y = math.floor(placement_data.pos.Y * 100000) / 100000
-        local z = math.floor(placement_data.pos.Z * 100000) / 100000
-        
-        record_action(string.format("TDS:Place(\"%s\", %.5f, %.5f, %.5f)", 
-            placement_data.tower_type, x, y, z))
-        add_log(string.format("placed %s %d", placement_data.tower_type, placement_count))
-    end
-end)
+    return towers
+end
 
-local old_namecall
+local function reset_all()
+    placement_count = 0
+    towers_list = {}
+    tower_id_map = {}
+    _G.record_strat = false
+    _G.playback_active = false
+    loaded_commands = {}
+    playback_running = false
+    playback_cancel = false
+    
+    if record_btn then
+        record_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+        record_btn.Text = "START RECORDING"
+    end
+    
+    if log_box then
+        for _, child in ipairs(log_box:GetChildren()) do
+            if child:IsA("TextLabel") then child:Destroy() end
+        end
+        log_box.CanvasSize = UDim2.new(0, 0, 0, 0)
+    end
+    
+    if play_log_box then
+        for _, child in ipairs(play_log_box:GetChildren()) do
+            if child:IsA("TextLabel") then child:Destroy() end
+        end
+        play_log_box.CanvasSize = UDim2.new(0, 0, 0, 0)
+    end
+    
+    add_log("Reset complete - Ready")
+end
+
+if old_namecall then
+   
+end
+
 old_namecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
     
     if _G.record_strat and (method == "InvokeServer" or method == "FireServer") then
-        local action_name = tostring(args[2]) 
-
-        if action_name:find("Pl") and action_name:find("ce") then
-            local tower_type = tostring(args[4])
-            local place_data = args[3]
-            
-            if type(place_data) == "table" and place_data.Position then
-                table.insert(pending_placements, {
-                    tower_type = tower_type,
-                    pos = place_data.Position,
-                    processed = false
-                })
-            end
-
-        elseif action_name == "Upgrade" then
-            local action_data = args[4]
+        local args_string = ""
+        for i, arg in ipairs(args) do
+            args_string = args_string .. tostring(arg) .. " "
+        end
+        
+        if args_string:find("Upgrade") then
+            local action_data = args[4] or args[3]
             if action_data and action_data.Troop then
                 local tower_id = towers_list[action_data.Troop]
                 if tower_id then
                     record_action(string.format("TDS:Upgrade(%d)", tower_id))
-                    add_log("upgraded " .. tower_id)
+                    add_log(string.format("Upgraded ID: %d", tower_id))
                 end
             end
-
-        elseif action_name == "Sell" then
+            
+        elseif args_string:find("Sell") then
             local action_data = args[3]
             if action_data and action_data.Troop then
                 local tower_id = towers_list[action_data.Troop]
                 if tower_id then
                     record_action(string.format("TDS:Sell(%d)", tower_id))
-                    add_log("sold " .. tower_id)
-                    towers_list[action_data.Troop] = nil 
+                    add_log(string.format("Sold ID: %d", tower_id))
+                    local tower_obj = action_data.Troop
+                    towers_list[tower_obj] = nil
+                    tower_id_map[tower_id] = nil
                 end
             end
-
-        elseif action_name == "Abilities" then
-            local action_data = args[4]
-            if action_data and type(action_data) == "table" then
-                local ability_name = action_data.Name or "Unknown"
-                local troop_instance = action_data.Troop
-                local tower_id = towers_list[troop_instance] or "Unknown"
-                
-                local data_table = action_data.Data or {}
-                local formatted_data = "{"
-                for k, v in pairs(data_table) do
-                    formatted_data = formatted_data .. string.format("[%s] = %s, ", tostring(k), tostring(v))
-                end
-                formatted_data = formatted_data:gsub(", $", "") .. "}"
-
-                record_action(string.format("TDS:Ability(%s, \"%s\", %s)", 
-                    tower_id, ability_name, formatted_data))
-
-                add_log("ability " .. ability_name .. " " .. tower_id)
-            end
-
-        elseif action_name == "Target" then
-            local action_data = args[4]
             
-            if type(action_data) == "table" and action_data.Target then
-                local target_value = tostring(action_data.Target)
-                local troop_instance = action_data.Troop
-                local tower_id = towers_list[troop_instance] or "Unknown"
-
-                record_action(string.format("TDS:SetTarget(%s, \"%s\")", 
-                    tower_id, target_value))
-
-                add_log("target " .. tower_id .. " " .. target_value)
-            end
-
-        elseif action_name == "Option" or action_name == "Target" then
+        elseif args_string:find("Target") then
             local action_data = args[4]
-            
             if type(action_data) == "table" and action_data.Troop then
-                local tower_id = towers_list[action_data.Troop] or "Unknown"
-                
-                local primary_val = action_data.Value or action_data.Target or "Unknown"
-                local opt_name = action_data.Name or "Targeting"
-
-                record_action(string.format("TDS:SetOption(%s, \"%s\", \"%s\")", 
-                    tower_id, opt_name, primary_val))
-
-                add_log("option " .. tower_id .. " " .. opt_name .. " " .. primary_val)
+                local tower_id = towers_list[action_data.Troop]
+                if tower_id then
+                    record_action(string.format('TDS:SetTarget(%d, "%s")', tower_id, tostring(action_data.Target)))
+                    add_log(string.format("Target ID: %d -> %s", tower_id, tostring(action_data.Target)))
+                end
             end
-
-        elseif action_name == "Skip" then
+            
+        elseif args_string:find("Option") then
+            local action_data = args[4]
+            if type(action_data) == "table" and action_data.Troop then
+                local tower_id = towers_list[action_data.Troop]
+                if tower_id then
+                    record_action(string.format('TDS:SetOption(%d, "%s", "%s")', tower_id, tostring(action_data.Name), tostring(action_data.Value)))
+                    add_log(string.format("Option ID: %d -> %s = %s", tower_id, tostring(action_data.Name), tostring(action_data.Value)))
+                end
+            end
+            
+        elseif args_string:find("Skip") then
             record_action("TDS:Skip()")
-            add_log("skipped")
+            add_log("Skipped wave")
         end
     end
-
+    
     return old_namecall(self, ...)
+end)
+
+workspace_service.Towers.ChildAdded:Connect(function(tower_folder)
+    if not _G.record_strat then return end
+    
+    local replicator = tower_folder:FindFirstChild("TowerReplicator")
+    if not replicator then
+        replicator = tower_folder:WaitForChild("TowerReplicator", 2)
+        if not replicator then return end
+    end
+    
+    for i = 1, 10 do
+        local owner = replicator:GetAttribute("OwnerId")
+        local name = replicator:GetAttribute("Name")
+        if owner and name then break end
+        task.wait(0.1)
+    end
+    
+    local owner_id = replicator:GetAttribute("OwnerId")
+    local tower_name = replicator:GetAttribute("Name")
+    
+    if owner_id and tostring(owner_id) == tostring(player.UserId) and tower_name then
+        placement_count = placement_count + 1
+        local tower_id = placement_count
+        towers_list[tower_folder] = tower_id
+        tower_id_map[tower_id] = tower_folder
+        tower_folder.Name = tostring(tower_id)
+        
+        local pos = tower_folder:GetPivot().Position
+        local x = pos.X + get_random_offset()
+        local z = pos.Z + get_random_offset()
+        
+        x = tonumber(string.format("%.6f", x))
+        z = tonumber(string.format("%.6f", z))
+        
+        
+        record_action(string.format('TDS:Place("%s", %.6f, 60, %.6f)', tower_name, x, z))
+        add_log(string.format("Placed %s [ID: %d] at (%.1f, 60, %.1f)", tower_name, tower_id, x, z))
+    end
+end)
+
+
+local function find_tower_by_id(id)
+    local target_id = tonumber(id)
+    if not target_id then return nil end
+    
+    if tower_id_map[target_id] then
+        local tower = tower_id_map[target_id]
+        if tower and tower.Parent then
+            return tower
+        else
+            tower_id_map[target_id] = nil
+        end
+    end
+    
+    local towers_folder = workspace_service:FindFirstChild("Towers")
+    if towers_folder then
+        for _, tower in ipairs(towers_folder:GetChildren()) do
+            if tower.Name == tostring(target_id) then
+                tower_id_map[target_id] = tower
+                return tower
+            end
+        end
+    end
+    
+    return nil
+end
+
+local function execute_place_command(tower_name, x, y, z)
+    add_play_log(string.format("Placing %s at (%.1f, %.1f, %.1f)", tower_name, x, y, z))
+    local success, result = pcall(function()
+        return remote_function:InvokeServer("Troops", "Pl\208\176ce", {
+            Rotation = CFrame.new(),
+            Position = Vector3.new(x, y, z)
+        }, tower_name)
+    end)
+    if success then
+        add_play_log(string.format("✓ Placed %s", tower_name))
+        task.wait(0.3)
+        
+        local towers_folder = workspace_service:FindFirstChild("Towers")
+        if towers_folder then
+            for _, tower in ipairs(towers_folder:GetChildren()) do
+                local replicator = tower:FindFirstChild("TowerReplicator")
+                if replicator and replicator:GetAttribute("OwnerId") == player.UserId then
+                    local found = false
+                    for existing_tower, _ in pairs(towers_list) do
+                        if existing_tower == tower then
+                            found = true
+                            break
+                        end
+                    end
+                    if not found then
+                        placement_count = placement_count + 1
+                        local new_id = placement_count
+                        towers_list[tower] = new_id
+                        tower_id_map[new_id] = tower
+                        tower.Name = tostring(new_id)
+                        add_play_log(string.format("Tracked new tower as ID: %d", new_id))
+                        break
+                    end
+                end
+            end
+        end
+        return true
+    else
+        add_play_log(string.format("✗ Failed to place %s", tower_name))
+        return false
+    end
+end
+
+local function execute_upgrade_command(id)
+    add_play_log(string.format("Upgrading ID: %s", id))
+    local tower = find_tower_by_id(id)
+    if tower then
+        local replicator = tower:FindFirstChild("TowerReplicator")
+        local current_level = replicator and replicator:GetAttribute("Upgrade") or 0
+        add_play_log(string.format("Current level: %d", current_level))
+        
+        local success, result = pcall(function()
+            return remote_function:InvokeServer("Troops", "Upgrade", "Set", {
+                Troop = tower,
+                Path = 1
+            })
+        end)
+        if success then
+            add_play_log(string.format("✓ Upgraded ID: %s", id))
+            return true
+        else
+            add_play_log(string.format("✗ Upgrade failed for ID: %s", id))
+        end
+    else
+        add_play_log(string.format("✗ Tower ID %s not found", id))
+        local towers_folder = workspace_service:FindFirstChild("Towers")
+        if towers_folder then
+            local available = {}
+            for _, tower in ipairs(towers_folder:GetChildren()) do
+                local replicator = tower:FindFirstChild("TowerReplicator")
+                if replicator and replicator:GetAttribute("OwnerId") == player.UserId then
+                    table.insert(available, tower.Name)
+                end
+            end
+            if #available > 0 then
+                add_play_log(string.format("Available tower IDs: %s", table.concat(available, ", ")))
+            end
+        end
+    end
+    return false
+end
+
+local function execute_sell_command(id)
+    add_play_log(string.format("Selling ID: %s", id))
+    local tower = find_tower_by_id(id)
+    if tower then
+        local success, result = pcall(function()
+            return remote_function:InvokeServer("Troops", "Sell", { Troop = tower })
+        end)
+        if success then
+            add_play_log(string.format("✓ Sold ID: %s", id))
+            towers_list[tower] = nil
+            tower_id_map[tonumber(id)] = nil
+            return true
+        else
+            add_play_log(string.format("✗ Sell failed for ID: %s", id))
+        end
+    else
+        add_play_log(string.format("✗ Tower ID %s not found", id))
+    end
+    return false
+end
+
+local function execute_target_command(id, target)
+    add_play_log(string.format("Target ID %s -> %s", id, target))
+    local tower = find_tower_by_id(id)
+    if tower then
+        local success, result = pcall(function()
+            return remote_function:InvokeServer("Troops", "Target", "Set", {
+                Troop = tower,
+                Target = target
+            })
+        end)
+        if success then
+            add_play_log(string.format("✓ Target set for ID: %s", id))
+            return true
+        else
+            add_play_log(string.format("✗ Target failed for ID: %s", id))
+        end
+    else
+        add_play_log(string.format("✗ Tower ID %s not found", id))
+    end
+    return false
+end
+
+local function execute_option_command(id, opt_name, opt_value)
+    add_play_log(string.format("Option ID %s: %s = %s", id, opt_name, opt_value))
+    local tower = find_tower_by_id(id)
+    if tower then
+        local success, result = pcall(function()
+            return remote_function:InvokeServer("Troops", "Option", "Set", {
+                Troop = tower,
+                Name = opt_name,
+                Value = opt_value
+            })
+        end)
+        if success then
+            add_play_log(string.format("✓ Option set for ID: %s", id))
+            return true
+        else
+            add_play_log(string.format("✗ Option failed for ID: %s", id))
+        end
+    else
+        add_play_log(string.format("✗ Tower ID %s not found", id))
+    end
+    return false
+end
+
+local function execute_skip_command()
+    add_play_log("Skipping wave")
+    local success, result = pcall(function()
+        return remote_function:InvokeServer("Voting", "Skip")
+    end)
+    if success then
+        add_play_log("✓ Skip successful")
+    else
+        add_play_log("✗ Skip failed")
+    end
+    return success
+end
+
+local function parse_and_execute_command(line)
+    if line:match("Place%(") then
+        local tower_name = line:match('"([^"]+)"')
+        local x, y, z = line:match("([%d%.%-]+),%s*([%d%.%-]+),%s*([%d%.%-]+)")
+        if tower_name and x and y and z then
+            return execute_place_command(tower_name, tonumber(x), tonumber(y), tonumber(z))
+        end
+        
+    elseif line:match("Upgrade%(") then
+        local id = line:match("Upgrade%((%d+)%)")
+        if id then return execute_upgrade_command(id) end
+        
+    elseif line:match("Sell%(") then
+        local id = line:match("Sell%((%d+)%)")
+        if id then return execute_sell_command(id) end
+        
+    elseif line:match("SetTarget%(") then
+        local id, target = line:match("SetTarget%((%d+),%s*\"([^\"]+)\"%)")
+        if id and target then return execute_target_command(id, target) end
+        
+    elseif line:match("SetOption%(") then
+        local id, opt_name, opt_value = line:match("SetOption%((%d+),%s*\"([^\"]+)\",%s*\"([^\"]+)\"%)")
+        if id and opt_name and opt_value then return execute_option_command(id, opt_name, opt_value) end
+        
+    elseif line:match("Skip%(") then
+        return execute_skip_command()
+    end
+    
+    return false
+end
+
+local function load_script_file()
+    if readfile then
+        local success, content = pcall(function()
+            return readfile(file_name)
+        end)
+        
+        if success and content then
+            loaded_commands = {}
+            for line in content:gmatch("[^\r\n]+") do
+                line = line:gsub("^%s+", ""):gsub("%s+$", "")
+                if line:match("Place%(") or line:match("Upgrade%(") or line:match("Sell%(") or 
+                   line:match("SetTarget%(") or line:match("SetOption%(") or line:match("Skip%(") then
+                    table.insert(loaded_commands, line)
+                end
+            end
+            script_name_label.Text = file_name
+            script_name_label.TextColor3 = Color3.fromRGB(100, 255, 100)
+            add_play_log(string.format("Loaded %d commands from %s", #loaded_commands, file_name))
+            return true
+        else
+            add_play_log("Failed to load script file")
+            return false
+        end
+    else
+        add_play_log("No file read permission")
+        return false
+    end
+end
+
+local function play_strat()
+    if #loaded_commands == 0 then
+        add_play_log("No commands loaded. Load a script first.")
+        return
+    end
+    
+    if playback_running then
+        add_play_log("Playback already running!")
+        return
+    end
+    
+    placement_count = 0
+    towers_list = {}
+    tower_id_map = {}
+    
+    playback_running = true
+    playback_cancel = false
+    
+    add_play_log("Starting strat execution...")
+    
+    for i, command in ipairs(loaded_commands) do
+        if playback_cancel then
+            add_play_log("Playback cancelled by user")
+            break
+        end
+        
+        add_play_log(string.format("[%d/%d] Executing: %s", i, #loaded_commands, command))
+        parse_and_execute_command(command)
+        task.wait(0.15)
+    end
+    
+    add_play_log("Strat execution completed!")
+    playback_running = false
+end
+
+record_tab_btn.MouseButton1Click:Connect(function()
+    recorder_frame.Visible = true
+    player_frame.Visible = false
+    record_tab_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
+    play_tab_btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+end)
+
+play_tab_btn.MouseButton1Click:Connect(function()
+    recorder_frame.Visible = false
+    player_frame.Visible = true
+    record_tab_btn.BackgroundColor3 = Color3.fromRGB(52, 152, 219)
+    play_tab_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
 end)
 
 record_btn.MouseButton1Click:Connect(function()
@@ -270,32 +724,24 @@ record_btn.MouseButton1Click:Connect(function()
         _G.record_strat = true
         placement_count = 0
         towers_list = {}
-        pending_placements = {}
+        tower_id_map = {}
         
         for _, child in ipairs(log_box:GetChildren()) do
             if child:IsA("TextLabel") then child:Destroy() end
         end
         
-        add_log("recording started")
+        add_log("Recording started")
         record_btn.BackgroundColor3 = Color3.fromRGB(231, 76, 60)
-        record_btn.Text = "STOP"
+        record_btn.Text = "STOP RECORDING"
         
         if writefile then 
-            local config_content = [[local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
-
-TDS:Loadout("Mercenary Base", "Military Base", "Engineer", "Ranger", "Accelerator")
-TDS:Mode("Hardcore")
-TDS:GameInfo("Wrecked Battlefield", {})
-
-]]
-
-            writefile(file_name, config_content)
+            writefile(file_name, "")
         end
     else
         _G.record_strat = false
         record_btn.BackgroundColor3 = Color3.fromRGB(46, 204, 113)
-        record_btn.Text = "START"
-        add_log("recording stopped")
+        record_btn.Text = "START RECORDING"
+        add_log("Recording stopped")
     end
 end)
 
@@ -306,31 +752,65 @@ copy_btn.MouseButton1Click:Connect(function()
         end)
         
         if success and content then
+            local current_loadout = get_current_loadout()
+            local loadout_string = ""
+            if #current_loadout > 0 then
+                loadout_string = 'TDS:Loadout("' .. table.concat(current_loadout, '", "') .. '")'
+                add_log(string.format("Loadout: %s", table.concat(current_loadout, ", ")))
+            else
+                loadout_string = "-- No towers equipped"
+                add_log("No towers equipped")
+            end
+            
+            local full_script = "_G.AutoPickups = false\n_G.AntiLag = false\n_G.ClaimRewards = false\n_G.AutoRejoin = false\n_G.AutoSmartSkip = false\n_G.SendWebhook = false\n_G.Webhook = \"\"\n\nlocal TDS = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua\"))()\n\n" .. loadout_string .. "\n\n" .. content
+            
             if setclipboard then
-                setclipboard(content)
-                add_log("copied")
+                setclipboard(full_script)
+                add_log("Copied!")
                 
                 local originalColor = copy_btn.BackgroundColor3
                 copy_btn.BackgroundColor3 = Color3.fromRGB(39, 174, 96)
-                copy_btn.Text = "COPIED"
+                copy_btn.Text = "COPIED!"
                 
                 task.wait(0.5)
                 copy_btn.BackgroundColor3 = originalColor
-                copy_btn.Text = "COPY"
+                copy_btn.Text = "COPY SCRIPT"
             else
-                add_log("no clipboard")
+                add_log("No clipboard")
             end
         else
-            add_log("no script")
+            add_log("No script found")
         end
     else
-        add_log("no file")
+        add_log("No permission")
+    end
+end)
+
+load_script_btn.MouseButton1Click:Connect(function()
+    load_script_file()
+end)
+
+play_btn.MouseButton1Click:Connect(function()
+    if not playback_running then
+        for _, child in ipairs(play_log_box:GetChildren()) do
+            if child:IsA("TextLabel") then child:Destroy() end
+        end
+        play_log_box.CanvasSize = UDim2.new(0, 0, 0, 0)
+        play_strat()
+    end
+end)
+
+stop_btn.MouseButton1Click:Connect(function()
+    if playback_running then
+        playback_cancel = true
+        add_play_log("Stopping...")
     end
 end)
 
 close_btn.MouseButton1Click:Connect(function()
     _G.record_strat = false
+    playback_running = false
     screen_gui:Destroy()
 end)
 
-add_log("ready")
+reset_all()
