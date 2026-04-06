@@ -16,14 +16,14 @@ local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/
 TDS:Loadout("Scout", "Accelerator", "Mercenary Base", "Hacker", "Warlock")
 TDS:Mode("Frost")
 TDS:GameInfo("Simplicity", {
-    HiddenEnemies = false, 
+    HiddenEnemies = true, 
     Glass = true, 
     ExplodingEnemies = false,
     Limitation = false, 
-    Committed = false, 
+    Committed = true, 
     HealthyEnemies = false,
     SpeedyEnemies = false,
-    Quarantine = false, 
+    Quarantine = true, 
     Fog = false,
     FlyingEnemies = false, 
     Broke = false, 
