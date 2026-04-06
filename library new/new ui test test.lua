@@ -943,7 +943,6 @@ function TDS:Mode(difficulty)
         end
     end
 
-    -- Use the same variable naming as first file
     local LobbyHud = player_gui:WaitForChild("ReactLobbyHud", 30)
     local frame = LobbyHud and LobbyHud:WaitForChild("Frame", 30)
     local MatchMaking = frame and frame:WaitForChild("matchmaking", 30)
@@ -954,7 +953,6 @@ function TDS:Mode(difficulty)
         local res
         repeat
             local ok, result = pcall(function()
-                
                 local mode = TDS.matchmaking_map[difficulty]
 
                 local payload
@@ -962,6 +960,12 @@ function TDS:Mode(difficulty)
                 if mode then
                     payload = {
                         mode = mode,
+                        count = 1
+                    }
+                elseif difficulty == "Easy" or difficulty == "Hard" then
+                    payload = {
+                        difficulty = difficulty,
+                        mode = "ducky2025",
                         count = 1
                     }
                 else
@@ -986,7 +990,6 @@ function TDS:Mode(difficulty)
 
     return true
 end
-
 
 
 function TDS:Loadout(...)
