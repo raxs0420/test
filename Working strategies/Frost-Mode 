@@ -4,6 +4,7 @@ _G.AntiLag = true
 _G.ClaimRewards = true
 _G.AutoRejoin = true
 _G.AutoSmartSkip = true 
+_G.AutoSupport = true
 
 -- [[ WEBHOOK SETTINGS ]]
 _G.SendWebhook = false -- Set to true to enable notifications
