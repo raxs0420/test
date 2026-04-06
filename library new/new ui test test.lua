@@ -1840,32 +1840,29 @@ local function start_smart_auto_skip()
         return has_14 and has_27 and has_7
     end
 
-    local function get_total_enemy_health()
-        local total_health = 0
+local function get_total_enemy_health()
+    local total_health = 0
 
-        local state_replicators = replicated_storage:FindFirstChild("StateReplicators")
-        if not state_replicators then return 0 end
+    local state_replicators = replicated_storage:FindFirstChild("StateReplicators")
+    if not state_replicators then return 0 end
 
-        for _, folder in ipairs(state_replicators:GetChildren()) do
-            if folder.Name == "NPCReplicator" then
-                local unit_type = folder:GetAttribute("Type")
-                if unit_type == "Enemies" then
-                    -- Check if enemy has the ignored modifiers
-                    if has_ignored_modifiers(folder) then
-                        goto continue -- Skip this enemy's health calculation
-                    end
-                    
+    for _, folder in ipairs(state_replicators:GetChildren()) do
+        if folder.Name == "NPCReplicator" then
+            local unit_type = folder:GetAttribute("Type")
+            if unit_type == "Enemies" then
+                -- Check if enemy has the ignored modifiers
+                if not has_ignored_modifiers(folder) then
                     local health = folder:GetAttribute("Health")
                     if health and type(health) == "number" and health > 0 then
                         total_health = total_health + health
                     end
                 end
             end
-            ::continue::
         end
-
-        return total_health
     end
+
+    return total_health
+end
 
     local function is_vote_visible()
         local b = player_gui:FindFirstChild("ReactOverridesVote")
