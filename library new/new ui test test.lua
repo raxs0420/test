@@ -1811,13 +1811,13 @@ end
 local function start_smart_auto_skip()
     if auto_smart_skip_running or not _G.AutoSmartSkip then return end
     auto_smart_skip_running = true
-    
+
     local HEALTH_THRESHOLDS = {
         [1] = 10, [6] = 50, [16] = 150, [26] = 500, [36] = 2500
     }
-    
+
     local current_wave_tracking = {wave = 0, wave_start_time = 0, skip_active = false}
-    
+
     local function get_current_wave()
         local success, result = pcall(function()
             local value = player_gui.ReactGameTopGameDisplay.Frame.wave.container.value
@@ -1825,28 +1825,48 @@ local function start_smart_auto_skip()
         end)
         return success and result or 0
     end
-    
+
+    -- Helper function to check if enemy has all three modifier attributes (14, 27, 7)
+    local function has_ignored_modifiers(enemy)
+        local modifiers = enemy:FindFirstChild("Modifiers")
+        if not modifiers then return false end
+        
+        -- Check if all three attributes exist (by name) in the Modifiers folder
+        local has_14 = modifiers:FindFirstChild("14") ~= nil
+        local has_27 = modifiers:FindFirstChild("27") ~= nil
+        local has_7 = modifiers:FindFirstChild("7") ~= nil
+        
+        -- Return true only if ALL THREE modifiers exist
+        return has_14 and has_27 and has_7
+    end
+
     local function get_total_enemy_health()
         local total_health = 0
-        
+
         local state_replicators = replicated_storage:FindFirstChild("StateReplicators")
         if not state_replicators then return 0 end
-        
+
         for _, folder in ipairs(state_replicators:GetChildren()) do
             if folder.Name == "NPCReplicator" then
                 local unit_type = folder:GetAttribute("Type")
                 if unit_type == "Enemies" then
+                    -- Check if enemy has the ignored modifiers
+                    if has_ignored_modifiers(folder) then
+                        goto continue -- Skip this enemy's health calculation
+                    end
+                    
                     local health = folder:GetAttribute("Health")
                     if health and type(health) == "number" and health > 0 then
                         total_health = total_health + health
                     end
                 end
             end
+            ::continue::
         end
-        
+
         return total_health
     end
-    
+
     local function is_vote_visible()
         local b = player_gui:FindFirstChild("ReactOverridesVote")
         b = b and b:FindFirstChild("Frame")
@@ -1854,7 +1874,7 @@ local function start_smart_auto_skip()
         b = b and b:FindFirstChild("vote", true)
         return b and b.Visible and b.Position == UDim2.new(0.5, 0, 0.5, 0)
     end
-    
+
     local function click_vote()
         local b = player_gui:FindFirstChild("ReactOverridesVote")
         b = b and b:FindFirstChild("Frame")
@@ -1867,24 +1887,24 @@ local function start_smart_auto_skip()
         pcall(function() remote_func:InvokeServer("Voting", "Skip") end)
         pcall(function() remote_event:FireServer("Voting", "Skip") end)
     end
-    
+
     task.spawn(function()
         while _G.AutoSmartSkip do
             local current_wave = get_current_wave()
-            
+
             if current_wave ~= current_wave_tracking.wave then
                 current_wave_tracking.wave = current_wave
                 current_wave_tracking.wave_start_time = tick()
                 current_wave_tracking.skip_active = false
             end
-            
+
             if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
                 local health = get_total_enemy_health()
                 local threshold = 2500
                 for w, t in pairs(HEALTH_THRESHOLDS) do 
                     if current_wave >= w then threshold = t end 
                 end
-                
+
                 if health < threshold then
                     current_wave_tracking.skip_active = true
                     task.spawn(function()
@@ -1899,7 +1919,7 @@ local function start_smart_auto_skip()
                     end)
                 end
             end
-            
+
             task.wait(0.2)
         end
         auto_smart_skip_running = false  
