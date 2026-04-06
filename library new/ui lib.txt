@@ -1,0 +1,435 @@
+
+local Library = {}
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local camera = workspace.CurrentCamera
+
+-- Scale 
+function Library:ScaleX(percent)
+    return camera.ViewportSize.X * (percent / 100)
+end
+
+function Library:ScaleY(percent)
+    return math.max(camera.ViewportSize.Y * (percent / 100) * 1.1, 14)
+end
+
+-- Color
+Library.Colors = {
+    Background = Color3.fromRGB(30, 30, 35),
+    BackgroundDark = Color3.fromRGB(20, 20, 25),
+    BackgroundLight = Color3.fromRGB(45, 45, 50),
+    BackgroundDarker = Color3.fromRGB(15, 15, 20),
+    Accent = Color3.fromRGB(70, 140, 70),
+    AccentLight = Color3.fromRGB(90, 180, 90),
+    AccentDark = Color3.fromRGB(50, 110, 50),
+    Success = Color3.fromRGB(70, 140, 70),
+    Danger = Color3.fromRGB(200, 80, 80),
+    Warning = Color3.fromRGB(200, 180, 50),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextDim = Color3.fromRGB(200, 200, 200),
+    TextMuted = Color3.fromRGB(150, 150, 160),
+    Border = Color3.fromRGB(70, 70, 80),
+    BorderLight = Color3.fromRGB(90, 90, 100),
+}
+
+Library.Fonts = {
+    Normal = Enum.Font.Gotham,
+    Bold = Enum.Font.GothamBold,
+}
+
+function Library:AddCorner(instance, radius)
+    if not instance then return end
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, radius or 4)
+    corner.Parent = instance
+end
+
+function Library:AddStroke(instance, thickness, color)
+    if not instance then return end
+    local stroke = Instance.new("UIStroke")
+    stroke.Thickness = thickness or 1
+    stroke.Color = color or self.Colors.Border
+    stroke.Parent = instance
+end
+
+function Library:CreateScreenGui(name, parent)
+    local gui = Instance.new("ScreenGui")
+    gui.Name = name or "LibraryGUI"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = parent or Players.LocalPlayer:WaitForChild("PlayerGui")
+    print("✓ ScreenGui created:", name)
+    return gui
+end
+
+function Library:CreateWindow(parent, title, size, position)
+    print("Creating window:", title)
+    
+    local window = Instance.new("Frame")
+    window.Name = title .. "Window"
+    window.Size = size or UDim2.new(0, self:ScaleX(62), 0, self:ScaleY(88))
+    window.Position = position or UDim2.new(0, self:ScaleX(7), 0.5, -self:ScaleY(44))
+    window.BackgroundColor3 = self.Colors.Background
+    window.BackgroundTransparency = 0.2
+    window.BorderSizePixel = 0
+    window.Parent = parent
+    window.Active = true
+    window.ClipsDescendants = false
+    
+    self:AddCorner(window, 8)
+    self:AddStroke(window, 1, self.Colors.BorderLight)
+    
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, -20, 0, self:ScaleY(6))
+    titleBar.Position = UDim2.new(0, 10, 0, 5)
+    titleBar.BackgroundTransparency = 1
+    titleBar.Parent = window
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Name = "Title"
+    titleLabel.Size = UDim2.new(1, -50, 1, 0)
+    titleLabel.Position = UDim2.new(0, 10, 0, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = self.Colors.AccentLight
+    titleLabel.Font = self.Fonts.Bold
+    titleLabel.TextSize = self:ScaleY(2)
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = titleBar
+    
+    print("✓ Window created:", title)
+    return window
+end
+
+function Library:CreateMinimizeButton(parent, targetWindow)
+    print("Creating minimize button")
+    
+    local btn = Instance.new("TextButton")
+    btn.Name = "MinimizeButton"
+    btn.Size = UDim2.new(0, self:ScaleX(4.5), 0, self:ScaleY(5.5))
+    btn.Position = UDim2.new(1, -self:ScaleX(6), 0, self:ScaleY(2))
+    btn.BackgroundColor3 = self.Colors.Accent
+    btn.Text = "−"
+    btn.TextColor3 = self.Colors.Text
+    btn.Font = self.Fonts.Bold
+    btn.TextSize = self:ScaleY(2.5)
+    btn.Parent = parent
+    btn.AutoButtonColor = false
+    btn.ZIndex = 10
+    
+    self:AddCorner(btn, 4)
+    
+    local minimized = false
+    btn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        targetWindow.Visible = not minimized
+        btn.Text = minimized and "□" or "−"
+        print(minimized and "Window minimized" or "Window restored")
+    end)
+    
+    local function updatePos()
+        btn.Position = UDim2.new(1, -self:ScaleX(6), 0, self:ScaleY(2))
+    end
+    camera:GetPropertyChangedSignal("ViewportSize"):Connect(updatePos)
+    
+    print("✓ Minimize button created")
+    return btn
+end
+
+function Library:MakeDraggable(frame, handle)
+    if not frame then return end
+    handle = handle or frame
+    
+    local dragging = false
+    local dragStart
+    local startPos
+    
+    handle.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+        end
+    end)
+    
+    handle.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + delta.X,
+                startPos.Y.Scale, startPos.Y.Offset + delta.Y
+            )
+        end
+    end)
+end
+
+function Library:CreateFrame(parent, size, position, transparent, color)
+    if not parent then return nil end
+    local frame = Instance.new("Frame")
+    frame.Size = size or UDim2.new(1, 0, 1, 0)
+    frame.Position = position or UDim2.new(0, 0, 0, 0)
+    frame.BackgroundTransparency = transparent and 1 or 0.2
+    frame.BackgroundColor3 = color or self.Colors.Background
+    frame.BorderSizePixel = 0
+    frame.Parent = parent
+    return frame
+end
+
+function Library:CreateLabel(parent, text, size, position, color, textSize, isBold, alignment)
+    if not parent then return nil end
+    local label = Instance.new("TextLabel")
+    label.Size = size or UDim2.new(1, 0, 0, self:ScaleY(4))
+    label.Position = position or UDim2.new(0, 0, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = color or self.Colors.Text
+    label.Font = isBold and self.Fonts.Bold or self.Fonts.Normal
+    label.TextSize = textSize or self:ScaleY(1.4)
+    label.TextXAlignment = alignment or Enum.TextXAlignment.Center
+    label.Parent = parent
+    return label
+end
+
+function Library:CreateButton(parent, text, size, position, color, callback)
+    if not parent then return nil end
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = size or UDim2.new(0, self:ScaleX(10), 0, self:ScaleY(5))
+    btn.Position = position or UDim2.new(0, 0, 0, 0)
+    btn.BackgroundColor3 = color or self.Colors.Accent
+    btn.Text = text or "Button"
+    btn.TextColor3 = self.Colors.Text
+    btn.Font = self.Fonts.Bold
+    btn.TextSize = self:ScaleY(1.6)
+    btn.Parent = parent
+    btn.AutoButtonColor = false
+    
+    self:AddCorner(btn, 4)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(function()
+            pcall(callback)
+        end)
+    end
+    
+    return btn
+end
+
+function Library:CreateTextBox(parent, placeholder, size, position)
+    if not parent then return nil end
+    
+    local box = Instance.new("TextBox")
+    box.Size = size or UDim2.new(1, -self:ScaleX(4), 0, self:ScaleY(7))
+    box.Position = position or UDim2.new(0, self:ScaleX(2), 0, self:ScaleY(2))
+    box.BackgroundColor3 = self.Colors.BackgroundDarker
+    box.PlaceholderText = placeholder or "Search..."
+    box.PlaceholderColor3 = self.Colors.TextMuted
+    box.Text = ""
+    box.TextColor3 = self.Colors.Text
+    box.Font = self.Fonts.Normal
+    box.TextSize = self:ScaleY(1.8)
+    box.Parent = parent
+    box.ClearTextOnFocus = false
+    
+    self:AddCorner(box, 4)
+    
+    return box
+end
+
+function Library:CreateScrollingFrame(parent, size, position, color)
+    if not parent then return nil end
+    
+    local frame = Instance.new("ScrollingFrame")
+    frame.Size = size or UDim2.new(1, -self:ScaleX(4), 1, -self:ScaleY(15))
+    frame.Position = position or UDim2.new(0, self:ScaleX(2), 0, self:ScaleY(7))
+    frame.BackgroundColor3 = color or self.Colors.BackgroundDark
+    frame.BorderSizePixel = 0
+    frame.ScrollBarThickness = self:ScaleX(0.8)
+    frame.ScrollBarImageColor3 = self.Colors.Accent
+    frame.Parent = parent
+    frame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    frame.ScrollingDirection = Enum.ScrollingDirection.Y
+    frame.ElasticBehavior = Enum.ElasticBehavior.Always
+    
+    self:AddCorner(frame, 4)
+    
+    return frame
+end
+
+function Library:CreateTabs(parent, tabs)
+    print("Creating tabs:", #tabs)
+    
+    local tabs = tabs or {"Tab1", "Tab2", "Tab3"}
+    local tabButtons = {}
+    local tabContents = {}
+    local activeTab = nil
+    
+    local tabWidth = (parent.AbsoluteSize.X - self:ScaleX(4)) / #tabs
+    
+    for i, tabName in ipairs(tabs) do
+        local btn = self:CreateButton(
+            parent,
+            tabName:upper(),
+            UDim2.new(0, tabWidth - self:ScaleX(1), 0, self:ScaleY(5.5)),
+            UDim2.new(0, self:ScaleX(1) + ((i-1) * (tabWidth + self:ScaleX(1))), 0, self:ScaleY(1)),
+            i == 1 and self.Colors.Accent or self.Colors.BackgroundLight
+        )
+        tabButtons[tabName] = btn
+    end
+    
+    print("✓ Tabs created")
+    return tabButtons
+end
+
+function Library:CreateTowerButton(parent, towerName, index, isSelected, callback)
+    if not parent then return nil end
+    
+    local isEven = index % 2 == 0
+    local baseColor = isEven and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -self:ScaleX(0.8), 0, self:ScaleY(5.5))
+    btn.Position = UDim2.new(0, self:ScaleX(0.4), 0, (index-1) * self:ScaleY(6))
+    btn.BackgroundColor3 = isSelected and self.Colors.Selected or baseColor
+    btn.Text = towerName
+    btn.TextColor3 = self.Colors.Text
+    btn.TextSize = self:ScaleY(1.6)
+    btn.Font = self.Fonts.Normal
+    btn.Parent = parent
+    btn.AutoButtonColor = false
+    
+    self:AddCorner(btn, 3)
+    self:AddStroke(btn, 1, self.Colors.Border)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(function()
+            pcall(function() callback(btn, towerName, baseColor) end)
+        end)
+    end
+    
+    return btn
+end
+
+function Library:CreateSlotButton(parent, slotNumber, size, position, callback)
+    if not parent then return nil, nil end
+    
+    local frame = Instance.new("Frame")
+    frame.Size = size or UDim2.new(1, 0, 0, self:ScaleY(8.5))
+    frame.Position = position or UDim2.new(0, 0, 0, (slotNumber-1) * self:ScaleY(8.5))
+    frame.BackgroundTransparency = 1
+    frame.Parent = parent
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0.25, 0, 1, -self:ScaleY(1))
+    btn.Position = UDim2.new(0, 0, 0, self:ScaleY(0.5))
+    btn.BackgroundColor3 = self.Colors.SlotEmpty
+    btn.Text = tostring(slotNumber)
+    btn.TextColor3 = self.Colors.Text
+    btn.Font = self.Fonts.Bold
+    btn.TextSize = self:ScaleY(2)
+    btn.Parent = frame
+    btn.AutoButtonColor = false
+    
+    self:AddCorner(btn, 4)
+    self:AddStroke(btn, 1, self.Colors.Border)
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.75, -self:ScaleX(1), 1, -self:ScaleY(1))
+    label.Position = UDim2.new(0.25, self:ScaleX(1), 0, self:ScaleY(0.5))
+    label.BackgroundColor3 = self.Colors.BackgroundLight
+    label.TextColor3 = self.Colors.TextDim
+    label.Font = self.Fonts.Normal
+    label.TextSize = self:ScaleY(1.5)
+    label.Text = "[Empty]"
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    self:AddCorner(label, 4)
+    self:AddStroke(label, 1, self.Colors.Border)
+    
+    if callback then
+        btn.MouseButton1Click:Connect(function()
+            pcall(function() callback(slotNumber, btn, label) end)
+        end)
+    end
+    
+    return btn, label, frame
+end
+
+function Library:CreateToggleButton(parent, text, defaultState, size, position, callback)
+    if not parent then return nil, defaultState end
+    
+    local btn = Instance.new("TextButton")
+    btn.Size = size or UDim2.new(0, self:ScaleX(8), 0, self:ScaleY(4))
+    btn.Position = position or UDim2.new(0, 0, 0, 0)
+    btn.BackgroundColor3 = defaultState and self.Colors.Success or self.Colors.BackgroundLight
+    btn.Text = text .. (defaultState and " ✓" or " ✗")
+    btn.TextColor3 = self.Colors.Text
+    btn.Font = self.Fonts.Bold
+    btn.TextSize = self:ScaleY(1.4)
+    btn.Parent = parent
+    btn.AutoButtonColor = false
+    
+    self:AddCorner(btn, 4)
+    
+    local state = defaultState
+    
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.BackgroundColor3 = state and self.Colors.Success or self.Colors.BackgroundLight
+        btn.Text = text .. (state and " ✓" or " ✗")
+        if callback then
+            pcall(function() callback(state) end)
+        end
+    end)
+    
+    return btn, state
+end
+
+function Library:CreateMiniToggleRow(parent, buttons)
+    if not parent then return nil, {} end
+    
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, -self:ScaleX(2), 0, self:ScaleY(6))
+    row.Position = UDim2.new(0, self:ScaleX(1), 0, 0)
+    row.BackgroundTransparency = 1
+    row.Parent = parent
+    
+    local toggles = {}
+    local buttonWidth = 0.19
+    
+    for i, data in ipairs(buttons) do
+        local xPos = buttonWidth * (i-1) + (0.01 * (i-1))
+        local btn, state = self:CreateToggleButton(
+            row, 
+            data.name, 
+            data.default,
+            UDim2.new(buttonWidth, 0, 1, 0),
+            UDim2.new(xPos, 0, 0, 0),
+            data.callback
+        )
+        toggles[data.name] = {button = btn, state = state}
+    end
+    
+    return row, toggles
+end
+
+function Library:ClearContainer(container)
+    if not container then return end
+    for _, child in ipairs(container:GetChildren()) do
+        child:Destroy()
+    end
+end
+
+
+return Library
