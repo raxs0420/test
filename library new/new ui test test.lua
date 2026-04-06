@@ -1826,41 +1826,29 @@ local function start_smart_auto_skip()
         return success and result or 0
     end
 
+    local function get_total_enemy_health()
+        local total_health = 0
 
-local function has_ignored_modifiers(enemy)
-    local modifiers = enemy:FindFirstChild("Modifiers")
-    if not modifiers then return false end
+        local state_replicators = replicated_storage:FindFirstChild("StateReplicators")
+        if not state_replicators then return 0 end
 
-    local has_14 = modifiers:FindFirstChild("14") ~= nil
-    local has_27 = modifiers:FindFirstChild("27") ~= nil
-    local has_7 = modifiers:FindFirstChild("7") ~= nil
-    
-    return has_14 and has_27 and has_7
-end
-
-local function get_total_enemy_health()
-    local total_health = 0
-
-    local state_replicators = replicated_storage:FindFirstChild("StateReplicators")
-    if not state_replicators then return 0 end
-
-    for _, folder in ipairs(state_replicators:GetChildren()) do
-        if folder.Name == "NPCReplicator" then
-            local unit_type = folder:GetAttribute("Type")
-            if unit_type == "Enemies" then
-                -- Check if enemy has the ignored modifiers
-                if not has_ignored_modifiers(folder) then
-                    local health = folder:GetAttribute("Health")
-                    if health and type(health) == "number" and health > 0 then
-                        total_health = total_health + health
+        for _, folder in ipairs(state_replicators:GetChildren()) do
+            if folder.Name == "NPCReplicator" then
+                local unit_type = folder:GetAttribute("Type")
+                if unit_type == "Enemies" then
+                    -- Skip corpses (enemies with DisplayName = "Corpse")
+                    if folder:GetAttribute("DisplayName") ~= "Corpse" then
+                        local health = folder:GetAttribute("Health")
+                        if health and type(health) == "number" and health > 0 then
+                            total_health = total_health + health
+                        end
                     end
                 end
             end
         end
-    end
 
-    return total_health
-end
+        return total_health
+    end
 
     local function is_vote_visible()
         local b = player_gui:FindFirstChild("ReactOverridesVote")
