@@ -1,0 +1,238 @@
+_G.AutoPickups = true
+_G.AntiLag = false
+_G.ClaimRewards = true
+_G.AutoRejoin = false
+_G.AutoSmartSkip = true
+_G.SendWebhook = false
+_G.AutoSupport = true
+_G.Webhook = ""
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("Cowboy", "Tesla", "Gatling Gun", "Hacker", "Spotlight Tech")
+TDS:Mode("Trial")
+
+TDS:Ready()
+TDS:Place("Cowboy", -54.041412, 60, -54.909364)
+TDS:Place("Cowboy", -66.307408, 60, -25.260906)
+TDS:Place("Cowboy", -54.041412, 60, -54.909364)
+TDS:Place("Cowboy", -66.307408, 60, -25.260906)
+TDS:Place("Cowboy", -52.476254, 60, -37.133180)
+TDS:Place("Cowboy", -52.476254, 60, -37.133180)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Place("Tesla", -54.041412, 60, -54.909364)
+TDS:Place("Tesla", -66.307408, 60, -25.260906)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/DeadSignalFound/Library/refs/heads/main/AutoGatlin.lua"))()
+
+TDS:Place("Gatling Gun", -50.686501, 60, -35.127848)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+
+TDS:Place("Hacker", -54.041412, 60, -54.909364)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+
+TDS:Place("Hacker", -66.307408, 60, -25.260906)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+
+TDS:Place("Spotlight Tech", -60.755387, 60, -32.968739)
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+TDS:SetTarget(12, "Random")
+
+TDS:Loadout("Commander", "DJ Booth", "Mercenary Base", "Minigunner", "Firework Technician")
+
+TDS:Place("DJ Booth", -57.619310, 60, -39.480377) --13
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+TDS:SetOption(13, "Track", "Green")
+TDS:Ability(13, "Drop The Beat", {Nill} , true)
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+
+TDS:Place("Commander", -57.619310, 60, -39.480377) --14
+TDS:Place("Commander", -57.619310, 60, -39.480377) --15
+TDS:Place("Commander", -57.619310, 60, -39.480377) --16
+
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:Upgrade(15)
+
+TDS:AutoChain(14, 15, 16)
+
+TDS:Place("Minigunner", -47.547963, 60, -34.053723)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+TDS:Place("Minigunner", -52.476254, 60, -37.133180)
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Place("Minigunner", -58.203042, 60, -38.621543)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Place("Minigunner", -64.085398, 60, -40.392385)
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+TDS:Place("Minigunner", -47.547963, 60, -34.053723)
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Place("Minigunner", -52.476254, 60, -37.133180)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+TDS:Place("Minigunner", -58.203042, 60, -38.621543)
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+TDS:Place("Minigunner", -64.085398, 60, -40.392385)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Place("Minigunner", -47.547963, 60, -34.053723)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Place("Minigunner", -52.476254, 60, -37.133180)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Place("Minigunner", -58.203042, 60, -38.621543)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Place("Minigunner", -64.085398, 60, -40.392385)
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+TDS:Place("Minigunner", -47.547963, 60, -34.053723)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Place("Minigunner", -52.476254, 60, -37.133180)
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+TDS:Place("Minigunner", -58.203042, 60, -38.621543)
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+TDS:Place("Minigunner", -64.085398, 60, -40.392385)
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+
+TDS:Upgrade(17) 
+TDS:Upgrade(18) 
+TDS:Upgrade(19) 
+TDS:Upgrade(20) 
+TDS:Upgrade(21) 
+TDS:Upgrade(22) 
+TDS:Upgrade(23) 
+TDS:Upgrade(24) 
+TDS:Upgrade(25) 
+TDS:Upgrade(26) 
+TDS:Upgrade(27) 
+TDS:Upgrade(28) 
+TDS:Upgrade(29) 
+TDS:Upgrade(30)
+TDS:Upgrade(31) 
+TDS:Upgrade(32) 
+
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:Upgrade(15)
+
+TDS:Upgrade(17) 
+TDS:Upgrade(18) 
+TDS:Upgrade(19) 
+TDS:Upgrade(20) 
+TDS:Upgrade(21) 
+TDS:Upgrade(22) 
+TDS:Upgrade(23) 
+TDS:Upgrade(24) 
+TDS:Upgrade(25) 
+TDS:Upgrade(26) 
+TDS:Upgrade(27) 
+TDS:Upgrade(28) 
+TDS:Upgrade(29) 
+TDS:Upgrade(30)
+TDS:Upgrade(31) 
+TDS:Upgrade(32) 
+
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Upgrade(11, 2)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Upgrade(10, 2)
+TDS:Ability(10, "Hologram Tower", {
+    towerToClone = 9,
+    towerPosition = {
+        Vector3.new(-57.515319, 60, -30.382811),
+        Vector3.new(-50.601388, 60, -44.657910),
+    }
+}, true)
+TDS:Ability(11, "Hologram Tower", {
+    towerToClone = 9,
+    towerPosition = {
+        Vector3.new(-50.601388, 60, -44.657910),
+        Vector3.new(-57.515319, 60, -30.382811),
+    }
+}, true)
+
+TDS:Place("Mercenary Base", -52.476254, 60, -37.133180) --33
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+
+TDS:SetOption(13, "Track", "Red")
+
+TDS:Place("Firework Technician", -52.476254, 60, -37.133180) --34
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
