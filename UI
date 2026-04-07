@@ -14,6 +14,7 @@ local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
 local Camera = Workspace.CurrentCamera
 local RemoteFunction = ReplicatedStorage:WaitForChild("RemoteFunction")
+local isUpgrading = false
 
 -- Wait 1 second 
 task.wait(1)
@@ -116,10 +117,10 @@ for i = 1, 3 do
     slotBtn.Parent = slotsPanel
     slotBtn.AutoButtonColor = false
     slotBtn.ClipsDescendants = true
-    
+
     Library:AddCorner(slotBtn, 4)
     Library:AddStroke(slotBtn, 1, Library.Colors.Border)
-    
+
     slotBtn.MouseButton1Click:Connect(function()
         if lastSelectedSlot then
             if slotFilled[lastSelectedSlot] then
@@ -131,7 +132,7 @@ for i = 1, 3 do
         lastSelectedSlot = i
         slotBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
     end)
-    
+
     slotButtons[i] = slotBtn
 end
 
@@ -153,10 +154,10 @@ for i = 4, 5 do
     slotBtn.Parent = slotsPanel
     slotBtn.AutoButtonColor = false
     slotBtn.ClipsDescendants = true
-    
+
     Library:AddCorner(slotBtn, 4)
     Library:AddStroke(slotBtn, 1, Library.Colors.Border)
-    
+
     slotBtn.MouseButton1Click:Connect(function()
         if lastSelectedSlot then
             if slotFilled[lastSelectedSlot] then
@@ -168,7 +169,7 @@ for i = 4, 5 do
         lastSelectedSlot = i
         slotBtn.BackgroundColor3 = Color3.fromRGB(0, 100, 0)
     end)
-    
+
     slotButtons[i] = slotBtn
 end
 
@@ -202,7 +203,7 @@ end
 
 local function AssignEquippedTowersToSlots()
     local equippedTowers = GetEquippedTowers()
-    
+
     if #equippedTowers > 0 then
         for i = 1, math.min(5, #equippedTowers) do
             if equippedTowers[i] and equippedTowers[i] ~= "None" then
@@ -235,13 +236,13 @@ local function SetupEquipmentListener()
             end
             AssignEquippedTowersToSlots()
         end
-        
+
         for _, folder in ipairs(StateReplicators:GetChildren()) do
             if folder.Name == "PlayerReplicator" and folder:GetAttribute("UserId") == player.UserId then
                 folder:GetAttributeChangedSignal("EquippedTowers"):Connect(onEquipmentChanged)
             end
         end
-        
+
         StateReplicators.ChildAdded:Connect(function(newFolder)
             task.wait(0.1)
             if newFolder.Name == "PlayerReplicator" and newFolder:GetAttribute("UserId") == player.UserId then
@@ -279,7 +280,7 @@ local function TDS_Loadout(...)
     local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
     local StateReplicators = ReplicatedStorage:FindFirstChild("StateReplicators")
     local LocalPlayer = player
-    
+
     local CurrentlyEquipped = {}
 
     if StateReplicators then
@@ -331,7 +332,7 @@ local function TDS_Loadout(...)
                     break
                 end
             end
-            
+
             if not alreadyEquipped then
                 local EquipSuccess = false
                 repeat
@@ -356,16 +357,16 @@ loadoutBtn.MouseButton1Click:Connect(function()
             table.insert(towersToEquip, slotNames[i])
         end
     end
-    
+
     if #towersToEquip > 0 then
         local originalColor = loadoutBtn.BackgroundColor3
         loadoutBtn.BackgroundColor3 = Color3.fromRGB(0, 80, 0)
         loadoutBtn.Text = "EQUIPPING..."
-        
+
         local success, result = pcall(function()
             return TDS_Loadout(unpack(towersToEquip))
         end)
-        
+
         if success and result then
             loadoutBtn.Text = "SUCCESS!"
             task.wait(1)
@@ -375,7 +376,7 @@ loadoutBtn.MouseButton1Click:Connect(function()
             task.wait(1)
             loadoutBtn.Text = "LOADOUT"
         end
-        
+
         loadoutBtn.BackgroundColor3 = originalColor
     else
         local originalColor = loadoutBtn.BackgroundColor3
@@ -407,32 +408,32 @@ local isMobile = UIS.TouchEnabled
 
 local function getWorldPositionPrecise(screenPosition)
     local ray = Camera:ViewportPointToRay(screenPosition.X, screenPosition.Y)
-    
+
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     raycastParams.FilterDescendantsInstances = {player.Character, Camera}
     raycastParams.IgnoreWater = true
-    
+
     local raycastResult = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
-    
+
     if raycastResult then
         local hitPoint = raycastResult.Position
         return hitPoint.X, hitPoint.Y + 5, hitPoint.Z
     end
-    
+
     local directions = {
         ray.Direction,
         Vector3.new(ray.Direction.X, ray.Direction.Y - 0.05, ray.Direction.Z),
         Vector3.new(ray.Direction.X, ray.Direction.Y + 0.05, ray.Direction.Z)
     }
-    
+
     for _, dir in ipairs(directions) do
         local fallbackResult = Workspace:Raycast(ray.Origin, dir * 1000, raycastParams)
         if fallbackResult then
             return fallbackResult.Position.X, fallbackResult.Position.Y + 5, fallbackResult.Position.Z
         end
     end
-    
+
     return nil, nil, nil
 end
 
@@ -440,16 +441,16 @@ local function placeTowerAtPosition(towerName, x, y, z)
     if not towerName or not x or not z then 
         return false, "Invalid parameters"
     end
-    
+
     local placeY = (y or 80) + 5
-    
+
     local success, result = pcall(function()
         return RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
             Rotation = CFrame.new(),
             Position = Vector3.new(x, placeY, z)
         }, towerName)
     end)
-    
+
     if success then
         return true, result
     else
@@ -459,7 +460,7 @@ end
 
 UIS.InputBegan:Connect(function(input, processed)
     if processed then return end
-    
+
     if input.KeyCode == Enum.KeyCode.Q and not isMobile then
         if not lastSelectedSlot then
             placeToggle.BackgroundColor3 = Library.Colors.Danger
@@ -476,7 +477,7 @@ UIS.InputBegan:Connect(function(input, processed)
         if not placingEnabled then
             return
         end
-        
+
         local mousePos = UIS:GetMouseLocation()
         local x, y, z = getWorldPositionPrecise(mousePos)
         if not x or not z then
@@ -485,11 +486,11 @@ UIS.InputBegan:Connect(function(input, processed)
             placeToggle.BackgroundColor3 = Library.Colors.Success
             return
         end
-        
+
         placeToggle.BackgroundColor3 = Color3.fromRGB(255, 165, 0)
-        
+
         local success, result = placeTowerAtPosition(slotNames[lastSelectedSlot], x, y, z)
-        
+
         if success then
             placeToggle.BackgroundColor3 = Library.Colors.Success
             local originalColor = slotButtons[lastSelectedSlot].BackgroundColor3
@@ -508,7 +509,7 @@ if isMobile then
     local lastCameraCFrame = Camera.CFrame
     local lastCameraMoveTime = tick()
     local cameraCooldown = 0.3
-    
+
     RunService.RenderStepped:Connect(function()
         local currentCFrame = Camera.CFrame
         if (currentCFrame.Position - lastCameraCFrame.Position).Magnitude > 0.01 or
@@ -517,15 +518,15 @@ if isMobile then
         end
         lastCameraCFrame = currentCFrame
     end)
-    
+
     local function canPlaceTouch()
         return tick() - lastCameraMoveTime > cameraCooldown
     end
-    
+
     local activeTouch = nil
     local touchStartTime = 0
     local touchStartPosition = nil
-    
+
     UIS.InputBegan:Connect(function(input, processed)
         if processed then return end
         if input.UserInputType == Enum.UserInputType.Touch then
@@ -537,7 +538,7 @@ if isMobile then
             end
         end
     end)
-    
+
     UIS.InputEnded:Connect(function(input, processed)
         if input.UserInputType == Enum.UserInputType.Touch and input == activeTouch then
             activeTouch = nil
@@ -545,7 +546,7 @@ if isMobile then
             placeToggle.BackgroundColor3 = placingEnabled and Library.Colors.Success or Library.Colors.Danger
         end
     end)
-    
+
     spawn(function()
         while true do
             if activeTouch and touchStartPosition and canPlaceTouch() and placingEnabled then
@@ -554,7 +555,7 @@ if isMobile then
                         local x, y, z = getWorldPositionPrecise(touchStartPosition)
                         if x and z then
                             local success, result = placeTowerAtPosition(slotNames[lastSelectedSlot], x, y, z)
-                            
+
                             if success then
                                 placeToggle.BackgroundColor3 = Library.Colors.Success
                                 local originalColor = slotButtons[lastSelectedSlot].BackgroundColor3
@@ -637,27 +638,27 @@ end
 
 local function updateTowerButtons(container)
     if not container then return end
-    
+
     for _, child in ipairs(container:GetChildren()) do
         if child:IsA("TextButton") then
             child:Destroy()
         end
     end
-    
+
     local towersByTypeLevel = {}
     local towersFolder = Workspace:FindFirstChild("Towers")
-    
+
     if not towersFolder then
         return
     end
-    
+
     for _, towerFolder in ipairs(towersFolder:GetChildren()) do
         local replicator = towerFolder:FindFirstChild("TowerReplicator")
         if replicator then
             local towerName = replicator:GetAttribute("Name")
             local ownerId = replicator:GetAttribute("OwnerId")
             local upgradeLevel = replicator:GetAttribute("Upgrade") or 0
-            
+
             if ownerId and tostring(ownerId) == tostring(player.UserId) and towerName then
                 local key = towerName .. "_" .. tostring(upgradeLevel)
                 if not towersByTypeLevel[key] then
@@ -674,7 +675,7 @@ local function updateTowerButtons(container)
             end
         end
     end
-    
+
     local sortedTowers = {}
     for key, data in pairs(towersByTypeLevel) do
         table.insert(sortedTowers, data)
@@ -685,10 +686,10 @@ local function updateTowerButtons(container)
         end
         return a.name < b.name
     end)
-    
+
     local yPos = 0
     local btnHeight = Library:ScaleY(4)
-    
+
     local selectedStillExists = false
     if selectedTowerKey then
         for _, towerData in ipairs(sortedTowers) do
@@ -702,43 +703,43 @@ local function updateTowerButtons(container)
             clearTowerSelection()
         end
     end
-    
+
     for index, towerData in ipairs(sortedTowers) do
         local towerBtn = Instance.new("TextButton")
         towerBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeight)
         towerBtn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPos)
-        
+
         if index % 2 == 0 then
             towerBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
         else
             towerBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
         end
-        
+
         if towerData.count > 1 then
             towerBtn.Text = string.format("L%s.%s (%d)", tostring(towerData.level), towerData.name, towerData.count)
         else
             towerBtn.Text = string.format("L%s.%s", tostring(towerData.level), towerData.name)
         end
-        
+
         towerBtn.TextColor3 = Library.Colors.Text
         towerBtn.TextSize = Library:ScaleY(1.2)
         towerBtn.Font = Library.Fonts.Normal
         towerBtn.Parent = container
         towerBtn.AutoButtonColor = false
-        
+
         Library:AddCorner(towerBtn, 4)
         Library:AddStroke(towerBtn, 1, Library.Colors.Border)
-        
+
         towerBtn:SetAttribute("TowerKey", towerData.key)
         towerBtn:SetAttribute("TowerName", towerData.name)
         towerBtn:SetAttribute("TowerLevel", towerData.level)
         towerBtn:SetAttribute("TowerCount", towerData.count)
         towerBtn:SetAttribute("OriginalColor", towerBtn.BackgroundColor3)
-        
+
         if selectedTowerKey == towerData.key then
             towerBtn.BackgroundColor3 = Library.Colors.Success
         end
-        
+
         towerBtn.MouseButton1Click:Connect(function()
             if selectedTowerKey == towerData.key then
                 clearTowerSelection()
@@ -752,7 +753,7 @@ local function updateTowerButtons(container)
                 selectedTowerKey = towerData.key
                 selectedTowerData = towerData
                 towerBtn.BackgroundColor3 = Library.Colors.Success
-                
+
                 if contentFrames["SWITCHER"] and contentFrames["SWITCHER"].Visible then
                     if lastSelectedSlot then
                         slotFilled[lastSelectedSlot] = true
@@ -765,22 +766,22 @@ local function updateTowerButtons(container)
                 end
             end
         end)
-        
+
         towerBtn.MouseEnter:Connect(function()
             if towerBtn.BackgroundColor3 ~= Library.Colors.Success then
                 towerBtn.BackgroundColor3 = Library.Colors.BackgroundLight
             end
         end)
-        
+
         towerBtn.MouseLeave:Connect(function()
             if towerBtn.BackgroundColor3 ~= Library.Colors.Success then
                 towerBtn.BackgroundColor3 = towerBtn:GetAttribute("OriginalColor")
             end
         end)
-        
+
         yPos = yPos + btnHeight + Library:ScaleY(0.5)
     end
-    
+
     if #sortedTowers == 0 then
         local noTowersBtn = Instance.new("TextButton")
         noTowersBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeight)
@@ -793,10 +794,10 @@ local function updateTowerButtons(container)
         noTowersBtn.Parent = container
         noTowersBtn.AutoButtonColor = false
         Library:AddCorner(noTowersBtn, 4)
-        
+
         yPos = yPos + btnHeight + Library:ScaleY(0.5)
     end
-    
+
     container.CanvasSize = UDim2.new(0, 0, 0, yPos)
 end
 
@@ -814,7 +815,7 @@ end
 local function startPeriodicRefresh()
     task.spawn(function()
         while periodicRefreshEnabled do
-            task.wait(2)
+            task.wait(0.7)
 
             if contentFrames["MANAGER"] and contentFrames["MANAGER"].Visible and currentManagerScrollFrame then
                 updateTowerButtons(currentManagerScrollFrame)
@@ -829,31 +830,31 @@ local function setupTowerUpdates(scrollFrame)
         local function onTowerChange()
             scheduleUpdate(scrollFrame)
         end
-        
+
         local addedConnection = towersFolder.ChildAdded:Connect(onTowerChange)
         table.insert(towerConnections, addedConnection)
-        
+
         local removedConnection = towersFolder.ChildRemoved:Connect(onTowerChange)
         table.insert(towerConnections, removedConnection)
-        
+
         local function setupReplicatorConnections(folder)
             local replicator = folder:FindFirstChild("TowerReplicator")
             if replicator then
                 local upgradeConnection = replicator:GetAttributeChangedSignal("Upgrade"):Connect(onTowerChange)
                 table.insert(towerConnections, upgradeConnection)
-                
+
                 local nameConnection = replicator:GetAttributeChangedSignal("Name"):Connect(onTowerChange)
                 table.insert(towerConnections, nameConnection)
-                
+
                 local ownerConnection = replicator:GetAttributeChangedSignal("OwnerId"):Connect(onTowerChange)
                 table.insert(towerConnections, ownerConnection)
             end
         end
-        
+
         for _, towerFolder in ipairs(towersFolder:GetChildren()) do
             setupReplicatorConnections(towerFolder)
         end
-        
+
         local childAddedConnection = towersFolder.ChildAdded:Connect(function(newFolder)
             task.wait(0.1)
             setupReplicatorConnections(newFolder)
@@ -870,9 +871,11 @@ local function flashButton(button, color, text)
         button.Text = text
     end
     task.wait(0.2)
-    button.BackgroundColor3 = originalColor
-    if text then
-        button.Text = originalText
+    if button.Text == text or text == nil then
+        button.BackgroundColor3 = originalColor
+        if text then
+            button.Text = originalText
+        end
     end
 end
 
@@ -884,21 +887,21 @@ local function createSwitcherTab()
         false,
         Library.Colors.BackgroundDarker
     )
-    
+
     local searchBox = Library:CreateTextBox(
         contentFrame,
         "Search towers...",
         UDim2.new(1, -Library:ScaleX(2), 0, Library:ScaleY(5.5)),
         UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
     )
-    
+
     local towerListFrame = Library:CreateScrollingFrame(
         contentFrame,
         UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(9.5)),
         UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(7)),
         Library.Colors.BackgroundDark
     )
-    
+
     local allTowers = {
         "Farm", "DJ Booth", "Commander", "Gatling Gun", "Turret", "Cowboy", "Militant", "Freezer", "Assassin", "Shotgunner", 
         "Pyromancer", "Ace Pilot", "Medic", "Scout", "Rocketeer", "Trapper", "Military Base", "Crook Boss", "Electroshocker", 
@@ -907,14 +910,14 @@ local function createSwitcherTab()
         "Frost Blaster", "Archer", "Swarmer", "Toxic Gunner", "Sledger", "Executioner", "Elf Camp", "Jester", "Cryomancer", 
         "Hallow Punk", "Biologist", "Harvester", "Snowballer", "Elementalist", "Firework Technician", "Warlock", "Spotlight Tech", "War Machine", "EvolvedJuggernaut", "Mecha Base"
     }
-    
+
     local function populateTowers(searchText)
         for _, child in ipairs(towerListFrame:GetChildren()) do
             if child:IsA("TextButton") then
                 child:Destroy()
             end
         end
-        
+
         local filtered = {}
         if searchText and searchText ~= "" then
             searchText = searchText:lower()
@@ -926,28 +929,28 @@ local function createSwitcherTab()
         else
             filtered = allTowers
         end
-        
+
         for i, towerName in ipairs(filtered) do
             local towerBtn = Instance.new("TextButton")
             towerBtn.Size = UDim2.new(1, -Library:ScaleX(1), 0, Library:ScaleY(4))
             towerBtn.Position = UDim2.new(0, Library:ScaleX(0.5), 0, (i-1) * Library:ScaleY(4.5))
-            
+
             if i % 2 == 0 then
                 towerBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
             else
                 towerBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
             end
-            
+
             towerBtn.Text = towerName
             towerBtn.TextColor3 = Library.Colors.Text
             towerBtn.TextSize = Library:ScaleY(1.2)
             towerBtn.Font = Library.Fonts.Normal
             towerBtn.Parent = towerListFrame
             towerBtn.AutoButtonColor = false
-            
+
             Library:AddCorner(towerBtn, 3)
             Library:AddStroke(towerBtn, 1, Library.Colors.Border)
-            
+
             towerBtn.MouseButton1Click:Connect(function()
                 if lastSelectedSlot then
                     local slotNum = lastSelectedSlot
@@ -960,16 +963,16 @@ local function createSwitcherTab()
                 end
             end)
         end
-        
+
         towerListFrame.CanvasSize = UDim2.new(0, 0, 0, #filtered * Library:ScaleY(4.5))
     end
-    
+
     populateTowers("")
-    
+
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
         populateTowers(searchBox.Text)
     end)
-    
+
     return contentFrame
 end
 
@@ -981,7 +984,7 @@ local function createManagerTab()
         false,
         Library.Colors.BackgroundDarker
     )
-    
+
     local towerScrollFrame = Library:CreateScrollingFrame(
         contentFrame,
         UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(12)),
@@ -994,7 +997,7 @@ local function createManagerTab()
     Library:AddStroke(towerScrollFrame, 1, Library.Colors.Border)
 
     currentManagerScrollFrame = towerScrollFrame
-    
+
     local buttonContainer = Library:CreateFrame(
         contentFrame,
         UDim2.new(1, -Library:ScaleX(2), 0, Library:ScaleY(6)),
@@ -1003,11 +1006,11 @@ local function createManagerTab()
         Library.Colors.BackgroundDark
     )
     Library:AddCorner(buttonContainer, 6)
-    
+
     local btnWidth = (buttonContainer.AbsoluteSize.X - Library:ScaleX(3)) / 3
     local btnHeight = Library:ScaleY(4)
     local btnY = -9
-    
+
     local sellBtn = Instance.new("TextButton")
     sellBtn.Size = UDim2.new(0, btnWidth, 0, btnHeight)
     sellBtn.Position = UDim2.new(0, Library:ScaleX(0.5), 0, btnY)
@@ -1020,7 +1023,7 @@ local function createManagerTab()
     sellBtn.AutoButtonColor = false
     Library:AddCorner(sellBtn, 4)
     Library:AddStroke(sellBtn, 1, Library.Colors.Border)
-    
+
     local upgradeBtn = Instance.new("TextButton")
     upgradeBtn.Size = UDim2.new(0, btnWidth, 0, btnHeight)
     upgradeBtn.Position = UDim2.new(0, Library:ScaleX(0.5) + btnWidth + Library:ScaleX(0.5), 0, btnY)
@@ -1033,10 +1036,10 @@ local function createManagerTab()
     upgradeBtn.AutoButtonColor = false
     Library:AddCorner(upgradeBtn, 4)
     Library:AddStroke(upgradeBtn, 1, Library.Colors.Border)
-    
+
     local targetOptions = {"First", "Last", "Strongest", "Weakest", "Closest", "Farthest", "Random"}
     local currentTarget = "First"
-    
+
     local targetBtn = Instance.new("TextButton")
     targetBtn.Size = UDim2.new(0, btnWidth, 0, btnHeight)
     targetBtn.Position = UDim2.new(0, Library:ScaleX(0.5) + (btnWidth + Library:ScaleX(0.5)) * 2, 0, btnY)
@@ -1050,7 +1053,7 @@ local function createManagerTab()
     targetBtn.ZIndex = 5
     Library:AddCorner(targetBtn, 4)
     Library:AddStroke(targetBtn, 1, Library.Colors.Border)
-    
+
     local targetDropdown = Library:CreateFrame(
         buttonContainer,
         UDim2.new(0, btnWidth, 0, #targetOptions * Library:ScaleY(3.5)),
@@ -1062,18 +1065,18 @@ local function createManagerTab()
     targetDropdown.ZIndex = 10
     Library:AddCorner(targetDropdown, 4)
     Library:AddStroke(targetDropdown, 1, Library.Colors.Border)
-    
+
     for i, option in ipairs(targetOptions) do
         local optionBtn = Instance.new("TextButton")
         optionBtn.Size = UDim2.new(1, -Library:ScaleX(0.5), 0, Library:ScaleY(3.5))
         optionBtn.Position = UDim2.new(0, Library:ScaleX(0.25), 0, (i-1) * Library:ScaleY(3.5))
-        
+
         if i % 2 == 0 then
             optionBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
         else
             optionBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
         end
-        
+
         optionBtn.Text = option
         optionBtn.TextColor3 = Library.Colors.Text
         optionBtn.TextSize = Library:ScaleY(1.1)
@@ -1081,40 +1084,40 @@ local function createManagerTab()
         optionBtn.Parent = targetDropdown
         optionBtn.AutoButtonColor = false
         optionBtn.ZIndex = 11
-        
+
         Library:AddCorner(optionBtn, 3)
-        
+
         optionBtn.MouseButton1Click:Connect(function()
             currentTarget = option
             targetBtn.Text = "▼ " .. currentTarget .. " ▼"
             targetDropdown.Visible = false
-            
+
             flashButton(targetBtn, Library.Colors.Success, "✓")
-            
+
             if selectedTowerData and selectedTowerData.folders then
                 local targetCount = 0
                 local foldersToTarget = {}
                 for _, folder in ipairs(selectedTowerData.folders) do
                     table.insert(foldersToTarget, folder)
                 end
-                
+
                 for _, folder in ipairs(foldersToTarget) do
                     if do_set_target(folder, option) then
                         targetCount = targetCount + 1
                     end
-                    task.wait(0.05)
+                    task.wait(0.1)
                 end
-                
+
                 if targetCount > 0 then
                     flashButton(targetBtn, Library.Colors.Success, "SET")
                 end
             end
         end)
-        
+
         optionBtn.MouseEnter:Connect(function()
             optionBtn.BackgroundColor3 = Library.Colors.BackgroundLight
         end)
-        
+
         optionBtn.MouseLeave:Connect(function()
             if i % 2 == 0 then
                 optionBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
@@ -1123,7 +1126,7 @@ local function createManagerTab()
             end
         end)
     end
-    
+
     targetBtn.MouseButton1Click:Connect(function()
         targetDropdown.Visible = not targetDropdown.Visible
         if targetDropdown.Visible then
@@ -1132,7 +1135,7 @@ local function createManagerTab()
             targetBtn.Text = "▼ " .. currentTarget .. " ▼"
         end
     end)
-    
+
     UIS.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             task.wait()
@@ -1142,7 +1145,7 @@ local function createManagerTab()
                 local dropdownSize = targetDropdown.AbsoluteSize
                 local btnPos = targetBtn.AbsolutePosition
                 local btnSize = targetBtn.AbsoluteSize
-                
+
                 if (mousePos.X < dropdownPos.X or mousePos.X > dropdownPos.X + dropdownSize.X or
                    mousePos.Y < dropdownPos.Y or mousePos.Y > dropdownPos.Y + dropdownSize.Y) and
                    (mousePos.X < btnPos.X or mousePos.X > btnPos.X + btnSize.X or
@@ -1153,7 +1156,7 @@ local function createManagerTab()
             end
         end
     end)
-    
+
     sellBtn.MouseButton1Click:Connect(function()
         flashButton(sellBtn, Library.Colors.Success, "!")
         if selectedTowerData and selectedTowerData.folders then
@@ -1162,14 +1165,14 @@ local function createManagerTab()
             for _, folder in ipairs(selectedTowerData.folders) do
                 table.insert(foldersToSell, folder)
             end
-            
+
             for _, folder in ipairs(foldersToSell) do
                 if do_sell_tower(folder) then
                     soldCount = soldCount + 1
                 end
-                task.wait(0.05)
+                task.wait(0.1)
             end
-            
+
             if soldCount > 0 then
                 flashButton(sellBtn, Library.Colors.Success, "SOLD " .. soldCount)
             end
@@ -1179,36 +1182,47 @@ local function createManagerTab()
             scheduleUpdate(towerScrollFrame)
         end
     end)
-    
+
     upgradeBtn.MouseButton1Click:Connect(function()
-        flashButton(upgradeBtn, Library.Colors.Success, "!")
+        if isUpgrading then
+            flashButton(upgradeBtn, Color3.fromRGB(255, 100, 100), "Wait!")
+            return
+        end
+        
+        isUpgrading = true
+        
+        upgradeBtn.BackgroundColor3 = Library.Colors.Success
+        upgradeBtn.Text = "!"
+        
         if selectedTowerData and selectedTowerData.folders then
             local upgradedCount = 0
             local foldersToUpgrade = {}
             for _, folder in ipairs(selectedTowerData.folders) do
                 table.insert(foldersToUpgrade, folder)
             end
-            
+        
             for _, folder in ipairs(foldersToUpgrade) do
                 if do_upgrade_tower(folder) then
                     upgradedCount = upgradedCount + 1
                 end
-                task.wait(0.05)
+                task.wait(0.1)
             end
-            
+        
             if upgradedCount > 0 then
-                flashButton(upgradeBtn, Library.Colors.Success, "UP " .. upgradedCount)
+                upgradeBtn.BackgroundColor3 = Library.Colors.Success
+                upgradeBtn.Text = "UP " .. upgradedCount
+                task.wait(0.2)
             end
-            scheduleUpdate(towerScrollFrame)
         end
+        
+        upgradeBtn.BackgroundColor3 = Library.Colors.Success
+        upgradeBtn.Text = "UPGRADE"
+        isUpgrading = false
     end)
-    
-    updateTowerButtons(towerScrollFrame)
-    setupTowerUpdates(towerScrollFrame)
     
     return contentFrame
 end
-
+    
 local function createAutomationTab()
     local contentFrame = Library:CreateFrame(
         rightPanel,
@@ -1217,7 +1231,7 @@ local function createAutomationTab()
         false,
         Library.Colors.BackgroundDarker
     )
-    
+
     local scrollFrame = Library:CreateScrollingFrame(
         contentFrame,
         UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(2)),
@@ -1225,7 +1239,7 @@ local function createAutomationTab()
         Library.Colors.BackgroundDark
     )
     Library:AddCorner(scrollFrame, 6)
-    
+
     local yPos = Library:ScaleY(1)
     local buttonHeight = Library:ScaleY(5)
     local buttonSpacing = Library:ScaleY(1)
@@ -1406,16 +1420,16 @@ local function createAutomationTab()
     local function StartSellFarm()
         if SellFarmsRunning or not _G.SellFarms then return end
         SellFarmsRunning = true
-        
+
         print("Auto Sell Farms started, selling at wave:", _G.WaveFS)
-        
+
         task.spawn(function()
             while _G.SellFarms do
                 local success, CurrentWave = pcall(get_current_wave)
                 if not success then CurrentWave = 0 end
-                
+
                 local sellAtWave = _G.WaveFS or 40
-                
+
                 if CurrentWave >= sellAtWave and CurrentWave > 0 then
                     local TowersFolder = workspace:FindFirstChild("Towers")
                     if TowersFolder then
@@ -1423,7 +1437,7 @@ local function createAutomationTab()
                             if replicator:IsA("Folder") and replicator.Name == "TowerReplicator" then
                                 local IsFarm = replicator:GetAttribute("Name") == "Farm"
                                 local IsMine = replicator:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
-                                
+
                                 if IsFarm and IsMine then
                                     local TowerModel = replicator.Parent
                                     pcall(function()
@@ -1441,55 +1455,55 @@ local function createAutomationTab()
             print("Auto Sell Farms stopped")
         end)
     end
-    
+
     autoSkipBtn.MouseButton1Click:Connect(function()
         _G.AutoSkip = not _G.AutoSkip
         autoSkipBtn.BackgroundColor3 = _G.AutoSkip and Library.Colors.Success or Library.Colors.Accent
         autoSkipBtn.Text = _G.AutoSkip and "Auto Skip: ON" or "Auto Skip: OFF"
     end)
-    
+
     autoSmartSkipBtn.MouseButton1Click:Connect(function()
         _G.AutoSmartSkip = not _G.AutoSmartSkip
         autoSmartSkipBtn.BackgroundColor3 = _G.AutoSmartSkip and Library.Colors.Success or Library.Colors.Accent
         autoSmartSkipBtn.Text = _G.AutoSmartSkip and "Smart Skip: ON" or "Smart Skip: OFF"
     end)
-    
+
     autoNecroBtn.MouseButton1Click:Connect(function()
         _G.AutoNecro = not _G.AutoNecro
         autoNecroBtn.BackgroundColor3 = _G.AutoNecro and Library.Colors.Success or Library.Colors.Accent
         autoNecroBtn.Text = _G.AutoNecro and "Auto Necromancer: ON" or "Auto Necromancer: OFF"
     end)
-    
+
     autoUberBtn.MouseButton1Click:Connect(function()
         _G.AutoUber = not _G.AutoUber
         autoUberBtn.BackgroundColor3 = _G.AutoUber and Library.Colors.Success or Library.Colors.Accent
         autoUberBtn.Text = _G.AutoUber and "Auto Uber: ON" or "Auto Uber: OFF"
     end)
-    
+
     autoDJBtn.MouseButton1Click:Connect(function()
         _G.AutoDJ = not _G.AutoDJ
         autoDJBtn.BackgroundColor3 = _G.AutoDJ and Library.Colors.Success or Library.Colors.Accent
         autoDJBtn.Text = _G.AutoDJ and "Auto DJ Booth: ON" or "Auto DJ Booth: OFF"
     end)
-    
+
     autoSupportBtn.MouseButton1Click:Connect(function()
         _G.AutoSupport = not _G.AutoSupport
         autoSupportBtn.BackgroundColor3 = _G.AutoSupport and Library.Colors.Success or Library.Colors.Accent
         autoSupportBtn.Text = _G.AutoSupport and "Auto Support: ON" or "Auto Support: OFF"
     end)
-    
+
     autoChainBtn.MouseButton1Click:Connect(function()
         _G.AutoChain = not _G.AutoChain
         autoChainBtn.BackgroundColor3 = _G.AutoChain and Library.Colors.Success or Library.Colors.Accent
         autoChainBtn.Text = _G.AutoChain and "Auto Chain: ON" or "Auto Chain: OFF"
     end)
-    
+
     autoPickupsBtn.MouseButton1Click:Connect(function()
         _G.AutoPickups = not _G.AutoPickups
         autoPickupsBtn.BackgroundColor3 = _G.AutoPickups and Library.Colors.Success or Library.Colors.Accent
         autoPickupsBtn.Text = _G.AutoPickups and "Auto Pickups: ON" or "Auto Pickups: OFF"
     end)
-    
+
     autoMercenaryBtn.MouseButton1Click:Connect(function()
         _G.AutoMercenary = not _G.AutoMercenary
         if _G.AutoMercenary then
@@ -1502,7 +1516,7 @@ local function createAutomationTab()
             autoMercenaryBtn.Text = "Auto Mercenary: OFF"
         end
     end)
-    
+
     autoSellFarmsBtn.MouseButton1Click:Connect(function()
         _G.SellFarms = not _G.SellFarms
         if _G.SellFarms then
@@ -1547,7 +1561,7 @@ local function createAutomationTab()
 
     local totalHeight = yPos + (buttonHeight + buttonSpacing) * 9 + Library:ScaleY(12)
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
-    
+
     return contentFrame
 end
 
@@ -1579,7 +1593,7 @@ managerTab.MouseButton1Click:Connect(function()
     switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
     managerTab.BackgroundColor3 = Library.Colors.Accent
     autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    
+
     if contentFrames["MANAGER"] then
         local scrollFrame = contentFrames["MANAGER"]:FindFirstChildOfClass("ScrollingFrame")
         if scrollFrame then
