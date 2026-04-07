@@ -29,6 +29,10 @@ TDS:GameInfo("Summer Castle", {
 })
 
 TDS:Place("Cowboy", 13.015599, 60, 24.304212)
+
+TDS:UnlockTimeScale()  -- Delete whole line to deactivate auto time-scale
+TDS:TimeScale(2)  -- Number = speed (0,0.5,1,1.5,2)
+
 TDS:Place("Cowboy", 15.689821, 60, 24.168766)
 TDS:Place("Cowboy", 10.404173, 60, 24.262464)
 TDS:Place("Cowboy", 14.361751, 60, 26.457817)
