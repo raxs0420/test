@@ -1,0 +1,287 @@
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoRejoin = true
+_G.AutoSmartSkip = true
+_G.SendWebhook = false
+_G.AutoSupport = true
+_G.Webhook = ""
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("Cowboy", "Commander", "DJ Booth", "Turret", "Ranger")
+
+TDS:Mode("Frost")
+TDS:GameInfo("Summer Castle", {
+    HiddenEnemies = false, 
+    Glass = true, 
+    ExplodingEnemies = false,
+    Limitation = false, 
+    Committed = true, 
+    HealthyEnemies = false,
+    SpeedyEnemies = false,
+    Quarantine = true, 
+    Fog = false,
+    FlyingEnemies = false, 
+    Broke = false, 
+    Jailed = false, 
+    Inflation = false
+})
+
+TDS:Place("Cowboy", 13.015599, 60, 24.304212)
+TDS:Place("Cowboy", 15.689821, 60, 24.168766)
+TDS:Place("Cowboy", 10.404173, 60, 24.262464)
+TDS:Place("Cowboy", 14.361751, 60, 26.457817)
+TDS:Place("Cowboy", 11.709617, 60, 26.514102)
+TDS:Place("Cowboy", 10.593180, 60, 21.644327)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Place("Commander", 13.017880, 60, 13.831056)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+
+TDS:Place("DJ Booth", 13.017880, 60, 13.831056)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:SetOption(8, "Track", "Green")
+TDS:Ability(8, "Drop The Beat", {Nill} , true)
+
+TDS:Place("Commander", 13.017880, 60, 13.831056)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Place("Commander", 13.017880, 60, 13.831056)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:AutoChain(10, 9, 7)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+
+TDS:Place("Ranger", 12.864540, 60, 7.013887)
+TDS:Place("Ranger", 12.864540, 60, 7.013887)
+TDS:Place("Ranger", 12.864540, 60, 7.013887)
+TDS:Place("Ranger", 12.864540, 60, 7.013887)
+TDS:Place("Ranger", 12.864540, 60, 7.013887)
+TDS:Place("Ranger", 12.864540, 60, 7.013887)
+TDS:Place("Ranger", 12.864540, 60, 7.013887)
+TDS:Place("Ranger", 12.864540, 60, 7.013887)
+
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+
+TDS:Place("Turret", 13.017880, 60, 13.831056)
+TDS:Place("Turret", 13.017880, 60, 13.831056)
+TDS:Place("Turret", 13.017880, 60, 13.831056)
+
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+
+TDS:SetTarget(1, "Last")
+TDS:SetTarget(2, "Last")
+TDS:SetTarget(3, "Last")
+TDS:SetTarget(4, "Last")
+TDS:SetTarget(5, "Last")
+TDS:SetTarget(6, "Last")
+
+TDS:Loadout("Minigunner", "", "", "", "")
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+TDS:Upgrade(28)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+TDS:Upgrade(29)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+TDS:Upgrade(30)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+TDS:Upgrade(31)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+TDS:Upgrade(32)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+TDS:Upgrade(34)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(35)
+TDS:Upgrade(35)
+TDS:Upgrade(35)
+TDS:Upgrade(35)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(36)
+TDS:Upgrade(36)
+TDS:Upgrade(36)
+TDS:Upgrade(36)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+TDS:Upgrade(37)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(38)
+TDS:Upgrade(38)
+TDS:Upgrade(38)
+TDS:Upgrade(38)
+
+TDS:Place("Minigunner", 15.924733, 60, 10.072179)
+TDS:Upgrade(39)
+TDS:Upgrade(39)
+TDS:Upgrade(39)
+TDS:Upgrade(39)
+
+TDS:Place("Minigunner", 10.600198, 60, 21.873447)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+TDS:Upgrade(40)
+
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+TDS:Upgrade(18)
+
+TDS:SetOption(8, "Track", "Red")
