@@ -206,6 +206,17 @@ TDS:Upgrade(11, 2)
 TDS:Upgrade(10)
 TDS:Upgrade(10)
 TDS:Upgrade(10, 2)
+
+TDS:Place("Mercenary Base", -52.476254, 60, -37.133180) --33
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+TDS:Upgrade(33)
+
+TDS:SetOption(13, "Track", "Red")
+
 TDS:Ability(10, "Hologram Tower", {
     towerToClone = 9,
     towerPosition = {
@@ -220,16 +231,6 @@ TDS:Ability(11, "Hologram Tower", {
         Vector3.new(-57.515319, 60, -30.382811),
     }
 }, true)
-
-TDS:Place("Mercenary Base", -52.476254, 60, -37.133180) --33
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-
-TDS:SetOption(13, "Track", "Red")
 
 TDS:Place("Firework Technician", -52.476254, 60, -37.133180) --34
 TDS:Upgrade(34)
