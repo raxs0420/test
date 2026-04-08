@@ -97,7 +97,6 @@ if game_state == "LOBBY" then
         else
             current_level = levelObject.Value or 0
         end
-        print("Level " .. tostring(current_level))
     end)
 elseif game_state == "GAME" then
     pcall(function()
@@ -516,7 +515,6 @@ end
 
 function TDS:RegisterStrategy(mapName, strategyFunction)
     self.strategies[mapName] = strategyFunction
-    print("Registered strategy for map: " .. mapName)
 end
 
 function TDS:RegisterStrategies(strategyTable)
@@ -535,6 +533,74 @@ end
 
 function TDS:IsMapAvailable(mapName)
     return is_map_available(mapName)
+end
+
+function TDS:SelectMapWithPriority(mapPriorityList, maxAttempts)
+    maxAttempts = maxAttempts or 2
+    
+    repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ReactGameIntermission")
+    
+    local selectedMap = nil
+    
+    for attempt = 1, maxAttempts do
+        local availableMaps = self:GetAvailableMaps()
+        
+        for _, preferredMap in ipairs(mapPriorityList) do
+            for _, availableMap in ipairs(availableMaps) do
+                if availableMap == preferredMap then
+                    selectedMap = preferredMap
+                    break
+                end
+            end
+            if selectedMap then break end
+        end
+        
+        if selectedMap then break end
+        
+        if attempt == 1 then
+            self:VetoMaps()
+            task.wait(1)
+        end
+    end
+    
+    if not selectedMap then
+        game:GetService("TeleportService"):Teleport(3260590327)
+        return nil
+    end
+    
+    return selectedMap
+end
+
+function TDS:RunStrategy(config)
+    if not config.mode then
+        error("TDS:RunStrategy - mode is required")
+    end
+    if not config.mapPriority then
+        error("TDS:RunStrategy - mapPriority is required")
+    end
+    
+    self:Mode(config.mode)
+    
+    local selectedMap = self:SelectMapWithPriority(config.mapPriority, config.maxAttempts)
+    
+    if not selectedMap then return false end
+    
+    local strategy = nil
+    if config.strategies then
+        strategy = config.strategies[selectedMap]
+    end
+    
+    if not strategy and config.defaultStrategy then
+        strategy = config.defaultStrategy
+    end
+    
+    if strategy then
+        self.pending_strategy = strategy
+    end
+    
+    self:GameInfo(selectedMap, config.modifiers or {})
+    
+    return true
 end
 
 function TDS:GameInfo(mapName, modifiers)
@@ -1185,7 +1251,6 @@ end
 
 function TDS:AutoSkip(state)
     _G.AutoSkip = state == true or state == "T" or state == "t"
-    print(_G.AutoSkip and "AutoSkip enabled!" or "AutoSkip disabled!")
     start_auto_skip()
 end
 
