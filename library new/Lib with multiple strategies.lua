@@ -711,6 +711,33 @@ function TDS:FindAvailableMap(mapList)
     return nil
 end
 
+function TDS:FindAndSelectMap(mapPriorityList, maxAttempts)
+    maxAttempts = maxAttempts or 3
+    
+    for attempt = 1, maxAttempts do
+        print("Map selection attempt " .. attempt .. "/" .. maxAttempts)
+        
+        local availableMaps = get_available_maps()
+        print("Available maps: " .. table.concat(availableMaps, ", "))
+        
+        for _, preferredMap in ipairs(mapPriorityList) do
+            for _, availableMap in ipairs(availableMaps) do
+                if availableMap == preferredMap then
+                    return preferredMap
+                end
+            end
+        end
+        
+        if attempt < maxAttempts then
+            print("Preferred maps not found, vetoing...")
+            veto_and_wait_for_maps()
+            task.wait(3)
+        end
+    end
+    
+    return nil
+end
+
 function TDS:StartMatchWithStrategies(config)
     if not config or not config.maps then
         error("TDS:StartMatchWithStrategies - maps list is required")
