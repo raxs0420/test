@@ -540,6 +540,8 @@ function TDS:SelectMapWithPriority(mapPriorityList, maxAttempts)
     
     repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ReactGameIntermission")
     
+    task.wait(1)
+    
     local selectedMap = nil
     
     for attempt = 1, maxAttempts do
@@ -564,6 +566,7 @@ function TDS:SelectMapWithPriority(mapPriorityList, maxAttempts)
     end
     
     if not selectedMap then
+        task.wait(1)
         game:GetService("TeleportService"):Teleport(3260590327)
         return nil
     end
