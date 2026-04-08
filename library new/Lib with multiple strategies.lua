@@ -551,43 +551,96 @@ function TDS:StartMatchWithStrategies(config)
     if not config or not config.maps then
         error("TDS:StartMatchWithStrategies - maps list is required")
     end
+    
+    -- Default mode if not specified
+    local defaultMode = config.mode or "Frost"
+    
     local mapNames = {}
     for _, mapConfig in ipairs(config.maps) do
         table.insert(mapNames, mapConfig.name)
     end
+    
     for _, mapConfig in ipairs(config.maps) do
         if mapConfig.strategy then
             self:RegisterStrategy(mapConfig.name, mapConfig.strategy)
         end
     end
+    
     local selectedMapName = self:FindAvailableMap(mapNames, config.maxAttempts or 3)
+    
     if not selectedMapName then
         warn("No preferred maps found, teleporting to lobby...")
         teleport_service:Teleport(3260590327, local_player)
         return false
     end
+    
     print("Selected map: " .. selectedMapName)
+    
+    -- Get the mode and strategy for selected map
+    local selectedMode = defaultMode
     local selectedStrategy = nil
+    
     for _, mapConfig in ipairs(config.maps) do
         if mapConfig.name == selectedMapName then
             selectedStrategy = mapConfig.strategy
+            if mapConfig.mode then
+                selectedMode = mapConfig.mode
+            end
             break
         end
     end
+    
     if not selectedStrategy then
         selectedStrategy = self.strategies[selectedMapName]
     end
+    
+    -- Check if we need to switch mode
+    local currentMode = nil
+    local state_folder = replicated_storage:FindFirstChild("State")
+    if state_folder then
+        currentMode = state_folder:GetAttribute("Difficulty") or state_folder:FindFirstChild("Difficulty") and state_folder.Difficulty.Value
+    end
+    
+    -- If mode is different, we need to leave and rejoin with new mode
+    if currentMode and currentMode ~= selectedMode and game_state == "GAME" then
+        print("Mode mismatch! Current: " .. currentMode .. ", Desired: " .. selectedMode .. ". Leaving to lobby...")
+        send_to_lobby()
+        task.wait(3)
+        -- Now in lobby, start the correct mode
+        print("Starting mode: " .. selectedMode)
+        self:Mode(selectedMode)
+        -- Wait for intermission again
+        repeat task.wait(1) until player_gui:FindFirstChild("ReactGameIntermission")
+        task.wait(2)
+        -- Need to find map again after mode switch
+        selectedMapName = self:FindAvailableMap(mapNames, 2)
+        if not selectedMapName then
+            warn("No preferred maps found after mode switch")
+            return false
+        end
+        print("New selected map after mode switch: " .. selectedMapName)
+    elseif game_state == "LOBBY" then
+        print("Starting mode from lobby: " .. selectedMode)
+        self:Mode(selectedMode)
+        -- Wait for intermission
+        repeat task.wait(1) until player_gui:FindFirstChild("ReactGameIntermission")
+        task.wait(2)
+    end
+    
     if selectedStrategy then
         self.pending_strategy = selectedStrategy
-        print("Strategy queued for " .. selectedMapName)
+        print("Strategy queued for " .. selectedMapName .. " with mode " .. selectedMode)
     end
+    
     cast_modifier_vote(config.modifiers or {})
     task.wait(1)
+    
     if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
         select_map_override(selectedMapName, "vip")
     else
         select_map_override(selectedMapName)
     end
+    
     return true
 end
 
