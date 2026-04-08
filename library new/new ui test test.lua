@@ -1135,14 +1135,14 @@ function TDS:GameInfo(name, list)
     local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
     if not (vote_gui and vote_gui.Enabled) then 
         warn("Vote GUI not found or not enabled")
-        rejoin_match()
+        teleport_service:Teleport(3260590327, local_player)
         return false
     end
     
     local frame = vote_gui:WaitForChild("Frame", 5)
     if not frame then
         warn("Vote GUI Frame not found")
-        rejoin_match()
+        teleport_service:Teleport(3260590327, local_player)
         return false
     end
 
@@ -1160,11 +1160,17 @@ function TDS:GameInfo(name, list)
         return true
     end
     
-    warn("Map '" .. tostring(name) .. "' not available after veto, rejoining match")
+    warn("Map '" .. tostring(name) .. "' not available after veto, teleporting to lobby")
     
     task.wait(1)
     
-    rejoin_match()
+    local success, errorMsg = pcall(function()
+        teleport_service:Teleport(3260590327, local_player)
+    end)
+    
+    if not success then
+        warn("Teleport failed: " .. tostring(errorMsg))
+    end
     
     return false
 end
