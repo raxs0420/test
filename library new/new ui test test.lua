@@ -998,9 +998,13 @@ end
 
 function TDS:VoteSkip(start_wave, end_wave)
     task.spawn(function()
+        repeat task.wait() until get_current_wave() and get_current_wave() > 0
         local current_wave = get_current_wave()
-        start_wave = current_wave or start_wave
+        start_wave = start_wave or current_wave
         end_wave = end_wave or start_wave
+        if start_wave < current_wave then
+            start_wave = current_wave
+        end
         for wave = start_wave, end_wave do
             repeat
                 task.wait(0.2)
