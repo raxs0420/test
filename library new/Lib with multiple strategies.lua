@@ -711,52 +711,32 @@ function TDS:FindAvailableMap(mapList)
     return nil
 end
 
--- Main function to start match with multiple map strategies
 function TDS:StartMatchWithStrategies(config)
-    -- config = {
-    --     mode = "Fallen",  -- Game mode
-    --     maps = {          -- Map priority list
-    --         {name = "Summer Castle", strategy = myStrategyFunc},
-    --         {name = "Harbor", strategy = myOtherStrategyFunc},
-    --         {name = "Crossroads"}  -- No specific strategy
-    --     },
-    --     modifiers = {Glass = false},  -- Optional modifiers
-    --     defaultStrategy = function() end  -- Optional fallback strategy
-    -- }
-    
-    if not config or not config.mode then
-        error("TDS:StartMatchWithStrategies - mode is required")
-    end
-    
-    if not config.maps or #config.maps == 0 then
+    if not config or not config.maps then
         error("TDS:StartMatchWithStrategies - maps list is required")
     end
     
-    -- Start the game mode
-    local success = self:Mode(config.mode)
-    if not success then
-        warn("Failed to start mode: " .. config.mode)
-        return false
-    end
-    
-    -- Extract map names and find available one
     local mapNames = {}
     for _, mapConfig in ipairs(config.maps) do
         table.insert(mapNames, mapConfig.name)
     end
     
-    local selectedMapName = self:FindAvailableMap(mapNames)
+    for _, mapConfig in ipairs(config.maps) do
+        if mapConfig.strategy then
+            self:RegisterStrategy(mapConfig.name, mapConfig.strategy)
+        end
+    end
+    
+    local selectedMapName = self:FindAndSelectMap(mapNames, config.maxAttempts or 3)
     
     if not selectedMapName then
-        warn("No preferred maps available, using default selection")
-        -- Fall back to original GameInfo behavior
-        self:GameInfo(config.maps[1].name, config.modifiers or {})
+        warn("No preferred maps found, teleporting to lobby...")
+        teleport_service:Teleport(3260590327, local_player)
         return false
     end
     
     print("Selected map: " .. selectedMapName)
     
-    -- Find the strategy for selected map
     local selectedStrategy = nil
     for _, mapConfig in ipairs(config.maps) do
         if mapConfig.name == selectedMapName then
@@ -765,20 +745,15 @@ function TDS:StartMatchWithStrategies(config)
         end
     end
     
-    -- If no specific strategy, use default or registered strategy
     if not selectedStrategy then
-        selectedStrategy = self.strategies[selectedMapName] or config.defaultStrategy
+        selectedStrategy = self.strategies[selectedMapName]
     end
     
-    -- Store strategy to execute when match starts
     if selectedStrategy then
         self.pending_strategy = selectedStrategy
         print("Strategy queued for " .. selectedMapName)
-    else
-        print("No strategy defined for " .. selectedMapName .. ", using default gameplay")
     end
     
-    -- Apply modifiers and select map
     cast_modifier_vote(config.modifiers or {})
     task.wait(1)
     
@@ -791,7 +766,6 @@ function TDS:StartMatchWithStrategies(config)
     return true
 end
 
--- Legacy GameInfo function (kept for compatibility)
 local function original_game_info(name, list)
     list = list or {}
     if game_state ~= "GAME" then 
