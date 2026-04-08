@@ -479,15 +479,15 @@ end
 local function veto_and_wait_for_maps()
     local total_players = #players_service:GetPlayers()
     remote_event:FireServer("LobbyVoting", "Veto")
-    local veto_ui = player_gui:FindFirstChild("ReactGameIntermission", 5)
+    local veto_ui = player_gui:FindFirstChild("ReactGameIntermission")
     if not veto_ui then return false end
-    local frame = veto_ui:FindFirstChild("Frame", 5)
+    local frame = veto_ui:FindFirstChild("Frame")
     if not frame then return false end
-    local buttons = frame:FindFirstChild("buttons", 5)
+    local buttons = frame:FindFirstChild("buttons")
     if not buttons then return false end
-    local veto_button = buttons:FindFirstChild("veto", 5)
+    local veto_button = buttons:FindFirstChild("veto")
     if not veto_button then return false end
-    local veto_value = veto_button:FindFirstChild("value", 5)
+    local veto_value = veto_button:FindFirstChild("value")
     if not veto_value then return false end
     local max_wait_time = 10
     local start_time = os.time()
@@ -497,7 +497,7 @@ local function veto_and_wait_for_maps()
         end
         task.wait(1)
     end
-    task.wait(3)
+    task.wait(1)
     return true
 end
 
@@ -525,131 +525,16 @@ function TDS:RegisterStrategies(strategyTable)
     end
 end
 
-function TDS:FindAvailableMap(mapPriorityList, maxAttempts)
-    maxAttempts = maxAttempts or 3
-    for attempt = 1, maxAttempts do
-        print("Map selection attempt " .. attempt .. "/" .. maxAttempts)
-        local availableMaps = get_available_maps()
-        print("Available maps: " .. table.concat(availableMaps, ", "))
-        for _, preferredMap in ipairs(mapPriorityList) do
-            for _, availableMap in ipairs(availableMaps) do
-                if availableMap == preferredMap then
-                    return preferredMap
-                end
-            end
-        end
-        if attempt < maxAttempts then
-            print("Preferred maps not found, vetoing...")
-            veto_and_wait_for_maps()
-            task.wait(3)
-        end
-    end
-    return nil
+function TDS:GetAvailableMaps()
+    return get_available_maps()
 end
 
-function TDS:StartMatchWithStrategies(config)
-    if not config or not config.maps then
-        error("TDS:StartMatchWithStrategies - maps list is required")
-    end
-    
-    -- First, start the mode from lobby
-    if game_state == "LOBBY" then
-        local modeToStart = config.mode or "Frost"
-        print("Starting mode from lobby: " .. modeToStart)
-        self:Mode(modeToStart)
-        -- Wait for intermission to appear
-        repeat 
-            task.wait(1)
-            print("Waiting for intermission...")
-        until player_gui:FindFirstChild("ReactGameIntermission")
-        task.wait(2)
-    end
-    
-    local mapNames = {}
-    for _, mapConfig in ipairs(config.maps) do
-        table.insert(mapNames, mapConfig.name)
-    end
-    
-    for _, mapConfig in ipairs(config.maps) do
-        if mapConfig.strategy then
-            self:RegisterStrategy(mapConfig.name, mapConfig.strategy)
-        end
-    end
-    
-    -- Try to find map with only ONE veto attempt
-    local selectedMapName = nil
-    local maxAttempts = config.maxAttempts or 2 -- Only 2 attempts total (first check + one veto)
-    
-    for attempt = 1, maxAttempts do
-        print("Map selection attempt " .. attempt .. "/" .. maxAttempts)
-        
-        local availableMaps = get_available_maps()
-        print("Available maps: " .. table.concat(availableMaps, ", "))
-        
-        -- Check for preferred maps
-        for _, preferredMap in ipairs(mapNames) do
-            for _, availableMap in ipairs(availableMaps) do
-                if availableMap == preferredMap then
-                    selectedMapName = preferredMap
-                    print("✅ Found map: " .. selectedMapName)
-                    break
-                end
-            end
-            if selectedMapName then break end
-        end
-        
-        if selectedMapName then
-            break
-        end
-        
-        -- Only veto once on attempt 1
-        if attempt == 1 then
-            print("Preferred maps not found, vetoing once...")
-            veto_and_wait_for_maps()
-            task.wait(1) -- Wait 1 second after veto
-        elseif attempt >= maxAttempts then
-            print("No preferred maps found after veto, teleporting to lobby...")
-            teleport_service:Teleport(3260590327, local_player)
-            return false
-        end
-    end
-    
-    if not selectedMapName then
-        print("No preferred maps found, teleporting to lobby...")
-        teleport_service:Teleport(3260590327, local_player)
-        return false
-    end
-    
-    -- Get the strategy for selected map
-    local selectedStrategy = nil
-    for _, mapConfig in ipairs(config.maps) do
-        if mapConfig.name == selectedMapName then
-            selectedStrategy = mapConfig.strategy
-            break
-        end
-    end
-    
-    if not selectedStrategy then
-        selectedStrategy = self.strategies[selectedMapName]
-    end
-    
-    -- Store strategy to run when match starts
-    if selectedStrategy then
-        self.pending_strategy = selectedStrategy
-        print("Strategy queued for " .. selectedMapName)
-    end
-    
-    -- Apply modifiers and vote for map
-    cast_modifier_vote(config.modifiers or {})
-    task.wait(1)
-    
-    if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
-        select_map_override(selectedMapName, "vip")
-    else
-        select_map_override(selectedMapName)
-    end
-    
-    return true
+function TDS:VetoMaps()
+    return veto_and_wait_for_maps()
+end
+
+function TDS:IsMapAvailable(mapName)
+    return is_map_available(mapName)
 end
 
 function TDS:GameInfo(mapName, modifiers)
@@ -680,7 +565,7 @@ function TDS:GameInfo(mapName, modifiers)
         select_map_override(mapName)
         return true
     end
-    warn("Map '" .. tostring(mapName) .. "' not available after veto, teleporting to lobby")
+    warn("Map '" .. tostring(mapName) .. "' not available, teleporting to lobby")
     task.wait(1)
     local success, errorMsg = pcall(function()
         teleport_service:Teleport(3260590327, local_player)
@@ -689,18 +574,6 @@ function TDS:GameInfo(mapName, modifiers)
         warn("Teleport failed: " .. tostring(errorMsg))
     end
     return false
-end
-
-function TDS:IsMapAvailable(mapName)
-    return is_map_available(mapName)
-end
-
-function TDS:GetAvailableMaps()
-    return get_available_maps()
-end
-
-function TDS:VetoMaps()
-    return veto_and_wait_for_maps()
 end
 
 local function set_game_timescale(target_val)
