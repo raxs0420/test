@@ -552,8 +552,18 @@ function TDS:StartMatchWithStrategies(config)
         error("TDS:StartMatchWithStrategies - maps list is required")
     end
     
-    -- Default mode if not specified
-    local defaultMode = config.mode or "Frost"
+    -- First, start the mode from lobby
+    if game_state == "LOBBY" then
+        local modeToStart = config.mode or "Frost"
+        print("Starting mode from lobby: " .. modeToStart)
+        self:Mode(modeToStart)
+        -- Wait for intermission to appear
+        repeat 
+            task.wait(1)
+            print("Waiting for intermission...")
+        until player_gui:FindFirstChild("ReactGameIntermission")
+        task.wait(2)
+    end
     
     local mapNames = {}
     for _, mapConfig in ipairs(config.maps) do
@@ -566,26 +576,55 @@ function TDS:StartMatchWithStrategies(config)
         end
     end
     
-    local selectedMapName = self:FindAvailableMap(mapNames, config.maxAttempts or 3)
+    -- Try to find map with only ONE veto attempt
+    local selectedMapName = nil
+    local maxAttempts = config.maxAttempts or 2 -- Only 2 attempts total (first check + one veto)
+    
+    for attempt = 1, maxAttempts do
+        print("Map selection attempt " .. attempt .. "/" .. maxAttempts)
+        
+        local availableMaps = get_available_maps()
+        print("Available maps: " .. table.concat(availableMaps, ", "))
+        
+        -- Check for preferred maps
+        for _, preferredMap in ipairs(mapNames) do
+            for _, availableMap in ipairs(availableMaps) do
+                if availableMap == preferredMap then
+                    selectedMapName = preferredMap
+                    print("✅ Found map: " .. selectedMapName)
+                    break
+                end
+            end
+            if selectedMapName then break end
+        end
+        
+        if selectedMapName then
+            break
+        end
+        
+        -- Only veto once on attempt 1
+        if attempt == 1 then
+            print("Preferred maps not found, vetoing once...")
+            veto_and_wait_for_maps()
+            task.wait(1) -- Wait 1 second after veto
+        elseif attempt >= maxAttempts then
+            print("No preferred maps found after veto, teleporting to lobby...")
+            teleport_service:Teleport(3260590327, local_player)
+            return false
+        end
+    end
     
     if not selectedMapName then
-        warn("No preferred maps found, teleporting to lobby...")
+        print("No preferred maps found, teleporting to lobby...")
         teleport_service:Teleport(3260590327, local_player)
         return false
     end
     
-    print("Selected map: " .. selectedMapName)
-    
-    -- Get the mode and strategy for selected map
-    local selectedMode = defaultMode
+    -- Get the strategy for selected map
     local selectedStrategy = nil
-    
     for _, mapConfig in ipairs(config.maps) do
         if mapConfig.name == selectedMapName then
             selectedStrategy = mapConfig.strategy
-            if mapConfig.mode then
-                selectedMode = mapConfig.mode
-            end
             break
         end
     end
@@ -594,44 +633,13 @@ function TDS:StartMatchWithStrategies(config)
         selectedStrategy = self.strategies[selectedMapName]
     end
     
-    -- Check if we need to switch mode
-    local currentMode = nil
-    local state_folder = replicated_storage:FindFirstChild("State")
-    if state_folder then
-        currentMode = state_folder:GetAttribute("Difficulty") or state_folder:FindFirstChild("Difficulty") and state_folder.Difficulty.Value
-    end
-    
-    -- If mode is different, we need to leave and rejoin with new mode
-    if currentMode and currentMode ~= selectedMode and game_state == "GAME" then
-        print("Mode mismatch! Current: " .. currentMode .. ", Desired: " .. selectedMode .. ". Leaving to lobby...")
-        send_to_lobby()
-        task.wait(3)
-        -- Now in lobby, start the correct mode
-        print("Starting mode: " .. selectedMode)
-        self:Mode(selectedMode)
-        -- Wait for intermission again
-        repeat task.wait(1) until player_gui:FindFirstChild("ReactGameIntermission")
-        task.wait(2)
-        -- Need to find map again after mode switch
-        selectedMapName = self:FindAvailableMap(mapNames, 2)
-        if not selectedMapName then
-            warn("No preferred maps found after mode switch")
-            return false
-        end
-        print("New selected map after mode switch: " .. selectedMapName)
-    elseif game_state == "LOBBY" then
-        print("Starting mode from lobby: " .. selectedMode)
-        self:Mode(selectedMode)
-        -- Wait for intermission
-        repeat task.wait(1) until player_gui:FindFirstChild("ReactGameIntermission")
-        task.wait(2)
-    end
-    
+    -- Store strategy to run when match starts
     if selectedStrategy then
         self.pending_strategy = selectedStrategy
-        print("Strategy queued for " .. selectedMapName .. " with mode " .. selectedMode)
+        print("Strategy queued for " .. selectedMapName)
     end
     
+    -- Apply modifiers and vote for map
     cast_modifier_vote(config.modifiers or {})
     task.wait(1)
     
