@@ -413,7 +413,7 @@ local function match_ready_up()
         end
         if not vote_ready then task.wait(0.5) end
     end
-    repeat task.wait(0.1) until vote_ready.Visible == true
+    repeat task.wait(0.5) until vote_ready.Visible == true
     run_vote_skip()
     log_match_start()
     if TDS.pending_strategy then
@@ -443,9 +443,9 @@ local function select_map_override(map_id, ...)
     if args[#args] == "vip" then
         remote_func:InvokeServer("LobbyVoting", "Override", map_id)
     end
-    task.wait(3)
-    cast_map_vote(map_id, Vector3.new(12.59, 10.64, 52.01))
     task.wait(1)
+    cast_map_vote(map_id, Vector3.new(12.59, 10.64, 52.01))
+    task.wait(0.5)
     lobby_ready_up()
     match_ready_up()
 end
@@ -625,7 +625,7 @@ function TDS:GameInfo(mapName, modifiers)
         return false
     end
     cast_modifier_vote(modifiers)
-    task.wait(1)
+    task.wait(0.5)
     if marketplace_service:UserOwnsGamePassAsync(local_player.UserId, 10518590) then
         select_map_override(mapName, "vip")
         return true
