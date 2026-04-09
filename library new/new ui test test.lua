@@ -1305,19 +1305,22 @@ end
 local function start_anti_lag()
     if anti_lag_running then return end
     anti_lag_running = true
+
     local settings = settings().Rendering
     local original_quality = settings.QualityLevel
     settings.QualityLevel = Enum.QualityLevel.Level01
+
     task.spawn(function()
         while _G.AntiLag do
             local towers_folder = workspace:FindFirstChild("Towers")
             local client_units = workspace:FindFirstChild("ClientUnits")
-            local enemies = workspace:FindFirstChild("NPCs")
+
             if towers_folder then
                 for _, tower in ipairs(towers_folder:GetChildren()) do
                     local anims = tower:FindFirstChild("Animations")
                     local weapon = tower:FindFirstChild("Weapon")
                     local projectiles = tower:FindFirstChild("Projectiles")
+
                     if anims then anims:Destroy() end
                     if projectiles then projectiles:Destroy() end
                     if weapon then weapon:Destroy() end
@@ -1328,11 +1331,7 @@ local function start_anti_lag()
                     unit:Destroy()
                 end
             end
-            if enemies then
-                for _, npc in ipairs(enemies:GetChildren()) do
-                    npc:Destroy()
-                end
-            end
+            
             task.wait(0.5)
         end
         anti_lag_running = false
