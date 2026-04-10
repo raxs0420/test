@@ -12,7 +12,7 @@ function TDX:VoteDifficulty(difficulty)
 end
 
 function TDX:VoteMap(Map)
-    Remotes.MapVoteCast:FireServer(Map)
+    Remotes.MapVoteCast:FireServer(unpack({Map}))
 end
 
 function TDX:Ready()
