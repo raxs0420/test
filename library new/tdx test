@@ -17,7 +17,6 @@ local function isMapOnScreen(mapName)
     if not mapOverride then return false end
     local scrollingFrame = mapOverride:FindFirstChild("ScrollingFrame")
     if not scrollingFrame then return false end
-    
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if (child:IsA("ImageButton") or child:IsA("TextButton")) and child.Name == mapName then
             if child.Visible == false then
@@ -36,7 +35,6 @@ function TDX:JoinMapViaAPC(mapName)
     end
     local lvl = level.Value
     local containerName = (lvl >= 31) and "APCs2" or "APCs"
-    
     while true do
         local container = Workspace:FindFirstChild(containerName)
         if container then
