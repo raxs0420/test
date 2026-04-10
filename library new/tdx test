@@ -40,7 +40,7 @@ function TDX:JoinMapViaAPC(mapName)
     end
     local lvl = level.Value
     local containerName = (lvl >= 31) and "APCs2" or "APCs"
-    
+
     while true do
         local container = Workspace:FindFirstChild(containerName)
         if container then
@@ -48,7 +48,7 @@ function TDX:JoinMapViaAPC(mapName)
                 local targetFolder = slotFolder
                 local attrMap = slotFolder:GetAttribute("MapName")
                 local matched = false
-                
+
                 if attrMap == mapName then
                     targetFolder = slotFolder
                     matched = true
@@ -59,7 +59,7 @@ function TDX:JoinMapViaAPC(mapName)
                         matched = true
                     end
                 end
-                
+
                 if matched then
                     local detector = targetFolder:FindFirstChild("Detector")
                     if not detector and targetFolder ~= slotFolder then
@@ -120,7 +120,9 @@ end
 
 function TDX:Loadout(loadoutId)
     local loadoutRemote = getRemote("LoadoutSelectionChanged")
-    loadoutRemote:FireServer(loadoutId)
+    if loadoutRemote then
+        loadoutRemote:FireServer(loadoutId)
+    end
 end
 
 function TDX:Place(towerName, x, y, z, rotation)
@@ -150,34 +152,34 @@ function TDX:Upgrade(towerId, path, level)
 end
 
 function TDX:Mode(mode)
-local network = ReplicatedStorage:FindFirstChild("Network")
-if not network then
-network = ReplicatedStorage:FindFirstChild("Remotes")
-end
-if network then
-local partyType = network:FindFirstChild("ClientChangePartyTypeRequest")
-local partyMap = network:FindFirstChild("ClientChangePartyMapRequest")
-if partyType and partyMap then
-partyType:FireServer("Party")
-task.wait(0.5)
-partyMap:FireServer(mode)
-task.wait(0.1)
-self:StartMatchmaking()
-end
-end
+    local network = ReplicatedStorage:FindFirstChild("Network")
+    if not network then
+        network = ReplicatedStorage:FindFirstChild("Remotes")
+    end
+    if network then
+        local partyType = network:FindFirstChild("ClientChangePartyTypeRequest")
+        local partyMap = network:FindFirstChild("ClientChangePartyMapRequest")
+        if partyType and partyMap then
+            partyType:FireServer("Party")
+            task.wait(0.5)
+            partyMap:FireServer(mode)
+            task.wait(0.1)
+            self:StartMatchmaking()
+        end
+    end
 end
 
 function TDX:StartMatchmaking()
-local network = ReplicatedStorage:FindFirstChild("Network")
-if not network then
-network = ReplicatedStorage:FindFirstChild("Remotes")
-end
-if network then
-local startGame = network:FindFirstChild("ClientStartGameRequest")
-if startGame then
-startGame:FireServer()
-end
-end
+    local network = ReplicatedStorage:FindFirstChild("Network")
+    if not network then
+        network = ReplicatedStorage:FindFirstChild("Remotes")
+    end
+    if network then
+        local startGame = network:FindFirstChild("ClientStartGameRequest")
+        if startGame then
+            startGame:FireServer()
+        end
+    end
 end
 
 return TDX
