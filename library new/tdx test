@@ -8,6 +8,11 @@ local function getRemotes()
     return ReplicatedStorage:WaitForChild("Remotes")
 end
 
+local function getRemote(remoteName)
+    local remotes = getRemotes()
+    return remotes:WaitForChild(remoteName, 5)
+end
+
 local function isMapOnScreen(mapName)
     local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
     if not playerGui then return false end
@@ -62,6 +67,7 @@ function TDX:JoinMapViaAPC(mapName)
                     local character = player.Character
                     if character and character:FindFirstChild("HumanoidRootPart") then
                         character.HumanoidRootPart.CFrame = detector.CFrame
+                        task.wait(2)
                         return true
                     end
                 end
@@ -70,6 +76,13 @@ function TDX:JoinMapViaAPC(mapName)
         end
         task.wait(0.5)
     end
+end
+
+function TDX:WaitForGame()
+    local placeTower = getRemote("PlaceTower")
+    local sellTower = getRemote("SellTower")
+    local upgrade = getRemote("TowerUpgradeRequest")
+    return placeTower and sellTower and upgrade
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
@@ -102,18 +115,28 @@ end
 
 function TDX:Place(towerName, x, y, z, rotation)
     task.wait(0.1)
+    local placeRemote = getRemote("PlaceTower")
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
-    return getRemotes().PlaceTower:InvokeServer(unpack(args))
+    local success, result = pcall(function()
+        return placeRemote:InvokeServer(unpack(args))
+    end)
+    return success and result or nil
 end
 
 function TDX:Sell(towerId)
     task.wait(0.1)
-    getRemotes().SellTower:FireServer(towerId)
+    local sellRemote = getRemote("SellTower")
+    pcall(function()
+        sellRemote:FireServer(towerId)
+    end)
 end
 
 function TDX:Upgrade(towerId, path, level)
     task.wait(0.1)
-    getRemotes().TowerUpgradeRequest:FireServer(towerId, path, level)
+    local upgradeRemote = getRemote("TowerUpgradeRequest")
+    pcall(function()
+        upgradeRemote:FireServer(towerId, path, level)
+    end)
 end
 
 function TDX:Mode(mode)
