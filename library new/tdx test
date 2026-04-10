@@ -1,91 +1,55 @@
 local TDX = {}
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local function getRemote(remoteName)
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if not remotes then
-        warn("Remotes not found, retrying...")
-        remotes = ReplicatedStorage:WaitForChild("Remotes", 2)
-    end
-    local remote = remotes:FindFirstChild(remoteName)
-    if not remote then
-        remote = remotes:WaitForChild(remoteName, 2)
-    end
-    return remote
+local function getRemotes()
+    return ReplicatedStorage:WaitForChild("Remotes", 5)
+end
+
+local function getNetwork()
+    return ReplicatedStorage:WaitForChild("Network", 5)
 end
 
 function TDX:VoteMap(mapName)
-    local remote = getRemote("MapVoteCast")
-    if remote then
-        remote:FireServer(mapName)
-    else
-        error("MapVoteCast remote not found")
-    end
+    getRemotes().MapVoteCast:FireServer(mapName)
 end
 
 function TDX:RerollMaps()
-    local remote = getRemote("MapChangeVoteCast")
-    if remote then
-        remote:FireServer(true)
-    else
-        error("MapChangeVoteCast remote not found")
-    end
+    getRemotes().MapChangeVoteCast:FireServer(true)
 end
 
 function TDX:Ready()
-    local remote = getRemote("MapVoteReady")
-    if remote then
-        remote:FireServer()
-    else
-        error("MapVoteReady remote not found")
-    end
+    getRemotes().MapVoteReady:FireServer()
 end
 
 function TDX:VoteDifficulty(difficulty)
-    local remote = getRemote("DifficultyVoteCast")
-    if remote then
-        remote:FireServer(difficulty)
-    else
-        error("DifficultyVoteCast remote not found")
-    end
+    getRemotes().DifficultyVoteCast:FireServer(difficulty)
 end
 
 function TDX:Place(towerName, x, y, z, rotation)
     task.wait(0.1)
-    local remote = getRemote("PlaceTower")
-    if not remote then error("PlaceTower remote not found") end
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
-    return remote:InvokeServer(unpack(args))
+    return getRemotes().PlaceTower:InvokeServer(unpack(args))
 end
 
 function TDX:Sell(towerId)
     task.wait(0.1)
-    local remote = getRemote("SellTower")
-    if not remote then error("SellTower remote not found") end
-    remote:FireServer(towerId)
+    getRemotes().SellTower:FireServer(towerId)
 end
 
 function TDX:Upgrade(towerId, path, level)
     task.wait(0.1)
-    local remote = getRemote("TowerUpgradeRequest")
-    if not remote then error("TowerUpgradeRequest remote not found") end
-    remote:FireServer(towerId, path, level)
+    getRemotes().TowerUpgradeRequest:FireServer(towerId, path, level)
 end
 
-local Network = ReplicatedStorage:WaitForChild("Network")
-local ClientChangePartyTypeRequest = Network:WaitForChild("ClientChangePartyTypeRequest")
-local ClientChangePartyMapRequest = Network:WaitForChild("ClientChangePartyMapRequest")
-local ClientStartGameRequest = Network:WaitForChild("ClientStartGameRequest")
-
 function TDX:Mode(mode)
-    ClientChangePartyTypeRequest:FireServer("Party")
+    local network = getNetwork()
+    network.ClientChangePartyTypeRequest:FireServer("Party")
     task.wait(0.5)
-    ClientChangePartyMapRequest:FireServer(mode)
+    network.ClientChangePartyMapRequest:FireServer(mode)
 end
 
 function TDX:StartMatchmaking()
-    ClientStartGameRequest:FireServer()
+    getNetwork().ClientStartGameRequest:FireServer()
 end
 
 return TDX
