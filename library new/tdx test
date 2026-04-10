@@ -18,7 +18,6 @@ local function isMapOnScreen(mapName)
     
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if (child:IsA("ImageButton") or child:IsA("TextButton")) and child.Name == mapName then
-            -- According to your logic: Visible == false means it's on screen
             if child.Visible == false then
                 return true
             end
