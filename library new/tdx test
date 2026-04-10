@@ -32,9 +32,12 @@ function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
     local level = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Level")
     if not level then
+        print("[DEBUG] No leaderstats.Level found")
         return false
     end
     local lvl = level.Value
+    print("[DEBUG] Player level:", lvl)
+    
     local containerName = nil
     if lvl < 30 then
         containerName = "APCs"
@@ -43,23 +46,40 @@ function TDX:JoinMapViaAPC(mapName)
     else
         containerName = "APCs"
     end
+    print("[DEBUG] Using container:", containerName)
+    
     local container = Workspace:FindFirstChild(containerName)
     if not container then
+        print("[DEBUG] Container not found:", containerName)
         return false
     end
+    print("[DEBUG] Container found, scanning children...")
+    
     for _, slotFolder in ipairs(container:GetChildren()) do
-        local mapFolder = slotFolder:FindFirstChild(mapName)
-        if mapFolder then
-            local detector = mapFolder:FindFirstChild("Detector")
+        print("[DEBUG] Checking slot:", slotFolder.Name)
+        local attrMap = slotFolder:GetAttribute("MapName")
+        if attrMap == mapName then
+            print("[DEBUG] Found matching attribute MapName =", attrMap, "in slot", slotFolder.Name)
+            local detector = slotFolder:FindFirstChild("Detector")
             if detector and detector:IsA("BasePart") then
+                print("[DEBUG] Detector found, teleporting...")
                 local character = player.Character
                 if character and character:FindFirstChild("HumanoidRootPart") then
                     character.HumanoidRootPart.CFrame = detector.CFrame
+                    print("[DEBUG] Teleported to", detector.Name, "at", detector.CFrame)
                     return true
+                else
+                    print("[DEBUG] Character or HumanoidRootPart missing")
                 end
+            else
+                print("[DEBUG] No valid Detector part in slot", slotFolder.Name)
             end
+        else
+            print("[DEBUG] Slot", slotFolder.Name, "has MapName attribute:", attrMap or "nil")
         end
     end
+    
+    print("[DEBUG] No APC slot found for map:", mapName)
     return false
 end
 
