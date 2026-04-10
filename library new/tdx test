@@ -115,14 +115,14 @@ function TDX:Ready()
 end
 
 function TDX:VoteDifficulty(difficulty)
-    task.wait(5)
+    task.wait(5.5)
     getRemotes().DifficultyVoteCast:FireServer(difficulty)
     task.wait(0.2)
     getRemotes().DifficultyVoteReady:FireServer(difficulty)
 end
 
 function TDX:Loadout(loadoutId)
-    task.wait(1)
+    task.wait(2)
     local loadoutRemote = getRemote("LoadoutSelectionChanged")
     if loadoutRemote then
         loadoutRemote:FireServer(loadoutId)
