@@ -1,63 +1,51 @@
 local TDX = {}
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local function waitForChild(parent, name, timeout)
-    local start = os.clock()
-    while not parent:FindFirstChild(name) do
-        if timeout and os.clock() - start > timeout then return nil end
-        task.wait(0.1)
-    end
-    return parent[name]
+local function getRemotes()
+    return ReplicatedStorage:WaitForChild("Remotes")
 end
 
-local Remotes = waitForChild(ReplicatedStorage, "Remotes", 10)
-local Network = waitForChild(ReplicatedStorage, "Network", 10)
-
-if not Remotes or not Network then
-    error("Failed to load TDX library: Remotes or Network not found")
+local function getNetwork()
+    return ReplicatedStorage:WaitForChild("Network")
 end
-
-local ClientChangePartyTypeRequest = waitForChild(Network, "ClientChangePartyTypeRequest", 5)
-local ClientChangePartyMapRequest = waitForChild(Network, "ClientChangePartyMapRequest", 5)
-local ClientStartGameRequest = waitForChild(Network, "ClientStartGameRequest", 5)
 
 function TDX:VoteMap(mapName)
-    Remotes.MapVoteCast:FireServer(mapName)
+    getRemotes().MapVoteCast:FireServer(mapName)
 end
 
 function TDX:Ready()
-    Remotes.MapVoteReady:FireServer()
+    getRemotes().MapVoteReady:FireServer()
 end
 
 function TDX:VoteDifficulty(difficulty)
-    Remotes.DifficultyVoteCast:FireServer(difficulty)
+    getRemotes().DifficultyVoteCast:FireServer(difficulty)
 end
 
 function TDX:Place(towerName, x, y, z, rotation)
     task.wait(0.1)
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
-    return Remotes.PlaceTower:InvokeServer(unpack(args))
+    return getRemotes().PlaceTower:InvokeServer(unpack(args))
 end
 
 function TDX:Sell(towerId)
     task.wait(0.1)
-    Remotes.SellTower:FireServer(towerId)
+    getRemotes().SellTower:FireServer(towerId)
 end
 
 function TDX:Upgrade(towerId, path, level)
     task.wait(0.1)
-    Remotes.TowerUpgradeRequest:FireServer(towerId, path, level)
+    getRemotes().TowerUpgradeRequest:FireServer(towerId, path, level)
 end
 
 function TDX:Mode(mode)
-    ClientChangePartyTypeRequest:FireServer("Party")
+    local network = getNetwork()
+    network.ClientChangePartyTypeRequest:FireServer("Party")
     task.wait(0.5)
-    ClientChangePartyMapRequest:FireServer(mode)
+    network.ClientChangePartyMapRequest:FireServer(mode)
 end
 
 function TDX:StartMatchmaking()
-    ClientStartGameRequest:FireServer()
+    getNetwork().ClientStartGameRequest:FireServer()
 end
 
 return TDX
