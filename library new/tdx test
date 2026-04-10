@@ -9,8 +9,8 @@ local function getRemotes()
 end
 
 local function getRemote(remoteName)
-    local remotes = getRemotes()
-    return remotes:WaitForChild(remoteName, 5)
+    local remotes = getRemotes() 
+    return remotes:WaitForChild(remoteName) 
 end
 
 local function isMapOnScreen(mapName)
