@@ -7,16 +7,26 @@ local ClientChangePartyTypeRequest = Network:WaitForChild("ClientChangePartyType
 local ClientChangePartyMapRequest = Network:WaitForChild("ClientChangePartyMapRequest")
 local ClientStartGameRequest = Network:WaitForChild("ClientStartGameRequest")
 
-function TDX:VoteMap(mapName)
-    Remotes.MapVoteCast:FireServer(mapName)
+function TDX:VoteDifficulty(difficulty)
+    Remotes.DifficultyVoteCast:FireServer(difficulty)
+end
+
+function TDX:VoteMap(Map)
+    Remotes.MapVoteCast:FireServer(Map)
 end
 
 function TDX:Ready()
     Remotes.MapVoteReady:FireServer()
 end
 
-function TDX:VoteDifficulty(difficulty)
-    Remotes.DifficultyVoteCast:FireServer(difficulty)
+function TDX:Mode(mode)
+    ClientChangePartyTypeRequest:FireServer("Party")
+    task.wait(0.5)
+    ClientChangePartyMapRequest:FireServer(mode)
+end
+
+function TDX:StartMatchmaking()
+    ClientStartGameRequest:FireServer()
 end
 
 function TDX:Place(towerName, x, y, z, rotation)
@@ -33,16 +43,6 @@ end
 function TDX:Upgrade(towerId, path, level)
     task.wait(0.1)
     Remotes.TowerUpgradeRequest:FireServer(towerId, path, level)
-end
-
-function TDX:Mode(mode)
-    ClientChangePartyTypeRequest:FireServer("Party")
-    task.wait(0.5)
-    ClientChangePartyMapRequest:FireServer(mode)
-end
-
-function TDX:StartMatchmaking()
-    ClientStartGameRequest:FireServer()
 end
 
 return TDX
