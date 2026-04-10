@@ -57,12 +57,37 @@ function TDX:JoinMapViaAPC(mapName)
     
     for _, slotFolder in ipairs(container:GetChildren()) do
         print("[DEBUG] Checking slot:", slotFolder.Name)
+        
+        local foundMap = false
+        local targetFolder = slotFolder
+        
         local attrMap = slotFolder:GetAttribute("MapName")
         if attrMap == mapName then
-            print("[DEBUG] Found matching attribute MapName =", attrMap, "in slot", slotFolder.Name)
-            local detector = slotFolder:FindFirstChild("Detector")
+            foundMap = true
+            print("[DEBUG] Found MapName attribute on slotFolder:", attrMap)
+        else
+            local apcFolder = slotFolder:FindFirstChild("APC")
+            if apcFolder then
+                attrMap = apcFolder:GetAttribute("MapName")
+                if attrMap == mapName then
+                    foundMap = true
+                    targetFolder = apcFolder
+                    print("[DEBUG] Found MapName attribute on APC folder:", attrMap)
+                end
+            end
+        end
+        
+        if foundMap then
+            local detector = targetFolder:FindFirstChild("Detector")
+            if not detector and targetFolder ~= slotFolder then
+                detector = slotFolder:FindFirstChild("Detector")
+            end
+            if not detector and targetFolder:FindFirstChild("APC") then
+                detector = targetFolder.APC:FindFirstChild("Detector")
+            end
+            
             if detector and detector:IsA("BasePart") then
-                print("[DEBUG] Detector found, teleporting...")
+                print("[DEBUG] Detector found at:", detector:GetFullName())
                 local character = player.Character
                 if character and character:FindFirstChild("HumanoidRootPart") then
                     character.HumanoidRootPart.CFrame = detector.CFrame
@@ -72,10 +97,13 @@ function TDX:JoinMapViaAPC(mapName)
                     print("[DEBUG] Character or HumanoidRootPart missing")
                 end
             else
-                print("[DEBUG] No valid Detector part in slot", slotFolder.Name)
+                print("[DEBUG] No Detector part found in", targetFolder.Name)
+                for _, child in ipairs(targetFolder:GetChildren()) do
+                    print("[DEBUG]   Child:", child.Name, "->", child.ClassName)
+                end
             end
         else
-            print("[DEBUG] Slot", slotFolder.Name, "has MapName attribute:", attrMap or "nil")
+            print("[DEBUG] Slot", slotFolder.Name, "MapName attribute:", attrMap or "nil")
         end
     end
     
