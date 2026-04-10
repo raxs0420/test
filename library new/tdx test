@@ -84,7 +84,7 @@ function TDX:VoteMap(mapName, maxAttempts)
             return true
         end
         getRemotes().MapChangeVoteCast:FireServer(true)
-        task.wait(0.8)
+        task.wait(1)
     end
     self:JoinMapViaAPC(mapName)
     return false
