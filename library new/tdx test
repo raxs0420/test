@@ -1,6 +1,7 @@
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
 
 local function getRemotes()
     return ReplicatedStorage:WaitForChild("Remotes")
@@ -32,12 +33,13 @@ function TDX:VoteMap(mapName, maxAttempts)
         if isMapOnScreen(mapName) then
             getRemotes().MapVoteCast:FireServer(mapName)
             task.wait(0.1)
-            self:Ready()  
+            self:Ready()
             return true
         end
         getRemotes().MapChangeVoteCast:FireServer(true)
-        task.wait(1)
+        task.wait(0.8)
     end
+    TeleportService:Teleport(9503261072)
     return false
 end
 
