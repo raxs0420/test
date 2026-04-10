@@ -115,8 +115,10 @@ function TDX:Ready()
 end
 
 function TDX:VoteDifficulty(difficulty)
-    task.wait(2.5)
+    task.wait(5)
     getRemotes().DifficultyVoteCast:FireServer(difficulty)
+    task.wait(0.2)
+    getRemotes().DifficultyVoteReady:FireServer(difficulty)
 end
 
 function TDX:Loadout(loadoutId)
