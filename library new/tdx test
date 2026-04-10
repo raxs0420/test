@@ -158,6 +158,7 @@ function TDX:Mode(mode)
             partyType:FireServer("Party")
             task.wait(0.5)
             partyMap:FireServer(mode)
+            self:StartMatchmaking()
         end
     end
 end
