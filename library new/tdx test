@@ -15,10 +15,6 @@ function TDX:VoteDifficulty(difficulty)
     Remotes.DifficultyVoteCast:FireServer(difficulty)
 end
 
-function TDX:SetLoadout(slot)
-    Remotes.LoadoutSelectionChanged:FireServer(slot)
-end
-
 function TDX:Place(towerName, x, y, z, rotation)
     task.wait(0.1)
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
@@ -33,14 +29,6 @@ end
 function TDX:Upgrade(towerId, path, level)
     task.wait(0.1)
     Remotes.TowerUpgradeRequest:FireServer(towerId, path, level)
-end
-
-function TDX:QuickSetup(config)
-    if config.map then self:VoteMap(config.map) end
-    if config.difficulty then self:VoteDifficulty(config.difficulty) end
-    if config.loadout then self:SetLoadout(config.loadout) end
-    task.wait(0.5)
-    self:Ready()
 end
 
 return TDX
