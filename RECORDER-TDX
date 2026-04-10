@@ -1,0 +1,184 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TowersFolder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Towers")
+
+if not TowersFolder then
+    warn("workspace.Game.Towers not found")
+end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "TDXRecorder"
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 450, 0, 350)
+frame.Position = UDim2.new(0.5, -225, 0.5, -175)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.Active = true
+frame.Draggable = true
+Instance.new("UICorner", frame)
+
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, -50, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 5)
+title.Text = "TDX Recorder"
+title.TextColor3 = Color3.new(1,1,1)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 18
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+local closeBtn = Instance.new("TextButton", frame)
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.Text = "×"
+closeBtn.TextColor3 = Color3.fromRGB(255,100,100)
+closeBtn.BackgroundColor3 = Color3.fromRGB(60,20,20)
+Instance.new("UICorner", closeBtn)
+
+local recordBtn = Instance.new("TextButton", frame)
+recordBtn.Size = UDim2.new(0, 150, 0, 35)
+recordBtn.Position = UDim2.new(0, 20, 0, 45)
+recordBtn.Text = "START RECORDING"
+recordBtn.BackgroundColor3 = Color3.fromRGB(46,204,113)
+Instance.new("UICorner", recordBtn)
+
+local copyBtn = Instance.new("TextButton", frame)
+copyBtn.Size = UDim2.new(0, 150, 0, 35)
+copyBtn.Position = UDim2.new(1, -170, 0, 45)
+copyBtn.Text = "COPY SCRIPT"
+copyBtn.BackgroundColor3 = Color3.fromRGB(52,152,219)
+copyBtn.Visible = true
+Instance.new("UICorner", copyBtn)
+
+local logBox = Instance.new("ScrollingFrame", frame)
+logBox.Size = UDim2.new(1, -20, 1, -100)
+logBox.Position = UDim2.new(0, 10, 0, 90)
+logBox.BackgroundColor3 = Color3.fromRGB(20,20,20)
+logBox.ScrollBarThickness = 4
+Instance.new("UICorner", logBox)
+local logLayout = Instance.new("UIListLayout", logBox)
+logLayout.Padding = UDim.new(0, 2)
+
+local drag = Instance.new("TextButton", frame)
+drag.Size = UDim2.new(1,0,0,30)
+drag.BackgroundTransparency = 1
+drag.Text = ""
+drag.Draggable = true
+drag.Active = true
+
+local recording = false
+local actions = {}
+local nextId = 1
+local knownParts = {}
+
+local function addLog(msg, color)
+    local label = Instance.new("TextLabel", logBox)
+    label.Size = UDim2.new(1, -10, 0, 18)
+    label.Text = "> " .. msg
+    label.TextColor3 = color or Color3.fromRGB(200,200,200)
+    label.TextSize = 11
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.Code
+    task.wait()
+    logBox.CanvasSize = UDim2.new(0,0,0, logLayout.AbsoluteContentSize.Y)
+    logBox.CanvasPosition = Vector2.new(0, logBox.CanvasSize.Y.Offset)
+end
+
+if TowersFolder then
+    TowersFolder.ChildAdded:Connect(function(part)
+        if not recording then return end
+        if not part:IsA("BasePart") then return end
+        task.wait(0.05)
+        local name = part.Name
+        local pos = part.Position
+        local id = nextId
+        nextId = nextId + 1
+        knownParts[part] = id
+        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0)', name, pos.X, pos.Y, pos.Z)
+        table.insert(actions, cmd)
+        addLog(string.format("Placed %s [ID:%d] at (%.2f, %.2f, %.2f)", name, id, pos.X, pos.Y, pos.Z), Color3.fromRGB(100,255,100))
+    end)
+end
+
+local oldNamecall
+oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    if recording and (method == "FireServer" or method == "InvokeServer") then
+        if self.Name == "TowerUpgradeRequest" then
+            local id = args[1]
+            local path = args[2] or 1
+            local level = args[3] or 1
+            local cmd = string.format('TDX:Upgrade(%d, %d, %d)', id, path, level)
+            table.insert(actions, cmd)
+            addLog(string.format("Upgraded ID %d (Path %d to level %d)", id, path, level), Color3.fromRGB(255,255,100))
+        elseif self.Name == "SellTower" then
+            local id = args[1]
+            local cmd = string.format('TDX:Sell(%d)', id)
+            table.insert(actions, cmd)
+            addLog(string.format("Sold ID %d", id), Color3.fromRGB(255,100,100))
+        end
+    end
+    return oldNamecall(self, ...)
+end)
+
+local function generateScript()
+    local lines = {
+        "local TDX = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/tdx%20test\"))()",
+        ""
+    }
+    for _, cmd in ipairs(actions) do
+        table.insert(lines, cmd)
+    end
+    return table.concat(lines, "\n")
+end
+
+local function startRecording()
+    recording = true
+    actions = {}
+    knownParts = {}
+    nextId = 1
+    recordBtn.Text = "STOP RECORDING"
+    recordBtn.BackgroundColor3 = Color3.fromRGB(231,76,60)
+    addLog("Recording started", Color3.fromRGB(100,255,100))
+end
+
+local function stopRecording()
+    recording = false
+    recordBtn.Text = "START RECORDING"
+    recordBtn.BackgroundColor3 = Color3.fromRGB(46,204,113)
+    if #actions > 0 then
+        addLog(string.format("Recording stopped. %d actions recorded.", #actions), Color3.fromRGB(100,255,100))
+    else
+        addLog("Recording stopped. No actions recorded.", Color3.fromRGB(255,200,100))
+    end
+end
+
+local function copyScript()
+    local scriptText = generateScript()
+    if setclipboard then
+        setclipboard(scriptText)
+        addLog("Script copied to clipboard!", Color3.fromRGB(100,255,100))
+        local oldColor = copyBtn.BackgroundColor3
+        copyBtn.BackgroundColor3 = Color3.fromRGB(39,174,96)
+        copyBtn.Text = "COPIED!"
+        task.wait(0.5)
+        copyBtn.BackgroundColor3 = oldColor
+        copyBtn.Text = "COPY SCRIPT"
+    else
+        addLog("No clipboard access. Script printed to console.", Color3.fromRGB(255,100,100))
+        print(scriptText)
+    end
+end
+
+recordBtn.MouseButton1Click:Connect(function()
+    if recording then stopRecording() else startRecording() end
+end)
+copyBtn.MouseButton1Click:Connect(copyScript)
+closeBtn.MouseButton1Click:Connect(function()
+    recording = false
+    gui:Destroy()
+end)
