@@ -5,10 +5,6 @@ local function getRemotes()
     return ReplicatedStorage:WaitForChild("Remotes")
 end
 
-local function getNetwork()
-    return ReplicatedStorage:WaitForChild("Network")
-end
-
 function TDX:VoteMap(mapName)
     getRemotes().MapVoteCast:FireServer(mapName)
 end
@@ -42,14 +38,26 @@ function TDX:Upgrade(towerId, path, level)
 end
 
 function TDX:Mode(mode)
-    local network = getNetwork()
-    network.ClientChangePartyTypeRequest:FireServer("Party")
-    task.wait(0.5)
-    network.ClientChangePartyMapRequest:FireServer(mode)
+    local network = ReplicatedStorage:FindFirstChild("Network")
+    if network then
+        local partyType = network:FindFirstChild("ClientChangePartyTypeRequest")
+        local partyMap = network:FindFirstChild("ClientChangePartyMapRequest")
+        if partyType and partyMap then
+            partyType:FireServer("Party")
+            task.wait(0.5)
+            partyMap:FireServer(mode)
+        end
+    end
 end
 
 function TDX:StartMatchmaking()
-    getNetwork().ClientStartGameRequest:FireServer()
+    local network = ReplicatedStorage:FindFirstChild("Network")
+    if network then
+        local startGame = network:FindFirstChild("ClientStartGameRequest")
+        if startGame then
+            startGame:FireServer()
+        end
+    end
 end
 
 return TDX
