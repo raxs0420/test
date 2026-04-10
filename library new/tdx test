@@ -40,7 +40,7 @@ function TDX:Mode(mode)
     ClientChangePartyMapRequest:FireServer(mode)
 end
 
-function TDX:StartMatchmaking ()
+function TDX:StartMatchmaking()
     ClientStartGameRequest:FireServer()
 end
 
