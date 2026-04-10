@@ -118,6 +118,11 @@ function TDX:VoteDifficulty(difficulty)
     getRemotes().DifficultyVoteCast:FireServer(difficulty)
 end
 
+function TDX:Loadout(loadoutId)
+    local loadoutRemote = getRemote("LoadoutSelectionChanged")
+    loadoutRemote:FireServer(loadoutId)
+end
+
 function TDX:Place(towerName, x, y, z, rotation)
     task.wait(0.1)
     local placeRemote = getRemote("PlaceTower")
