@@ -36,8 +36,9 @@ function TDX:Upgrade(towerId, path, level)
 end
 
 function TDX:Mode(mode)
-    ClientChangePartyTypeRequest:FireServer("Party")
     ClientChangePartyMapRequest:FireServer(mode)
+    task.wait(0.5)
+    ClientChangePartyTypeRequest:FireServer("Party")
 end
 
 function TDX:StartMatchmaking()
