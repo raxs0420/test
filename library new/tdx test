@@ -27,14 +27,16 @@ local function isMapOnScreen(mapName)
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
-    maxAttempts = maxAttempts or 6
+    maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
         if isMapOnScreen(mapName) then
             getRemotes().MapVoteCast:FireServer(mapName)
+            task.wait(0.1)
+            self:Ready()  
             return true
         end
         getRemotes().MapChangeVoteCast:FireServer(true)
-        task.wait(0.5)
+        task.wait(1)
     end
     return false
 end
