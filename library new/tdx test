@@ -1,32 +1,37 @@
 local TDX = {}
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Remotes = ReplicatedStorage:WaitForChild("Remotes")
-local Network = ReplicatedStorage:WaitForChild("Network")
-local ClientChangePartyTypeRequest = Network:WaitForChild("ClientChangePartyTypeRequest")
-local ClientChangePartyMapRequest = Network:WaitForChild("ClientChangePartyMapRequest")
-local ClientStartGameRequest = Network:WaitForChild("ClientStartGameRequest")
 
-function TDX:VoteDifficulty(difficulty)
-    Remotes.DifficultyVoteCast:FireServer(difficulty)
+local function waitForChild(parent, name, timeout)
+    local start = os.clock()
+    while not parent:FindFirstChild(name) do
+        if timeout and os.clock() - start > timeout then return nil end
+        task.wait(0.1)
+    end
+    return parent[name]
 end
 
-function TDX:VoteMap(Map)
-    Remotes.MapVoteCast:FireServer(unpack({Map}))
+local Remotes = waitForChild(ReplicatedStorage, "Remotes", 10)
+local Network = waitForChild(ReplicatedStorage, "Network", 10)
+
+if not Remotes or not Network then
+    error("Failed to load TDX library: Remotes or Network not found")
+end
+
+local ClientChangePartyTypeRequest = waitForChild(Network, "ClientChangePartyTypeRequest", 5)
+local ClientChangePartyMapRequest = waitForChild(Network, "ClientChangePartyMapRequest", 5)
+local ClientStartGameRequest = waitForChild(Network, "ClientStartGameRequest", 5)
+
+function TDX:VoteMap(mapName)
+    Remotes.MapVoteCast:FireServer(mapName)
 end
 
 function TDX:Ready()
     Remotes.MapVoteReady:FireServer()
 end
 
-function TDX:Mode(mode)
-    ClientChangePartyTypeRequest:FireServer("Party")
-    task.wait(0.5)
-    ClientChangePartyMapRequest:FireServer(mode)
-end
-
-function TDX:StartMatchmaking()
-    ClientStartGameRequest:FireServer()
+function TDX:VoteDifficulty(difficulty)
+    Remotes.DifficultyVoteCast:FireServer(difficulty)
 end
 
 function TDX:Place(towerName, x, y, z, rotation)
@@ -43,6 +48,16 @@ end
 function TDX:Upgrade(towerId, path, level)
     task.wait(0.1)
     Remotes.TowerUpgradeRequest:FireServer(towerId, path, level)
+end
+
+function TDX:Mode(mode)
+    ClientChangePartyTypeRequest:FireServer("Party")
+    task.wait(0.5)
+    ClientChangePartyMapRequest:FireServer(mode)
+end
+
+function TDX:StartMatchmaking()
+    ClientStartGameRequest:FireServer()
 end
 
 return TDX
