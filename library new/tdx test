@@ -1,6 +1,7 @@
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
 
 local function getRemotes()
@@ -27,19 +28,54 @@ local function isMapOnScreen(mapName)
     return false
 end
 
+function TDX:JoinMapViaAPC(mapName)
+    local player = Players.LocalPlayer
+    local level = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Level")
+    if not level then
+        return false
+    end
+    local lvl = level.Value
+    local containerName = nil
+    if lvl < 30 then
+        containerName = "APCs"
+    elseif lvl >= 31 then
+        containerName = "APCs2"
+    else
+        containerName = "APCs"
+    end
+    local container = Workspace:FindFirstChild(containerName)
+    if not container then
+        return false
+    end
+    for _, slotFolder in ipairs(container:GetChildren()) do
+        local mapFolder = slotFolder:FindFirstChild(mapName)
+        if mapFolder then
+            local detector = mapFolder:FindFirstChild("Detector")
+            if detector and detector:IsA("BasePart") then
+                local character = player.Character
+                if character and character:FindFirstChild("HumanoidRootPart") then
+                    character.HumanoidRootPart.CFrame = detector.CFrame
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 function TDX:VoteMap(mapName, maxAttempts)
     maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
         if isMapOnScreen(mapName) then
             getRemotes().MapVoteCast:FireServer(mapName)
-            task.wait(0.1)
+            task.wait(0.5)
             self:Ready()
             return true
         end
         getRemotes().MapChangeVoteCast:FireServer(true)
-        task.wait(0.8)
+        task.wait(1.5)
     end
-    TeleportService:Teleport(9503261072)
+    self:JoinMapViaAPC(mapName)
     return false
 end
 
