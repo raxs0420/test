@@ -1,12 +1,43 @@
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
 
 local function getRemotes()
     return ReplicatedStorage:WaitForChild("Remotes")
 end
 
-function TDX:VoteMap(mapName)
-    getRemotes().MapVoteCast:FireServer(mapName)
+local function isMapOnScreen(mapName)
+    local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return false end
+    local interface = playerGui:FindFirstChild("Interface")
+    if not interface then return false end
+    local mapOverride = interface:FindFirstChild("MapOverrideScreen")
+    if not mapOverride then return false end
+    local scrollingFrame = mapOverride:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then return false end
+    
+    for _, child in ipairs(scrollingFrame:GetChildren()) do
+        if (child:IsA("ImageButton") or child:IsA("TextButton")) and child.Name == mapName then
+            -- According to your logic: Visible == false means it's on screen
+            if child.Visible == false then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function TDX:VoteMap(mapName, maxAttempts)
+    maxAttempts = maxAttempts or 6
+    for attempt = 1, maxAttempts do
+        if isMapOnScreen(mapName) then
+            getRemotes().MapVoteCast:FireServer(mapName)
+            return true
+        end
+        getRemotes().MapChangeVoteCast:FireServer(true)
+        task.wait(0.5)
+    end
+    return false
 end
 
 function TDX:RerollMaps()
