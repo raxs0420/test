@@ -1,4 +1,3 @@
-
 local TDX = {}
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,15 +20,18 @@ function TDX:SetLoadout(slot)
 end
 
 function TDX:Place(towerName, x, y, z, rotation)
+    task.wait(0.1)
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
     return Remotes.PlaceTower:InvokeServer(unpack(args))
 end
 
 function TDX:Sell(towerId)
+    task.wait(0.1)
     Remotes.SellTower:FireServer(towerId)
 end
 
 function TDX:Upgrade(towerId, path, level)
+    task.wait(0.1)
     Remotes.TowerUpgradeRequest:FireServer(towerId, path, level)
 end
 
