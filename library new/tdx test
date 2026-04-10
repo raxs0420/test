@@ -32,83 +32,46 @@ function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
     local level = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Level")
     if not level then
-        print("[DEBUG] No leaderstats.Level found")
         return false
     end
     local lvl = level.Value
-    print("[DEBUG] Player level:", lvl)
+    local containerName = (lvl >= 31) and "APCs2" or "APCs"
     
-    local containerName = nil
-    if lvl < 30 then
-        containerName = "APCs"
-    elseif lvl >= 31 then
-        containerName = "APCs2"
-    else
-        containerName = "APCs"
-    end
-    print("[DEBUG] Using container:", containerName)
-    
-    local container = Workspace:FindFirstChild(containerName)
-    if not container then
-        print("[DEBUG] Container not found:", containerName)
-        return false
-    end
-    print("[DEBUG] Container found, scanning children...")
-    
-    for _, slotFolder in ipairs(container:GetChildren()) do
-        print("[DEBUG] Checking slot:", slotFolder.Name)
-        
-        local foundMap = false
-        local targetFolder = slotFolder
-        
-        local attrMap = slotFolder:GetAttribute("MapName")
-        if attrMap == mapName then
-            foundMap = true
-            print("[DEBUG] Found MapName attribute on slotFolder:", attrMap)
-        else
-            local apcFolder = slotFolder:FindFirstChild("APC")
-            if apcFolder then
-                attrMap = apcFolder:GetAttribute("MapName")
+    while true do
+        local container = Workspace:FindFirstChild(containerName)
+        if container then
+            for _, slotFolder in ipairs(container:GetChildren()) do
+                local targetFolder = slotFolder
+                local attrMap = slotFolder:GetAttribute("MapName")
                 if attrMap == mapName then
-                    foundMap = true
-                    targetFolder = apcFolder
-                    print("[DEBUG] Found MapName attribute on APC folder:", attrMap)
-                end
-            end
-        end
-        
-        if foundMap then
-            local detector = targetFolder:FindFirstChild("Detector")
-            if not detector and targetFolder ~= slotFolder then
-                detector = slotFolder:FindFirstChild("Detector")
-            end
-            if not detector and targetFolder:FindFirstChild("APC") then
-                detector = targetFolder.APC:FindFirstChild("Detector")
-            end
-            
-            if detector and detector:IsA("BasePart") then
-                print("[DEBUG] Detector found at:", detector:GetFullName())
-                local character = player.Character
-                if character and character:FindFirstChild("HumanoidRootPart") then
-                    character.HumanoidRootPart.CFrame = detector.CFrame
-                    print("[DEBUG] Teleported to", detector.Name, "at", detector.CFrame)
-                    return true
+                    targetFolder = slotFolder
                 else
-                    print("[DEBUG] Character or HumanoidRootPart missing")
+                    local apcFolder = slotFolder:FindFirstChild("APC")
+                    if apcFolder and apcFolder:GetAttribute("MapName") == mapName then
+                        targetFolder = apcFolder
+                    else
+                        goto continue
+                    end
                 end
-            else
-                print("[DEBUG] No Detector part found in", targetFolder.Name)
-                for _, child in ipairs(targetFolder:GetChildren()) do
-                    print("[DEBUG]   Child:", child.Name, "->", child.ClassName)
+                local detector = targetFolder:FindFirstChild("Detector")
+                if not detector and targetFolder ~= slotFolder then
+                    detector = slotFolder:FindFirstChild("Detector")
                 end
+                if not detector and targetFolder:FindFirstChild("APC") then
+                    detector = targetFolder.APC:FindFirstChild("Detector")
+                end
+                if detector and detector:IsA("BasePart") then
+                    local character = player.Character
+                    if character and character:FindFirstChild("HumanoidRootPart") then
+                        character.HumanoidRootPart.CFrame = detector.CFrame
+                        return true
+                    end
+                end
+                ::continue::
             end
-        else
-            print("[DEBUG] Slot", slotFolder.Name, "MapName attribute:", attrMap or "nil")
         end
+        task.wait(0.5)
     end
-    
-    print("[DEBUG] No APC slot found for map:", mapName)
-    return false
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
@@ -116,12 +79,12 @@ function TDX:VoteMap(mapName, maxAttempts)
     for attempt = 1, maxAttempts do
         if isMapOnScreen(mapName) then
             getRemotes().MapVoteCast:FireServer(mapName)
-            task.wait(0.5)
+            task.wait(0.1)
             self:Ready()
             return true
         end
         getRemotes().MapChangeVoteCast:FireServer(true)
-        task.wait(1.5)
+        task.wait(0.8)
     end
     self:JoinMapViaAPC(mapName)
     return false
