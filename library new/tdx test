@@ -1,100 +1,44 @@
--- Simple Game Automation Library
-local SimpleGame = {}
 
--- Services
+local TDX = {}
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 local Remotes = ReplicatedStorage:WaitForChild("Remotes")
 
--- State
-SimpleGame.placed_towers = {}
-
--- Map Functions
-function SimpleGame:VoteMap(mapName)
+function TDX:VoteMap(mapName)
     Remotes.MapVoteCast:FireServer(mapName)
 end
 
-function SimpleGame:ReadyUp()
+function TDX:Ready()
     Remotes.MapVoteReady:FireServer()
 end
 
--- Difficulty Functions
-function SimpleGame:VoteDifficulty(difficulty)
+function TDX:VoteDifficulty(difficulty)
     Remotes.DifficultyVoteCast:FireServer(difficulty)
 end
 
--- Loadout Functions
-function SimpleGame:SetLoadout(slotNumber)
-    Remotes.LoadoutSelectionChanged:FireServer(slotNumber)
+function TDX:SetLoadout(slot)
+    Remotes.LoadoutSelectionChanged:FireServer(slot)
 end
 
--- Tower Functions
-function SimpleGame:PlaceTower(towerName, x, y, z, rotation)
+function TDX:Place(towerName, x, y, z, rotation)
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
     return Remotes.PlaceTower:InvokeServer(unpack(args))
 end
 
-function SimpleGame:SellTower(towerId)
+function TDX:Sell(towerId)
     Remotes.SellTower:FireServer(towerId)
 end
 
-function SimpleGame:UpgradeTower(towerId, upgradePath, upgradeLevel)
-    Remotes.TowerUpgradeRequest:FireServer(towerId, upgradePath, upgradeLevel)
+function TDX:Upgrade(towerId, path, level)
+    Remotes.TowerUpgradeRequest:FireServer(towerId, path, level)
 end
 
--- Auto Functions
-local auto_skip = false
-local auto_place = false
-
-function SimpleGame:AutoSkip(enabled)
-    auto_skip = enabled
-    if enabled then
-        task.spawn(function()
-            while auto_skip do
-                local voteGui = LocalPlayer.PlayerGui:FindFirstChild("VoteGui")
-                if voteGui and voteGui:FindFirstChild("SkipButton") then
-                    Remotes.VoteSkip:FireServer()
-                end
-                task.wait(0.5)
-            end
-        end)
-    end
-end
-
--- Utility Functions
-function SimpleGame:GetWave()
-    local waveLabel = LocalPlayer.PlayerGui:FindFirstChild("WaveDisplay")
-    if waveLabel and waveLabel:FindFirstChild("Value") then
-        return tonumber(waveLabel.Value.Text) or 0
-    end
-    return 0
-end
-
-function SimpleGame:GetCoins()
-    return LocalPlayer:FindFirstChild("Coins") and LocalPlayer.Coins.Value or 0
-end
-
--- Quick Setup Function
-function SimpleGame:QuickSetup(config)
-    -- Vote for map
-    if config.map then
-        self:VoteMap(config.map)
-    end
-    
-    -- Vote for difficulty
-    if config.difficulty then
-        self:VoteDifficulty(config.difficulty)
-    end
-    
-    -- Set loadout
-    if config.loadoutSlot then
-        self:SetLoadout(config.loadoutSlot)
-    end
-    
-    -- Ready up
+function TDX:QuickSetup(config)
+    if config.map then self:VoteMap(config.map) end
+    if config.difficulty then self:VoteDifficulty(config.difficulty) end
+    if config.loadout then self:SetLoadout(config.loadout) end
     task.wait(0.5)
-    self:ReadyUp()
+    self:Ready()
 end
 
-return SimpleGame
+return TDX
