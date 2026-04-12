@@ -1,0 +1,217 @@
+local TDX = {}
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local TeleportService = game:GetService("TeleportService")
+
+local function getRemotes()
+    return ReplicatedStorage:WaitForChild("Remotes")
+end
+
+local function getRemote(remoteName)
+    local remotes = getRemotes() 
+    return remotes:WaitForChild(remoteName) 
+end
+
+local function isMapOnScreen(mapName)
+    local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return false end
+    local interface = playerGui:FindFirstChild("Interface")
+    if not interface then return false end
+    local mapOverride = interface:FindFirstChild("MapOverrideScreen")
+    if not mapOverride then return false end
+    local scrollingFrame = mapOverride:FindFirstChild("ScrollingFrame")
+    if not scrollingFrame then return false end
+    for _, child in ipairs(scrollingFrame:GetChildren()) do
+        if (child:IsA("ImageButton") or child:IsA("TextButton")) and child.Name == mapName then
+            if child.Visible == false then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+function TDX:JoinMapViaAPC(mapName)
+    local player = Players.LocalPlayer
+    local level = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Level")
+    if not level then
+        return false
+    end
+    local lvl = level.Value
+    local containerName = (lvl >= 31) and "APCs2" or "APCs"
+
+    while true do
+        local container = Workspace:FindFirstChild(containerName)
+        if container then
+            for _, slotFolder in ipairs(container:GetChildren()) do
+                local targetFolder = slotFolder
+                local attrMap = slotFolder:GetAttribute("MapName")
+                local matched = false
+
+                if attrMap == mapName then
+                    targetFolder = slotFolder
+                    matched = true
+                else
+                    local apcFolder = slotFolder:FindFirstChild("APC")
+                    if apcFolder and apcFolder:GetAttribute("MapName") == mapName then
+                        targetFolder = apcFolder
+                        matched = true
+                    end
+                end
+
+                if matched then
+                    local detector = targetFolder:FindFirstChild("Detector")
+                    if not detector and targetFolder ~= slotFolder then
+                        detector = slotFolder:FindFirstChild("Detector")
+                    end
+                    if not detector and targetFolder:FindFirstChild("APC") then
+                        detector = targetFolder.APC:FindFirstChild("Detector")
+                    end
+                    if detector and detector:IsA("BasePart") then
+                        local character = player.Character
+                        if character and character:FindFirstChild("HumanoidRootPart") then
+                            character.HumanoidRootPart.CFrame = detector.CFrame
+                            task.wait(2)
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+end
+
+function TDX:WaitForGame()
+    local placeTower = getRemote("PlaceTower")
+    local sellTower = getRemote("SellTower")
+    local upgrade = getRemote("TowerUpgradeRequest")
+    return placeTower and sellTower and upgrade
+end
+
+function TDX:VoteMap(mapName, maxAttempts)
+    maxAttempts = maxAttempts or 10
+    for attempt = 1, maxAttempts do
+        if isMapOnScreen(mapName) then
+            getRemotes().MapVoteCast:FireServer(mapName)
+            task.wait(0.1)
+            self:Ready()
+            return true
+        end
+        getRemotes().MapChangeVoteCast:FireServer(true)
+        task.wait(1)
+    end
+    self:JoinMapViaAPC(mapName)
+    return false
+end
+
+function TDX:RerollMaps()
+    getRemotes().MapChangeVoteCast:FireServer(true)
+end
+
+function TDX:Ready()
+    getRemotes().MapVoteReady:FireServer()
+end
+
+function TDX:VoteDifficulty(difficulty)
+    task.wait(5.5)
+    getRemotes().DifficultyVoteCast:FireServer(difficulty)
+    task.wait(0.2)
+    getRemotes().DifficultyVoteReady:FireServer(difficulty)
+    task.wait(1)
+end
+
+function TDX:Loadout(loadoutId)
+    task.wait(2)
+    local loadoutRemote = getRemote("LoadoutSelectionChanged")
+    if loadoutRemote then
+        loadoutRemote:FireServer(loadoutId)
+    end
+end
+
+function TDX:Place(towerName, x, y, z, rotation)
+    task.wait(0.1)
+    local placeRemote = getRemote("PlaceTower")
+    local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
+    local success, result = pcall(function()
+        return placeRemote:InvokeServer(unpack(args))
+    end)
+    return success and result or nil
+end
+
+function TDX:Sell(towerId)
+    task.wait(0.1)
+    local sellRemote = getRemote("SellTower")
+    pcall(function()
+        sellRemote:FireServer(towerId)
+    end)
+end
+
+function TDX:Upgrade(towerId, path, level)
+    task.wait(0.1)
+    local upgradeRemote = getRemote("TowerUpgradeRequest")
+    pcall(function()
+        upgradeRemote:FireServer(towerId, path, level)
+    end)
+end
+
+function TDX:Mode(mode)
+    local network = ReplicatedStorage:FindFirstChild("Network")
+    if not network then
+        network = ReplicatedStorage:FindFirstChild("Remotes")
+    end
+    if network then
+        local partyType = network:FindFirstChild("ClientChangePartyTypeRequest")
+        local partyMap = network:FindFirstChild("ClientChangePartyMapRequest")
+        if partyType and partyMap then
+            partyType:FireServer("Party")
+            task.wait(0.5)
+            partyMap:FireServer(mode)
+            task.wait(0.1)
+            self:StartMatchmaking()
+        end
+    end
+end
+
+function TDX:StartMatchmaking()
+    local network = ReplicatedStorage:FindFirstChild("Network")
+    if not network then
+        network = ReplicatedStorage:FindFirstChild("Remotes")
+    end
+    if network then
+        local startGame = network:FindFirstChild("ClientStartGameRequest")
+        if startGame then
+            startGame:FireServer()
+        end
+    end
+end
+
+function TDX:Target(queryType, subType)
+    subType = subType or 3
+    local changeQueryRemote = getRemote("ChangeQueryType")
+    if changeQueryRemote then
+        pcall(function()
+            changeQueryRemote:FireServer(queryType, subType)
+        end)
+    end
+end
+
+function TDX:Ability(towerId, abilityId, targetTowerId)
+    local abilityRemote = getRemote("TowerUseAbilityRequest")
+    if not abilityRemote then return end
+    
+    local args
+    if targetTowerId then
+        -- Matches the pattern: {towerId, abilityId, [4] = targetTowerId}
+        args = {towerId, abilityId, [4] = targetTowerId}
+    else
+        args = {towerId, abilityId}
+    end
+    
+    pcall(function()
+        abilityRemote:InvokeServer(unpack(args))
+    end)
+end
+
+return TDX
