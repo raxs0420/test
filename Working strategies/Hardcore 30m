@@ -1,0 +1,215 @@
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoRejoin = true
+_G.AutoSmartSkip = true
+_G.SendWebhook = false
+_G.AutoSupport = true
+_G.AutoMercenary = true
+_G.MercDistance = 160
+_G.Webhook = ""
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Mode("Hardcore")
+TDS:GameInfo("Crossroads", {})
+
+TDS:Loadout("Engineer", "Tesla", "Gatling Gun", "DJ Booth", "Firework Technician")
+
+TDS:Ready()
+TDS:GetWave()
+TDS:VoteSkip(1, 50)
+
+TDS:Place("Engineer", 5.644377, 60, 6.115332)
+TDS:Upgrade(1)
+TDS:Place("Engineer", 8.831538, 60, 6.177055)
+TDS:Upgrade(2)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Place("Engineer", 6.946604, 60, 8.859118)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/DeadSignalFound/Library/refs/heads/main/AutoGatlin.lua"))()
+
+TDS:Place("Gatling Gun", 3.446485, 60, 19.958541) 
+TDS:Upgrade(4)
+
+TDS:Place("Tesla", 6.946604, 60, 8.859118)
+TDS:Upgrade(4)
+TDS:Place("Tesla", 6.946604, 60, 8.859118)
+
+TDS:Place("Firework Technician", 3.446485, 60, 19.958541)
+
+TDS:Place("DJ Booth", 6.946604, 60, 8.859118)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:SetOption(8, "Track", "Green")
+TDS:Upgrade(8)
+TDS:Ability(8, "Drop The Beat", {nil}, true)
+
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+
+TDS:Upgrade(4)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+
+TDS:Loadout("Mercenary Base", "Ranger", "Commander", "DJ Booth", "Minigunner")
+
+TDS:Upgrade(4)
+TDS:Place("Ranger", 11.340200, 60, -9.753268)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Place("Ranger", 11.340200, 60, -9.753268)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Place("Ranger", 11.340200, 60, -9.753268)   
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Place("Ranger", 11.340200, 60, -9.753268)
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+TDS:Place("Ranger", 11.340200, 60, -9.753268)
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+TDS:Place("Ranger", 11.340200, 60, -9.753268)
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Place("Ranger", 11.340200, 60, -9.753268)
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Place("Ranger", 11.340200, 60, -9.753268)   
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+
+TDS:Place("Mercenary Base", -35.353125, 60, 3.849978)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+TDS:SetOption(17, "Unit 3", "Riot Guard")
+TDS:SetOption(17, "Unit 2", "Riot Guard")
+TDS:SetOption(17, "Unit 1", "Riot Guard")
+TDS:Place("Mercenary Base", -35.353125, 60, 3.849978)
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:SetOption(18, "Unit 3", "Riot Guard")
+TDS:SetOption(18, "Unit 2", "Riot Guard")
+TDS:SetOption(18, "Unit 1", "Riot Guard")
+TDS:Place("Mercenary Base", 7.033526, 60, 14.316281)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:SetOption(19, "Unit 3", "Riot Guard")
+TDS:SetOption(19, "Unit 2", "Riot Guard")
+TDS:SetOption(19, "Unit 1", "Riot Guard")
+
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+
+TDS:Place("Commander", 8.614539, 60, 3.563364)
+TDS:Place("Commander", 8.614539, 60, 3.563364)
+TDS:Place("Commander", 8.614539, 60, 3.563364)
+
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+
+TDS:AutoChain(20, 21, 22)
+
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+
+local engineerPositions = {
+    {5.644377, 60, 6.115332},
+    {8.831538, 60, 6.177055},   
+    {6.946604, 60, 8.859118},   
+    {9.082629, 60, 11.062794},
+    {11.134042, 60, 8.261738},
+    {9.720707, 60, 14.061563}  
+}
+
+for i = 23, 40 do
+    local pos = engineerPositions[(i - 23) % 6 + 1]
+    TDS:Place("Minigunner", pos[1], pos[2], pos[3])
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+TDS:SetOption(17, "Unit 3", "Field Medic")
+TDS:SetOption(17, "Unit 2", "Rifleman")
+TDS:SetOption(17, "Unit 1", "Rifleman")
+TDS:SetOption(18, "Unit 3", "Field Medic")
+TDS:SetOption(18, "Unit 2", "Rifleman")
+TDS:SetOption(18, "Unit 1", "Rifleman")
+TDS:SetOption(19, "Unit 3", "Field Medic")
+TDS:SetOption(19, "Unit 2", "Rifleman")
+TDS:SetOption(19, "Unit 1", "Rifleman")
+
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+
+TDS:SetOption(8, "Track", "Red")
+
