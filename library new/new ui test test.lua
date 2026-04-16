@@ -1634,6 +1634,17 @@ if _G.AutoSmartSkip then
     task.spawn(start_smart_auto_skip)
 end
 
+function TDS:MedicSelect(idx, val)
+    local t = self.placed_towers[idx]      
+    local target = self.placed_towers[val]
+    if t and target then
+        local remote_func = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
+        remote_func:InvokeServer("Troops", "TowerServerEvent", "ToggleSelectedTower", t, target)
+        return true
+    end
+    return false
+end
+
 local function start_auto_mercenary()
     if auto_mercenary_running or not _G.AutoMercenary then return end
     auto_mercenary_running = true
