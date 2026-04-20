@@ -26,7 +26,7 @@ TDS:Upgrade(5)
 TDS:Place("Minigunner", -3.701, 110, -61.888)
 TDS:Upgrade(6)
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/DeadSignalFound/Library/refs/heads/main/AutoGatlin.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
 
 TDS:Place("Gatling Gun", -2.317, 98.810, -53.300)
 TDS:Upgrade(7)
