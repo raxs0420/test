@@ -186,7 +186,8 @@ TDS:Upgrade(39)
 
 TDS:SetOption(7, "Track", "Red")
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/DeadSignalFound/Library/refs/heads/main/AutoGatlin.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
+
 TDS:Upgrade(40)
 TDS:Upgrade(40)
 TDS:Upgrade(40)
@@ -265,13 +266,6 @@ TDS:Upgrade(14)
 TDS:Upgrade(17)
 TDS:Upgrade(19)
 TDS:Upgrade(10)
-
-
-
-
-
-
-
 
 TDS:Place("Turret", -6.934534, 110, -55.792403) -- 42
 TDS:Upgrade(42)
