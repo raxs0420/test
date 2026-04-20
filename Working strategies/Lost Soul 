@@ -1,0 +1,197 @@
+
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoRejoin = false
+_G.AutoSmartSkip = true
+_G.SendWebhook = false
+_G.AutoSupport = true
+_G.AutoNecro = true
+_G.AutoChain = true
+_G.AutoMercenary = true
+_G.MercDistance = 190
+_G.Webhook = ""
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("Commander", "Minigunner", "Shotgunner", "Scout", "")
+TDS:Mode("Pizza Party")
+
+task.wait(5)
+
+TDS:Loadout("Commander", "Gatling Gun", "DJ Booth", "Cowboy", "Ranger")
+
+TDS:Place("Cowboy", 3, 60, -14.5)
+
+TDS:Ready()
+
+TDS:Upgrade(1)
+TDS:Place("Cowboy", 3, 60, -14.5)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Place("Cowboy", 3, 60, -14.5)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Place("Cowboy", 3, 60, -14.5)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
+
+TDS:Place("Gatling Gun", 3, 60, -14.5)
+TDS:Place("DJ Booth", -1.45, 60, -10.1)
+TDS:SetOption(6, "Track", "Green")
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Ability(6, "Drop The Beat", {nil}, true)
+TDS:Place("Commander", -1.45, 60, -10.1)
+TDS:Upgrade(7)
+TDS:Place("Ranger", -4.85, 60, -5.8)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Place("Ranger", -4.85, 60, -5.8)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(5)
+TDS:Place("Ranger", -4.85, 60, -5.8)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Place("Ranger", -4.85, 60, -5.8)
+TDS:Upgrade(5)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Place("Ranger", -4.85, 60, -5.8)
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+TDS:Place("Ranger", -4.85, 60, -5.8)
+TDS:Upgrade(13)
+TDS:Upgrade(13)
+TDS:Upgrade(7)
+TDS:Place("Commander", -1.45, 60, -10.1)
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Place("Commander", -1.45, 60, -10.1)
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Place("Ranger", -4.85, 60, -5.8)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:Place("Ranger", -4.85, 60, -5.8)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Upgrade(5)
+
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(16)
+TDS:Upgrade(17)
+
+TDS:Upgrade(5)
+
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+
+TDS:Upgrade(5)
+
+TDS:Loadout("Cowboy", "Turret", "Accelerator", "", "")
+
+TDS:Place("Turret", -1.45, 60, -10.1) -- 18
+TDS:Place("Turret", -1.45, 60, -10.1) -- 19
+TDS:Place("Turret", -1.45, 60, -10.1) -- 20
+
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(17)
+TDS:Upgrade(16)
+
+TDS:Upgrade(5)
+
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+TDS:Upgrade(19)
+TDS:Upgrade(20)
+TDS:Upgrade(18)
+
+TDS:Place("Accelerator", -1.45, 60, -10.1) -- 21
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Place("Accelerator", -1.45, 60, -10.1) -- 22
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+TDS:Upgrade(22)
+TDS:Place("Accelerator", -1.45, 60, -10.1) -- 23
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+TDS:Upgrade(23)
+TDS:Place("Accelerator", -1.45, 60, -10.1) -- 24
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Upgrade(24)
+TDS:Place("Accelerator", -1.45, 60, -10.1) -- 25
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Upgrade(25)
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(23)
+TDS:Upgrade(24)
+TDS:Upgrade(25)
+TDS:Upgrade(21)
+TDS:Upgrade(22)
+TDS:Upgrade(23)
+TDS:Upgrade(24)
+TDS:Upgrade(25)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Place("Cowboy", 3, 60, -14.5)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Upgrade(26)
+TDS:Place("Cowboy", 3, 60, -14.5)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:Upgrade(27)
+TDS:SetOption(6, "Track", "Red")
