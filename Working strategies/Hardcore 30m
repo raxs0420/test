@@ -30,7 +30,7 @@ TDS:Place("Engineer", 6.946604, 60, 8.859118)
 TDS:Upgrade(3)
 TDS:Upgrade(3)
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/DeadSignalFound/Library/refs/heads/main/AutoGatlin.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
 
 TDS:Place("Gatling Gun", 3.446485, 60, 19.958541) 
 TDS:Upgrade(4)
