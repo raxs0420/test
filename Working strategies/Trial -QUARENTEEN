@@ -70,7 +70,7 @@ TDS:Upgrade(4)
 TDS:Upgrade(8)
 TDS:Upgrade(8)
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/DeadSignalFound/Library/refs/heads/main/AutoGatlin.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
 
 TDS:Place("Gatling Gun", 42.783686, 40, -161.173018)
 TDS:Upgrade(13)
