@@ -998,29 +998,44 @@ end
 
 function TDS:VoteSkip(start_wave, end_wave)
     task.spawn(function()
-        repeat task.wait() until get_current_wave() and get_current_wave() > 0
         local current_wave = get_current_wave()
-        start_wave = start_wave or current_wave
-        end_wave = end_wave or start_wave
-        if start_wave < current_wave then
-            start_wave = current_wave
+        
+        self.LastVoteSkipTarget = self.LastVoteSkipTarget or 0
+        
+        if not start_wave then
+            if self.LastVoteSkipTarget < current_wave then
+                self.LastVoteSkipTarget = current_wave
+            else
+                self.LastVoteSkipTarget = self.LastVoteSkipTarget + 1
+            end
+            start_wave = self.LastVoteSkipTarget
+            end_wave = start_wave
+        else
+            end_wave = end_wave or start_wave
+            self.LastVoteSkipTarget = end_wave
         end
+
         for wave = start_wave, end_wave do
-            repeat
-                task.wait(0.2)
-            until get_current_wave() >= wave
-            local skip_done = false
-            while not skip_done do
-                local skip_visible = player_gui:FindFirstChild("ReactOverridesVote")
-                    and player_gui.ReactOverridesVote:FindFirstChild("Frame")
-                    and player_gui.ReactOverridesVote.Frame:FindFirstChild("votes")
-                    and player_gui.ReactOverridesVote.Frame.votes:FindFirstChild("vote", true)
-                if skip_visible and skip_visible.Position == UDim2.new(0.5, 0, 0.5, 0) then
-                    run_vote_skip()
-                    skip_done = true
-                else
-                    task.wait(0.2)
+            while get_current_wave() < wave do
+                task.wait(0.5)
+            end
+
+            local target_next_wave = wave + 1
+            
+            while get_current_wave() < target_next_wave do
+                local vote_ui = player_gui:FindFirstChild("ReactOverridesVote")
+                local vote_button = vote_ui 
+                    and vote_ui:FindFirstChild("Frame") 
+                    and vote_ui.Frame:FindFirstChild("votes") 
+                    and vote_ui.Frame.votes:FindFirstChild("vote", true)
+
+                if vote_button and vote_button.Position == UDim2.new(0.5, 0, 0.5, 0) then
+                    pcall(function()
+                        RemoteFunc:InvokeServer("Voting", "Skip")
+                    end)
                 end
+                
+                task.wait(0.1)
             end
         end
     end)
