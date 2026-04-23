@@ -9,7 +9,7 @@ local CoreGui = game:GetService("CoreGui")
 local commandQueue = {}
 local isProcessing = false
 local lastCommandTime = 0
-local MIN_COMMAND_DELAY = 0.12
+local MIN_COMMAND_DELAY = 0.15
 
 local towerCount = 0
 local towerIds = {}
@@ -92,8 +92,8 @@ local function processQueue()
                 end
             end
             
-            if command.waitForResponse and command.type ~= "place" then
-                task.wait(command.responseWaitTime or 0.08)
+            if command.waitForResponse then
+                task.wait(command.responseWaitTime or 0.1)
             end
             
             lastCommandTime = tick()
@@ -101,7 +101,7 @@ local function processQueue()
             if not success and command.retryCount and command.retryCount > 0 then
                 command.retryCount = command.retryCount - 1
                 table.insert(commandQueue, 1, command)
-                task.wait(0.05)
+                task.wait(0.1)
             end
         end
         
@@ -116,7 +116,7 @@ local function queueCommand(type, func, args, waitForResponse, retryCount, respo
         args = args or {},
         waitForResponse = waitForResponse ~= false,
         retryCount = retryCount or 2,
-        responseWaitTime = responseWaitTime or 0.08,
+        responseWaitTime = responseWaitTime or 0.1,
         callback = callback
     })
     processQueue()
@@ -512,26 +512,23 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
     end
     
     local success = false
-    local done = false
+    local returnedId = nil
     
-    queueCommand("place", function()
-        local res, err = pcall(function()
-            return placeRemote:InvokeServer(unpack(args))
-        end)
-        if res and not err then
-            success = true
-            towerCount = towerCount + 1
-            towerIds[towerCount] = res
-            print("[TDX] Placed", towerName, "as tower ID:", res, "(Tower #" .. towerCount .. ")")
-        end
-        done = true
-        return success
-    end, {}, true, 3, 0.15)
+    local res, err = pcall(function()
+        return placeRemote:InvokeServer(unpack(args))
+    end)
     
-    local waitStart = tick()
-    while not done and tick() - waitStart < 2 do
-        task.wait(0.05)
+    if res and not err then
+        success = true
+        returnedId = res
+        towerCount = towerCount + 1
+        towerIds[towerCount] = returnedId
+        print("[TDX] Placed", towerName, "as tower ID:", returnedId, "(Tower #" .. towerCount .. ")")
+    else
+        warn("[TDX] Failed to place", towerName, err)
     end
+    
+    task.wait(0.15)
     
     return success
 end
@@ -544,21 +541,13 @@ function TDX:Sell(towerId)
     end
     
     local success = false
-    local done = false
     
-    queueCommand("sell", function()
-        pcall(function()
-            sellRemote:FireServer(towerId)
-            success = true
-        end)
-        done = true
-        return success
-    end, {}, true, 2, 0.1)
+    pcall(function()
+        sellRemote:FireServer(towerId)
+        success = true
+    end)
     
-    local waitStart = tick()
-    while not done and tick() - waitStart < 1 do
-        task.wait(0.05)
-    end
+    task.wait(0.1)
     
     return success
 end
@@ -572,7 +561,7 @@ function TDX:Upgrade(towerNumber, path, level, cost)
     
     local towerId = towerIds[towerNumber]
     if not towerId then
-        warn("Tower #" .. towerNumber .. " not found! Make sure you placed it first.")
+        warn("Tower #" .. towerNumber .. " not found! Make sure you placed it first. Current towers:", towerIds)
         return false
     end
     
@@ -590,22 +579,14 @@ function TDX:Upgrade(towerNumber, path, level, cost)
     end
     
     local success = false
-    local done = false
     
-    queueCommand("upgrade", function()
-        pcall(function()
-            upgradeRemote:FireServer(towerId, path, level)
-            success = true
-            print("[TDX] Upgraded tower #" .. towerNumber .. " (ID:" .. towerId .. ") path:" .. path .. " level:" .. level)
-        end)
-        done = true
-        return success
-    end, {}, true, 3, 0.12)
+    pcall(function()
+        upgradeRemote:FireServer(towerId, path, level)
+        success = true
+        print("[TDX] Upgraded tower #" .. towerNumber .. " (ID:" .. towerId .. ") path:" .. path .. " level:" .. level)
+    end)
     
-    local waitStart = tick()
-    while not done and tick() - waitStart < 1.5 do
-        task.wait(0.05)
-    end
+    task.wait(0.12)
     
     return success
 end
@@ -631,27 +612,23 @@ function TDX:UpgradeById(towerId, path, level, cost)
     end
     
     local success = false
-    local done = false
     
-    queueCommand("upgrade", function()
-        pcall(function()
-            upgradeRemote:FireServer(towerId, path, level)
-            success = true
-        end)
-        done = true
-        return success
-    end, {}, true, 3, 0.12)
+    pcall(function()
+        upgradeRemote:FireServer(towerId, path, level)
+        success = true
+    end)
     
-    local waitStart = tick()
-    while not done and tick() - waitStart < 1.5 do
-        task.wait(0.05)
-    end
+    task.wait(0.12)
     
     return success
 end
 
 function TDX:GetTowerId(towerNumber)
     return towerIds[towerNumber]
+end
+
+function TDX:GetAllTowerIds()
+    return towerIds
 end
 
 function TDX:ResetTowerIds()
@@ -702,16 +679,6 @@ function TDX:Equip(items)
         if updateLoadout then
             updateLoadout:FireServer(unpack(args))
         end
-    end
-end
-
-function TDX:FlushCommands()
-    local startTime = tick()
-    while #commandQueue > 0 or isProcessing do
-        if tick() - startTime > 5 then
-            break
-        end
-        task.wait(0.05)
     end
 end
 
