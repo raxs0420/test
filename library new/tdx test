@@ -13,6 +13,15 @@ local function getRemote(remoteName)
     return remotes:WaitForChild(remoteName) 
 end
 
+local function getCurrentCash()
+    local player = Players.LocalPlayer
+    local cash = player.leaderstats and player.leaderstats:FindFirstChild("Cash")
+    if cash then
+        return cash.Value
+    end
+    return 0
+end
+
 local function isMapOnScreen(mapName)
     local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
     if not playerGui then return false end
@@ -130,10 +139,17 @@ function TDX:Loadout(loadoutId)
     end
 end
 
-function TDX:Place(towerName, x, y, z, rotation)
-    task.wait(0.1)
+function TDX:Place(towerName, x, y, z, rotation, cost)
     local placeRemote = getRemote("PlaceTower")
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
+    
+    if cost and cost > 0 then
+        while getCurrentCash() < cost do
+            task.wait(0.01)
+        end
+    end
+    
+    task.wait(0.05)
     local success, result = pcall(function()
         return placeRemote:InvokeServer(unpack(args))
     end)
@@ -141,16 +157,23 @@ function TDX:Place(towerName, x, y, z, rotation)
 end
 
 function TDX:Sell(towerId)
-    task.wait(0.1)
+    task.wait(0.05)
     local sellRemote = getRemote("SellTower")
     pcall(function()
         sellRemote:FireServer(towerId)
     end)
 end
 
-function TDX:Upgrade(towerId, path, level)
-    task.wait(0.1)
+function TDX:Upgrade(towerId, path, level, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
+    
+    if cost and cost > 0 then
+        while getCurrentCash() < cost do
+            task.wait(0.01)
+        end
+    end
+    
+    task.wait(0.05)
     pcall(function()
         upgradeRemote:FireServer(towerId, path, level)
     end)
