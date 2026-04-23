@@ -3,11 +3,7 @@ local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local TeleportService = game:GetService("TeleportService")
 local CoreGui = game:GetService("CoreGui")
-
-local towerCount = 0
-local towerIds = {}
 
 local function getRemotes()
     return ReplicatedStorage:FindFirstChild("Remotes")
@@ -39,15 +35,7 @@ local function isInGame()
     if gameGui and gameGui.Visible then
         return true
     end
-    local towerMenu = playerGui:FindFirstChild("TowerMenu")
-    if towerMenu and towerMenu.Visible then
-        return true
-    end
     return false
-end
-
-function TDX:WaitForGame()
-    return isInGame()
 end
 
 local function isMapOnScreen(mapName)
@@ -349,6 +337,10 @@ function TDX:JoinMapViaAPC(mapName)
     return false
 end
 
+function TDX:WaitForGame()
+    return isInGame()
+end
+
 function TDX:VoteMap(mapName, maxAttempts)
     maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
@@ -409,71 +401,28 @@ end
 function TDX:Place(towerName, x, y, z, rotation, cost)
     local placeRemote = getRemote("PlaceTower")
     if not placeRemote then
-        warn("PlaceTower remote not found, make sure you're in a game")
+        warn("PlaceTower remote not found")
         return false
     end
     
-    local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
-    
-    local startTime = tick()
-    local timeout = 5
-    
     if cost and cost > 0 then
+        local startTime = tick()
         while getCurrentCash() < cost do
-            if tick() - startTime > timeout then
-                warn("Timeout waiting for cash for tower:", towerName)
+            if tick() - startTime > 5 then
+                warn("Timeout waiting for cash")
                 return false
             end
             task.wait(0.05)
         end
     end
     
+    local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
+    
     pcall(function()
         placeRemote:InvokeServer(unpack(args))
     end)
     
-    task.wait(0.2)
-    
-    towerCount = towerCount + 1
-    
-    local function findTowerId()
-        local towers = workspace:FindFirstChild("Towers")
-        if towers then
-            for _, tower in ipairs(towers:GetChildren()) do
-                if tower:IsA("Model") and tower:FindFirstChild("HumanoidRootPart") then
-                    local towerPos = tower.HumanoidRootPart.Position
-                    local targetPos = Vector3.new(x, y, z)
-                    local distance = (towerPos - targetPos).Magnitude
-                    if distance < 5 then
-                        local id = tonumber(tower.Name)
-                        if id then
-                            return id
-                        end
-                    end
-                end
-            end
-        end
-        return nil
-    end
-    
-    local towerId = nil
-    local findStart = tick()
-    while not towerId and tick() - findStart < 2 do
-        towerId = findTowerId()
-        task.wait(0.1)
-    end
-    
-    if towerId then
-        towerIds[towerCount] = towerId
-        print("[TDX] Placed", towerName, "at position", x, y, z, "-> Tower ID:", towerId, "(Tower #" .. towerCount .. ")")
-    else
-        warn("[TDX] Could not find tower ID for", towerName, "at position", x, y, z)
-        local towers = workspace:FindFirstChild("Towers")
-        if towers then
-            print("[TDX] Available towers:", towers:GetChildren())
-        end
-    end
-    
+    task.wait(0.3)
     return true
 end
 
@@ -488,31 +437,22 @@ function TDX:Sell(towerId)
         sellRemote:FireServer(towerId)
     end)
     
-    task.wait(0.1)
+    task.wait(0.2)
     return true
 end
 
-function TDX:Upgrade(towerNumber, path, level, cost)
+function TDX:Upgrade(towerId, path, level, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
     if not upgradeRemote then
-        warn("TowerUpgradeRequest remote not found, make sure you're in a game")
+        warn("TowerUpgradeRequest remote not found")
         return false
     end
-    
-    local towerId = towerIds[towerNumber]
-    if not towerId then
-        warn("Tower #" .. towerNumber .. " not found! Make sure you placed it first.")
-        warn("Current tower mapping:", towerIds)
-        return false
-    end
-    
-    local startTime = tick()
-    local timeout = 5
     
     if cost and cost > 0 then
+        local startTime = tick()
         while getCurrentCash() < cost do
-            if tick() - startTime > timeout then
-                warn("Timeout waiting for cash for tower #" .. towerNumber)
+            if tick() - startTime > 5 then
+                warn("Timeout waiting for cash for upgrade")
                 return false
             end
             task.wait(0.05)
@@ -521,26 +461,10 @@ function TDX:Upgrade(towerNumber, path, level, cost)
     
     pcall(function()
         upgradeRemote:FireServer(towerId, path, level)
-        print("[TDX] Upgraded tower #" .. towerNumber .. " (ID:" .. towerId .. ") path:" .. path .. " level:" .. level .. " cost:" .. (cost or "unknown"))
     end)
     
-    task.wait(0.15)
+    task.wait(0.25)
     return true
-end
-
-function TDX:GetTowerId(towerNumber)
-    return towerIds[towerNumber]
-end
-
-function TDX:GetAllTowerIds()
-    table.sort(towerIds)
-    return towerIds
-end
-
-function TDX:ResetTowerIds()
-    towerCount = 0
-    towerIds = {}
-    print("[TDX] Tower ID tracking reset")
 end
 
 function TDX:Mode(mode)
@@ -575,7 +499,6 @@ function TDX:StartMatchmaking()
 end
 
 function TDX:Equip(items)
-    local args = {items}
     local network = ReplicatedStorage:FindFirstChild("Network")
     if not network then
         network = ReplicatedStorage:FindFirstChild("Remotes")
@@ -583,7 +506,7 @@ function TDX:Equip(items)
     if network then
         local updateLoadout = network:FindFirstChild("UpdateLoadout")
         if updateLoadout then
-            updateLoadout:FireServer(unpack(args))
+            updateLoadout:FireServer(items)
         end
     end
 end
