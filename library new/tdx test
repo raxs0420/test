@@ -11,6 +11,9 @@ local isProcessing = false
 local lastCommandTime = 0
 local MIN_COMMAND_DELAY = 0.12
 
+local towerCount = 0
+local towerIds = {}
+
 local function getRemotes()
     return ReplicatedStorage:FindFirstChild("Remotes")
 end
@@ -298,7 +301,7 @@ function TDX:JoinMapViaAPC(mapName)
         if not anyContainerFound then
             if noContainerStartTime == nil then
                 noContainerStartTime = tick()
-            elseif tick() - noContainerStartTime > 1 then
+            elseif tick() - noContainerStartTime > 3 then
                 if level == 0 then
                     statusLabel.Text = "Status: Level 0 and no APCs found - assuming in game, closing..."
                     task.wait(1)
@@ -517,6 +520,9 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
         end)
         if res and not err then
             success = true
+            towerCount = towerCount + 1
+            towerIds[towerCount] = res
+            print("[TDX] Placed", towerName, "as tower ID:", res, "(Tower #" .. towerCount .. ")")
         end
         done = true
         return success
@@ -557,7 +563,54 @@ function TDX:Sell(towerId)
     return success
 end
 
-function TDX:Upgrade(towerId, path, level, cost)
+function TDX:Upgrade(towerNumber, path, level, cost)
+    local upgradeRemote = getRemote("TowerUpgradeRequest")
+    if not upgradeRemote then
+        warn("TowerUpgradeRequest remote not found, make sure you're in a game")
+        return false
+    end
+    
+    local towerId = towerIds[towerNumber]
+    if not towerId then
+        warn("Tower #" .. towerNumber .. " not found! Make sure you placed it first.")
+        return false
+    end
+    
+    local startTime = tick()
+    local timeout = 5
+    
+    if cost and cost > 0 then
+        while getCurrentCash() < cost do
+            if tick() - startTime > timeout then
+                warn("Timeout waiting for cash for upgrade on tower #" .. towerNumber)
+                return false
+            end
+            task.wait(0.05)
+        end
+    end
+    
+    local success = false
+    local done = false
+    
+    queueCommand("upgrade", function()
+        pcall(function()
+            upgradeRemote:FireServer(towerId, path, level)
+            success = true
+            print("[TDX] Upgraded tower #" .. towerNumber .. " (ID:" .. towerId .. ") path:" .. path .. " level:" .. level)
+        end)
+        done = true
+        return success
+    end, {}, true, 3, 0.12)
+    
+    local waitStart = tick()
+    while not done and tick() - waitStart < 1.5 do
+        task.wait(0.05)
+    end
+    
+    return success
+end
+
+function TDX:UpgradeById(towerId, path, level, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
     if not upgradeRemote then
         warn("TowerUpgradeRequest remote not found, make sure you're in a game")
@@ -595,6 +648,16 @@ function TDX:Upgrade(towerId, path, level, cost)
     end
     
     return success
+end
+
+function TDX:GetTowerId(towerNumber)
+    return towerIds[towerNumber]
+end
+
+function TDX:ResetTowerIds()
+    towerCount = 0
+    towerIds = {}
+    print("[TDX] Tower ID tracking reset")
 end
 
 function TDX:Mode(mode)
