@@ -817,78 +817,53 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
     local target_idx = ab_data and ab_data.towerTarget
     local attempts_per_id = ab_data and ab_data.attemptsPerId or 3
 
-    local function attempt_ability(casting_tower, clone_id)
+    local current_index = 1
+    local attempt_counter = 0
+    local list_len = #clone_list
+
+    local function attempt_ability(clone_id)
         local tower_to_clone = TDS.placed_towers[clone_id]
         if not tower_to_clone then
             return false
         end
-        local ok, res = pcall(function()
-            local data = ab_data and table.clone(ab_data) or nil
-            if data then
-                if positions and #positions > 0 then
-                    data.towerPosition = positions[math.random(#positions)]
-                end
-                data.towerToClone = tower_to_clone
-                if type(target_idx) == "number" then
-                    data.towerTarget = TDS.placed_towers[target_idx]
-                end
+        local data = ab_data and table.clone(ab_data) or nil
+        if data then
+            if positions and #positions > 0 then
+                data.towerPosition = positions[math.random(#positions)]
             end
+            data.towerToClone = tower_to_clone
+            if type(target_idx) == "number" then
+                data.towerTarget = TDS.placed_towers[target_idx]
+            end
+        end
+        local ok, res = pcall(function()
             return remote_func:InvokeServer("Troops", "Abilities", "Activate", {
-                Troop = casting_tower,
+                Troop = t_obj,
                 Name = ab_name,
                 Data = data
             })
         end)
-        return ok and check_res_ok(res)
+        if not ok then
+            warn("Ability invoke failed:", res)
+            return false
+        end
+        return check_res_ok(res)
     end
 
     local function run_cycle()
-        local casting_towers
-        if type(t_obj) == "table" then
-            casting_towers = t_obj
-        else
-            casting_towers = { t_obj }
-        end
-
-        local tower_idx = 1
-        local clone_idx = 1
-        local attempt_counter = 0
-        local towers_len = #casting_towers
-        local list_len = #clone_list
-
         if list_len == 0 then
-            while true do
-                local ok, res = pcall(function()
-                    local data = ab_data and table.clone(ab_data) or nil
-                    if data and positions and #positions > 0 then
-                        data.towerPosition = positions[math.random(#positions)]
-                    end
-                    return remote_func:InvokeServer("Troops", "Abilities", "Activate", {
-                        Troop = t_obj,
-                        Name = ab_name,
-                        Data = data
-                    })
-                end)
-                if ok and check_res_ok(res) then return end
-                task.wait(0.25)
-            end
+            -- No clone list: just attempt once
+            attempt_ability(nil)
+            return
         end
 
-        while true do
-            local casting_tower = casting_towers[tower_idx]
-            local clone_id = clone_list[clone_idx]
+        local clone_id = clone_list[current_index]
+        attempt_ability(clone_id)
 
-            attempt_ability(casting_tower, clone_id)
-
-            attempt_counter = attempt_counter + 1
-            if attempt_counter >= attempts_per_id then
-                attempt_counter = 0
-                clone_idx = clone_idx % list_len + 1
-                if clone_idx == 1 then
-                    tower_idx = tower_idx % towers_len + 1
-                end
-            end
-            task.wait(0.25)
+        attempt_counter = attempt_counter + 1
+        if attempt_counter >= attempts_per_id then
+            attempt_counter = 0
+            current_index = current_index % list_len + 1
         end
     end
 
@@ -901,9 +876,9 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
             end
         end)
         return function() active = false end
+    else
+        run_cycle()
     end
-
-    run_cycle()
     return nil
 end
 
