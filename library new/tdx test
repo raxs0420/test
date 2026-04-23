@@ -12,15 +12,13 @@ local lastCommandTime = 0
 local MIN_COMMAND_DELAY = 0.12
 
 local function getRemotes()
-    return ReplicatedStorage:WaitForChild("Remotes")
+    return ReplicatedStorage:FindFirstChild("Remotes")
 end
 
 local function getRemote(remoteName)
-    local success, remote = pcall(function()
-        return ReplicatedStorage:FindFirstChild("Remotes"):WaitForChild(remoteName, 5)
-    end)
-    if success and remote then
-        return remote
+    local remotes = getRemotes()
+    if remotes then
+        return remotes:FindFirstChild(remoteName)
     end
     return nil
 end
@@ -32,6 +30,22 @@ local function getCurrentCash()
         return cash.Value
     end
     return 0
+end
+
+local function isInGame()
+    local player = Players.LocalPlayer
+    if not player then return false end
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if not playerGui then return false end
+    local gameGui = playerGui:FindFirstChild("GameGui")
+    if gameGui and gameGui.Visible then
+        return true
+    end
+    local towerMenu = playerGui:FindFirstChild("TowerMenu")
+    if towerMenu and towerMenu.Visible then
+        return true
+    end
+    return false
 end
 
 local function processQueue()
@@ -52,25 +66,24 @@ local function processQueue()
             end
             
             local success = false
-            local err = nil
             
             if command.type == "place" then
-                success, err = command.func(unpack(command.args))
+                success = command.func(unpack(command.args))
                 if success and command.callback then
                     command.callback(success)
                 end
             elseif command.type == "upgrade" then
-                success, err = command.func(unpack(command.args))
+                success = command.func(unpack(command.args))
                 if success and command.callback then
                     command.callback(success)
                 end
             elseif command.type == "sell" then
-                success, err = command.func(unpack(command.args))
+                success = command.func(unpack(command.args))
                 if command.callback then
                     command.callback(success)
                 end
             else
-                success, err = pcall(command.func, unpack(command.args or {}))
+                success = pcall(command.func, unpack(command.args or {}))
                 if command.callback then
                     command.callback(success)
                 end
@@ -86,8 +99,6 @@ local function processQueue()
                 command.retryCount = command.retryCount - 1
                 table.insert(commandQueue, 1, command)
                 task.wait(0.05)
-            elseif not success then
-                warn("[TDX] Command failed:", command.type, err or "")
             end
         end
         
@@ -135,7 +146,7 @@ local function isMapOnScreen(mapName)
 end
 
 function TDX:JoinMapViaAPC(mapName)
-    if self:WaitForGame() then
+    if isInGame() then
         warn("Already in a game, cannot join via APC")
         return false
     end
@@ -272,7 +283,7 @@ function TDX:JoinMapViaAPC(mapName)
     local startTime = tick()
 
     while not found do
-        if self:WaitForGame() then
+        if isInGame() then
             statusLabel.Text = "Status: Already in a game, stopping search..."
             task.wait(2)
             screenGui:Destroy()
@@ -397,16 +408,7 @@ function TDX:JoinMapViaAPC(mapName)
 end
 
 function TDX:WaitForGame()
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if not remotes then
-        return false
-    end
-    
-    local placeTower = remotes:FindFirstChild("PlaceTower")
-    local sellTower = remotes:FindFirstChild("SellTower")
-    local upgrade = remotes:FindFirstChild("TowerUpgradeRequest")
-    
-    return placeTower ~= nil and sellTower ~= nil and upgrade ~= nil
+    return isInGame()
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
@@ -469,7 +471,7 @@ end
 function TDX:Place(towerName, x, y, z, rotation, cost)
     local placeRemote = getRemote("PlaceTower")
     if not placeRemote then
-        warn("PlaceTower remote not found")
+        warn("PlaceTower remote not found, make sure you're in a game")
         return false
     end
     
@@ -540,7 +542,7 @@ end
 function TDX:Upgrade(towerId, path, level, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
     if not upgradeRemote then
-        warn("TowerUpgradeRequest remote not found")
+        warn("TowerUpgradeRequest remote not found, make sure you're in a game")
         return false
     end
     
