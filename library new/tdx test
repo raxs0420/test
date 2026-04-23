@@ -277,10 +277,13 @@ function TDX:JoinMapViaAPC(mapName)
             noContainerLabel.BackgroundTransparency = 1
             noContainerLabel.Parent = mapListFrame
         end
+        
+        return anyContainerFound
     end
 
     local found = false
     local startTime = tick()
+    local noContainerStartTime = nil
 
     while not found do
         if isInGame() then
@@ -290,7 +293,22 @@ function TDX:JoinMapViaAPC(mapName)
             return false
         end
 
-        updateMapList()
+        local anyContainerFound = updateMapList()
+        
+        if not anyContainerFound then
+            if noContainerStartTime == nil then
+                noContainerStartTime = tick()
+            elseif tick() - noContainerStartTime > 1 then
+                if level == 0 then
+                    statusLabel.Text = "Status: Level 0 and no APCs found - assuming in game, closing..."
+                    task.wait(1)
+                    screenGui:Destroy()
+                    return false
+                end
+            end
+        else
+            noContainerStartTime = nil
+        end
 
         local elapsed = math.floor(tick() - startTime)
         local levelStatus = (level >= 31) and "Level " .. level .. " (APCs + APCs2)" or "Level " .. level .. " (APCs only)"
