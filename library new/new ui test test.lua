@@ -815,11 +815,13 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
     end
 
     local target_idx = ab_data and ab_data.towerTarget
+    local towers_folder = workspace:FindFirstChild("Towers") or workspace.Towers
 
     local function count_flying_towers()
+        if not towers_folder then return 0 end
         local count = 0
-        for _, tower in ipairs(workspace.Towers:GetChildren()) do
-            if tower:GetAttribute("Flying") then
+        for _, tower in ipairs(towers_folder:GetChildren()) do
+            if tower:GetAttribute("Flying") == true then
                 count = count + 1
             end
         end
@@ -853,8 +855,13 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
         end)
 
         if ok and check_res_ok(res) then
-            task.wait(0.2)
+            task.wait(0.5)
             local after_count = count_flying_towers()
+            if after_count > before_count then
+                return true
+            end
+            task.wait(0.5)
+            after_count = count_flying_towers()
             if after_count > before_count then
                 return true
             end
