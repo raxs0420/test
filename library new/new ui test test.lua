@@ -816,6 +816,52 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
 
     local target_idx = ab_data and ab_data.towerTarget
 
+    local function count_flying_towers()
+        local count = 0
+        for _, tower in ipairs(workspace.Towers:GetChildren()) do
+            if tower:GetAttribute("Flying") then
+                count = count + 1
+            end
+        end
+        return count
+    end
+
+    local function attempt_on_tower(casting_tower, clone_id)
+        local tower_to_clone = TDS.placed_towers[clone_id]
+        if not tower_to_clone then
+            return false
+        end
+
+        local before_count = count_flying_towers()
+
+        local ok, res = pcall(function()
+            local data = ab_data and table.clone(ab_data) or nil
+            if data then
+                if positions and #positions > 0 then
+                    data.towerPosition = positions[math.random(#positions)]
+                end
+                data.towerToClone = tower_to_clone
+                if type(target_idx) == "number" then
+                    data.towerTarget = TDS.placed_towers[target_idx]
+                end
+            end
+            return remote_func:InvokeServer("Troops", "Abilities", "Activate", {
+                Troop = casting_tower,
+                Name = ab_name,
+                Data = data
+            })
+        end)
+
+        if ok and check_res_ok(res) then
+            task.wait(0.2)
+            local after_count = count_flying_towers()
+            if after_count > before_count then
+                return true
+            end
+        end
+        return false
+    end
+
     local function attempt()
         if #clone_list == 0 then
             while true do
@@ -835,33 +881,30 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
             end
         end
 
-        local idx = 1
+        local casting_towers
+        if type(t_obj) == "table" then
+            casting_towers = t_obj
+        else
+            casting_towers = { t_obj }
+        end
+
+        local tower_idx = 1
+        local clone_idx = 1
         local list_len = #clone_list
+        local towers_len = #casting_towers
+
         while true do
-            local clone_id = clone_list[idx]
-            local ok, res = pcall(function()
-                local data = ab_data and table.clone(ab_data) or nil
-                if data then
-                    if positions and #positions > 0 then
-                        data.towerPosition = positions[math.random(#positions)]
-                    end
-                    if clone_id then
-                        data.towerToClone = TDS.placed_towers[clone_id]
-                    end
-                    if type(target_idx) == "number" then
-                        data.towerTarget = TDS.placed_towers[target_idx]
-                    end
-                end
-                return remote_func:InvokeServer("Troops", "Abilities", "Activate", {
-                    Troop = t_obj,
-                    Name = ab_name,
-                    Data = data
-                })
-            end)
-            if ok and check_res_ok(res) then
+            local casting_tower = casting_towers[tower_idx]
+            local clone_id = clone_list[clone_idx]
+
+            if attempt_on_tower(casting_tower, clone_id) then
                 return true
             end
-            idx = idx % list_len + 1
+
+            clone_idx = clone_idx % list_len + 1
+            if clone_idx == 1 then
+                tower_idx = tower_idx % towers_len + 1
+            end
             task.wait(0.25)
         end
     end
