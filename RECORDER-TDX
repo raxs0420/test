@@ -12,8 +12,8 @@ gui.Name = "TDXRecorder"
 gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 450, 0, 350)
-frame.Position = UDim2.new(0.5, -225, 0.5, -175)
+frame.Size = UDim2.new(0, 450, 0, 450)
+frame.Position = UDim2.new(0.5, -225, 0.5, -225)
 frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 frame.Active = true
 frame.Draggable = true
@@ -38,28 +38,30 @@ closeBtn.BackgroundColor3 = Color3.fromRGB(60,20,20)
 Instance.new("UICorner", closeBtn)
 
 local recordBtn = Instance.new("TextButton", frame)
-recordBtn.Size = UDim2.new(0, 150, 0, 35)
+recordBtn.Size = UDim2.new(0, 130, 0, 35)
 recordBtn.Position = UDim2.new(0, 20, 0, 45)
 recordBtn.Text = "START RECORDING"
 recordBtn.BackgroundColor3 = Color3.fromRGB(46,204,113)
 Instance.new("UICorner", recordBtn)
 
 local copyBtn = Instance.new("TextButton", frame)
-copyBtn.Size = UDim2.new(0, 150, 0, 35)
-copyBtn.Position = UDim2.new(1, -170, 0, 45)
+copyBtn.Size = UDim2.new(0, 130, 0, 35)
+copyBtn.Position = UDim2.new(1, -150, 0, 45)
 copyBtn.Text = "COPY SCRIPT"
 copyBtn.BackgroundColor3 = Color3.fromRGB(52,152,219)
-copyBtn.Visible = true
 Instance.new("UICorner", copyBtn)
 
 local logBox = Instance.new("ScrollingFrame", frame)
-logBox.Size = UDim2.new(1, -20, 1, -100)
+logBox.Size = UDim2.new(1, -20, 1, -160)
 logBox.Position = UDim2.new(0, 10, 0, 90)
 logBox.BackgroundColor3 = Color3.fromRGB(20,20,20)
 logBox.ScrollBarThickness = 4
+logBox.CanvasSize = UDim2.new(0, 0, 0, 0)
 Instance.new("UICorner", logBox)
+
 local logLayout = Instance.new("UIListLayout", logBox)
 logLayout.Padding = UDim.new(0, 2)
+logLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 local drag = Instance.new("TextButton", frame)
 drag.Size = UDim2.new(1,0,0,30)
@@ -72,19 +74,147 @@ local recording = false
 local actions = {}
 local nextId = 1
 local knownParts = {}
+local equippedTowers = {}
+local currentUIState = {path1Cost = 0, path2Cost = 0}
+local pendingUpgradeLines = {}
 
-local function addLog(msg, color)
+local function getUICosts()
+    local path1Cost = 0
+    local path2Cost = 0
+    
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        local interface = playerGui:FindFirstChild("Interface")
+        if interface then
+            local towerUI = interface:FindFirstChild("TowerUI")
+            if towerUI and towerUI.Visible then
+                local path1Button = towerUI:FindFirstChild("Path1Button")
+                if path1Button then
+                    local costText = path1Button:FindFirstChild("CostText")
+                    if costText and costText:IsA("TextLabel") then
+                        local costStr = costText.Text:gsub("[^%d]", "")
+                        path1Cost = tonumber(costStr) or 0
+                    end
+                end
+                
+                local path2Button = towerUI:FindFirstChild("Path2Button")
+                if path2Button then
+                    local costText = path2Button:FindFirstChild("CostText")
+                    if costText and costText:IsA("TextLabel") then
+                        local costStr = costText.Text:gsub("[^%d]", "")
+                        path2Cost = tonumber(costStr) or 0
+                    end
+                end
+            end
+        end
+    end
+    
+    return path1Cost, path2Cost
+end
+
+local function getTowerCost(towerName)
+    local towersBar = LocalPlayer.PlayerGui:FindFirstChild("Interface"):FindFirstChild("BottomBar"):FindFirstChild("TowersBar")
+    if towersBar then
+        local towerFolder = towersBar:FindFirstChild(towerName)
+        if towerFolder then
+            local costFrame = towerFolder:FindFirstChild("CostFrame")
+            if costFrame then
+                local costText = costFrame:FindFirstChild("CostText")
+                if costText and costText:IsA("TextLabel") then
+                    local costStr = costText.Text:gsub("[^%d]", "")
+                    local cost = tonumber(costStr)
+                    return cost or 0
+                end
+            end
+        end
+    end
+    return 0
+end
+
+local function getEquippedTowers()
+    local towers = {}
+    local towersBar = LocalPlayer.PlayerGui:FindFirstChild("Interface"):FindFirstChild("BottomBar"):FindFirstChild("TowersBar")
+    if towersBar then
+        for _, child in ipairs(towersBar:GetChildren()) do
+            if child:IsA("Frame") or child:IsA("ImageButton") then
+                local towerName = child.Name
+                if towerName ~= "TowerTemplate" and towerName ~= "TouchPlacementButtons" and towerName ~= "UIGridLayout" then
+                    table.insert(towers, towerName)
+                end
+            end
+        end
+    end
+    return towers
+end
+
+local function addLog(msg, color, isPending)
     local label = Instance.new("TextLabel", logBox)
-    label.Size = UDim2.new(1, -10, 0, 18)
-    label.Text = "> " .. msg
+    label.Size = UDim2.new(1, -10, 0, 14)
+    label.Text = msg
     label.TextColor3 = color or Color3.fromRGB(200,200,200)
-    label.TextSize = 11
+    label.TextSize = 10
     label.BackgroundTransparency = 1
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Font = Enum.Font.Code
+    
+    if isPending then
+        label.Position = UDim2.new(0, 15, 0, 0)
+        label.Text = "  " .. msg
+    end
+    
     task.wait()
-    logBox.CanvasSize = UDim2.new(0,0,0, logLayout.AbsoluteContentSize.Y)
+    logBox.CanvasSize = UDim2.new(0, 0, 0, logLayout.AbsoluteContentSize.Y)
     logBox.CanvasPosition = Vector2.new(0, logBox.CanvasSize.Y.Offset)
+    return label
+end
+
+local function updatePendingLog(index, cost)
+    if pendingUpgradeLines[index] then
+        local label = pendingUpgradeLines[index]
+        local newMsg = label.Text:gsub("%(Waiting for cost%.%.%.%)$", "[" .. cost .. "$]")
+        label.Text = newMsg
+        label.TextColor3 = Color3.fromRGB(100, 255, 100)
+        label.Position = UDim2.new(0, 5, 0, 0)
+    end
+end
+
+local function monitorUI()
+    task.spawn(function()
+        while recording do
+            local path1Cost, path2Cost = getUICosts()
+            
+            if path1Cost ~= currentUIState.path1Cost and currentUIState.path1Cost > 0 then
+                for i = #actions, 1, -1 do
+                    local action = actions[i]
+                    if action:match("Upgrade") and action:match(", 0%)$") then
+                        local newAction = action:gsub(", 0%)$", ", " .. currentUIState.path1Cost .. ")")
+                        actions[i] = newAction
+                        updatePendingLog(i, currentUIState.path1Cost)
+                        addLog(string.format("  → Cost applied: $%d", currentUIState.path1Cost), Color3.fromRGB(100, 255, 100), true)
+                        break
+                    end
+                end
+            end
+            
+            if path2Cost ~= currentUIState.path2Cost and currentUIState.path2Cost > 0 then
+                for i = #actions, 1, -1 do
+                    local action = actions[i]
+                    if action:match("Upgrade") and action:match(", 0%)$") then
+                        local newAction = action:gsub(", 0%)$", ", " .. currentUIState.path2Cost .. ")")
+                        actions[i] = newAction
+                        updatePendingLog(i, currentUIState.path2Cost)
+                        addLog(string.format("  → Cost applied: $%d", currentUIState.path2Cost), Color3.fromRGB(100, 255, 100), true)
+                        break
+                    end
+                end
+            end
+            
+            currentUIState.path1Cost = path1Cost
+            currentUIState.path2Cost = path2Cost
+            
+            task.wait(0.01)
+        end
+    end)
 end
 
 if TowersFolder then
@@ -97,9 +227,11 @@ if TowersFolder then
         local id = nextId
         nextId = nextId + 1
         knownParts[part] = id
-        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0)', name, pos.X, pos.Y, pos.Z)
+        
+        local cost = getTowerCost(name)
+        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d)', name, pos.X, pos.Y, pos.Z, cost)
         table.insert(actions, cmd)
-        addLog(string.format("Placed %s [ID:%d] at (%.2f, %.2f, %.2f)", name, id, pos.X, pos.Y, pos.Z), Color3.fromRGB(100,255,100))
+        addLog(cmd, Color3.fromRGB(100, 255, 100))
     end)
 end
 
@@ -112,22 +244,33 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             local id = args[1]
             local path = args[2] or 1
             local level = args[3] or 1
-            local cmd = string.format('TDX:Upgrade(%d, %d, %d)', id, path, level)
+            
+            local cmd = string.format('TDX:Upgrade(%d, %d, %d, 0)', id, path, level)
             table.insert(actions, cmd)
-            addLog(string.format("Upgraded ID %d (Path %d to level %d)", id, path, level), Color3.fromRGB(255,255,100))
+            local logLabel = addLog(cmd .. " (Waiting for cost...)", Color3.fromRGB(150, 255, 150), true)
+            pendingUpgradeLines[#actions] = logLabel
         elseif self.Name == "SellTower" then
             local id = args[1]
             local cmd = string.format('TDX:Sell(%d)', id)
             table.insert(actions, cmd)
-            addLog(string.format("Sold ID %d", id), Color3.fromRGB(255,100,100))
+            addLog(cmd, Color3.fromRGB(255, 150, 150))
         end
     end
     return oldNamecall(self, ...)
 end)
 
 local function generateScript()
+    equippedTowers = getEquippedTowers()
+    local towerList = {}
+    for _, tower in ipairs(equippedTowers) do
+        table.insert(towerList, string.format('"%s"', tower))
+    end
+    
     local lines = {
         "local TDX = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/tdx%20test\"))()",
+        "",
+        string.format("TDX:Equip({%s})", table.concat(towerList, ", ")),
+        "task.wait(2)",
         ""
     }
     for _, cmd in ipairs(actions) do
@@ -141,9 +284,12 @@ local function startRecording()
     actions = {}
     knownParts = {}
     nextId = 1
+    pendingUpgradeLines = {}
+    currentUIState = {path1Cost = 0, path2Cost = 0}
     recordBtn.Text = "STOP RECORDING"
     recordBtn.BackgroundColor3 = Color3.fromRGB(231,76,60)
-    addLog("Recording started", Color3.fromRGB(100,255,100))
+    addLog("=== RECORDING STARTED ===", Color3.fromRGB(100, 255, 100))
+    monitorUI()
 end
 
 local function stopRecording()
@@ -151,17 +297,18 @@ local function stopRecording()
     recordBtn.Text = "START RECORDING"
     recordBtn.BackgroundColor3 = Color3.fromRGB(46,204,113)
     if #actions > 0 then
-        addLog(string.format("Recording stopped. %d actions recorded.", #actions), Color3.fromRGB(100,255,100))
+        addLog(string.format("=== RECORDING STOPPED - %d actions ===", #actions), Color3.fromRGB(100, 255, 100))
     else
-        addLog("Recording stopped. No actions recorded.", Color3.fromRGB(255,200,100))
+        addLog("=== RECORDING STOPPED - No actions ===", Color3.fromRGB(255, 200, 100))
     end
 end
 
 local function copyScript()
+    equippedTowers = getEquippedTowers()
     local scriptText = generateScript()
     if setclipboard then
         setclipboard(scriptText)
-        addLog("Script copied to clipboard!", Color3.fromRGB(100,255,100))
+        addLog(string.format("✓ Script copied! (%d towers, %d actions)", #equippedTowers, #actions), Color3.fromRGB(100, 255, 100))
         local oldColor = copyBtn.BackgroundColor3
         copyBtn.BackgroundColor3 = Color3.fromRGB(39,174,96)
         copyBtn.Text = "COPIED!"
@@ -169,7 +316,7 @@ local function copyScript()
         copyBtn.BackgroundColor3 = oldColor
         copyBtn.Text = "COPY SCRIPT"
     else
-        addLog("No clipboard access. Script printed to console.", Color3.fromRGB(255,100,100))
+        addLog("✗ No clipboard access - printed to console", Color3.fromRGB(255, 100, 100))
         print(scriptText)
     end
 end
