@@ -92,7 +92,6 @@ function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
     local lvl = player.leaderstats and player.leaderstats:FindFirstChild("Level")
     local level = lvl and lvl.Value or 0
-    local containerName = (level >= 31) and "APCs2" or "APCs"
     
     local function updateMapList()
         for _, child in ipairs(mapListFrame:GetChildren()) do
@@ -101,26 +100,70 @@ function TDX:JoinMapViaAPC(mapName)
             end
         end
         
-        local container = Workspace:FindFirstChild(containerName)
-        if container then
-            for _, slotFolder in ipairs(container:GetChildren()) do
+        local anyContainerFound = false
+        
+        local apcsContainer = Workspace:FindFirstChild("APCs")
+        if apcsContainer then
+            anyContainerFound = true
+            
+            local containerLabel = Instance.new("TextLabel")
+            containerLabel.Size = UDim2.new(1, -10, 0, 20)
+            containerLabel.Text = "--- APCs ---"
+            containerLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+            containerLabel.BackgroundTransparency = 1
+            containerLabel.TextXAlignment = Enum.TextXAlignment.Center
+            containerLabel.Parent = mapListFrame
+            
+            for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
                 local attrMap = slotFolder:GetAttribute("MapName") or "Unknown"
                 local apcMap = (slotFolder:FindFirstChild("APC") or {}):GetAttribute("MapName")
                 local displayMap = attrMap ~= "Unknown" and attrMap or (apcMap or "No Map")
                 
                 local mapLabel = Instance.new("TextLabel")
                 mapLabel.Size = UDim2.new(1, -10, 0, 25)
-                mapLabel.Text = displayMap
+                mapLabel.Text = "  " .. displayMap
                 mapLabel.TextColor3 = (displayMap == mapName) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
                 mapLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
                 mapLabel.BackgroundTransparency = 0.5
                 mapLabel.TextXAlignment = Enum.TextXAlignment.Left
                 mapLabel.Parent = mapListFrame
             end
-        else
+        end
+        
+        if level >= 31 then
+            local apcs2Container = Workspace:FindFirstChild("APCs2")
+            if apcs2Container then
+                anyContainerFound = true
+                
+                local containerLabel = Instance.new("TextLabel")
+                containerLabel.Size = UDim2.new(1, -10, 0, 20)
+                containerLabel.Text = "--- APCs2 (Level 31+) ---"
+                containerLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+                containerLabel.BackgroundTransparency = 1
+                containerLabel.TextXAlignment = Enum.TextXAlignment.Center
+                containerLabel.Parent = mapListFrame
+                
+                for _, slotFolder in ipairs(apcs2Container:GetChildren()) do
+                    local attrMap = slotFolder:GetAttribute("MapName") or "Unknown"
+                    local apcMap = (slotFolder:FindFirstChild("APC") or {}):GetAttribute("MapName")
+                    local displayMap = attrMap ~= "Unknown" and attrMap or (apcMap or "No Map")
+                    
+                    local mapLabel = Instance.new("TextLabel")
+                    mapLabel.Size = UDim2.new(1, -10, 0, 25)
+                    mapLabel.Text = "  " .. displayMap
+                    mapLabel.TextColor3 = (displayMap == mapName) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
+                    mapLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                    mapLabel.BackgroundTransparency = 0.5
+                    mapLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    mapLabel.Parent = mapListFrame
+                end
+            end
+        end
+        
+        if not anyContainerFound then
             local noContainerLabel = Instance.new("TextLabel")
             noContainerLabel.Size = UDim2.new(1, -10, 0, 25)
-            noContainerLabel.Text = "Container '" .. containerName .. "' not found"
+            noContainerLabel.Text = "No APC containers found"
             noContainerLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
             noContainerLabel.BackgroundTransparency = 1
             noContainerLabel.Parent = mapListFrame
@@ -131,14 +174,15 @@ function TDX:JoinMapViaAPC(mapName)
     local startTime = tick()
     
     while not found do
-        local container = Workspace:FindFirstChild(containerName)
         updateMapList()
         
         local elapsed = math.floor(tick() - startTime)
-        statusLabel.Text = string.format("Status: Searching for '%s'... (%ds) | Container: %s", mapName, elapsed, containerName)
+        local levelStatus = (level >= 31) and "Level " .. level .. " (APCs + APCs2)" or "Level " .. level .. " (APCs only)"
+        statusLabel.Text = string.format("Status: Searching for '%s'... (%ds) | %s", mapName, elapsed, levelStatus)
         
-        if container then
-            for _, slotFolder in ipairs(container:GetChildren()) do
+        local apcsContainer = Workspace:FindFirstChild("APCs")
+        if apcsContainer then
+            for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
                 local targetFolder = slotFolder
                 local attrMap = slotFolder:GetAttribute("MapName")
                 local matched = false
@@ -155,7 +199,7 @@ function TDX:JoinMapViaAPC(mapName)
                 end
                 
                 if matched then
-                    statusLabel.Text = "Status: MATCH FOUND! Teleporting..."
+                    statusLabel.Text = "Status: MATCH FOUND in APCs! Teleporting..."
                     task.wait(0.5)
                     
                     local detector = targetFolder:FindFirstChild("Detector")
@@ -186,6 +230,60 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
+        
+        if level >= 31 then
+            local apcs2Container = Workspace:FindFirstChild("APCs2")
+            if apcs2Container then
+                for _, slotFolder in ipairs(apcs2Container:GetChildren()) do
+                    local targetFolder = slotFolder
+                    local attrMap = slotFolder:GetAttribute("MapName")
+                    local matched = false
+                    
+                    if attrMap == mapName then
+                        targetFolder = slotFolder
+                        matched = true
+                    else
+                        local apcFolder = slotFolder:FindFirstChild("APC")
+                        if apcFolder and apcFolder:GetAttribute("MapName") == mapName then
+                            targetFolder = apcFolder
+                            matched = true
+                        end
+                    end
+                    
+                    if matched then
+                        statusLabel.Text = "Status: MATCH FOUND in APCs2! Teleporting..."
+                        task.wait(0.5)
+                        
+                        local detector = targetFolder:FindFirstChild("Detector")
+                        if not detector and targetFolder ~= slotFolder then
+                            detector = slotFolder:FindFirstChild("Detector")
+                        end
+                        if not detector and targetFolder:FindFirstChild("APC") then
+                            detector = targetFolder.APC:FindFirstChild("Detector")
+                        end
+                        
+                        if detector and detector:IsA("BasePart") then
+                            local character = player.Character
+                            if character and character:FindFirstChild("HumanoidRootPart") then
+                                statusLabel.Text = "Status: TELEPORTING TO APC..."
+                                character.HumanoidRootPart.CFrame = detector.CFrame
+                                task.wait(2)
+                                found = true
+                                statusLabel.Text = "Status: SUCCESS! Joined " .. mapName
+                                task.wait(2)
+                                screenGui:Destroy()
+                                return true
+                            else
+                                statusLabel.Text = "Status: No character found!"
+                            end
+                        else
+                            statusLabel.Text = "Status: Found map but no detector!"
+                        end
+                    end
+                end
+            end
+        end
+        
         task.wait(0.5)
     end
     
