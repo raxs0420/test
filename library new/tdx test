@@ -1,16 +1,26 @@
 local TDX = {}
+
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
+local CoreGui = game:GetService("CoreGui")
+
+local commandQueue = {}
+local isProcessing = false
+local lastCommandTime = 0
+local MIN_COMMAND_DELAY = 0.12
+
+local lastPlacedTowerId = nil
+local towerIdMap = {}
 
 local function getRemotes()
     return ReplicatedStorage:WaitForChild("Remotes")
 end
 
 local function getRemote(remoteName)
-    local remotes = getRemotes() 
-    return remotes:WaitForChild(remoteName) 
+    local remotes = getRemotes()
+    return remotes:WaitForChild(remoteName)
 end
 
 local function getCurrentCash()
@@ -20,6 +30,87 @@ local function getCurrentCash()
         return cash.Value
     end
     return 0
+end
+
+local function processQueue()
+    if isProcessing or #commandQueue == 0 then
+        return
+    end
+    
+    isProcessing = true
+    
+    task.spawn(function()
+        while #commandQueue > 0 do
+            local command = table.remove(commandQueue, 1)
+            
+            local now = tick()
+            local timeSinceLast = now - lastCommandTime
+            if timeSinceLast < MIN_COMMAND_DELAY then
+                task.wait(MIN_COMMAND_DELAY - timeSinceLast)
+            end
+            
+            local success = false
+            local err = nil
+            
+            if command.type == "place" then
+                success, err = command.func(unpack(command.args))
+                if success and command.callback then
+                    command.callback(success)
+                end
+            elseif command.type == "upgrade" then
+                success, err = command.func(unpack(command.args))
+                if success and command.callback then
+                    command.callback(success)
+                end
+            elseif command.type == "sell" then
+                success, err = command.func(unpack(command.args))
+                if command.callback then
+                    command.callback(success)
+                end
+            else
+                success, err = pcall(command.func, unpack(command.args or {}))
+                if command.callback then
+                    command.callback(success)
+                end
+            end
+            
+            if command.waitForResponse and command.type ~= "place" then
+                task.wait(command.responseWaitTime or 0.08)
+            end
+            
+            lastCommandTime = tick()
+            
+            if not success and command.retryCount and command.retryCount > 0 then
+                command.retryCount = command.retryCount - 1
+                table.insert(commandQueue, 1, command)
+                task.wait(0.05)
+            elseif not success then
+                warn(string.format("[TDX] Command failed: %s %s", command.type or "unknown", err or ""))
+            end
+        end
+        
+        isProcessing = false
+    end)
+end
+
+local function queueCommand(type, func, args, waitForResponse, retryCount, responseWaitTime, callback)
+    table.insert(commandQueue, {
+        type = type,
+        func = func,
+        args = args or {},
+        waitForResponse = waitForResponse ~= false,
+        retryCount = retryCount or 2,
+        responseWaitTime = responseWaitTime or 0.08,
+        callback = callback
+    })
+    processQueue()
+end
+
+function TDX:WaitForCommands()
+    local startTime = tick()
+    while (#commandQueue > 0 or isProcessing) and (tick() - startTime) < 10 do
+        task.wait(0.05)
+    end
 end
 
 local function isMapOnScreen(mapName)
@@ -46,11 +137,11 @@ function TDX:JoinMapViaAPC(mapName)
         warn("Already in a game, cannot join via APC")
         return false
     end
-    
+
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "APCFinder"
-    screenGui.Parent = game:GetService("CoreGui")
-    
+    screenGui.Parent = CoreGui
+
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 300, 0, 400)
     mainFrame.Position = UDim2.new(0, 10, 0, 10)
@@ -58,14 +149,14 @@ function TDX:JoinMapViaAPC(mapName)
     mainFrame.BackgroundTransparency = 0.1
     mainFrame.BorderSizePixel = 1
     mainFrame.Parent = screenGui
-    
+
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 30)
     title.Text = "APC Map Finder"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.BackgroundTransparency = 1
     title.Parent = mainFrame
-    
+
     local searchingLabel = Instance.new("TextLabel")
     searchingLabel.Size = UDim2.new(1, 0, 0, 30)
     searchingLabel.Position = UDim2.new(0, 0, 0, 30)
@@ -73,7 +164,7 @@ function TDX:JoinMapViaAPC(mapName)
     searchingLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
     searchingLabel.BackgroundTransparency = 1
     searchingLabel.Parent = mainFrame
-    
+
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, 0, 0, 30)
     statusLabel.Position = UDim2.new(0, 0, 0, 60)
@@ -81,7 +172,7 @@ function TDX:JoinMapViaAPC(mapName)
     statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     statusLabel.BackgroundTransparency = 1
     statusLabel.Parent = mainFrame
-    
+
     local mapListFrame = Instance.new("ScrollingFrame")
     mapListFrame.Size = UDim2.new(1, 0, 1, -100)
     mapListFrame.Position = UDim2.new(0, 0, 0, 90)
@@ -89,28 +180,28 @@ function TDX:JoinMapViaAPC(mapName)
     mapListFrame.BackgroundTransparency = 0.3
     mapListFrame.BorderSizePixel = 1
     mapListFrame.Parent = mainFrame
-    
+
     local mapListLayout = Instance.new("UIListLayout")
     mapListLayout.Padding = UDim.new(0, 2)
     mapListLayout.Parent = mapListFrame
-    
+
     local player = Players.LocalPlayer
     local lvl = player.leaderstats and player.leaderstats:FindFirstChild("Level")
     local level = lvl and lvl.Value or 0
-    
+
     local function updateMapList()
         for _, child in ipairs(mapListFrame:GetChildren()) do
             if child:IsA("TextLabel") then
                 child:Destroy()
             end
         end
-        
+
         local anyContainerFound = false
-        
+
         local apcsContainer = Workspace:FindFirstChild("APCs")
         if apcsContainer then
             anyContainerFound = true
-            
+
             local containerLabel = Instance.new("TextLabel")
             containerLabel.Size = UDim2.new(1, -10, 0, 20)
             containerLabel.Text = "--- APCs ---"
@@ -118,12 +209,12 @@ function TDX:JoinMapViaAPC(mapName)
             containerLabel.BackgroundTransparency = 1
             containerLabel.TextXAlignment = Enum.TextXAlignment.Center
             containerLabel.Parent = mapListFrame
-            
+
             for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
                 local attrMap = slotFolder:GetAttribute("MapName") or "Unknown"
                 local apcMap = (slotFolder:FindFirstChild("APC") or {}):GetAttribute("MapName")
                 local displayMap = attrMap ~= "Unknown" and attrMap or (apcMap or "No Map")
-                
+
                 local mapLabel = Instance.new("TextLabel")
                 mapLabel.Size = UDim2.new(1, -10, 0, 25)
                 mapLabel.Text = "  " .. displayMap
@@ -134,12 +225,12 @@ function TDX:JoinMapViaAPC(mapName)
                 mapLabel.Parent = mapListFrame
             end
         end
-        
+
         if level >= 31 then
             local apcs2Container = Workspace:FindFirstChild("APCs2")
             if apcs2Container then
                 anyContainerFound = true
-                
+
                 local containerLabel = Instance.new("TextLabel")
                 containerLabel.Size = UDim2.new(1, -10, 0, 20)
                 containerLabel.Text = "--- APCs2 (Level 31+) ---"
@@ -147,12 +238,12 @@ function TDX:JoinMapViaAPC(mapName)
                 containerLabel.BackgroundTransparency = 1
                 containerLabel.TextXAlignment = Enum.TextXAlignment.Center
                 containerLabel.Parent = mapListFrame
-                
+
                 for _, slotFolder in ipairs(apcs2Container:GetChildren()) do
                     local attrMap = slotFolder:GetAttribute("MapName") or "Unknown"
                     local apcMap = (slotFolder:FindFirstChild("APC") or {}):GetAttribute("MapName")
                     local displayMap = attrMap ~= "Unknown" and attrMap or (apcMap or "No Map")
-                    
+
                     local mapLabel = Instance.new("TextLabel")
                     mapLabel.Size = UDim2.new(1, -10, 0, 25)
                     mapLabel.Text = "  " .. displayMap
@@ -164,7 +255,7 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
-        
+
         if not anyContainerFound then
             local noContainerLabel = Instance.new("TextLabel")
             noContainerLabel.Size = UDim2.new(1, -10, 0, 25)
@@ -174,10 +265,10 @@ function TDX:JoinMapViaAPC(mapName)
             noContainerLabel.Parent = mapListFrame
         end
     end
-    
+
     local found = false
     local startTime = tick()
-    
+
     while not found do
         if self:WaitForGame() then
             statusLabel.Text = "Status: Already in a game, stopping search..."
@@ -185,20 +276,20 @@ function TDX:JoinMapViaAPC(mapName)
             screenGui:Destroy()
             return false
         end
-        
+
         updateMapList()
-        
+
         local elapsed = math.floor(tick() - startTime)
         local levelStatus = (level >= 31) and "Level " .. level .. " (APCs + APCs2)" or "Level " .. level .. " (APCs only)"
         statusLabel.Text = string.format("Status: Searching for '%s'... (%ds) | %s", mapName, elapsed, levelStatus)
-        
+
         local apcsContainer = Workspace:FindFirstChild("APCs")
         if apcsContainer then
             for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
                 local targetFolder = slotFolder
                 local attrMap = slotFolder:GetAttribute("MapName")
                 local matched = false
-                
+
                 if attrMap == mapName then
                     targetFolder = slotFolder
                     matched = true
@@ -209,11 +300,11 @@ function TDX:JoinMapViaAPC(mapName)
                         matched = true
                     end
                 end
-                
+
                 if matched then
                     statusLabel.Text = "Status: MATCH FOUND in APCs! Teleporting..."
                     task.wait(0.5)
-                    
+
                     local detector = targetFolder:FindFirstChild("Detector")
                     if not detector and targetFolder ~= slotFolder then
                         detector = slotFolder:FindFirstChild("Detector")
@@ -221,7 +312,7 @@ function TDX:JoinMapViaAPC(mapName)
                     if not detector and targetFolder:FindFirstChild("APC") then
                         detector = targetFolder.APC:FindFirstChild("Detector")
                     end
-                    
+
                     if detector and detector:IsA("BasePart") then
                         local character = player.Character
                         if character and character:FindFirstChild("HumanoidRootPart") then
@@ -242,7 +333,7 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
-        
+
         if level >= 31 then
             local apcs2Container = Workspace:FindFirstChild("APCs2")
             if apcs2Container then
@@ -250,7 +341,7 @@ function TDX:JoinMapViaAPC(mapName)
                     local targetFolder = slotFolder
                     local attrMap = slotFolder:GetAttribute("MapName")
                     local matched = false
-                    
+
                     if attrMap == mapName then
                         targetFolder = slotFolder
                         matched = true
@@ -261,11 +352,11 @@ function TDX:JoinMapViaAPC(mapName)
                             matched = true
                         end
                     end
-                    
+
                     if matched then
                         statusLabel.Text = "Status: MATCH FOUND in APCs2! Teleporting..."
                         task.wait(0.5)
-                        
+
                         local detector = targetFolder:FindFirstChild("Detector")
                         if not detector and targetFolder ~= slotFolder then
                             detector = slotFolder:FindFirstChild("Detector")
@@ -273,7 +364,7 @@ function TDX:JoinMapViaAPC(mapName)
                         if not detector and targetFolder:FindFirstChild("APC") then
                             detector = targetFolder.APC:FindFirstChild("Detector")
                         end
-                        
+
                         if detector and detector:IsA("BasePart") then
                             local character = player.Character
                             if character and character:FindFirstChild("HumanoidRootPart") then
@@ -295,10 +386,10 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
-        
+
         task.wait(0.5)
     end
-    
+
     screenGui:Destroy()
     return false
 end
@@ -354,40 +445,99 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
     local placeRemote = getRemote("PlaceTower")
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
     
+    local startTime = tick()
+    local timeout = 5
+    
     if cost and cost > 0 then
         while getCurrentCash() < cost do
-            task.wait(0.1)
+            if tick() - startTime > timeout then
+                warn("Timeout waiting for cash for tower:", towerName)
+                return false
+            end
+            task.wait(0.05)
         end
     end
     
-    task.wait(0.2)
-    local success, result = pcall(function()
-        return placeRemote:InvokeServer(unpack(args))
-    end)
-    return success and result or nil
+    local success = false
+    local result = nil
+    local done = false
+    
+    queueCommand("place", function()
+        local res, err = pcall(function()
+            return placeRemote:InvokeServer(unpack(args))
+        end)
+        if res and not err then
+            success = true
+            result = res
+        end
+        done = true
+        return success
+    end, {}, true, 3, 0.15)
+    
+    local waitStart = tick()
+    while not done and tick() - waitStart < 2 do
+        task.wait(0.05)
+    end
+    
+    return success
 end
 
 function TDX:Sell(towerId)
-    task.wait(0.2)
     local sellRemote = getRemote("SellTower")
-    pcall(function()
-        sellRemote:FireServer(towerId)
-    end)
+    local success = false
+    local done = false
+    
+    queueCommand("sell", function()
+        pcall(function()
+            sellRemote:FireServer(towerId)
+            success = true
+        end)
+        done = true
+        return success
+    end, {}, true, 2, 0.1)
+    
+    local waitStart = tick()
+    while not done and tick() - waitStart < 1 do
+        task.wait(0.05)
+    end
+    
+    return success
 end
 
 function TDX:Upgrade(towerId, path, level, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
     
+    local startTime = tick()
+    local timeout = 5
+    
     if cost and cost > 0 then
         while getCurrentCash() < cost do
-            task.wait(0.1)
+            if tick() - startTime > timeout then
+                warn("Timeout waiting for cash for upgrade")
+                return false
+            end
+            task.wait(0.05)
         end
     end
     
-    task.wait(0.2)
-    pcall(function()
-        upgradeRemote:FireServer(towerId, path, level)
-    end)
+    local success = false
+    local done = false
+    
+    queueCommand("upgrade", function()
+        pcall(function()
+            upgradeRemote:FireServer(towerId, path, level)
+            success = true
+        end)
+        done = true
+        return success
+    end, {}, true, 3, 0.12)
+    
+    local waitStart = tick()
+    while not done and tick() - waitStart < 1.5 do
+        task.wait(0.05)
+    end
+    
+    return success
 end
 
 function TDX:Mode(mode)
