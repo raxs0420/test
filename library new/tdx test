@@ -145,11 +145,11 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
     
     if cost and cost > 0 then
         while getCurrentCash() < cost do
-            task.wait(0.01)
+            task.wait(0.1)
         end
     end
     
-    task.wait(0.05)
+    task.wait(0.2)
     local success, result = pcall(function()
         return placeRemote:InvokeServer(unpack(args))
     end)
@@ -157,7 +157,7 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
 end
 
 function TDX:Sell(towerId)
-    task.wait(0.05)
+    task.wait(0.2)
     local sellRemote = getRemote("SellTower")
     pcall(function()
         sellRemote:FireServer(towerId)
@@ -169,11 +169,11 @@ function TDX:Upgrade(towerId, path, level, cost)
     
     if cost and cost > 0 then
         while getCurrentCash() < cost do
-            task.wait(0.01)
+            task.wait(0.1)
         end
     end
     
-    task.wait(0.1)
+    task.wait(0.2)
     pcall(function()
         upgradeRemote:FireServer(towerId, path, level)
     end)
