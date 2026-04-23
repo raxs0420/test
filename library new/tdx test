@@ -1,20 +1,16 @@
 local TDX = {}
-
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local CoreGui = game:GetService("CoreGui")
+local TeleportService = game:GetService("TeleportService")
 
 local function getRemotes()
-    return ReplicatedStorage:FindFirstChild("Remotes")
+    return ReplicatedStorage:WaitForChild("Remotes")
 end
 
 local function getRemote(remoteName)
-    local remotes = getRemotes()
-    if remotes then
-        return remotes:FindFirstChild(remoteName)
-    end
-    return nil
+    local remotes = getRemotes() 
+    return remotes:WaitForChild(remoteName) 
 end
 
 local function getCurrentCash()
@@ -24,18 +20,6 @@ local function getCurrentCash()
         return cash.Value
     end
     return 0
-end
-
-local function isInGame()
-    local player = Players.LocalPlayer
-    if not player then return false end
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return false end
-    local gameGui = playerGui:FindFirstChild("GameGui")
-    if gameGui and gameGui.Visible then
-        return true
-    end
-    return false
 end
 
 local function isMapOnScreen(mapName)
@@ -58,14 +42,14 @@ local function isMapOnScreen(mapName)
 end
 
 function TDX:JoinMapViaAPC(mapName)
-    if isInGame() then
+    if self:WaitForGame() then
         warn("Already in a game, cannot join via APC")
         return false
     end
 
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "APCFinder"
-    screenGui.Parent = CoreGui
+    screenGui.Parent = game:GetService("CoreGui")
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Size = UDim2.new(0, 300, 0, 400)
@@ -189,38 +173,20 @@ function TDX:JoinMapViaAPC(mapName)
             noContainerLabel.BackgroundTransparency = 1
             noContainerLabel.Parent = mapListFrame
         end
-        
-        return anyContainerFound
     end
 
     local found = false
     local startTime = tick()
-    local noContainerStartTime = nil
 
     while not found do
-        if isInGame() then
+        if self:WaitForGame() then
             statusLabel.Text = "Status: Already in a game, stopping search..."
             task.wait(2)
             screenGui:Destroy()
             return false
         end
 
-        local anyContainerFound = updateMapList()
-        
-        if not anyContainerFound then
-            if noContainerStartTime == nil then
-                noContainerStartTime = tick()
-            elseif tick() - noContainerStartTime > 3 then
-                if level == 0 then
-                    statusLabel.Text = "Status: Level 0 and no APCs found - assuming in game, closing..."
-                    task.wait(1)
-                    screenGui:Destroy()
-                    return false
-                end
-            end
-        else
-            noContainerStartTime = nil
-        end
+        updateMapList()
 
         local elapsed = math.floor(tick() - startTime)
         local levelStatus = (level >= 31) and "Level " .. level .. " (APCs + APCs2)" or "Level " .. level .. " (APCs only)"
@@ -338,25 +304,22 @@ function TDX:JoinMapViaAPC(mapName)
 end
 
 function TDX:WaitForGame()
-    return isInGame()
+    local placeTower = getRemote("PlaceTower")
+    local sellTower = getRemote("SellTower")
+    local upgrade = getRemote("TowerUpgradeRequest")
+    return placeTower and sellTower and upgrade
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
     maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
         if isMapOnScreen(mapName) then
-            local remotes = getRemotes()
-            if remotes and remotes:FindFirstChild("MapVoteCast") then
-                remotes.MapVoteCast:FireServer(mapName)
-            end
+            getRemotes().MapVoteCast:FireServer(mapName)
             task.wait(0.1)
             self:Ready()
             return true
         end
-        local remotes = getRemotes()
-        if remotes and remotes:FindFirstChild("MapChangeVoteCast") then
-            remotes.MapChangeVoteCast:FireServer(true)
-        end
+        getRemotes().MapChangeVoteCast:FireServer(true)
         task.wait(1)
     end
     self:JoinMapViaAPC(mapName)
@@ -364,29 +327,18 @@ function TDX:VoteMap(mapName, maxAttempts)
 end
 
 function TDX:RerollMaps()
-    local remotes = getRemotes()
-    if remotes and remotes:FindFirstChild("MapChangeVoteCast") then
-        remotes.MapChangeVoteCast:FireServer(true)
-    end
+    getRemotes().MapChangeVoteCast:FireServer(true)
 end
 
 function TDX:Ready()
-    local remotes = getRemotes()
-    if remotes and remotes:FindFirstChild("MapVoteReady") then
-        remotes.MapVoteReady:FireServer()
-    end
+    getRemotes().MapVoteReady:FireServer()
 end
 
 function TDX:VoteDifficulty(difficulty)
     task.wait(5.5)
-    local remotes = getRemotes()
-    if remotes and remotes:FindFirstChild("DifficultyVoteCast") then
-        remotes.DifficultyVoteCast:FireServer(difficulty)
-    end
+    getRemotes().DifficultyVoteCast:FireServer(difficulty)
     task.wait(0.2)
-    if remotes and remotes:FindFirstChild("DifficultyVoteReady") then
-        remotes.DifficultyVoteReady:FireServer(difficulty)
-    end
+    getRemotes().DifficultyVoteReady:FireServer(difficulty)
     task.wait(1)
 end
 
@@ -400,88 +352,42 @@ end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
     local placeRemote = getRemote("PlaceTower")
-    if not placeRemote then
-        warn("PlaceTower remote not found")
-        return false
-    end
-    
+    local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
+
     if cost and cost > 0 then
-        local startTime = tick()
         while getCurrentCash() < cost do
-            if tick() - startTime > 5 then
-                warn("Timeout waiting for cash")
-                return false
-            end
-            task.wait(0.05)
+            task.wait(0.1)
         end
     end
-    
-    local cashBefore = getCurrentCash()
-    local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
-    
-    pcall(function()
-        placeRemote:InvokeServer(unpack(args))
+
+    task.wait(0.2)
+    local success, result = pcall(function()
+        return placeRemote:InvokeServer(unpack(args))
     end)
-    
-    local startWait = tick()
-    while getCurrentCash() >= cashBefore and tick() - startWait < 1 do
-        task.wait(0.05)
-    end
-    
-    return true
+    return success and result or nil
 end
 
 function TDX:Sell(towerId)
+    task.wait(0.2)
     local sellRemote = getRemote("SellTower")
-    if not sellRemote then
-        warn("SellTower remote not found")
-        return false
-    end
-    
-    local cashBefore = getCurrentCash()
-    
     pcall(function()
         sellRemote:FireServer(towerId)
     end)
-    
-    local startWait = tick()
-    while getCurrentCash() == cashBefore and tick() - startWait < 1 do
-        task.wait(0.05)
-    end
-    
-    return true
 end
 
 function TDX:Upgrade(towerId, path, level, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
-    if not upgradeRemote then
-        warn("TowerUpgradeRequest remote not found")
-        return false
-    end
-    
+
     if cost and cost > 0 then
-        local startTime = tick()
         while getCurrentCash() < cost do
-            if tick() - startTime > 5 then
-                warn("Timeout waiting for cash for upgrade")
-                return false
-            end
-            task.wait(0.05)
+            task.wait(0.1)
         end
     end
-    
-    local cashBefore = getCurrentCash()
-    
+
+    task.wait(0.2)
     pcall(function()
         upgradeRemote:FireServer(towerId, path, level)
     end)
-    
-    local startWait = tick()
-    while getCurrentCash() >= cashBefore and tick() - startWait < 1 do
-        task.wait(0.05)
-    end
-    
-    return true
 end
 
 function TDX:Mode(mode)
@@ -516,6 +422,7 @@ function TDX:StartMatchmaking()
 end
 
 function TDX:Equip(items)
+    local args = {items}
     local network = ReplicatedStorage:FindFirstChild("Network")
     if not network then
         network = ReplicatedStorage:FindFirstChild("Remotes")
@@ -523,7 +430,7 @@ function TDX:Equip(items)
     if network then
         local updateLoadout = network:FindFirstChild("UpdateLoadout")
         if updateLoadout then
-            updateLoadout:FireServer(items)
+            updateLoadout:FireServer(unpack(args))
         end
     end
 end
