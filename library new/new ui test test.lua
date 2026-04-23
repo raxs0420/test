@@ -801,23 +801,52 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
         ab_data = nil
     end
     ab_data = type(ab_data) == "table" and ab_data or nil
+
     local positions
     if ab_data and type(ab_data.towerPosition) == "table" then
         positions = ab_data.towerPosition
     end
-    local clone_idx = ab_data and ab_data.towerToClone
+
+    local clone_list = {}
+    if ab_data and ab_data.cloneTowerList and type(ab_data.cloneTowerList) == "table" then
+        clone_list = ab_data.cloneTowerList
+    elseif ab_data and ab_data.towerToClone then
+        clone_list = { ab_data.towerToClone }
+    end
+
     local target_idx = ab_data and ab_data.towerTarget
+
     local function attempt()
+        if #clone_list == 0 then
+            while true do
+                local ok, res = pcall(function()
+                    local data = ab_data and table.clone(ab_data) or nil
+                    if data and positions and #positions > 0 then
+                        data.towerPosition = positions[math.random(#positions)]
+                    end
+                    return remote_func:InvokeServer("Troops", "Abilities", "Activate", {
+                        Troop = t_obj,
+                        Name = ab_name,
+                        Data = data
+                    })
+                end)
+                if ok and check_res_ok(res) then return true end
+                task.wait(0.25)
+            end
+        end
+
+        local idx = 1
+        local list_len = #clone_list
         while true do
+            local clone_id = clone_list[idx]
             local ok, res = pcall(function()
-                local data
-                if ab_data then
-                    data = table.clone(ab_data)
+                local data = ab_data and table.clone(ab_data) or nil
+                if data then
                     if positions and #positions > 0 then
                         data.towerPosition = positions[math.random(#positions)]
                     end
-                    if type(clone_idx) == "number" then
-                        data.towerToClone = TDS.placed_towers[clone_idx]
+                    if clone_id then
+                        data.towerToClone = TDS.placed_towers[clone_id]
                     end
                     if type(target_idx) == "number" then
                         data.towerTarget = TDS.placed_towers[target_idx]
@@ -829,10 +858,14 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
                     Data = data
                 })
             end)
-            if ok and check_res_ok(res) then return true end
+            if ok and check_res_ok(res) then
+                return true
+            end
+            idx = idx % list_len + 1
             task.wait(0.25)
         end
     end
+
     if is_looping then
         local active = true
         task.spawn(function()
@@ -843,7 +876,9 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
         end)
         return function() active = false end
     end
-    return attempt()
+
+    attempt()
+    return nil
 end
 
 function TDS:Mode(difficulty)
