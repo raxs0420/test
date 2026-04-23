@@ -815,27 +815,13 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
     end
 
     local target_idx = ab_data and ab_data.towerTarget
-    local towers_folder = workspace:FindFirstChild("Towers") or workspace.Towers
+    local attempts_per_id = ab_data and ab_data.attemptsPerId or 3
 
-    local function count_flying_towers()
-        if not towers_folder then return 0 end
-        local count = 0
-        for _, tower in ipairs(towers_folder:GetChildren()) do
-            if tower:GetAttribute("Flying") == true then
-                count = count + 1
-            end
-        end
-        return count
-    end
-
-    local function attempt_on_tower(casting_tower, clone_id)
+    local function attempt_ability(casting_tower, clone_id)
         local tower_to_clone = TDS.placed_towers[clone_id]
         if not tower_to_clone then
             return false
         end
-
-        local before_count = count_flying_towers()
-
         local ok, res = pcall(function()
             local data = ab_data and table.clone(ab_data) or nil
             if data then
@@ -853,24 +839,24 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
                 Data = data
             })
         end)
-
-        if ok and check_res_ok(res) then
-            task.wait(0.5)
-            local after_count = count_flying_towers()
-            if after_count > before_count then
-                return true
-            end
-            task.wait(0.5)
-            after_count = count_flying_towers()
-            if after_count > before_count then
-                return true
-            end
-        end
-        return false
+        return ok and check_res_ok(res)
     end
 
-    local function attempt()
-        if #clone_list == 0 then
+    local function run_cycle()
+        local casting_towers
+        if type(t_obj) == "table" then
+            casting_towers = t_obj
+        else
+            casting_towers = { t_obj }
+        end
+
+        local tower_idx = 1
+        local clone_idx = 1
+        local attempt_counter = 0
+        local towers_len = #casting_towers
+        local list_len = #clone_list
+
+        if list_len == 0 then
             while true do
                 local ok, res = pcall(function()
                     local data = ab_data and table.clone(ab_data) or nil
@@ -883,34 +869,24 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
                         Data = data
                     })
                 end)
-                if ok and check_res_ok(res) then return true end
+                if ok and check_res_ok(res) then return end
                 task.wait(0.25)
             end
         end
-
-        local casting_towers
-        if type(t_obj) == "table" then
-            casting_towers = t_obj
-        else
-            casting_towers = { t_obj }
-        end
-
-        local tower_idx = 1
-        local clone_idx = 1
-        local list_len = #clone_list
-        local towers_len = #casting_towers
 
         while true do
             local casting_tower = casting_towers[tower_idx]
             local clone_id = clone_list[clone_idx]
 
-            if attempt_on_tower(casting_tower, clone_id) then
-                return true
-            end
+            attempt_ability(casting_tower, clone_id)
 
-            clone_idx = clone_idx % list_len + 1
-            if clone_idx == 1 then
-                tower_idx = tower_idx % towers_len + 1
+            attempt_counter = attempt_counter + 1
+            if attempt_counter >= attempts_per_id then
+                attempt_counter = 0
+                clone_idx = clone_idx % list_len + 1
+                if clone_idx == 1 then
+                    tower_idx = tower_idx % towers_len + 1
+                end
             end
             task.wait(0.25)
         end
@@ -920,14 +896,14 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
         local active = true
         task.spawn(function()
             while active do
-                attempt()
+                run_cycle()
                 task.wait(1)
             end
         end)
         return function() active = false end
     end
 
-    attempt()
+    run_cycle()
     return nil
 end
 
