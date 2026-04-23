@@ -6,11 +6,6 @@ local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
 local CoreGui = game:GetService("CoreGui")
 
-local commandQueue = {}
-local isProcessing = false
-local lastCommandTime = 0
-local MIN_COMMAND_DELAY = 0.15
-
 local towerCount = 0
 local towerIds = {}
 
@@ -51,82 +46,8 @@ local function isInGame()
     return false
 end
 
-local function processQueue()
-    if isProcessing or #commandQueue == 0 then
-        return
-    end
-    
-    isProcessing = true
-    
-    task.spawn(function()
-        while #commandQueue > 0 do
-            local command = table.remove(commandQueue, 1)
-            
-            local now = tick()
-            local timeSinceLast = now - lastCommandTime
-            if timeSinceLast < MIN_COMMAND_DELAY then
-                task.wait(MIN_COMMAND_DELAY - timeSinceLast)
-            end
-            
-            local success = false
-            
-            if command.type == "place" then
-                success = command.func(unpack(command.args))
-                if success and command.callback then
-                    command.callback(success)
-                end
-            elseif command.type == "upgrade" then
-                success = command.func(unpack(command.args))
-                if success and command.callback then
-                    command.callback(success)
-                end
-            elseif command.type == "sell" then
-                success = command.func(unpack(command.args))
-                if command.callback then
-                    command.callback(success)
-                end
-            else
-                success = pcall(command.func, unpack(command.args or {}))
-                if command.callback then
-                    command.callback(success)
-                end
-            end
-            
-            if command.waitForResponse then
-                task.wait(command.responseWaitTime or 0.1)
-            end
-            
-            lastCommandTime = tick()
-            
-            if not success and command.retryCount and command.retryCount > 0 then
-                command.retryCount = command.retryCount - 1
-                table.insert(commandQueue, 1, command)
-                task.wait(0.1)
-            end
-        end
-        
-        isProcessing = false
-    end)
-end
-
-local function queueCommand(type, func, args, waitForResponse, retryCount, responseWaitTime, callback)
-    table.insert(commandQueue, {
-        type = type,
-        func = func,
-        args = args or {},
-        waitForResponse = waitForResponse ~= false,
-        retryCount = retryCount or 2,
-        responseWaitTime = responseWaitTime or 0.1,
-        callback = callback
-    })
-    processQueue()
-end
-
-function TDX:WaitForCommands()
-    local startTime = tick()
-    while (#commandQueue > 0 or isProcessing) and (tick() - startTime) < 10 do
-        task.wait(0.05)
-    end
+function TDX:WaitForGame()
+    return isInGame()
 end
 
 local function isMapOnScreen(mapName)
@@ -428,10 +349,6 @@ function TDX:JoinMapViaAPC(mapName)
     return false
 end
 
-function TDX:WaitForGame()
-    return isInGame()
-end
-
 function TDX:VoteMap(mapName, maxAttempts)
     maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
@@ -511,26 +428,53 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
         end
     end
     
-    local success = false
-    local returnedId = nil
-    
-    local res, err = pcall(function()
-        return placeRemote:InvokeServer(unpack(args))
+    pcall(function()
+        placeRemote:InvokeServer(unpack(args))
     end)
     
-    if res and not err then
-        success = true
-        returnedId = res
-        towerCount = towerCount + 1
-        towerIds[towerCount] = returnedId
-        print("[TDX] Placed", towerName, "as tower ID:", returnedId, "(Tower #" .. towerCount .. ")")
-    else
-        warn("[TDX] Failed to place", towerName, err)
+    task.wait(0.2)
+    
+    towerCount = towerCount + 1
+    
+    local function findTowerId()
+        local towers = workspace:FindFirstChild("Towers")
+        if towers then
+            for _, tower in ipairs(towers:GetChildren()) do
+                if tower:IsA("Model") and tower:FindFirstChild("HumanoidRootPart") then
+                    local towerPos = tower.HumanoidRootPart.Position
+                    local targetPos = Vector3.new(x, y, z)
+                    local distance = (towerPos - targetPos).Magnitude
+                    if distance < 5 then
+                        local id = tonumber(tower.Name)
+                        if id then
+                            return id
+                        end
+                    end
+                end
+            end
+        end
+        return nil
     end
     
-    task.wait(0.15)
+    local towerId = nil
+    local findStart = tick()
+    while not towerId and tick() - findStart < 2 do
+        towerId = findTowerId()
+        task.wait(0.1)
+    end
     
-    return success
+    if towerId then
+        towerIds[towerCount] = towerId
+        print("[TDX] Placed", towerName, "at position", x, y, z, "-> Tower ID:", towerId, "(Tower #" .. towerCount .. ")")
+    else
+        warn("[TDX] Could not find tower ID for", towerName, "at position", x, y, z)
+        local towers = workspace:FindFirstChild("Towers")
+        if towers then
+            print("[TDX] Available towers:", towers:GetChildren())
+        end
+    end
+    
+    return true
 end
 
 function TDX:Sell(towerId)
@@ -540,16 +484,12 @@ function TDX:Sell(towerId)
         return false
     end
     
-    local success = false
-    
     pcall(function()
         sellRemote:FireServer(towerId)
-        success = true
     end)
     
     task.wait(0.1)
-    
-    return success
+    return true
 end
 
 function TDX:Upgrade(towerNumber, path, level, cost)
@@ -561,7 +501,8 @@ function TDX:Upgrade(towerNumber, path, level, cost)
     
     local towerId = towerIds[towerNumber]
     if not towerId then
-        warn("Tower #" .. towerNumber .. " not found! Make sure you placed it first. Current towers:", towerIds)
+        warn("Tower #" .. towerNumber .. " not found! Make sure you placed it first.")
+        warn("Current tower mapping:", towerIds)
         return false
     end
     
@@ -571,56 +512,20 @@ function TDX:Upgrade(towerNumber, path, level, cost)
     if cost and cost > 0 then
         while getCurrentCash() < cost do
             if tick() - startTime > timeout then
-                warn("Timeout waiting for cash for upgrade on tower #" .. towerNumber)
+                warn("Timeout waiting for cash for tower #" .. towerNumber)
                 return false
             end
             task.wait(0.05)
         end
     end
     
-    local success = false
-    
     pcall(function()
         upgradeRemote:FireServer(towerId, path, level)
-        success = true
-        print("[TDX] Upgraded tower #" .. towerNumber .. " (ID:" .. towerId .. ") path:" .. path .. " level:" .. level)
+        print("[TDX] Upgraded tower #" .. towerNumber .. " (ID:" .. towerId .. ") path:" .. path .. " level:" .. level .. " cost:" .. (cost or "unknown"))
     end)
     
-    task.wait(0.12)
-    
-    return success
-end
-
-function TDX:UpgradeById(towerId, path, level, cost)
-    local upgradeRemote = getRemote("TowerUpgradeRequest")
-    if not upgradeRemote then
-        warn("TowerUpgradeRequest remote not found, make sure you're in a game")
-        return false
-    end
-    
-    local startTime = tick()
-    local timeout = 5
-    
-    if cost and cost > 0 then
-        while getCurrentCash() < cost do
-            if tick() - startTime > timeout then
-                warn("Timeout waiting for cash for upgrade")
-                return false
-            end
-            task.wait(0.05)
-        end
-    end
-    
-    local success = false
-    
-    pcall(function()
-        upgradeRemote:FireServer(towerId, path, level)
-        success = true
-    end)
-    
-    task.wait(0.12)
-    
-    return success
+    task.wait(0.15)
+    return true
 end
 
 function TDX:GetTowerId(towerNumber)
@@ -628,6 +533,7 @@ function TDX:GetTowerId(towerNumber)
 end
 
 function TDX:GetAllTowerIds()
+    table.sort(towerIds)
     return towerIds
 end
 
