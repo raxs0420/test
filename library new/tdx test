@@ -416,13 +416,18 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
         end
     end
     
+    local cashBefore = getCurrentCash()
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
     
     pcall(function()
         placeRemote:InvokeServer(unpack(args))
     end)
     
-    task.wait(0.3)
+    local startWait = tick()
+    while getCurrentCash() >= cashBefore and tick() - startWait < 1 do
+        task.wait(0.05)
+    end
+    
     return true
 end
 
@@ -433,11 +438,17 @@ function TDX:Sell(towerId)
         return false
     end
     
+    local cashBefore = getCurrentCash()
+    
     pcall(function()
         sellRemote:FireServer(towerId)
     end)
     
-    task.wait(0.2)
+    local startWait = tick()
+    while getCurrentCash() == cashBefore and tick() - startWait < 1 do
+        task.wait(0.05)
+    end
+    
     return true
 end
 
@@ -459,11 +470,17 @@ function TDX:Upgrade(towerId, path, level, cost)
         end
     end
     
+    local cashBefore = getCurrentCash()
+    
     pcall(function()
         upgradeRemote:FireServer(towerId, path, level)
     end)
     
-    task.wait(0.25)
+    local startWait = tick()
+    while getCurrentCash() >= cashBefore and tick() - startWait < 1 do
+        task.wait(0.05)
+    end
+    
     return true
 end
 
