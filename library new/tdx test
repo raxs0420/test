@@ -11,16 +11,18 @@ local isProcessing = false
 local lastCommandTime = 0
 local MIN_COMMAND_DELAY = 0.12
 
-local lastPlacedTowerId = nil
-local towerIdMap = {}
-
 local function getRemotes()
     return ReplicatedStorage:WaitForChild("Remotes")
 end
 
 local function getRemote(remoteName)
-    local remotes = getRemotes()
-    return remotes:WaitForChild(remoteName)
+    local success, remote = pcall(function()
+        return ReplicatedStorage:FindFirstChild("Remotes"):WaitForChild(remoteName, 5)
+    end)
+    if success and remote then
+        return remote
+    end
+    return nil
 end
 
 local function getCurrentCash()
@@ -85,7 +87,7 @@ local function processQueue()
                 table.insert(commandQueue, 1, command)
                 task.wait(0.05)
             elseif not success then
-                warn(string.format("[TDX] Command failed: %s %s", command.type or "unknown", err or ""))
+                warn("[TDX] Command failed:", command.type, err or "")
             end
         end
         
@@ -395,22 +397,34 @@ function TDX:JoinMapViaAPC(mapName)
 end
 
 function TDX:WaitForGame()
-    local placeTower = getRemote("PlaceTower")
-    local sellTower = getRemote("SellTower")
-    local upgrade = getRemote("TowerUpgradeRequest")
-    return placeTower and sellTower and upgrade
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if not remotes then
+        return false
+    end
+    
+    local placeTower = remotes:FindFirstChild("PlaceTower")
+    local sellTower = remotes:FindFirstChild("SellTower")
+    local upgrade = remotes:FindFirstChild("TowerUpgradeRequest")
+    
+    return placeTower ~= nil and sellTower ~= nil and upgrade ~= nil
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
     maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
         if isMapOnScreen(mapName) then
-            getRemotes().MapVoteCast:FireServer(mapName)
+            local remotes = getRemotes()
+            if remotes and remotes:FindFirstChild("MapVoteCast") then
+                remotes.MapVoteCast:FireServer(mapName)
+            end
             task.wait(0.1)
             self:Ready()
             return true
         end
-        getRemotes().MapChangeVoteCast:FireServer(true)
+        local remotes = getRemotes()
+        if remotes and remotes:FindFirstChild("MapChangeVoteCast") then
+            remotes.MapChangeVoteCast:FireServer(true)
+        end
         task.wait(1)
     end
     self:JoinMapViaAPC(mapName)
@@ -418,18 +432,29 @@ function TDX:VoteMap(mapName, maxAttempts)
 end
 
 function TDX:RerollMaps()
-    getRemotes().MapChangeVoteCast:FireServer(true)
+    local remotes = getRemotes()
+    if remotes and remotes:FindFirstChild("MapChangeVoteCast") then
+        remotes.MapChangeVoteCast:FireServer(true)
+    end
 end
 
 function TDX:Ready()
-    getRemotes().MapVoteReady:FireServer()
+    local remotes = getRemotes()
+    if remotes and remotes:FindFirstChild("MapVoteReady") then
+        remotes.MapVoteReady:FireServer()
+    end
 end
 
 function TDX:VoteDifficulty(difficulty)
     task.wait(5.5)
-    getRemotes().DifficultyVoteCast:FireServer(difficulty)
+    local remotes = getRemotes()
+    if remotes and remotes:FindFirstChild("DifficultyVoteCast") then
+        remotes.DifficultyVoteCast:FireServer(difficulty)
+    end
     task.wait(0.2)
-    getRemotes().DifficultyVoteReady:FireServer(difficulty)
+    if remotes and remotes:FindFirstChild("DifficultyVoteReady") then
+        remotes.DifficultyVoteReady:FireServer(difficulty)
+    end
     task.wait(1)
 end
 
@@ -443,6 +468,11 @@ end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
     local placeRemote = getRemote("PlaceTower")
+    if not placeRemote then
+        warn("PlaceTower remote not found")
+        return false
+    end
+    
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
     
     local startTime = tick()
@@ -459,7 +489,6 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
     end
     
     local success = false
-    local result = nil
     local done = false
     
     queueCommand("place", function()
@@ -468,7 +497,6 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
         end)
         if res and not err then
             success = true
-            result = res
         end
         done = true
         return success
@@ -484,6 +512,11 @@ end
 
 function TDX:Sell(towerId)
     local sellRemote = getRemote("SellTower")
+    if not sellRemote then
+        warn("SellTower remote not found")
+        return false
+    end
+    
     local success = false
     local done = false
     
@@ -506,6 +539,10 @@ end
 
 function TDX:Upgrade(towerId, path, level, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
+    if not upgradeRemote then
+        warn("TowerUpgradeRequest remote not found")
+        return false
+    end
     
     local startTime = tick()
     local timeout = 5
@@ -582,6 +619,16 @@ function TDX:Equip(items)
         if updateLoadout then
             updateLoadout:FireServer(unpack(args))
         end
+    end
+end
+
+function TDX:FlushCommands()
+    local startTime = tick()
+    while #commandQueue > 0 or isProcessing do
+        if tick() - startTime > 5 then
+            break
+        end
+        task.wait(0.05)
     end
 end
 
