@@ -42,22 +42,7 @@ local function isMapOnScreen(mapName)
 end
 
 function TDX:JoinMapViaAPC(mapName)
-    local function isInGame()
-        local player = Players.LocalPlayer
-        local playerGui = player:FindFirstChild("PlayerGui")
-        if playerGui then
-            local interface = playerGui:FindFirstChild("Interface")
-            if interface then
-                local gameGUI = interface:FindFirstChild("GameGUI")
-                if gameGUI and gameGUI.Visible then
-                    return true
-                end
-            end
-        end
-        return false
-    end
-    
-    if isInGame() then
+    if self:WaitForGame() then
         warn("Already in a game, cannot join via APC")
         return false
     end
@@ -194,7 +179,7 @@ function TDX:JoinMapViaAPC(mapName)
     local startTime = tick()
     
     while not found do
-        if isInGame() then
+        if self:WaitForGame() then
             statusLabel.Text = "Status: Already in a game, stopping search..."
             task.wait(2)
             screenGui:Destroy()
