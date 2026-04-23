@@ -1,377 +1,94 @@
--- [[ CONFIGURATION ]]
 _G.AutoPickups = true
 _G.AntiLag = true
 _G.ClaimRewards = true
 _G.AutoRejoin = true
-_G.AutoNecro = true
 
--- Library 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 TDS:Mode("Polluted")
-TDS:Loadout("DJ Booth", "Mercenary Base", "Engineer", "Hacker", "Commander")
+TDS:Loadout("Scout", "Hacker", "Gatling Gun", "Turret", "Minigunner")
 
 TDS:Ready()
+TDS:AutoSkip(true)
 
-TDS:Place("Engineer", 2.97372, 80.00000, -8.87757)
-TDS:Upgrade(1)
-TDS:Upgrade(1)
-TDS:Place("Engineer", 2.24295, 80.00000, -8.83714)
-TDS:Upgrade(2)
-TDS:Upgrade(2)
-TDS:Place("Engineer", 0.71247, 80.00000, -9.19645)
-TDS:Upgrade(3)
-TDS:Upgrade(3)
-TDS:Place("Engineer", -0.54600, 80.00000, -8.91098)
-TDS:Upgrade(4)
-TDS:Upgrade(4)
-TDS:Place("Engineer", 1.22660, 80.00000, -9.26054)
-TDS:Upgrade(5)
-TDS:Upgrade(5)
-TDS:Place("Engineer", 2.11555, 80.00000, -9.00675)
-TDS:Upgrade(6)
-TDS:Upgrade(6)
+local scoutPos = {2.97372, 60, -8.87757}
+for i = 1, 12 do
+    TDS:Place("Scout", unpack(scoutPos))
+end
 
-TDS:Place("Hacker", 13.23975, 80.00000, -2.00263)
-TDS:Upgrade(7)
-TDS:Upgrade(7)
-TDS:Place("Hacker", -8.67222, 80.00000, -2.22654)
-TDS:Upgrade(8)
-TDS:Upgrade(8)
+for i = 1, 12 do
+    TDS:Upgrade(i)
+end
+TDS:AutoSkip(false)
+for i = 1, 12 do
+    TDS:Upgrade(i)
+end
 
-TDS:Upgrade(5)
-TDS:Upgrade(4)
-TDS:Upgrade(3)
-TDS:Upgrade(2)
-TDS:Upgrade(1)
-TDS:Upgrade(6)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
 
-TDS:Place("Mercenary Base", -29.61763, 80, 18.82778)
-TDS:Upgrade(9)
-TDS:Upgrade(9)
-TDS:Upgrade(9)
-TDS:Upgrade(9)
-TDS:Place("Mercenary Base", -32.33821, 80, 14.98133)
-TDS:Upgrade(10)
-TDS:Upgrade(10)
-TDS:Upgrade(10)
-TDS:Upgrade(10)
+TDS:Place("Gatling Gun", 2.97372, 60, -8.87757)
+for i = 1, 3 do TDS:Upgrade(13) end
 
-TDS:Place("DJ Booth", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(11)
-TDS:Upgrade(11)
-TDS:Upgrade(11)
-TDS:SetOption(11, "Track", "Green")
-TDS:Ability(11, "Drop The Beat", {Nill} , true)
+TDS:Place("Hacker", 16.544041, 60, -0.171377)
+TDS:Place("Hacker", -11.820422, 60, 0.366197)
 
+for id = 14, 15 do
+    for i = 1, 2 do TDS:Upgrade(id) end
+end
 
-TDS:Place("Commander", 1.24331, 80.00000, -9.92472)
-TDS:Upgrade(12)
-TDS:Upgrade(12)
-TDS:Place("Commander", 0.81278, 80.00000, -10.05554)
+TDS:Place("Turret", 2.54573, 60, -8.38319)
+TDS:Place("Turret", 2.54573, 60, -8.38319)
+TDS:Place("Turret", 2.54573, 60, -8.38319)
+
+for id = 16, 18 do
+    for i = 1, 5 do TDS:Upgrade(id) end
+end
+
 TDS:Upgrade(13)
 TDS:Upgrade(13)
-TDS:Place("Commander", 0.06205, 80.00000, -9.87184)
-TDS:Upgrade(14)
-TDS:Upgrade(14)
-
-TDS:AutoChain(12, 13, 14)
-
-TDS:Upgrade(5)
-TDS:Upgrade(4)
-TDS:Upgrade(3)
-TDS:Upgrade(2)
-TDS:Upgrade(1)
-TDS:Upgrade(6)
-
-TDS:Upgrade(5)
-TDS:Upgrade(4)
-TDS:Upgrade(3)
-TDS:Upgrade(2)
-TDS:Upgrade(1)
-TDS:Upgrade(6)
-
-TDS:Upgrade(11)
-TDS:Upgrade(11)
-
-TDS:Upgrade(5)
-TDS:Upgrade(4)
-TDS:Upgrade(3)
-TDS:Upgrade(2)
-TDS:Upgrade(1)
-TDS:Upgrade(6)
-
-TDS:Upgrade(14)
-TDS:Upgrade(14)
 TDS:Upgrade(13)
-TDS:Upgrade(13)
-TDS:Upgrade(12)
-TDS:Upgrade(12)
 
-TDS:Place("Mercenary Base", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(15)
-TDS:Upgrade(15)
-TDS:Upgrade(15)
-TDS:Upgrade(15)
+for id = 14, 15 do
+    TDS:Upgrade(id)
+    TDS:Upgrade(id)
+    TDS:Upgrade(id, 2)
+end
 
-TDS:Loadout("Minigunner", "Turret", "Necromancer", "Accelerator", "DJ Booth")
+local centralPos = {2.54573, 60, -8.38319}
+for i = 1, 32 do
+    local id = 18 + i
+    TDS:Place("Minigunner", unpack(centralPos))
+    for j = 1, 4 do TDS:Upgrade(id) end
+end
 
-TDS:Place("Necromancer", 1.48576, 80.00000, -13.27458)
-TDS:Upgrade(16)
-TDS:Upgrade(16)
-TDS:Upgrade(16)
-TDS:Upgrade(16)
-
-TDS:Place("Necromancer", 1.31765, 80.00000, -13.47484)
-TDS:Upgrade(17)
-TDS:Upgrade(17)
-TDS:Upgrade(17)
-TDS:Upgrade(17)
-
-TDS:Place("Necromancer", 1.21096, 80.00000, -12.88341)
-TDS:Upgrade(18)
-TDS:Upgrade(18)
-TDS:Upgrade(18)
-TDS:Upgrade(18)
-
-TDS:Upgrade(9)
-TDS:Upgrade(9)
-TDS:Upgrade(10)
-TDS:Upgrade(10)
-TDS:Upgrade(15)
-TDS:Upgrade(15)
-
-TDS:Upgrade(7)
-TDS:Upgrade(7)
-TDS:Upgrade(7, 2)
-TDS:Upgrade(8)
-TDS:Upgrade(8)
-TDS:Upgrade(8, 2)
-
-TDS:Place("Turret", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(19)
-TDS:Upgrade(19)
-TDS:Upgrade(19)
-TDS:Upgrade(19)
-TDS:Upgrade(19)
-
-TDS:Place("Turret", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(20)
-TDS:Upgrade(20)
-TDS:Upgrade(20)
-TDS:Upgrade(20)
-TDS:Upgrade(20)
-
-TDS:Place("Turret", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(21)
-TDS:Upgrade(21)
-TDS:Upgrade(21)
-TDS:Upgrade(21)
-TDS:Upgrade(21)
-
-TDS:Place("Accelerator", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(22)
-TDS:Upgrade(22)
-TDS:Upgrade(22)
-TDS:Upgrade(22)
-
-TDS:Place("Accelerator", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(23)
-TDS:Upgrade(23)
-TDS:Upgrade(23)
-TDS:Upgrade(23)
-
-TDS:Place("Accelerator", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(24)
-TDS:Upgrade(24)
-TDS:Upgrade(24)
-TDS:Upgrade(24)
-
-TDS:Place("Accelerator", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(25)
-TDS:Upgrade(25)
-TDS:Upgrade(25)
-TDS:Upgrade(25)
-
-TDS:Place("Accelerator", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(26)
-TDS:Upgrade(26)
-TDS:Upgrade(26)
-TDS:Upgrade(26)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(27)
-TDS:Upgrade(27)
-TDS:Upgrade(27)
-TDS:Upgrade(27)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(28)
-TDS:Upgrade(28)
-TDS:Upgrade(28)
-TDS:Upgrade(28)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(29)
-TDS:Upgrade(29)
-TDS:Upgrade(29)
-TDS:Upgrade(29)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(30)
-TDS:Upgrade(30)
-TDS:Upgrade(30)
-TDS:Upgrade(30)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(31)
-TDS:Upgrade(31)
-TDS:Upgrade(31)
-TDS:Upgrade(31)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(32)
-TDS:Upgrade(32)
-TDS:Upgrade(32)
-TDS:Upgrade(32)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-TDS:Upgrade(33)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(34)
-TDS:Upgrade(34)
-TDS:Upgrade(34)
-TDS:Upgrade(34)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(35)
-TDS:Upgrade(35)
-TDS:Upgrade(35)
-TDS:Upgrade(35)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(36)
-TDS:Upgrade(36)
-TDS:Upgrade(36)
-TDS:Upgrade(36)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(37)
-TDS:Upgrade(37)
-TDS:Upgrade(37)
-TDS:Upgrade(37)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(38)
-TDS:Upgrade(38)
-TDS:Upgrade(38)
-TDS:Upgrade(38)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(39)
-TDS:Upgrade(39)
-TDS:Upgrade(39)
-TDS:Upgrade(39)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(40)
-TDS:Upgrade(40)
-TDS:Upgrade(40)
-TDS:Upgrade(40)
-
-TDS:Upgrade(22)
-TDS:Upgrade(23)
-TDS:Upgrade(24)
-TDS:Upgrade(25)
-TDS:Upgrade(26)
-
-TDS:SetOption(11, "Track", "Red")
-TDS:Ability(14, "Support Caravan", {Nill} , true)
-TDS:Ability(13, "Support Caravan", {Nill} , true)
-TDS:Ability(12, "Support Caravan", {Nill} , true)
-
-TDS:SetOption(15, "Unit 1", "Field Medic")
-TDS:SetOption(10, "Unit 1", "Field Medic")
-TDS:SetOption(9, "Unit 1", "Field Medic")
-
-TDS:Ability(15, "Air-Drop", {pathName = 1, directionCFrame = CFrame.new(), dist = 250}, true)
-TDS:Ability(10, "Air-Drop", {pathName = 1, directionCFrame = CFrame.new(), dist = 250}, true)
-TDS:Ability(9, "Air-Drop", {pathName = 1, directionCFrame = CFrame.new(), dist = 250}, true)
-
-TDS:Ability(7, "Hologram Tower", {
-    towerToClone = 20,
+TDS:Ability(15, "Hologram Tower", {
+    cloneTowerList = {13, 17, 16, 18},
+    attemptsPerId = 1,
     towerPosition = {
-        Vector3.new(-10.78264, 80.00000, 4.59769),
-        Vector3.new(16.41388, 80.00000, -8.67836),
-    }
-}, true)
-TDS:Ability(8, "Hologram Tower", {
-    towerToClone = 20,
-    towerPosition = {
-        Vector3.new(16.42202, 80.00000, 2.48536),
-        Vector3.new(9.64083, 80.00000, -17.50322),
+        Vector3.new(10.321724, 60, -11.694524),
+        Vector3.new(-7.713146, 60, -9.824799),
+        Vector3.new(-2.277445, 60, -0.553091),
+        Vector3.new(6.580709, 60, -1.090056),
     }
 }, true)
 
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(41)
-TDS:Upgrade(41)
-TDS:Upgrade(41)
-TDS:Upgrade(41)
+TDS:Ability(14, "Hologram Tower", {
+    cloneTowerList = {13, 17, 16, 18},
+    attemptsPerId = 1,
+    towerPosition = {
+        Vector3.new(10.321724, 60, -11.694524),
+        Vector3.new(-7.713146, 60, -9.824799),
+        Vector3.new(-2.277445, 60, -0.553091),
+        Vector3.new(6.580709, 60, -1.090056),
+    }
+}, true)
 
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(42)
-TDS:Upgrade(42)
-TDS:Upgrade(42)
-TDS:Upgrade(42)
+for i = 1, 12 do
+    TDS:Sell(i)
+end
 
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(43)
-TDS:Upgrade(43)
-TDS:Upgrade(43)
-TDS:Upgrade(43)
+for i = 1, 12 do
+    local id = 50 + i
+    TDS:Place("Minigunner", unpack(centralPos))
+    for j = 1, 4 do TDS:Upgrade(id) end
+end
 
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(44)
-TDS:Upgrade(44)
-TDS:Upgrade(44)
-TDS:Upgrade(44)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(45)
-TDS:Upgrade(45)
-TDS:Upgrade(45)
-TDS:Upgrade(45)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(46)
-TDS:Upgrade(46)
-TDS:Upgrade(46)
-TDS:Upgrade(46)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(47)
-TDS:Upgrade(47)
-TDS:Upgrade(47)
-TDS:Upgrade(47)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(48)
-TDS:Upgrade(48)
-TDS:Upgrade(48)
-TDS:Upgrade(48)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(49)
-TDS:Upgrade(49)
-TDS:Upgrade(49)
-TDS:Upgrade(49)
-
-TDS:Place("Minigunner", 2.54573, 80.00000, -8.38319)
-TDS:Upgrade(50)
-TDS:Upgrade(50)
-TDS:Upgrade(50)
-TDS:Upgrade(50)
