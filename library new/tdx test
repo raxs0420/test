@@ -2,6 +2,7 @@ local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
 
 local Remotes = nil
 local CommandQueue = {}
@@ -11,6 +12,8 @@ local AutoSkipEnabled = false
 local LastSpeedChangeTime = 0
 local TowerIds = {}
 local NextTowerId = 1
+local PlacedTowers = {}
+local OccupiedPositions = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -125,6 +128,32 @@ local function autoSkipLoop()
     end)
 end
 
+local function isPositionOccupied(position)
+    local key = string.format("%.1f_%.1f_%.1f", position.X, position.Y, position.Z)
+    if OccupiedPositions[key] then
+        local towerData = OccupiedPositions[key]
+        if towerData.part and towerData.part.Parent then
+            return true
+        else
+            OccupiedPositions[key] = nil
+            return false
+        end
+    end
+    
+    local gameFolder = Workspace:FindFirstChild("Game")
+    if gameFolder then
+        local towersFolder = gameFolder:FindFirstChild("Towers")
+        if towersFolder then
+            for _, part in ipairs(towersFolder:GetChildren()) do
+                if part:IsA("BasePart") and (part.Position - position).Magnitude < 3 then
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
 local function isTowerAlive(towerId)
     local towerData = TowerIds[towerId]
     if not towerData then return false end
@@ -140,6 +169,8 @@ local function isTowerAlive(towerId)
             for _, part in ipairs(towersFolder:GetChildren()) do
                 if part:IsA("BasePart") and (part.Position - towerData.position).Magnitude < 3 then
                     towerData.part = part
+                    local key = string.format("%.1f_%.1f_%.1f", towerData.position.X, towerData.position.Y, towerData.position.Z)
+                    OccupiedPositions[key] = towerData
                     return true
                 end
             end
@@ -147,6 +178,32 @@ local function isTowerAlive(towerId)
     end
     
     TowerIds[towerId] = nil
+    local key = string.format("%.1f_%.1f_%.1f", towerData.position.X, towerData.position.Y, towerData.position.Z)
+    OccupiedPositions[key] = nil
+    return false
+end
+
+local function waitForPositionToBeFree(position, timeout)
+    timeout = timeout or 60
+    local startTime = tick()
+    while tick() - startTime < timeout do
+        if not isPositionOccupied(position) then
+            return true
+        end
+        wait(0.5)
+    end
+    return false
+end
+
+local function waitForTowerToAppear(towerId, timeout)
+    timeout = timeout or 1.5
+    local startTime = tick()
+    while tick() - startTime < timeout do
+        if isTowerAlive(towerId) then
+            return true
+        end
+        wait(0.1)
+    end
     return false
 end
 
@@ -155,6 +212,13 @@ local function processCommand(command, ...)
     
     if command == "Place" then
         local towerName, x, y, z, rotation, cost = unpack(args)
+        local position = Vector3.new(x, y, z)
+        
+        if isPositionOccupied(position) then
+            print("Position occupied, waiting for spot to be free...")
+            waitForPositionToBeFree(position)
+        end
+        
         local initialCash = getCurrentCash()
         
         if cost and cost > 0 then
@@ -190,6 +254,8 @@ local function processCommand(command, ...)
                     for _, part in ipairs(towersFolder:GetChildren()) do
                         if part:IsA("BasePart") and (part.Position - towerPos).Magnitude < 3 then
                             TowerIds[towerId] = {part = part, position = towerPos, name = towerName}
+                            local key = string.format("%.1f_%.1f_%.1f", towerPos.X, towerPos.Y, towerPos.Z)
+                            OccupiedPositions[key] = TowerIds[towerId]
                             return towerId
                         end
                     end
@@ -197,6 +263,8 @@ local function processCommand(command, ...)
             end
             
             TowerIds[towerId] = {part = nil, position = towerPos, name = towerName}
+            local key = string.format("%.1f_%.1f_%.1f", towerPos.X, towerPos.Y, towerPos.Z)
+            OccupiedPositions[key] = TowerIds[towerId]
             return towerId
         end
         return false
@@ -209,8 +277,8 @@ local function processCommand(command, ...)
             return false
         end
         
-        if not isTowerAlive(towerId) then
-            warn("Tower", towerId, "no longer exists, skipping upgrade")
+        if not waitForTowerToAppear(towerId, 1.5) then
+            print("Tower", towerId, "never appeared after placement, skipping upgrade")
             return true
         end
         
@@ -256,6 +324,11 @@ local function processCommand(command, ...)
             end)
             
             waitForCashChange(initialCash)
+            
+            if TowerIds[towerId] then
+                local key = string.format("%.1f_%.1f_%.1f", TowerIds[towerId].position.X, TowerIds[towerId].position.Y, TowerIds[towerId].position.Z)
+                OccupiedPositions[key] = nil
+            end
             TowerIds[towerId] = nil
             wait(0.45)
             return true
@@ -302,14 +375,23 @@ local function processQueue()
             end
             
             local currentCash = getCurrentCash()
-            if currentCash >= totalCost and #upgradesToProcess > 1 then
-                print("Batching", #upgradesToProcess, "upgrades (total cost:", totalCash, ")")
+            local allTowersAlive = true
+            
+            for _, upgradeCmd in ipairs(upgradesToProcess) do
+                if not waitForTowerToAppear(upgradeCmd.args[1], 0.5) then
+                    allTowersAlive = false
+                    break
+                end
+            end
+            
+            if currentCash >= totalCost and #upgradesToProcess > 1 and allTowersAlive then
+                print("Batching", #upgradesToProcess, "upgrades (total cost:", totalCost, ")")
                 for idx, upgradeCmd in ipairs(upgradesToProcess) do
                     print("Processing batch upgrade", idx, ":", upgradeCmd.args[1], upgradeCmd.args[2], "Cost:", upgradeCmd.args[4])
                     
-                    if not isTowerAlive(upgradeCmd.args[1]) then
-                        warn("Tower", upgradeCmd.args[1], "no longer exists, skipping upgrade in batch")
-                        for k = 1, #upgradesToProcess do
+                    if not waitForTowerToAppear(upgradeCmd.args[1], 0.5) then
+                        warn("Tower", upgradeCmd.args[1], "died during batch, skipping remaining upgrades")
+                        for k = idx, #upgradesToProcess do
                             table.remove(CommandQueue, i)
                         end
                         break
@@ -357,13 +439,20 @@ local function processQueue()
                 end
             else
                 local singleCmd = table.remove(CommandQueue, i)
-                print("Processing single upgrade:", singleCmd.args[1], singleCmd.args[2], "Cost:", singleCmd.args[4])
-                local success = processCommand(singleCmd.type, unpack(singleCmd.args))
-                if not success then
-                    warn("Command failed, retrying in 1 second:", singleCmd.type, singleCmd.args)
-                    wait(1)
-                    table.insert(CommandQueue, i, singleCmd)
-                    i = i + 1
+                
+                if singleCmd.type == "Upgrade" then
+                    if not waitForTowerToAppear(singleCmd.args[1], 1.5) then
+                        print("Tower", singleCmd.args[1], "never appeared, skipping upgrade")
+                    else
+                        print("Processing single upgrade:", singleCmd.args[1], singleCmd.args[2], "Cost:", singleCmd.args[4])
+                        local success = processCommand(singleCmd.type, unpack(singleCmd.args))
+                        if not success then
+                            warn("Command failed, retrying in 1 second:", singleCmd.type, singleCmd.args)
+                            wait(1)
+                            table.insert(CommandQueue, i, singleCmd)
+                            i = i + 1
+                        end
+                    end
                 end
             end
         else
@@ -696,6 +785,22 @@ function TDX:AutoSkip(enabled)
         autoSkipLoop()
     end
     return true
+end
+
+function TDX:SkipCurrentCommand()
+    if #CommandQueue > 0 then
+        table.remove(CommandQueue, 1)
+        print("Skipped current command")
+        return true
+    end
+    return false
+end
+
+function TDX:ClearQueue()
+    local count = #CommandQueue
+    CommandQueue = {}
+    print("Cleared", count, "commands from queue")
+    return count
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
