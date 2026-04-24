@@ -3,28 +3,32 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
-local RunService = game:GetService("RunService")
 
 local function getRemotes()
-    return ReplicatedStorage:WaitForChild("Remotes")
+    return ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:WaitForChild("Remotes", 5)
 end
 
 local function getRemote(remoteName)
-    local remotes = getRemotes() 
-    return remotes:WaitForChild(remoteName) 
+    local remotes = getRemotes()
+    if not remotes then return nil end
+    local remote = remotes:FindFirstChild(remoteName)
+    if not remote then
+        remote = remotes:FindFirstChild(remoteName) or remotes:WaitForChild(remoteName, 3)
+    end
+    return remote
 end
 
 local function getCurrentCash()
     local player = Players.LocalPlayer
-    local cash = player.leaderstats and player.leaderstats:FindFirstChild("Cash")
-    if cash then
-        return cash.Value
-    end
-    return 0
+    if not player or not player.leaderstats then return 0 end
+    local cash = player.leaderstats:FindFirstChild("Cash")
+    return cash and cash.Value or 0
 end
 
 local function isMapOnScreen(mapName)
-    local playerGui = Players.LocalPlayer:FindFirstChild("PlayerGui")
+    local player = Players.LocalPlayer
+    if not player then return false end
+    local playerGui = player:FindFirstChild("PlayerGui")
     if not playerGui then return false end
     local interface = playerGui:FindFirstChild("Interface")
     if not interface then return false end
@@ -32,6 +36,7 @@ local function isMapOnScreen(mapName)
     if not mapOverride then return false end
     local scrollingFrame = mapOverride:FindFirstChild("ScrollingFrame")
     if not scrollingFrame then return false end
+    
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if (child:IsA("ImageButton") or child:IsA("TextButton")) and child.Name == mapName then
             if child.Visible == false then
@@ -70,7 +75,7 @@ function TDX:JoinMapViaAPC(mapName)
     local searchingLabel = Instance.new("TextLabel")
     searchingLabel.Size = UDim2.new(1, 0, 0, 30)
     searchingLabel.Position = UDim2.new(0, 0, 0, 30)
-    searchingLabel.Text = "Searching for: " .. mapName
+    searchingLabel.Text = "Searching for: " .. tostring(mapName)
     searchingLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
     searchingLabel.BackgroundTransparency = 1
     searchingLabel.Parent = mainFrame
@@ -96,8 +101,9 @@ function TDX:JoinMapViaAPC(mapName)
     mapListLayout.Parent = mapListFrame
 
     local player = Players.LocalPlayer
-    local lvl = player.leaderstats and player.leaderstats:FindFirstChild("Level")
-    local level = lvl and lvl.Value or 0
+    local level = 0
+    local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
+    if lvl then level = lvl.Value end
 
     local function updateMapList()
         for _, child in ipairs(mapListFrame:GetChildren()) do
