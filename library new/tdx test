@@ -13,6 +13,7 @@ local PositionToTowerId = {}
 local TowerIdToPosition = {}
 local NextTowerId = 1
 local WAIT_TIME = 0.45
+local BATCH_WAIT = 0.1
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -355,15 +356,25 @@ local function processQueue()
             
             local currentCash = getCurrentCash()
             
-            -- BATCH: Only if we have enough cash for ALL upgrades
+            -- BATCH: If we have enough cash for ALL upgrades, do them fast
             if #upgradesToProcess > 1 and currentCash >= totalCost then
-                print(string.format("✅ BATCHING %d upgrades (Total: $%d, Cash: $%d)", #upgradesToProcess, totalCost, currentCash))
+                print(string.format("🚀 BATCHING %d upgrades (Total: $%d, Cash: $%d) - 0.1s each", #upgradesToProcess, totalCost, currentCash))
                 
                 local batchSuccess = true
                 for idx, upgradeData in ipairs(upgradesToProcess) do
                     local target = upgradeData.args[1]
                     local path = upgradeData.args[2]
                     local cost = upgradeData.args[4]
+                    
+                    local x, y, z = nil, nil, nil
+                    if type(target) == "table" and target.x then
+                        x, y, z = target.x, target.y, target.z
+                    else
+                        local pos = TowerIdToPosition[target]
+                        if pos then
+                            x, y, z = pos.x, pos.y, pos.z
+                        end
+                    end
                     
                     print(string.format("  → Batch %d/%d (Cost: $%d)", idx, #upgradesToProcess, cost))
                     
@@ -396,7 +407,7 @@ local function processQueue()
                         break
                     end
                     
-                    wait(0.15)
+                    wait(BATCH_WAIT)
                     
                     local success, err = pcall(function()
                         upgradeRemote:FireServer(actualTowerId, path, 1)
@@ -404,7 +415,7 @@ local function processQueue()
                     
                     if success then
                         waitForCashChange(initialCash)
-                        wait(0.15)
+                        wait(BATCH_WAIT)
                     else
                         warn("❌ Batch upgrade failed:", err)
                         batchSuccess = false
@@ -416,7 +427,7 @@ local function processQueue()
                     for _ = 1, #upgradesToProcess do
                         table.remove(CommandQueue, i)
                     end
-                    print(string.format("✅ Batch completed, removed %d upgrades", #upgradesToProcess))
+                    print(string.format("✅ Batch completed! Removed %d upgrades", #upgradesToProcess))
                 else
                     -- Fall back to individual processing
                     for _ = 1, #upgradesToProcess do
@@ -429,7 +440,7 @@ local function processQueue()
                 end
             else
                 if #upgradesToProcess > 1 then
-                    print(string.format("⚠️ Not enough cash for batch (Need: $%d, Have: $%d), processing individually", totalCost, currentCash))
+                    print(string.format("⚠️ NOT ENOUGH CASH for batch (Need: $%d, Have: $%d), processing individually", totalCost, currentCash))
                 end
                 
                 local singleCmd = table.remove(CommandQueue, i)
