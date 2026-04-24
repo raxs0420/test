@@ -33,31 +33,25 @@ local function getCurrentCash()
     return cash and cash.Value or 0
 end
 
-local function waitForCashToReach(targetCash, timeout)
-    timeout = timeout or 10
-    local startTime = tick()
-    while tick() - startTime < timeout do
+local function waitForCashToReach(targetCash)
+    while true do
         local currentCash = getCurrentCash()
         if currentCash >= targetCash then
             return true, currentCash
         end
-        wait(0.01)
+        wait(0.05)
     end
-    return false, getCurrentCash()
 end
 
-local function waitForCashChange(initialCash, expectedCost, timeout)
-    timeout = timeout or 5
-    local startTime = tick()
-    while tick() - startTime < timeout do
+local function waitForCashChange(initialCash)
+    while true do
         local currentCash = getCurrentCash()
         if currentCash ~= initialCash then
             local actualCost = initialCash - currentCash
             return true, actualCost
         end
-        wait(0.01)
+        wait(0.05)
     end
-    return false, 0
 end
 
 local function isMapOnScreen(mapName)
@@ -90,11 +84,7 @@ local function processCommand(command, ...)
         local initialCash = getCurrentCash()
         
         if cost and cost > 0 then
-            local success = waitForCashToReach(cost, 30)
-            if not success then
-                warn("Failed to get enough cash for", towerName, "Need:", cost, "Have:", getCurrentCash())
-                return false
-            end
+            waitForCashToReach(cost)
         end
         
         local remotes = ensureRemotes()
@@ -112,11 +102,9 @@ local function processCommand(command, ...)
         end)
         
         if success and result then
-            local confirmed, actualCost = waitForCashChange(initialCash, cost, 3)
-            if confirmed then
-                wait(0.5)
-                return result
-            end
+            waitForCashChange(initialCash)
+            wait(0.4)
+            return result
         end
         return false
         
@@ -130,11 +118,7 @@ local function processCommand(command, ...)
         
         local initialCash = getCurrentCash()
         
-        local cashSuccess = waitForCashToReach(cost, 30)
-        if not cashSuccess then
-            warn("Failed to get enough cash for upgrade. Need:", cost, "Have:", getCurrentCash())
-            return false
-        end
+        waitForCashToReach(cost)
         
         local remotes = ensureRemotes()
         if not remotes then return false end
@@ -149,18 +133,30 @@ local function processCommand(command, ...)
         end)
         
         if success then
-            local confirmed, actualCost = waitForCashChange(initialCash, cost, 3)
-            if confirmed then
-                wait(0.5)
-                return true
-            else
-                warn("Upgrade cost not deducted. Expected ~", cost, "Cash before:", initialCash, "Cash after:", getCurrentCash())
-                return false
-            end
+            waitForCashChange(initialCash)
+            wait(0.5)
+            return true
         else
             warn("Upgrade failed:", err)
             return false
         end
+    elseif command == "Sell" then
+        local towerId = unpack(args)
+        local initialCash = getCurrentCash()
+        
+        wait(0.3)
+        
+        local remotes = ensureRemotes()
+        if remotes and remotes:FindFirstChild("SellTower") then
+            pcall(function()
+                remotes.SellTower:FireServer(towerId)
+            end)
+            
+            waitForCashChange(initialCash)
+            wait(0.4)
+            return true
+        end
+        return false
     end
     
     return false
@@ -172,11 +168,13 @@ local function processQueue()
     
     while #CommandQueue > 0 do
         local cmd = table.remove(CommandQueue, 1)
+        print("Processing:", cmd.type, cmd.args[1], cmd.args[2], "Cost:", cmd.args[6] or cmd.args[4])
         local success = processCommand(cmd.type, unpack(cmd.args))
         
         if not success then
-            warn("Command failed:", cmd.type, cmd.args)
+            warn("Command failed, retrying in 1 second:", cmd.type, cmd.args)
             wait(1)
+            table.insert(CommandQueue, 1, cmd)
         end
     end
     
