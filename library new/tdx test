@@ -2,7 +2,6 @@ local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
-local RunService = game:GetService("RunService")
 
 local Remotes = nil
 local CommandQueue = {}
@@ -12,8 +11,8 @@ local AutoSkipEnabled = false
 local LastSpeedChangeTime = 0
 local TowerIds = {}
 local NextTowerId = 1
-local PlacedTowers = {}
 local OccupiedPositions = {}
+local PendingCommands = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -177,32 +176,45 @@ local function isTowerAlive(towerId)
         end
     end
     
-    TowerIds[towerId] = nil
-    local key = string.format("%.1f_%.1f_%.1f", towerData.position.X, towerData.position.Y, towerData.position.Z)
-    OccupiedPositions[key] = nil
     return false
 end
 
-local function waitForPositionToBeFree(position, timeout)
-    timeout = timeout or 60
-    local startTime = tick()
-    while tick() - startTime < timeout do
-        if not isPositionOccupied(position) then
-            return true
-        end
-        wait(0.5)
+local function batchUpgrades(upgrades)
+    local totalCost = 0
+    for _, upgrade in ipairs(upgrades) do
+        totalCost = totalCost + upgrade.args[4]
     end
-    return false
-end
-
-local function waitForTowerToAppear(towerId, timeout)
-    timeout = timeout or 1.5
-    local startTime = tick()
-    while tick() - startTime < timeout do
-        if isTowerAlive(towerId) then
-            return true
+    
+    local currentCash = getCurrentCash()
+    if currentCash >= totalCost then
+        print("Batching", #upgrades, "upgrades (total cost:", totalCost, ")")
+        for idx, upgradeCmd in ipairs(upgrades) do
+            print("Processing batch upgrade", idx, ":", upgradeCmd.args[1], upgradeCmd.args[2], "Cost:", upgradeCmd.args[4])
+            
+            local initialCash = getCurrentCash()
+            waitForCashToReach(upgradeCmd.args[4])
+            
+            local remotes = ensureRemotes()
+            if not remotes then return false end
+            
+            local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
+            if not upgradeRemote then return false end
+            
+            wait(0.15)
+            
+            local success, err = pcall(function()
+                upgradeRemote:FireServer(upgradeCmd.args[1], upgradeCmd.args[2], 1)
+            end)
+            
+            if success then
+                waitForCashChange(initialCash)
+                wait(0.15)
+            else
+                warn("Batch upgrade failed:", err)
+                return false
+            end
         end
-        wait(0.1)
+        return true
     end
     return false
 end
@@ -215,8 +227,9 @@ local function processCommand(command, ...)
         local position = Vector3.new(x, y, z)
         
         if isPositionOccupied(position) then
-            print("Position occupied, waiting for spot to be free...")
-            waitForPositionToBeFree(position)
+            print("Position occupied, moving to end of queue:", towerName)
+            table.insert(CommandQueue, {type = "Place", args = args})
+            return "requeue"
         end
         
         local initialCash = getCurrentCash()
@@ -277,9 +290,9 @@ local function processCommand(command, ...)
             return false
         end
         
-        if not waitForTowerToAppear(towerId, 1.5) then
-            print("Tower", towerId, "never appeared after placement, skipping upgrade")
-            return true
+        if not isTowerAlive(towerId) then
+            print("Tower", towerId, "is dead, skipping all related upgrades")
+            return "skip_all"
         end
         
         local initialCash = getCurrentCash()
@@ -362,96 +375,65 @@ local function processQueue()
         local cmd = CommandQueue[i]
         
         if cmd.type == "Upgrade" then
-            local totalCost = 0
-            local upgradesToProcess = {}
-            local j = i
+            local upgradesToProcess = {cmd}
+            local j = i + 1
             
             while j <= #CommandQueue and CommandQueue[j].type == "Upgrade" do
-                local upgradeCmd = CommandQueue[j]
-                local cost = upgradeCmd.args[4]
-                totalCost = totalCost + cost
-                table.insert(upgradesToProcess, upgradeCmd)
+                table.insert(upgradesToProcess, CommandQueue[j])
                 j = j + 1
             end
             
-            local currentCash = getCurrentCash()
             local allTowersAlive = true
+            local deadTowerId = nil
             
             for _, upgradeCmd in ipairs(upgradesToProcess) do
-                if not waitForTowerToAppear(upgradeCmd.args[1], 0.5) then
+                if not isTowerAlive(upgradeCmd.args[1]) then
                     allTowersAlive = false
+                    deadTowerId = upgradeCmd.args[1]
                     break
                 end
             end
             
-            if currentCash >= totalCost and #upgradesToProcess > 1 and allTowersAlive then
-                print("Batching", #upgradesToProcess, "upgrades (total cost:", totalCost, ")")
-                for idx, upgradeCmd in ipairs(upgradesToProcess) do
-                    print("Processing batch upgrade", idx, ":", upgradeCmd.args[1], upgradeCmd.args[2], "Cost:", upgradeCmd.args[4])
-                    
-                    if not waitForTowerToAppear(upgradeCmd.args[1], 0.5) then
-                        warn("Tower", upgradeCmd.args[1], "died during batch, skipping remaining upgrades")
-                        for k = idx, #upgradesToProcess do
-                            table.remove(CommandQueue, i)
-                        end
-                        break
-                    end
-                    
-                    local initialCash = getCurrentCash()
-                    waitForCashToReach(upgradeCmd.args[4])
-                    
-                    local remotes = ensureRemotes()
-                    if not remotes then
-                        for k = 1, #upgradesToProcess do
-                            table.remove(CommandQueue, i)
-                        end
-                        break
-                    end
-                    
-                    local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
-                    if not upgradeRemote then
-                        for k = 1, #upgradesToProcess do
-                            table.remove(CommandQueue, i)
-                        end
-                        break
-                    end
-                    
-                    wait(0.15)
-                    
-                    local success, err = pcall(function()
-                        upgradeRemote:FireServer(upgradeCmd.args[1], upgradeCmd.args[2], 1)
-                    end)
-                    
-                    if success then
-                        waitForCashChange(initialCash)
-                        wait(0.15)
-                    else
-                        warn("Batch upgrade failed:", err)
-                        for k = 1, #upgradesToProcess do
-                            table.remove(CommandQueue, i)
-                        end
-                        table.insert(CommandQueue, i, upgradeCmd)
-                        break
+            if not allTowersAlive then
+                print("Tower", deadTowerId, "is dead, skipping all upgrades for this tower")
+                local newQueue = {}
+                for _, upgradeCmd in ipairs(upgradesToProcess) do
+                    if upgradeCmd.args[1] ~= deadTowerId then
+                        table.insert(newQueue, upgradeCmd)
                     end
                 end
                 for _ = 1, #upgradesToProcess do
                     table.remove(CommandQueue, i)
                 end
+                for _, remainingCmd in ipairs(newQueue) do
+                    table.insert(CommandQueue, i, remainingCmd)
+                end
+                if #newQueue == 0 then
+                    i = i + 1
+                end
             else
-                local singleCmd = table.remove(CommandQueue, i)
-                
-                if singleCmd.type == "Upgrade" then
-                    if not waitForTowerToAppear(singleCmd.args[1], 1.5) then
-                        print("Tower", singleCmd.args[1], "never appeared, skipping upgrade")
-                    else
-                        print("Processing single upgrade:", singleCmd.args[1], singleCmd.args[2], "Cost:", singleCmd.args[4])
-                        local success = processCommand(singleCmd.type, unpack(singleCmd.args))
-                        if not success then
-                            warn("Command failed, retrying in 1 second:", singleCmd.type, singleCmd.args)
-                            wait(1)
-                            table.insert(CommandQueue, i, singleCmd)
-                            i = i + 1
+                local batched = batchUpgrades(upgradesToProcess)
+                if batched then
+                    for _ = 1, #upgradesToProcess do
+                        table.remove(CommandQueue, i)
+                    end
+                else
+                    local singleCmd = table.remove(CommandQueue, i)
+                    print("Processing single upgrade:", singleCmd.args[1], singleCmd.args[2], "Cost:", singleCmd.args[4])
+                    local success = processCommand(singleCmd.type, unpack(singleCmd.args))
+                    if success == "skip_all" then
+                        local newQueue = {}
+                        for _, remainingCmd in ipairs(CommandQueue) do
+                            if remainingCmd.type ~= "Upgrade" or remainingCmd.args[1] ~= singleCmd.args[1] then
+                                table.insert(newQueue, remainingCmd)
+                            end
                         end
+                        CommandQueue = newQueue
+                    elseif not success then
+                        warn("Command failed, retrying in 1 second:", singleCmd.type, singleCmd.args)
+                        wait(1)
+                        table.insert(CommandQueue, i, singleCmd)
+                        i = i + 1
                     end
                 end
             end
@@ -459,7 +441,10 @@ local function processQueue()
             local singleCmd = table.remove(CommandQueue, i)
             print("Processing:", singleCmd.type, singleCmd.args[1], singleCmd.args[2], "Cost:", singleCmd.args[6] or singleCmd.args[4])
             local success = processCommand(singleCmd.type, unpack(singleCmd.args))
-            if not success then
+            if success == "requeue" then
+                table.insert(CommandQueue, singleCmd)
+                i = i + 1
+            elseif not success then
                 warn("Command failed, retrying in 1 second:", singleCmd.type, singleCmd.args)
                 wait(1)
                 table.insert(CommandQueue, i, singleCmd)
