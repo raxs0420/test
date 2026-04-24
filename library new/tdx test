@@ -4,7 +4,8 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local Remotes = nil
-local TowerUpgrades = {} -- Track upgrades per tower
+local TowerUpgrades = {}
+local PendingOperations = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -30,6 +31,34 @@ local function getCurrentCash()
     if not player or not player.leaderstats then return 0 end
     local cash = player.leaderstats:FindFirstChild("Cash")
     return cash and cash.Value or 0
+end
+
+local function waitForCashChange(initialCash, expectedChange, timeout)
+    timeout = timeout or 5
+    local startTime = tick()
+    while tick() - startTime < timeout do
+        local currentCash = getCurrentCash()
+        if currentCash ~= initialCash then
+            return true, currentCash - initialCash
+        end
+        wait(0.1)
+    end
+    return false, 0
+end
+
+local function waitForTowerCount(initialCount, expectedChange, timeout)
+    timeout = timeout or 3
+    local startTime = tick()
+    while tick() - startTime < timeout do
+        local player = Players.LocalPlayer
+        local towers = player and player.Character and player.Character:FindFirstChild("Towers")
+        local currentCount = towers and #towers:GetChildren() or 0
+        if currentCount ~= initialCount then
+            return true, currentCount
+        end
+        wait(0.1)
+    end
+    return false, initialCount
 end
 
 local function isMapOnScreen(mapName)
@@ -338,35 +367,58 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
     if not placeRemote then return nil end
     
     local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
-
+    local initialCash = getCurrentCash()
+    
     if cost and cost > 0 then
+        local waitStart = tick()
         while getCurrentCash() < cost do
+            if tick() - waitStart > 30 then
+                warn("Timeout waiting for cash for", towerName)
+                return nil
+            end
             wait(0.1)
         end
     end
 
-    wait(0.2)
+    wait(0.5)
+    
     local success, result = pcall(function()
         return placeRemote:InvokeServer(unpack(args))
     end)
     
     if success and result then
-        local towerId = result
-        TowerUpgrades[towerId] = {path1 = 0, path2 = 0}
-        return towerId
+        local confirmed, cashChange = waitForCashChange(initialCash, cost, 3)
+        if confirmed then
+            local towerId = result
+            TowerUpgrades[towerId] = {path1 = 0, path2 = 0}
+            wait(0.3)
+            return towerId
+        else
+            warn("Cash didn't change for", towerName, "- may have failed")
+            return nil
+        end
     end
     return nil
 end
 
 function TDX:Sell(towerId)
-    wait(0.2)
+    local initialCash = getCurrentCash()
+    wait(0.3)
+    
     local remotes = ensureRemotes()
     if remotes and remotes:FindFirstChild("SellTower") then
         pcall(function()
             remotes.SellTower:FireServer(towerId)
         end)
-        TowerUpgrades[towerId] = nil
+        
+        local confirmed, cashChange = waitForCashChange(initialCash, nil, 2)
+        if confirmed then
+            TowerUpgrades[towerId] = nil
+            wait(0.3)
+            return true
+        end
     end
+    return false
 end
 
 function TDX:Upgrade(towerId, path, requestedLevel, cost)
@@ -379,45 +431,40 @@ function TDX:Upgrade(towerId, path, requestedLevel, cost)
     local key = getTowerKey(towerId, path)
     local currentLevel = TowerUpgrades[key] or 0
     
-    if requestedLevel and requestedLevel > 0 then
-        if requestedLevel <= currentLevel then
-            return true
-        end
-        local actualLevel = requestedLevel
-        if cost and cost > 0 then
-            while getCurrentCash() < cost do
-                wait(0.1)
-            end
-        end
-        wait(0.2)
-        local success, err = pcall(function()
-            upgradeRemote:FireServer(towerId, path, actualLevel)
-        end)
-        if success then
-            TowerUpgrades[key] = actualLevel
-            return true
-        else
-            warn("Upgrade failed:", err)
-            return false
-        end
+    local initialCash = getCurrentCash()
+    local targetLevel = (requestedLevel and requestedLevel > 0) and requestedLevel or (currentLevel + 1)
+    
+    if targetLevel <= currentLevel then
+        return true
     end
     
-    local nextLevel = currentLevel + 1
-    
     if cost and cost > 0 then
+        local waitStart = tick()
         while getCurrentCash() < cost do
+            if tick() - waitStart > 30 then
+                warn("Timeout waiting for cash for upgrade")
+                return false
+            end
             wait(0.1)
         end
     end
     
-    wait(0.2)
+    wait(0.5)
+    
     local success, err = pcall(function()
-        upgradeRemote:FireServer(towerId, path, nextLevel)
+        upgradeRemote:FireServer(towerId, path, targetLevel)
     end)
     
     if success then
-        TowerUpgrades[key] = nextLevel
-        return true
+        local confirmed, cashChange = waitForCashChange(initialCash, cost, 3)
+        if confirmed then
+            TowerUpgrades[key] = targetLevel
+            wait(0.3)
+            return true
+        else
+            warn("Upgrade cash didn't change - may have failed")
+            return false
+        end
     else
         warn("Upgrade failed:", err)
         return false
@@ -441,7 +488,7 @@ function TDX:VoteMap(mapName, maxAttempts)
             if remotes and remotes:FindFirstChild("MapVoteCast") then
                 remotes.MapVoteCast:FireServer(mapName)
             end
-            wait(0.1)
+            wait(0.5)
             self:Ready()
             return true
         end
@@ -460,6 +507,7 @@ function TDX:RerollMaps()
     if remotes and remotes:FindFirstChild("MapChangeVoteCast") then
         remotes.MapChangeVoteCast:FireServer(true)
     end
+    wait(0.5)
 end
 
 function TDX:Ready()
@@ -467,6 +515,7 @@ function TDX:Ready()
     if remotes and remotes:FindFirstChild("MapVoteReady") then
         remotes.MapVoteReady:FireServer()
     end
+    wait(0.3)
 end
 
 function TDX:VoteDifficulty(difficulty)
@@ -476,7 +525,7 @@ function TDX:VoteDifficulty(difficulty)
         if remotes:FindFirstChild("DifficultyVoteCast") then
             remotes.DifficultyVoteCast:FireServer(difficulty)
         end
-        wait(0.2)
+        wait(0.5)
         if remotes:FindFirstChild("DifficultyVoteReady") then
             remotes.DifficultyVoteReady:FireServer(difficulty)
         end
@@ -490,6 +539,7 @@ function TDX:Loadout(loadoutId)
     if remotes and remotes:FindFirstChild("LoadoutSelectionChanged") then
         remotes.LoadoutSelectionChanged:FireServer(loadoutId)
     end
+    wait(0.5)
 end
 
 function TDX:Mode(mode)
@@ -504,7 +554,7 @@ function TDX:Mode(mode)
             partyType:FireServer("Party")
             wait(0.5)
             partyMap:FireServer(mode)
-            wait(0.1)
+            wait(0.5)
             self:StartMatchmaking()
         end
     end
@@ -521,6 +571,7 @@ function TDX:StartMatchmaking()
             startGame:FireServer()
         end
     end
+    wait(0.5)
 end
 
 function TDX:Equip(items)
@@ -535,6 +586,7 @@ function TDX:Equip(items)
             updateLoadout:FireServer(unpack(args))
         end
     end
+    wait(0.5)
 end
 
 return TDX
