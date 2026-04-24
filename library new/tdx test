@@ -12,6 +12,7 @@ local LastSpeedChangeTime = 0
 local PositionToTowerId = {}
 local TowerIdToPosition = {}
 local NextTowerId = 1
+local SkippedCommands = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -60,7 +61,7 @@ local function waitForCashChange(initialCash)
 end
 
 local function getPositionKey(x, y, z)
-    return string.format("%.3f_%.3f_%.3f", x, y, z)
+    return string.format("%.1f_%.1f_%.1f", x, y, z)
 end
 
 local function findTowerAtPosition(x, y, z)
@@ -70,7 +71,7 @@ local function findTowerAtPosition(x, y, z)
         if towersFolder then
             local targetPos = Vector3.new(x, y, z)
             for _, part in ipairs(towersFolder:GetChildren()) do
-                if part:IsA("BasePart") and (part.Position - targetPos).Magnitude < 3 then
+                if part:IsA("BasePart") and (part.Position - targetPos).Magnitude < 2 then
                     return part
                 end
             end
@@ -189,9 +190,8 @@ local function processCommand(command, ...)
         local towerName, x, y, z, rotation, cost = unpack(args)
         
         if isPositionOccupied(x, y, z) then
-            print("Position occupied, moving to end of queue:", towerName, "at", x, y, z)
-            table.insert(CommandQueue, {type = "Place", args = args})
-            return "requeue"
+            print("Position occupied, skipping and will retry later:", towerName, "at", x, y, z)
+            return "skip_retry"
         end
         
         local initialCash = getCurrentCash()
@@ -317,7 +317,7 @@ local function processCommand(command, ...)
         end
         
         local timeSinceLastChange = tick() - LastSpeedChangeTime
-        if timeSinceLastChange < 4 and CurrentSpeed ~= 1 then
+        if timeSinceLastChange < 4 then
             wait(4 - timeSinceLastChange)
         end
         
@@ -333,6 +333,8 @@ local function processQueue()
     IsProcessing = true
     
     local i = 1
+    local retryQueue = {}
+    
     while i <= #CommandQueue do
         local cmd = CommandQueue[i]
         
@@ -356,20 +358,11 @@ local function processQueue()
             if currentCash >= totalCost and #upgradesToProcess > 1 then
                 print(string.format("BATCHING %d upgrades (Total Cost: $%d)", #upgradesToProcess, totalCost))
                 
+                local batchSuccess = true
                 for idx, upgradeData in ipairs(upgradesToProcess) do
                     local target = upgradeData.args[1]
                     local path = upgradeData.args[2]
                     local cost = upgradeData.args[4]
-                    
-                    local x, y, z = nil, nil, nil
-                    if type(target) == "table" and target.x then
-                        x, y, z = target.x, target.y, target.z
-                    else
-                        local pos = TowerIdToPosition[target]
-                        if pos then
-                            x, y, z = pos.x, pos.y, pos.z
-                        end
-                    end
                     
                     print(string.format("  → Processing upgrade %d/%d (Cost: $%d)", idx, #upgradesToProcess, cost))
                     
@@ -377,16 +370,29 @@ local function processQueue()
                     waitForCashToReach(cost)
                     
                     local remotes = ensureRemotes()
-                    if not remotes then break end
+                    if not remotes then 
+                        batchSuccess = false
+                        break
+                    end
                     
                     local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
-                    if not upgradeRemote then break end
+                    if not upgradeRemote then 
+                        batchSuccess = false
+                        break
+                    end
                     
                     local actualTowerId = nil
                     if type(target) == "table" and target.x then
-                        actualTowerId = PositionToTowerId[getPositionKey(x, y, z)]
+                        local key = getPositionKey(target.x, target.y, target.z)
+                        actualTowerId = PositionToTowerId[key]
                     else
                         actualTowerId = target
+                    end
+                    
+                    if not actualTowerId or not isTowerAlive(actualTowerId) then
+                        print("Tower died during batch, stopping")
+                        batchSuccess = false
+                        break
                     end
                     
                     wait(0.15)
@@ -400,22 +406,27 @@ local function processQueue()
                         wait(0.15)
                     else
                         warn("Batch upgrade failed:", err)
+                        batchSuccess = false
                         break
                     end
                 end
                 
-                for _ = 1, #upgradesToProcess do
-                    table.remove(CommandQueue, i)
+                if batchSuccess then
+                    for _ = 1, #upgradesToProcess do
+                        table.remove(CommandQueue, i)
+                    end
+                else
+                    for _ = 1, #upgradesToProcess do
+                        table.remove(CommandQueue, i)
+                    end
+                    for idx = #upgradesToProcess, 1, -1 do
+                        table.insert(CommandQueue, i, upgradesToProcess[idx])
+                    end
+                    i = i + 1
                 end
             else
                 local singleCmd = table.remove(CommandQueue, i)
-                local target = singleCmd.args[1]
-                
-                if type(target) == "table" and target.x then
-                    print(string.format("Processing single upgrade: Tower at (%.2f, %.2f, %.2f) Path %d Cost $%d", target.x, target.y, target.z, singleCmd.args[2], singleCmd.args[4]))
-                else
-                    print(string.format("Processing single upgrade: Tower ID %d Path %d Cost $%d", target, singleCmd.args[2], singleCmd.args[4]))
-                end
+                print(string.format("Processing single upgrade: Cost $%d", singleCmd.args[4]))
                 
                 local success = processCommand(singleCmd.type, unpack(singleCmd.args))
                 if success == "skip_all" then
@@ -451,7 +462,7 @@ local function processQueue()
                     end
                     CommandQueue = newQueue
                 elseif not success then
-                    wait(1)
+                    wait(0.5)
                     table.insert(CommandQueue, i, singleCmd)
                     i = i + 1
                 end
@@ -460,15 +471,22 @@ local function processQueue()
             local singleCmd = table.remove(CommandQueue, i)
             print("Processing:", singleCmd.type)
             local success = processCommand(singleCmd.type, unpack(singleCmd.args))
-            if success == "requeue" then
-                table.insert(CommandQueue, singleCmd)
-                i = i + 1
+            if success == "skip_retry" then
+                table.insert(retryQueue, singleCmd)
             elseif not success then
-                wait(1)
+                wait(0.5)
                 table.insert(CommandQueue, i, singleCmd)
                 i = i + 1
             end
         end
+    end
+    
+    for _, retryCmd in ipairs(retryQueue) do
+        table.insert(CommandQueue, retryCmd)
+    end
+    
+    if #retryQueue > 0 then
+        print("Re-adding", #retryQueue, "skipped commands to end of queue")
     end
     
     IsProcessing = false
