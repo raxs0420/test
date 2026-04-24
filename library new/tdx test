@@ -333,8 +333,6 @@ local function processQueue()
     IsProcessing = true
     
     local i = 1
-    local batchCount = 0
-    
     while i <= #CommandQueue do
         local cmd = CommandQueue[i]
         
@@ -354,34 +352,9 @@ local function processQueue()
             end
             
             local currentCash = getCurrentCash()
-            local allTowersAlive = true
             
-            for _, upgradeData in ipairs(upgradesToProcess) do
-                local target = upgradeData.args[1]
-                local x, y, z = nil, nil, nil
-                
-                if type(target) == "table" and target.x then
-                    x, y, z = target.x, target.y, target.z
-                else
-                    local pos = TowerIdToPosition[target]
-                    if pos then
-                        x, y, z = pos.x, pos.y, pos.z
-                    end
-                end
-                
-                if x then
-                    local key = getPositionKey(x, y, z)
-                    local towerId = PositionToTowerId[key]
-                    if not towerId or not isTowerAlive(towerId) then
-                        allTowersAlive = false
-                        break
-                    end
-                end
-            end
-            
-            if allTowersAlive and currentCash >= totalCost and #upgradesToProcess > 1 then
-                print(string.format("BATCHING %d upgrades (Total Cost: $%d, Current Cash: $%d)", #upgradesToProcess, totalCost, currentCash))
-                batchCount = batchCount + 1
+            if currentCash >= totalCost and #upgradesToProcess > 1 then
+                print(string.format("BATCHING %d upgrades (Total Cost: $%d)", #upgradesToProcess, totalCost))
                 
                 for idx, upgradeData in ipairs(upgradesToProcess) do
                     local target = upgradeData.args[1]
@@ -398,7 +371,7 @@ local function processQueue()
                         end
                     end
                     
-                    print(string.format("  → Batch upgrade %d/%d: Tower at (%.2f, %.2f, %.2f) Path %d Cost $%d", idx, #upgradesToProcess, x or 0, y or 0, z or 0, path, cost))
+                    print(string.format("  → Processing upgrade %d/%d (Cost: $%d)", idx, #upgradesToProcess, cost))
                     
                     local initialCash = getCurrentCash()
                     waitForCashToReach(cost)
@@ -437,19 +410,11 @@ local function processQueue()
             else
                 local singleCmd = table.remove(CommandQueue, i)
                 local target = singleCmd.args[1]
-                local x, y, z = nil, nil, nil
                 
                 if type(target) == "table" and target.x then
-                    x, y, z = target.x, target.y, target.z
-                    print(string.format("Processing single upgrade: Tower at (%.2f, %.2f, %.2f) Path %d Cost $%d", x, y, z, singleCmd.args[2], singleCmd.args[4]))
+                    print(string.format("Processing single upgrade: Tower at (%.2f, %.2f, %.2f) Path %d Cost $%d", target.x, target.y, target.z, singleCmd.args[2], singleCmd.args[4]))
                 else
-                    local pos = TowerIdToPosition[target]
-                    if pos then
-                        x, y, z = pos.x, pos.y, pos.z
-                        print(string.format("Processing single upgrade: Tower ID %d at (%.2f, %.2f, %.2f) Path %d Cost $%d", target, x, y, z, singleCmd.args[2], singleCmd.args[4]))
-                    else
-                        print(string.format("Processing single upgrade: Tower ID %d Path %d Cost $%d", target, singleCmd.args[2], singleCmd.args[4]))
-                    end
+                    print(string.format("Processing single upgrade: Tower ID %d Path %d Cost $%d", target, singleCmd.args[2], singleCmd.args[4]))
                 end
                 
                 local success = processCommand(singleCmd.type, unpack(singleCmd.args))
@@ -503,10 +468,6 @@ local function processQueue()
                 table.insert(CommandQueue, i, singleCmd)
                 i = i + 1
             end
-        end
-        
-        if batchCount > 0 and batchCount % 5 == 0 then
-            wait(0.1)
         end
     end
     
