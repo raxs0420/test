@@ -6,6 +6,7 @@ local Workspace = game:GetService("Workspace")
 local Remotes = nil
 local CommandQueue = {}
 local IsProcessing = false
+local CurrentSpeed = 1
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -76,6 +77,32 @@ local function isMapOnScreen(mapName)
     return false
 end
 
+local function setGameSpeed(speed)
+    local remotes = ensureRemotes()
+    if not remotes then return false end
+    
+    local speedRemote = remotes:FindFirstChild("SoloToggleSpeedControl")
+    if not speedRemote then return false end
+    
+    if speed == 1 then
+        local args = {false}
+        speedRemote:FireServer(unpack(args))
+        CurrentSpeed = 1
+    elseif speed == 1.5 then
+        local args = {true, true}
+        speedRemote:FireServer(unpack(args))
+        CurrentSpeed = 1.5
+    elseif speed == 0.5 then
+        local args = {true, false}
+        speedRemote:FireServer(unpack(args))
+        CurrentSpeed = 0.5
+    else
+        return false
+    end
+    
+    return true
+end
+
 local function processCommand(command, ...)
     local args = {...}
     
@@ -95,7 +122,7 @@ local function processCommand(command, ...)
         
         local placeArgs = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
         
-        wait(0.2)
+        wait(0.4)
         
         local success, result = pcall(function()
             return placeRemote:InvokeServer(unpack(placeArgs))
@@ -103,7 +130,7 @@ local function processCommand(command, ...)
         
         if success and result then
             waitForCashChange(initialCash)
-            wait(0.3)
+            wait(0.4)
             return result
         end
         return false
@@ -126,7 +153,7 @@ local function processCommand(command, ...)
         local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
         if not upgradeRemote then return false end
         
-        wait(0.2)
+        wait(0.4)
         
         local success, err = pcall(function()
             upgradeRemote:FireServer(towerId, path, 1)
@@ -134,7 +161,7 @@ local function processCommand(command, ...)
         
         if success then
             waitForCashChange(initialCash)
-            wait(0.3)
+            wait(0.4)
             return true
         else
             warn("Upgrade failed:", err)
@@ -144,7 +171,7 @@ local function processCommand(command, ...)
         local towerId = unpack(args)
         local initialCash = getCurrentCash()
         
-        wait(0.2)
+        wait(0.4)
         
         local remotes = ensureRemotes()
         if remotes and remotes:FindFirstChild("SellTower") then
@@ -153,10 +180,30 @@ local function processCommand(command, ...)
             end)
             
             waitForCashChange(initialCash)
-            wait(0.3)
+            wait(0.4)
             return true
         end
         return false
+    elseif command == "TimeScale" then
+        local targetSpeed = unpack(args)
+        
+        if targetSpeed == CurrentSpeed then
+            return true
+        end
+        
+        if targetSpeed == 1 then
+            setGameSpeed(1)
+        elseif targetSpeed == 1.5 then
+            setGameSpeed(1.5)
+        elseif targetSpeed == 0.5 then
+            setGameSpeed(0.5)
+        else
+            warn("Invalid speed:", targetSpeed, "Use 1, 1.5, or 0.5")
+            return false
+        end
+        
+        wait(4)
+        return true
     end
     
     return false
@@ -480,6 +527,15 @@ function TDX:Sell(towerId)
     return true
 end
 
+function TDX:TimeScale(speed)
+    table.insert(CommandQueue, {
+        type = "TimeScale",
+        args = {speed}
+    })
+    processQueue()
+    return true
+end
+
 function TDX:VoteMap(mapName, maxAttempts)
     maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
@@ -516,6 +572,10 @@ function TDX:Ready()
         remotes.MapVoteReady:FireServer()
     end
     wait(0.3)
+end
+
+function TDX:GetCurrentSpeed()
+    return CurrentSpeed
 end
 
 function TDX:VoteDifficulty(difficulty)
