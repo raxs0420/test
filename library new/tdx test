@@ -343,6 +343,7 @@ local function processQueue()
             local j = i
             local totalCost = 0
             
+            -- Look ahead to see consecutive upgrades
             while j <= #CommandQueue and CommandQueue[j].type == "Upgrade" do
                 local upgradeCmd = CommandQueue[j]
                 local cost = upgradeCmd.args[4]
@@ -355,8 +356,9 @@ local function processQueue()
             
             local currentCash = getCurrentCash()
             
+            -- ONLY batch if we have enough cash for ALL upgrades
             if currentCash >= totalCost and #upgradesToProcess > 1 then
-                print(string.format("BATCHING %d upgrades (Total Cost: $%d)", #upgradesToProcess, totalCost))
+                print(string.format("✅ BATCHING %d upgrades (Total Cost: $%d, Current Cash: $%d)", #upgradesToProcess, totalCost, currentCash))
                 
                 local batchSuccess = true
                 for idx, upgradeData in ipairs(upgradesToProcess) do
@@ -364,8 +366,9 @@ local function processQueue()
                     local path = upgradeData.args[2]
                     local cost = upgradeData.args[4]
                     
-                    print(string.format("  → Processing upgrade %d/%d (Cost: $%d)", idx, #upgradesToProcess, cost))
+                    print(string.format("  → Batch upgrade %d/%d (Cost: $%d)", idx, #upgradesToProcess, cost))
                     
+                    -- Wait for each individual cost (should already have enough)
                     local initialCash = getCurrentCash()
                     waitForCashToReach(cost)
                     
@@ -390,7 +393,7 @@ local function processQueue()
                     end
                     
                     if not actualTowerId or not isTowerAlive(actualTowerId) then
-                        print("Tower died during batch, stopping")
+                        print("❌ Tower died during batch, stopping")
                         batchSuccess = false
                         break
                     end
@@ -404,18 +407,21 @@ local function processQueue()
                     if success then
                         waitForCashChange(initialCash)
                         wait(0.15)
+                        print(string.format("  ✓ Completed batch upgrade %d/%d", idx, #upgradesToProcess))
                     else
-                        warn("Batch upgrade failed:", err)
+                        warn("❌ Batch upgrade failed:", err)
                         batchSuccess = false
                         break
                     end
                 end
                 
                 if batchSuccess then
+                    print(string.format("✅ Batch completed successfully, removing %d upgrades from queue", #upgradesToProcess))
                     for _ = 1, #upgradesToProcess do
                         table.remove(CommandQueue, i)
                     end
                 else
+                    print("❌ Batch failed, falling back to individual upgrades")
                     for _ = 1, #upgradesToProcess do
                         table.remove(CommandQueue, i)
                     end
@@ -425,6 +431,10 @@ local function processQueue()
                     i = i + 1
                 end
             else
+                if #upgradesToProcess > 1 then
+                    print(string.format("⚠️ Not enough cash for batch (Need: $%d, Have: $%d), processing individually", totalCost, currentCash))
+                end
+                
                 local singleCmd = table.remove(CommandQueue, i)
                 print(string.format("Processing single upgrade: Cost $%d", singleCmd.args[4]))
                 
