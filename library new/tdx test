@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
+local RunService = game:GetService("RunService")
 
 local function getRemotes()
     return ReplicatedStorage:WaitForChild("Remotes")
@@ -181,7 +182,7 @@ function TDX:JoinMapViaAPC(mapName)
     while not found do
         if self:WaitForGame() then
             statusLabel.Text = "Status: Already in a game, stopping search..."
-            task.wait(2)
+            wait(2)
             screenGui:Destroy()
             return false
         end
@@ -212,7 +213,7 @@ function TDX:JoinMapViaAPC(mapName)
 
                 if matched then
                     statusLabel.Text = "Status: MATCH FOUND in APCs! Teleporting..."
-                    task.wait(0.5)
+                    wait(0.5)
 
                     local detector = targetFolder:FindFirstChild("Detector")
                     if not detector and targetFolder ~= slotFolder then
@@ -227,10 +228,10 @@ function TDX:JoinMapViaAPC(mapName)
                         if character and character:FindFirstChild("HumanoidRootPart") then
                             statusLabel.Text = "Status: TELEPORTING TO APC..."
                             character.HumanoidRootPart.CFrame = detector.CFrame
-                            task.wait(2)
+                            wait(2)
                             found = true
                             statusLabel.Text = "Status: SUCCESS! Joined " .. mapName
-                            task.wait(2)
+                            wait(2)
                             screenGui:Destroy()
                             return true
                         else
@@ -264,7 +265,7 @@ function TDX:JoinMapViaAPC(mapName)
 
                     if matched then
                         statusLabel.Text = "Status: MATCH FOUND in APCs2! Teleporting..."
-                        task.wait(0.5)
+                        wait(0.5)
 
                         local detector = targetFolder:FindFirstChild("Detector")
                         if not detector and targetFolder ~= slotFolder then
@@ -279,10 +280,10 @@ function TDX:JoinMapViaAPC(mapName)
                             if character and character:FindFirstChild("HumanoidRootPart") then
                                 statusLabel.Text = "Status: TELEPORTING TO APC..."
                                 character.HumanoidRootPart.CFrame = detector.CFrame
-                                task.wait(2)
+                                wait(2)
                                 found = true
                                 statusLabel.Text = "Status: SUCCESS! Joined " .. mapName
-                                task.wait(2)
+                                wait(2)
                                 screenGui:Destroy()
                                 return true
                             else
@@ -296,7 +297,7 @@ function TDX:JoinMapViaAPC(mapName)
             end
         end
 
-        task.wait(0.5)
+        wait(0.5)
     end
 
     screenGui:Destroy()
@@ -315,12 +316,12 @@ function TDX:VoteMap(mapName, maxAttempts)
     for attempt = 1, maxAttempts do
         if isMapOnScreen(mapName) then
             getRemotes().MapVoteCast:FireServer(mapName)
-            task.wait(0.1)
+            wait(0.1)
             self:Ready()
             return true
         end
         getRemotes().MapChangeVoteCast:FireServer(true)
-        task.wait(1)
+        wait(1)
     end
     self:JoinMapViaAPC(mapName)
     return false
@@ -335,15 +336,15 @@ function TDX:Ready()
 end
 
 function TDX:VoteDifficulty(difficulty)
-    task.wait(5.5)
+    wait(5.5)
     getRemotes().DifficultyVoteCast:FireServer(difficulty)
-    task.wait(0.2)
+    wait(0.2)
     getRemotes().DifficultyVoteReady:FireServer(difficulty)
-    task.wait(1)
+    wait(1)
 end
 
 function TDX:Loadout(loadoutId)
-    task.wait(2)
+    wait(2)
     local loadoutRemote = getRemote("LoadoutSelectionChanged")
     if loadoutRemote then
         loadoutRemote:FireServer(loadoutId)
@@ -356,11 +357,11 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
 
     if cost and cost > 0 then
         while getCurrentCash() < cost do
-            task.wait(0.1)
+            wait(0.1)
         end
     end
 
-    task.wait(0.2)
+    wait(0.2)
     local success, result = pcall(function()
         return placeRemote:InvokeServer(unpack(args))
     end)
@@ -368,7 +369,7 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
 end
 
 function TDX:Sell(towerId)
-    task.wait(0.2)
+    wait(0.2)
     local sellRemote = getRemote("SellTower")
     pcall(function()
         sellRemote:FireServer(towerId)
@@ -380,11 +381,11 @@ function TDX:Upgrade(towerId, path, level, cost)
 
     if cost and cost > 0 then
         while getCurrentCash() < cost do
-            task.wait(0.1)
+            wait(0.1)
         end
     end
 
-    task.wait(0.2)
+    wait(0.2)
     pcall(function()
         upgradeRemote:FireServer(towerId, path, level)
     end)
@@ -400,9 +401,9 @@ function TDX:Mode(mode)
         local partyMap = network:FindFirstChild("ClientChangePartyMapRequest")
         if partyType and partyMap then
             partyType:FireServer("Party")
-            task.wait(0.5)
+            wait(0.5)
             partyMap:FireServer(mode)
-            task.wait(0.1)
+            wait(0.1)
             self:StartMatchmaking()
         end
     end
