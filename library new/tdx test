@@ -9,9 +9,10 @@ local IsProcessing = false
 local CurrentSpeed = 1
 local AutoSkipEnabled = false
 local LastSpeedChangeTime = 0
-local PositionToTowerId = {} 
+local PositionToTowerId = {}
 local TowerIdToPosition = {}
 local NextTowerId = 1
+local PendingCommands = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -286,19 +287,25 @@ local function processCommand(command, ...)
     elseif command == "Upgrade" then
         local recordedId, path, _, cost = unpack(args)
         
-        local x, y, z = unpack(args.positions or {})
+        local x, y, z = nil, nil, nil
         
-        if not x then
+        if type(recordedId) == "table" and recordedId.x then
+            x, y, z = recordedId.x, recordedId.y, recordedId.z
+            recordedId = getTowerIdAtPosition(x, y, z)
+        else
             local pos = TowerIdToPosition[recordedId]
             if pos then
                 x, y, z = pos.x, pos.y, pos.z
-            else
-                warn("No position found for tower ID:", recordedId, "- skipping upgrade")
-                return "skip_all"
             end
         end
         
-        if not isTowerAlive(recordedId) then
+        if not x then
+            warn("No position found for tower ID:", recordedId, "- skipping upgrade")
+            return "skip_all"
+        end
+        
+        local actualTowerId = getTowerIdAtPosition(x, y, z)
+        if not actualTowerId or not isTowerAlive(actualTowerId) then
             print("Tower at", x, y, z, "is dead, skipping all upgrades for this position")
             return "skip_all"
         end
@@ -321,7 +328,7 @@ local function processCommand(command, ...)
         wait(0.45)
         
         local success, err = pcall(function()
-            upgradeRemote:FireServer(recordedId, path, 1)
+            upgradeRemote:FireServer(actualTowerId, path, 1)
         end)
         
         if success then
@@ -390,8 +397,8 @@ local function processQueue()
                 local upgradeCmd = CommandQueue[j]
                 local x, y, z = nil, nil, nil
                 
-                if upgradeCmd.args.positions then
-                    x, y, z = unpack(upgradeCmd.args.positions)
+                if type(upgradeCmd.args[1]) == "table" and upgradeCmd.args[1].x then
+                    x, y, z = upgradeCmd.args[1].x, upgradeCmd.args[1].y, upgradeCmd.args[1].z
                 else
                     local pos = TowerIdToPosition[upgradeCmd.args[1]]
                     if pos then
@@ -412,7 +419,11 @@ local function processQueue()
             local deadPos = nil
             
             for _, upgradeData in ipairs(upgradesToProcess) do
-                if not isTowerAlive(upgradeData.towerId) then
+                local actualId = upgradeData.towerId
+                if type(actualId) ~= "number" then
+                    actualId = getTowerIdAtPosition(upgradeData.x, upgradeData.y, upgradeData.z)
+                end
+                if not actualId or not isTowerAlive(actualId) then
                     allTowersAlive = false
                     deadPos = string.format("%.3f, %.3f, %.3f", upgradeData.x or 0, upgradeData.y or 0, upgradeData.z or 0)
                     break
@@ -432,12 +443,35 @@ local function processQueue()
                     end
                 else
                     local singleCmd = table.remove(CommandQueue, i)
-                    print("Processing single upgrade for tower ID:", singleCmd.args[1])
+                    print("Processing single upgrade")
                     local success = processCommand(singleCmd.type, unpack(singleCmd.args))
                     if success == "skip_all" then
                         local newQueue = {}
+                        local targetPos = nil
+                        if type(singleCmd.args[1]) == "table" then
+                            targetPos = singleCmd.args[1]
+                        else
+                            targetPos = TowerIdToPosition[singleCmd.args[1]]
+                        end
                         for _, remainingCmd in ipairs(CommandQueue) do
-                            if not (remainingCmd.type == "Upgrade" and remainingCmd.args[1] == singleCmd.args[1]) then
+                            if remainingCmd.type == "Upgrade" then
+                                local shouldKeep = true
+                                if targetPos then
+                                    if type(remainingCmd.args[1]) == "table" then
+                                        if remainingCmd.args[1].x == targetPos.x and remainingCmd.args[1].y == targetPos.y and remainingCmd.args[1].z == targetPos.z then
+                                            shouldKeep = false
+                                        end
+                                    else
+                                        local pos = TowerIdToPosition[remainingCmd.args[1]]
+                                        if pos and pos.x == targetPos.x and pos.y == targetPos.y and pos.z == targetPos.z then
+                                            shouldKeep = false
+                                        end
+                                    end
+                                end
+                                if shouldKeep then
+                                    table.insert(newQueue, remainingCmd)
+                                end
+                            else
                                 table.insert(newQueue, remainingCmd)
                             end
                         end
@@ -739,6 +773,41 @@ function TDX:WaitForGame()
     local sellTower = remotes:FindFirstChild("SellTower")
     local upgrade = remotes:FindFirstChild("TowerUpgradeRequest")
     return placeTower ~= nil and sellTower ~= nil and upgrade ~= nil
+end
+
+function TDX:ResetMappings()
+    PositionToTowerId = {}
+    TowerIdToPosition = {}
+    NextTowerId = 1
+    print("Reset all tower mappings")
+end
+
+function TDX:RemapAllTowers()
+    self:ResetMappings()
+    
+    local gameFolder = Workspace:FindFirstChild("Game")
+    if not gameFolder then 
+        print("No Game folder found")
+        return 
+    end
+    
+    local towersFolder = gameFolder:FindFirstChild("Towers")
+    if not towersFolder then 
+        print("No Towers folder found")
+        return 
+    end
+    
+    local newId = 1
+    for _, part in ipairs(towersFolder:GetChildren()) do
+        if part:IsA("BasePart") then
+            local pos = part.Position
+            updateTowerMapping(newId, pos.X, pos.Y, pos.Z)
+            print("Mapped existing tower at", pos.X, pos.Y, pos.Z, "to ID:", newId)
+            newId = newId + 1
+        end
+    end
+    NextTowerId = newId
+    print("Remapped", newId - 1, "towers")
 end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
