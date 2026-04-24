@@ -41,7 +41,7 @@ local function waitForCashToReach(targetCash, timeout)
         if currentCash >= targetCash then
             return true, currentCash
         end
-        wait(0.1)
+        wait(0.01)
     end
     return false, getCurrentCash()
 end
@@ -55,7 +55,7 @@ local function waitForCashChange(initialCash, expectedCost, timeout)
             local actualCost = initialCash - currentCash
             return true, actualCost
         end
-        wait(0.1)
+        wait(0.01)
     end
     return false, 0
 end
