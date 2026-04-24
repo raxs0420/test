@@ -4,8 +4,8 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local Remotes = nil
-local TowerUpgrades = {}
-local PendingOperations = {}
+local CommandQueue = {}
+local IsProcessing = false
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -33,32 +33,31 @@ local function getCurrentCash()
     return cash and cash.Value or 0
 end
 
-local function waitForCashChange(initialCash, expectedChange, timeout)
+local function waitForCashToReach(targetCash, timeout)
+    timeout = timeout or 10
+    local startTime = tick()
+    while tick() - startTime < timeout do
+        local currentCash = getCurrentCash()
+        if currentCash >= targetCash then
+            return true, currentCash
+        end
+        wait(0.1)
+    end
+    return false, getCurrentCash()
+end
+
+local function waitForCashChange(initialCash, expectedCost, timeout)
     timeout = timeout or 5
     local startTime = tick()
     while tick() - startTime < timeout do
         local currentCash = getCurrentCash()
         if currentCash ~= initialCash then
-            return true, currentCash - initialCash
+            local actualCost = initialCash - currentCash
+            return true, actualCost
         end
         wait(0.1)
     end
     return false, 0
-end
-
-local function waitForTowerCount(initialCount, expectedChange, timeout)
-    timeout = timeout or 3
-    local startTime = tick()
-    while tick() - startTime < timeout do
-        local player = Players.LocalPlayer
-        local towers = player and player.Character and player.Character:FindFirstChild("Towers")
-        local currentCount = towers and #towers:GetChildren() or 0
-        if currentCount ~= initialCount then
-            return true, currentCount
-        end
-        wait(0.1)
-    end
-    return false, initialCount
 end
 
 local function isMapOnScreen(mapName)
@@ -83,8 +82,105 @@ local function isMapOnScreen(mapName)
     return false
 end
 
-local function getTowerKey(towerId, path)
-    return towerId .. "_" .. path
+local function processCommand(command, ...)
+    local args = {...}
+    
+    if command == "Place" then
+        local towerName, x, y, z, rotation, cost = unpack(args)
+        local initialCash = getCurrentCash()
+        
+        if cost and cost > 0 then
+            local success = waitForCashToReach(cost, 30)
+            if not success then
+                warn("Failed to get enough cash for", towerName, "Need:", cost, "Have:", getCurrentCash())
+                return false
+            end
+        end
+        
+        local remotes = ensureRemotes()
+        if not remotes then return false end
+        
+        local placeRemote = remotes:FindFirstChild("PlaceTower")
+        if not placeRemote then return false end
+        
+        local placeArgs = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
+        
+        wait(0.3)
+        
+        local success, result = pcall(function()
+            return placeRemote:InvokeServer(unpack(placeArgs))
+        end)
+        
+        if success and result then
+            local confirmed, actualCost = waitForCashChange(initialCash, cost, 3)
+            if confirmed then
+                wait(0.5)
+                return result
+            end
+        end
+        return false
+        
+    elseif command == "Upgrade" then
+        local towerId, path, _, cost = unpack(args)
+        
+        if not cost or cost == 0 then
+            warn("No cost provided for upgrade")
+            return false
+        end
+        
+        local initialCash = getCurrentCash()
+        
+        local cashSuccess = waitForCashToReach(cost, 30)
+        if not cashSuccess then
+            warn("Failed to get enough cash for upgrade. Need:", cost, "Have:", getCurrentCash())
+            return false
+        end
+        
+        local remotes = ensureRemotes()
+        if not remotes then return false end
+        
+        local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
+        if not upgradeRemote then return false end
+        
+        wait(0.3)
+        
+        local success, err = pcall(function()
+            upgradeRemote:FireServer(towerId, path, 1)
+        end)
+        
+        if success then
+            local confirmed, actualCost = waitForCashChange(initialCash, cost, 3)
+            if confirmed then
+                wait(0.5)
+                return true
+            else
+                warn("Upgrade cost not deducted. Expected ~", cost, "Cash before:", initialCash, "Cash after:", getCurrentCash())
+                return false
+            end
+        else
+            warn("Upgrade failed:", err)
+            return false
+        end
+    end
+    
+    return false
+end
+
+local function processQueue()
+    if IsProcessing then return end
+    IsProcessing = true
+    
+    while #CommandQueue > 0 do
+        local cmd = table.remove(CommandQueue, 1)
+        local success = processCommand(cmd.type, unpack(cmd.args))
+        
+        if not success then
+            warn("Command failed:", cmd.type, cmd.args)
+            wait(1)
+        end
+    end
+    
+    IsProcessing = false
 end
 
 function TDX:JoinMapViaAPC(mapName)
@@ -360,124 +456,30 @@ function TDX:WaitForGame()
 end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
-    local remotes = ensureRemotes()
-    if not remotes then return nil end
-    
-    local placeRemote = remotes:FindFirstChild("PlaceTower")
-    if not placeRemote then return nil end
-    
-    local args = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
-    local initialCash = getCurrentCash()
-    
-    if cost and cost > 0 then
-        local waitStart = tick()
-        while getCurrentCash() < cost do
-            if tick() - waitStart > 30 then
-                warn("Timeout waiting for cash for", towerName)
-                return nil
-            end
-            wait(0.1)
-        end
-    end
+    table.insert(CommandQueue, {
+        type = "Place",
+        args = {towerName, x, y, z, rotation, cost}
+    })
+    processQueue()
+    return true
+end
 
-    wait(0.5)
-    
-    local success, result = pcall(function()
-        return placeRemote:InvokeServer(unpack(args))
-    end)
-    
-    if success and result then
-        local confirmed, cashChange = waitForCashChange(initialCash, cost, 3)
-        if confirmed then
-            local towerId = result
-            TowerUpgrades[towerId] = {path1 = 0, path2 = 0}
-            wait(0.3)
-            return towerId
-        else
-            warn("Cash didn't change for", towerName, "- may have failed")
-            return nil
-        end
-    end
-    return nil
+function TDX:Upgrade(towerId, path, level, cost)
+    table.insert(CommandQueue, {
+        type = "Upgrade",
+        args = {towerId, path, level, cost}
+    })
+    processQueue()
+    return true
 end
 
 function TDX:Sell(towerId)
-    local initialCash = getCurrentCash()
-    wait(0.3)
-    
-    local remotes = ensureRemotes()
-    if remotes and remotes:FindFirstChild("SellTower") then
-        pcall(function()
-            remotes.SellTower:FireServer(towerId)
-        end)
-        
-        local confirmed, cashChange = waitForCashChange(initialCash, nil, 2)
-        if confirmed then
-            TowerUpgrades[towerId] = nil
-            wait(0.3)
-            return true
-        end
-    end
-    return false
-end
-
-function TDX:Upgrade(towerId, path, requestedLevel, cost)
-    local remotes = ensureRemotes()
-    if not remotes then return false end
-    
-    local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
-    if not upgradeRemote then return false end
-    
-    local key = getTowerKey(towerId, path)
-    local currentLevel = TowerUpgrades[key] or 0
-    
-    local initialCash = getCurrentCash()
-    local targetLevel = (requestedLevel and requestedLevel > 0) and requestedLevel or (currentLevel + 1)
-    
-    if targetLevel <= currentLevel then
-        return true
-    end
-    
-    if cost and cost > 0 then
-        local waitStart = tick()
-        while getCurrentCash() < cost do
-            if tick() - waitStart > 30 then
-                warn("Timeout waiting for cash for upgrade")
-                return false
-            end
-            wait(0.1)
-        end
-    end
-    
-    wait(0.5)
-    
-    local success, err = pcall(function()
-        upgradeRemote:FireServer(towerId, path, targetLevel)
-    end)
-    
-    if success then
-        local confirmed, cashChange = waitForCashChange(initialCash, cost, 3)
-        if confirmed then
-            TowerUpgrades[key] = targetLevel
-            wait(0.3)
-            return true
-        else
-            warn("Upgrade cash didn't change - may have failed")
-            return false
-        end
-    else
-        warn("Upgrade failed:", err)
-        return false
-    end
-end
-
-function TDX:GetTowerLevel(towerId, path)
-    local key = getTowerKey(towerId, path)
-    return TowerUpgrades[key] or 0
-end
-
-function TDX:ResetTracking()
-    TowerUpgrades = {}
+    table.insert(CommandQueue, {
+        type = "Sell",
+        args = {towerId}
+    })
+    processQueue()
+    return true
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
