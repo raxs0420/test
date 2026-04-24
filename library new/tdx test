@@ -95,7 +95,7 @@ local function processCommand(command, ...)
         
         local placeArgs = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
         
-        wait(0.3)
+        wait(0.2)
         
         local success, result = pcall(function()
             return placeRemote:InvokeServer(unpack(placeArgs))
@@ -103,7 +103,7 @@ local function processCommand(command, ...)
         
         if success and result then
             waitForCashChange(initialCash)
-            wait(0.4)
+            wait(0.3)
             return result
         end
         return false
@@ -126,7 +126,7 @@ local function processCommand(command, ...)
         local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
         if not upgradeRemote then return false end
         
-        wait(0.3)
+        wait(0.2)
         
         local success, err = pcall(function()
             upgradeRemote:FireServer(towerId, path, 1)
@@ -134,7 +134,7 @@ local function processCommand(command, ...)
         
         if success then
             waitForCashChange(initialCash)
-            wait(0.5)
+            wait(0.3)
             return true
         else
             warn("Upgrade failed:", err)
@@ -144,7 +144,7 @@ local function processCommand(command, ...)
         local towerId = unpack(args)
         local initialCash = getCurrentCash()
         
-        wait(0.3)
+        wait(0.2)
         
         local remotes = ensureRemotes()
         if remotes and remotes:FindFirstChild("SellTower") then
@@ -153,7 +153,7 @@ local function processCommand(command, ...)
             end)
             
             waitForCashChange(initialCash)
-            wait(0.4)
+            wait(0.3)
             return true
         end
         return false
