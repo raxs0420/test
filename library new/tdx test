@@ -125,36 +125,29 @@ local function autoSkipLoop()
     end)
 end
 
-local function monitorTowers()
-    task.spawn(function()
-        local gameFolder = Workspace:FindFirstChild("Game")
-        if not gameFolder then return end
-        
+local function isTowerAlive(towerId)
+    local towerData = TowerIds[towerId]
+    if not towerData then return false end
+    
+    if towerData.part and towerData.part.Parent then
+        return true
+    end
+    
+    local gameFolder = Workspace:FindFirstChild("Game")
+    if gameFolder then
         local towersFolder = gameFolder:FindFirstChild("Towers")
-        if not towersFolder then return end
-        
-        local function checkDeadTowers()
-            for towerId, towerData in pairs(TowerIds) do
-                if towerData.part and not towerData.part.Parent then
-                    TowerIds[towerId] = nil
+        if towersFolder then
+            for _, part in ipairs(towersFolder:GetChildren()) do
+                if part:IsA("BasePart") and (part.Position - towerData.position).Magnitude < 3 then
+                    towerData.part = part
+                    return true
                 end
             end
         end
-        
-        towersFolder.ChildRemoved:Connect(function(part)
-            for id, data in pairs(TowerIds) do
-                if data.part == part then
-                    TowerIds[id] = nil
-                    break
-                end
-            end
-        end)
-        
-        while true do
-            checkDeadTowers()
-            wait(1)
-        end
-    end)
+    end
+    
+    TowerIds[towerId] = nil
+    return false
 end
 
 local function processCommand(command, ...)
@@ -186,21 +179,25 @@ local function processCommand(command, ...)
             waitForCashChange(initialCash)
             wait(0.45)
             
+            local towerPos = Vector3.new(x, y, z)
+            local towerId = NextTowerId
+            NextTowerId = NextTowerId + 1
+            
             local gameFolder = Workspace:FindFirstChild("Game")
             if gameFolder then
                 local towersFolder = gameFolder:FindFirstChild("Towers")
                 if towersFolder then
                     for _, part in ipairs(towersFolder:GetChildren()) do
-                        if part:IsA("BasePart") and (part.Position - Vector3.new(x, y, z)).Magnitude < 5 then
-                            local towerId = NextTowerId
-                            NextTowerId = NextTowerId + 1
-                            TowerIds[towerId] = {part = part, name = towerName}
+                        if part:IsA("BasePart") and (part.Position - towerPos).Magnitude < 3 then
+                            TowerIds[towerId] = {part = part, position = towerPos, name = towerName}
                             return towerId
                         end
                     end
                 end
             end
-            return result
+            
+            TowerIds[towerId] = {part = nil, position = towerPos, name = towerName}
+            return towerId
         end
         return false
         
@@ -212,7 +209,7 @@ local function processCommand(command, ...)
             return false
         end
         
-        if not TowerIds[towerId] then
+        if not isTowerAlive(towerId) then
             warn("Tower", towerId, "no longer exists, skipping upgrade")
             return true
         end
@@ -243,6 +240,10 @@ local function processCommand(command, ...)
         end
     elseif command == "Sell" then
         local towerId = unpack(args)
+        
+        if not isTowerAlive(towerId) then
+            return true
+        end
         
         local initialCash = getCurrentCash()
         
@@ -283,15 +284,98 @@ local function processQueue()
     if IsProcessing then return end
     IsProcessing = true
     
-    while #CommandQueue > 0 do
-        local cmd = table.remove(CommandQueue, 1)
-        print("Processing:", cmd.type, cmd.args[1], cmd.args[2], "Cost:", cmd.args[6] or cmd.args[4])
-        local success = processCommand(cmd.type, unpack(cmd.args))
+    local i = 1
+    while i <= #CommandQueue do
+        local cmd = CommandQueue[i]
         
-        if not success then
-            warn("Command failed, retrying in 1 second:", cmd.type, cmd.args)
-            wait(1)
-            table.insert(CommandQueue, 1, cmd)
+        if cmd.type == "Upgrade" then
+            local totalCost = 0
+            local upgradesToProcess = {}
+            local j = i
+            
+            while j <= #CommandQueue and CommandQueue[j].type == "Upgrade" do
+                local upgradeCmd = CommandQueue[j]
+                local cost = upgradeCmd.args[4]
+                totalCost = totalCost + cost
+                table.insert(upgradesToProcess, upgradeCmd)
+                j = j + 1
+            end
+            
+            local currentCash = getCurrentCash()
+            if currentCash >= totalCost and #upgradesToProcess > 1 then
+                print("Batching", #upgradesToProcess, "upgrades (total cost:", totalCash, ")")
+                for idx, upgradeCmd in ipairs(upgradesToProcess) do
+                    print("Processing batch upgrade", idx, ":", upgradeCmd.args[1], upgradeCmd.args[2], "Cost:", upgradeCmd.args[4])
+                    
+                    if not isTowerAlive(upgradeCmd.args[1]) then
+                        warn("Tower", upgradeCmd.args[1], "no longer exists, skipping upgrade in batch")
+                        for k = 1, #upgradesToProcess do
+                            table.remove(CommandQueue, i)
+                        end
+                        break
+                    end
+                    
+                    local initialCash = getCurrentCash()
+                    waitForCashToReach(upgradeCmd.args[4])
+                    
+                    local remotes = ensureRemotes()
+                    if not remotes then
+                        for k = 1, #upgradesToProcess do
+                            table.remove(CommandQueue, i)
+                        end
+                        break
+                    end
+                    
+                    local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
+                    if not upgradeRemote then
+                        for k = 1, #upgradesToProcess do
+                            table.remove(CommandQueue, i)
+                        end
+                        break
+                    end
+                    
+                    wait(0.15)
+                    
+                    local success, err = pcall(function()
+                        upgradeRemote:FireServer(upgradeCmd.args[1], upgradeCmd.args[2], 1)
+                    end)
+                    
+                    if success then
+                        waitForCashChange(initialCash)
+                        wait(0.15)
+                    else
+                        warn("Batch upgrade failed:", err)
+                        for k = 1, #upgradesToProcess do
+                            table.remove(CommandQueue, i)
+                        end
+                        table.insert(CommandQueue, i, upgradeCmd)
+                        break
+                    end
+                end
+                for _ = 1, #upgradesToProcess do
+                    table.remove(CommandQueue, i)
+                end
+            else
+                local singleCmd = table.remove(CommandQueue, i)
+                print("Processing single upgrade:", singleCmd.args[1], singleCmd.args[2], "Cost:", singleCmd.args[4])
+                local success = processCommand(singleCmd.type, unpack(singleCmd.args))
+                if not success then
+                    warn("Command failed, retrying in 1 second:", singleCmd.type, singleCmd.args)
+                    wait(1)
+                    table.insert(CommandQueue, i, singleCmd)
+                    i = i + 1
+                end
+            end
+        else
+            local singleCmd = table.remove(CommandQueue, i)
+            print("Processing:", singleCmd.type, singleCmd.args[1], singleCmd.args[2], "Cost:", singleCmd.args[6] or singleCmd.args[4])
+            local success = processCommand(singleCmd.type, unpack(singleCmd.args))
+            if not success then
+                warn("Command failed, retrying in 1 second:", singleCmd.type, singleCmd.args)
+                wait(1)
+                table.insert(CommandQueue, i, singleCmd)
+                i = i + 1
+            end
         end
     end
     
@@ -726,7 +810,5 @@ function TDX:Equip(items)
     end
     wait(0.5)
 end
-
-monitorTowers()
 
 return TDX
