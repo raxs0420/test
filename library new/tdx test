@@ -7,6 +7,10 @@ local Remotes = nil
 local CommandQueue = {}
 local IsProcessing = false
 local CurrentSpeed = 1
+local AutoSkipEnabled = false
+local LastSpeedChangeTime = 0
+local TowerIds = {}
+local NextTowerId = 1
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -100,7 +104,57 @@ local function setGameSpeed(speed)
         return false
     end
     
+    LastSpeedChangeTime = tick()
     return true
+end
+
+local function autoSkipLoop()
+    task.spawn(function()
+        while AutoSkipEnabled do
+            local remotes = ensureRemotes()
+            if remotes then
+                local skipRemote = remotes:FindFirstChild("SkipWaveVoteCast")
+                if skipRemote then
+                    pcall(function()
+                        skipRemote:FireServer(true)
+                    end)
+                end
+            end
+            wait(0.1)
+        end
+    end)
+end
+
+local function monitorTowers()
+    task.spawn(function()
+        local gameFolder = Workspace:FindFirstChild("Game")
+        if not gameFolder then return end
+        
+        local towersFolder = gameFolder:FindFirstChild("Towers")
+        if not towersFolder then return end
+        
+        local function checkDeadTowers()
+            for towerId, towerData in pairs(TowerIds) do
+                if towerData.part and not towerData.part.Parent then
+                    TowerIds[towerId] = nil
+                end
+            end
+        end
+        
+        towersFolder.ChildRemoved:Connect(function(part)
+            for id, data in pairs(TowerIds) do
+                if data.part == part then
+                    TowerIds[id] = nil
+                    break
+                end
+            end
+        end)
+        
+        while true do
+            checkDeadTowers()
+            wait(1)
+        end
+    end)
 end
 
 local function processCommand(command, ...)
@@ -122,7 +176,7 @@ local function processCommand(command, ...)
         
         local placeArgs = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
         
-        wait(0.4)
+        wait(0.45)
         
         local success, result = pcall(function()
             return placeRemote:InvokeServer(unpack(placeArgs))
@@ -130,7 +184,22 @@ local function processCommand(command, ...)
         
         if success and result then
             waitForCashChange(initialCash)
-            wait(0.4)
+            wait(0.45)
+            
+            local gameFolder = Workspace:FindFirstChild("Game")
+            if gameFolder then
+                local towersFolder = gameFolder:FindFirstChild("Towers")
+                if towersFolder then
+                    for _, part in ipairs(towersFolder:GetChildren()) do
+                        if part:IsA("BasePart") and (part.Position - Vector3.new(x, y, z)).Magnitude < 5 then
+                            local towerId = NextTowerId
+                            NextTowerId = NextTowerId + 1
+                            TowerIds[towerId] = {part = part, name = towerName}
+                            return towerId
+                        end
+                    end
+                end
+            end
             return result
         end
         return false
@@ -143,6 +212,11 @@ local function processCommand(command, ...)
             return false
         end
         
+        if not TowerIds[towerId] then
+            warn("Tower", towerId, "no longer exists, skipping upgrade")
+            return true
+        end
+        
         local initialCash = getCurrentCash()
         
         waitForCashToReach(cost)
@@ -153,7 +227,7 @@ local function processCommand(command, ...)
         local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
         if not upgradeRemote then return false end
         
-        wait(0.4)
+        wait(0.45)
         
         local success, err = pcall(function()
             upgradeRemote:FireServer(towerId, path, 1)
@@ -161,7 +235,7 @@ local function processCommand(command, ...)
         
         if success then
             waitForCashChange(initialCash)
-            wait(0.4)
+            wait(0.45)
             return true
         else
             warn("Upgrade failed:", err)
@@ -169,9 +243,10 @@ local function processCommand(command, ...)
         end
     elseif command == "Sell" then
         local towerId = unpack(args)
+        
         local initialCash = getCurrentCash()
         
-        wait(0.4)
+        wait(0.45)
         
         local remotes = ensureRemotes()
         if remotes and remotes:FindFirstChild("SellTower") then
@@ -180,7 +255,8 @@ local function processCommand(command, ...)
             end)
             
             waitForCashChange(initialCash)
-            wait(0.4)
+            TowerIds[towerId] = nil
+            wait(0.45)
             return true
         end
         return false
@@ -191,18 +267,12 @@ local function processCommand(command, ...)
             return true
         end
         
-        if targetSpeed == 1 then
-            setGameSpeed(1)
-        elseif targetSpeed == 1.5 then
-            setGameSpeed(1.5)
-        elseif targetSpeed == 0.5 then
-            setGameSpeed(0.5)
-        else
-            warn("Invalid speed:", targetSpeed, "Use 1, 1.5, or 0.5")
-            return false
+        local timeSinceLastChange = tick() - LastSpeedChangeTime
+        if timeSinceLastChange < 4 and CurrentSpeed ~= 1 then
+            wait(4 - timeSinceLastChange)
         end
         
-        wait(4)
+        setGameSpeed(targetSpeed)
         return true
     end
     
@@ -536,6 +606,14 @@ function TDX:TimeScale(speed)
     return true
 end
 
+function TDX:AutoSkip(enabled)
+    AutoSkipEnabled = enabled
+    if enabled then
+        autoSkipLoop()
+    end
+    return true
+end
+
 function TDX:VoteMap(mapName, maxAttempts)
     maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
@@ -648,5 +726,7 @@ function TDX:Equip(items)
     end
     wait(0.5)
 end
+
+monitorTowers()
 
 return TDX
