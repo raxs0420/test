@@ -88,7 +88,9 @@ local function waitForTowerToAppear(x, y, z)
 end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
-    while IsBusy do task.wait(0.1) end
+    while IsBusy do
+        task.wait(0.1)
+    end
     IsBusy = true
     
     local success = false
@@ -123,7 +125,9 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
 end
 
 function TDX:Upgrade(identifier, path, level, cost)
-    while IsBusy do task.wait(0.1) end
+    while IsBusy do
+        task.wait(0.1)
+    end
     IsBusy = true
     
     local success = false
@@ -164,7 +168,9 @@ function TDX:Upgrade(identifier, path, level, cost)
 end
 
 function TDX:Sell(towerId)
-    while IsBusy do task.wait(0.1) end
+    while IsBusy do
+        task.wait(0.1)
+    end
     IsBusy = true
     
     local sellRemote = getRemote("SellTower")
@@ -180,7 +186,9 @@ function TDX:Sell(towerId)
 end
 
 function TDX:TimeScale(speed)
-    while IsBusy do task.wait(0.1) end
+    while IsBusy do
+        task.wait(0.1)
+    end
     IsBusy = true
     
     if speed ~= CurrentSpeed then
