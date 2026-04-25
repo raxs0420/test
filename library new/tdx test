@@ -6,6 +6,7 @@ local Workspace = game:GetService("Workspace")
 local Remotes = nil
 local PositionToTowerId = {}
 local TowerIdToPosition = {}
+local TowerUpgradeLevels = {}
 local NextTowerId = 1
 local IsBusy = false
 local CurrentSpeed = 1
@@ -59,6 +60,7 @@ local function updateTowerMapping(towerId, x, y, z)
     local key = getPositionKey(x, y, z)
     PositionToTowerId[key] = towerId
     TowerIdToPosition[towerId] = {x = x, y = y, z = z}
+    TowerUpgradeLevels[towerId] = {[1] = 0, [2] = 0}
 end
 
 local function getTowerIdFromPosition(x, y, z)
@@ -89,7 +91,6 @@ end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
     while IsBusy do
-        task.wait(0.1)
     end
     IsBusy = true
     
@@ -105,7 +106,7 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
                 end)
                 
                 if ok and result == true then
-                    task.wait(0.2)
+                    task.wait(0.3)
                     if waitForTowerToAppear(x, y, z) then
                         updateTowerMapping(NextTowerId, x, y, z)
                         NextTowerId = NextTowerId + 1
@@ -119,14 +120,12 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
         end
     end
     
-    task.wait(0.1)
     IsBusy = false
     return true
 end
 
 function TDX:Upgrade(identifier, path, level, cost)
     while IsBusy do
-        task.wait(0.2)
     end
     IsBusy = true
     
@@ -141,9 +140,15 @@ function TDX:Upgrade(identifier, path, level, cost)
     end
     
     if upgradeRemote and towerId then
+        local currentLevel = TowerUpgradeLevels[towerId] and TowerUpgradeLevels[towerId][path] or 0
+        if level ~= currentLevel + 1 then
+            IsBusy = false
+            return true
+        end
+        
         while not success do
             local currentCash = getCurrentCash()
-            if currentCash >= cost * 1.01 then
+            if currentCash >= cost then
                 local ok = pcall(function()
                     upgradeRemote:FireServer(towerId, path, 1)
                 end)
@@ -152,6 +157,10 @@ function TDX:Upgrade(identifier, path, level, cost)
                     task.wait(0.3)
                     local newCash = getCurrentCash()
                     if newCash < currentCash then
+                        if not TowerUpgradeLevels[towerId] then
+                            TowerUpgradeLevels[towerId] = {[1] = 0, [2] = 0}
+                        end
+                        TowerUpgradeLevels[towerId][path] = level
                         success = true
                     end
                 end
@@ -162,7 +171,6 @@ function TDX:Upgrade(identifier, path, level, cost)
         end
     end
     
-    task.wait(0.1)
     IsBusy = false
     return true
 end
@@ -178,6 +186,7 @@ function TDX:Sell(towerId)
         pcall(function()
             sellRemote:FireServer(towerId)
         end)
+        TowerUpgradeLevels[towerId] = nil
     end
     
     task.wait(1)
@@ -238,6 +247,7 @@ end
 function TDX:ResetMappings()
     PositionToTowerId = {}
     TowerIdToPosition = {}
+    TowerUpgradeLevels = {}
     NextTowerId = 1
 end
 
