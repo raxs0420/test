@@ -4,8 +4,6 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local Remotes = nil
-local PositionToTowerId = {}
-local TowerIdToPosition = {}
 local NextTowerId = 1
 local CurrentSpeed = 1
 
@@ -34,122 +32,53 @@ local function getCurrentCash()
     return cash and cash.Value or 0
 end
 
-local function getPositionKey(x, y, z)
-    return string.format("%.1f_%.1f_%.1f", x, y, z)
-end
-
-local function findTowerAtPosition(x, y, z)
-    local gameFolder = Workspace:FindFirstChild("Game")
-    if gameFolder then
-        local towersFolder = gameFolder:FindFirstChild("Towers")
-        if towersFolder then
-            local targetPos = Vector3.new(x, y, z)
-            for _, part in ipairs(towersFolder:GetChildren()) do
-                if part:IsA("BasePart") and (part.Position - targetPos).Magnitude < 2 then
-                    return part
-                end
-            end
-        end
+local function waitForCash(cost)
+    while getCurrentCash() < cost do
+        task.wait(0.05)
     end
-    return nil
-end
-
-local function updateTowerMapping(towerId, x, y, z)
-    local key = getPositionKey(x, y, z)
-    PositionToTowerId[key] = towerId
-    TowerIdToPosition[towerId] = {x = x, y = y, z = z}
-end
-
-local function getTowerIdFromPosition(x, y, z)
-    local key = getPositionKey(x, y, z)
-    if PositionToTowerId[key] then
-        return PositionToTowerId[key]
-    end
-    local tower = findTowerAtPosition(x, y, z)
-    if tower then
-        for id, pos in pairs(TowerIdToPosition) do
-            if (Vector3.new(pos.x, pos.y, pos.z) - tower.Position).Magnitude < 1.5 then
-                return id
-            end
-        end
-    end
-    return nil
-end
-
-local function waitForTowerToAppear(x, y, z)
-    for i = 1, 20 do
-        if findTowerAtPosition(x, y, z) then
-            return true
-        end
-        task.wait(0.1)
-    end
-    return false
 end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
-    local success = false
     local placeRemote = getRemote("PlaceTower")
+    if not placeRemote then return nil end
 
-    if placeRemote then
-        while not success do
-            local currentCash = getCurrentCash()
-            if currentCash >= cost then
-                local ok, result = pcall(function()
-                    return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
-                end)
-
-                if ok and result == true then
-                    task.wait(0.3)
-                    if waitForTowerToAppear(x, y, z) then
-                        updateTowerMapping(NextTowerId, x, y, z)
-                        NextTowerId = NextTowerId + 1
-                        success = true
-                    end
-                end
-            end
-            if not success then
-                task.wait(0.1)
+    while true do
+        local cash = getCurrentCash()
+        if cash >= cost then
+            local ok, result = pcall(function()
+                return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
+            end)
+            if ok and result == true then
+                task.wait(0.3) -- wait for tower to register
+                local towerId = NextTowerId
+                NextTowerId = NextTowerId + 1
+                return towerId
             end
         end
+        task.wait(0.5)
     end
-    return true
 end
 
-function TDX:Upgrade(identifier, path, level, cost)
-    local success = false
+function TDX:Upgrade(towerId, path, level, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
+    if not upgradeRemote then return false end
 
-    local towerId = nil
-    if type(identifier) == "table" then
-        towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
-    else
-        towerId = identifier
-    end
-
-    if upgradeRemote and towerId then
-        while not success do
-            local currentCash = getCurrentCash()
-            if currentCash >= cost then
-                local ok = pcall(function()
-                    upgradeRemote:FireServer(towerId, path, 1)
-                end)
-
-                if ok then
-                    task.wait(0.3)
-                    local newCash = getCurrentCash()
-                    if newCash < currentCash then
-                        success = true
-                    end
+    while true do
+        local cashBefore = getCurrentCash()
+        if cashBefore >= cost then
+            local ok = pcall(function()
+                upgradeRemote:FireServer(towerId, path, 1)
+            end)
+            if ok then
+                task.wait(0.3)
+                local cashAfter = getCurrentCash()
+                if cashAfter < cashBefore then
+                    return true
                 end
             end
-            if not success then
-                task.wait(0.1)
-            end
         end
+        task.wait(0.5)
     end
-
-    task.wait(0.1)
-    return true
 end
 
 function TDX:Sell(towerId)
@@ -159,7 +88,7 @@ function TDX:Sell(towerId)
             sellRemote:FireServer(towerId)
         end)
     end
-    task.wait(0.3)
+    task.wait(1)
     return true
 end
 
@@ -207,24 +136,7 @@ function TDX:WaitForGame()
 end
 
 function TDX:ResetMappings()
-    PositionToTowerId = {}
-    TowerIdToPosition = {}
     NextTowerId = 1
-end
-
-function TDX:RemapAllTowers()
-    self:ResetMappings()
-    local gameFolder = Workspace:FindFirstChild("Game")
-    if not gameFolder then return end
-    local towersFolder = gameFolder:FindFirstChild("Towers")
-    if not towersFolder then return end
-    for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") then
-            local pos = part.Position
-            updateTowerMapping(NextTowerId, pos.X, pos.Y, pos.Z)
-            NextTowerId = NextTowerId + 1
-        end
-    end
 end
 
 function TDX:JoinMapViaAPC(mapName)
@@ -280,7 +192,6 @@ function TDX:JoinMapViaAPC(mapName)
 
         task.wait(0.5)
     end
-
     return false
 end
 
