@@ -7,7 +7,6 @@ local Remotes = nil
 local PositionToTowerId = {}
 local TowerIdToPosition = {}
 local NextTowerId = 1
-local IsBusy = false
 local CurrentSpeed = 1
 
 local function ensureRemotes()
@@ -88,14 +87,9 @@ local function waitForTowerToAppear(x, y, z)
 end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
-    while IsBusy do
-        task.wait(0.1)
-    end
-    IsBusy = true
-    
     local success = false
     local placeRemote = getRemote("PlaceTower")
-    
+
     if placeRemote then
         while not success do
             local currentCash = getCurrentCash()
@@ -103,7 +97,7 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
                 local ok, result = pcall(function()
                     return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
                 end)
-                
+
                 if ok and result == true then
                     task.wait(0.3)
                     if waitForTowerToAppear(x, y, z) then
@@ -114,31 +108,24 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
                 end
             end
             if not success then
+                task.wait(0.1)
             end
         end
     end
-    
-    task.wait(0.1)
-    IsBusy = false
     return true
 end
 
 function TDX:Upgrade(identifier, path, level, cost)
-    while IsBusy do
-        task.wait(0.1)
-    end
-    IsBusy = true
-    
     local success = false
     local upgradeRemote = getRemote("TowerUpgradeRequest")
-    
+
     local towerId = nil
     if type(identifier) == "table" then
         towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
     else
         towerId = identifier
     end
-    
+
     if upgradeRemote and towerId then
         while not success do
             local currentCash = getCurrentCash()
@@ -146,7 +133,7 @@ function TDX:Upgrade(identifier, path, level, cost)
                 local ok = pcall(function()
                     upgradeRemote:FireServer(towerId, path, 1)
                 end)
-                
+
                 if ok then
                     task.wait(0.3)
                     local newCash = getCurrentCash()
@@ -156,39 +143,27 @@ function TDX:Upgrade(identifier, path, level, cost)
                 end
             end
             if not success then
+                task.wait(0.1)
             end
         end
     end
-    
+
     task.wait(0.1)
-    IsBusy = false
     return true
 end
 
 function TDX:Sell(towerId)
-    while IsBusy do
-        task.wait(0.1)
-    end
-    IsBusy = true
-    
     local sellRemote = getRemote("SellTower")
     if sellRemote then
         pcall(function()
             sellRemote:FireServer(towerId)
         end)
     end
-    
-    task.wait(1)
-    IsBusy = false
+    task.wait(0.3)
     return true
 end
 
 function TDX:TimeScale(speed)
-    while IsBusy do
-        task.wait(0.1)
-    end
-    IsBusy = true
-    
     if speed ~= CurrentSpeed then
         local speedRemote = getRemote("SoloToggleSpeedControl")
         if speedRemote then
@@ -202,9 +177,7 @@ function TDX:TimeScale(speed)
             CurrentSpeed = speed
         end
     end
-    
     task.wait(1)
-    IsBusy = false
     return true
 end
 
@@ -259,7 +232,7 @@ function TDX:JoinMapViaAPC(mapName)
     local level = 0
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
-    
+
     for i = 1, 60 do
         local apcsContainer = Workspace:FindFirstChild("APCs")
         if apcsContainer then
@@ -281,7 +254,7 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
-        
+
         if level >= 31 then
             local apcs2Container = Workspace:FindFirstChild("APCs2")
             if apcs2Container then
@@ -304,10 +277,10 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
-        
+
         task.wait(0.5)
     end
-    
+
     return false
 end
 
