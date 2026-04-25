@@ -41,12 +41,12 @@ end
 
 local function waitForCash(targetCash)
     while getCurrentCash() < targetCash do
-        task.wait(0.05)
+        task.wait(0.01)
     end
 end
 
 local function getPositionKey(x, y, z)
-    return string.format("%.1f_%.1f_%.1f", x, y, z)
+    return string.format("%.2f_%.2f_%.2f", x, y, z)
 end
 
 local function findTowerAtPosition(x, y, z)
@@ -56,7 +56,7 @@ local function findTowerAtPosition(x, y, z)
         if towersFolder then
             local targetPos = Vector3.new(x, y, z)
             for _, part in ipairs(towersFolder:GetChildren()) do
-                if part:IsA("BasePart") and (part.Position - targetPos).Magnitude < 2 then
+                if part:IsA("BasePart") and (part.Position - targetPos).Magnitude < 1.5 then
                     return part
                 end
             end
@@ -88,7 +88,7 @@ end
 
 local function waitForTowerToAppear(x, y, z)
     local startTime = tick()
-    while tick() - startTime < 1.5 do
+    while tick() - startTime < 2 do
         if findTowerAtPosition(x, y, z) then
             return true
         end
@@ -139,6 +139,7 @@ local function processCommand(command, ...)
     
     if command == "Place" then
         local towerName, x, y, z, rotation, cost = unpack(args)
+        local posKey = getPositionKey(x, y, z)
         
         if isPositionOccupied(x, y, z) then
             return false
@@ -277,22 +278,31 @@ local function processQueue()
                     end
                 end
                 
-                if #sameTowerUpgrades > 1 and getCurrentCash() >= totalCost then
-                    local batchSuccess = true
-                    for _, upgradeCmd in ipairs(sameTowerUpgrades) do
-                        local path = upgradeCmd.args[2]
-                        local success = executeUpgrade(towerId, path)
-                        if not success then
-                            batchSuccess = false
-                            break
-                        end
-                    end
+                if #sameTowerUpgrades > 1 then
+                    local requiredCash = totalCost * 1.1
+                    local currentCash = getCurrentCash()
                     
-                    if batchSuccess then
-                        for _ = 1, #sameTowerUpgrades do
-                            table.remove(CommandQueue, i)
+                    if currentCash >= requiredCash then
+                        local batchSuccess = true
+                        for _, upgradeCmd in ipairs(sameTowerUpgrades) do
+                            local path = upgradeCmd.args[2]
+                            local cost = upgradeCmd.args[4] or 0
+                            
+                            waitForCash(cost)
+                            
+                            local success = executeUpgrade(towerId, path)
+                            if not success then
+                                batchSuccess = false
+                                break
+                            end
                         end
-                        batchProcessed = true
+                        
+                        if batchSuccess then
+                            for _ = 1, #sameTowerUpgrades do
+                                table.remove(CommandQueue, i)
+                            end
+                            batchProcessed = true
+                        end
                     end
                 end
             end
@@ -322,10 +332,9 @@ function TDX:JoinMapViaAPC(mapName)
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
     
-    local found = false
     local startTime = tick()
     
-    while not found and tick() - startTime < 30 do
+    while tick() - startTime < 30 do
         if self:WaitForGame() then
             return false
         end
