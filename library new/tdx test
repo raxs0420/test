@@ -66,7 +66,6 @@ local function getTowerIdFromPosition(x, y, z)
     if PositionToTowerId[key] then
         return PositionToTowerId[key]
     end
-    
     local tower = findTowerAtPosition(x, y, z)
     if tower then
         for id, pos in pairs(TowerIdToPosition) do
@@ -79,8 +78,7 @@ local function getTowerIdFromPosition(x, y, z)
 end
 
 local function waitForTowerToAppear(x, y, z)
-    local startTime = tick()
-    while tick() - startTime < 2 do
+    for i = 1, 20 do
         if findTowerAtPosition(x, y, z) then
             return true
         end
@@ -90,9 +88,7 @@ local function waitForTowerToAppear(x, y, z)
 end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
-    while IsBusy do
-        task.wait(0.1)
-    end
+    while IsBusy do task.wait(0.1) end
     IsBusy = true
     
     local success = false
@@ -100,58 +96,41 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
     
     if placeRemote then
         while not success do
-            task.wait(0.1)
-            
             local currentCash = getCurrentCash()
-            if currentCash < cost then
-                task.wait(0.5)
-                goto continue
-            end
-            
-            task.wait(0.1)
-            
-            local ok, result = pcall(function()
-                return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
-            end)
-            
-            if ok and result == true then
-                task.wait(0.2)
+            if currentCash >= cost then
+                local ok, result = pcall(function()
+                    return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
+                end)
                 
-                local newCash = getCurrentCash()
-                if newCash < currentCash then
-                    task.wait(0.1)
-                    
+                if ok and result == true then
+                    task.wait(0.3)
                     if waitForTowerToAppear(x, y, z) then
-                        local towerId = NextTowerId
+                        updateTowerMapping(NextTowerId, x, y, z)
                         NextTowerId = NextTowerId + 1
-                        updateTowerMapping(towerId, x, y, z)
                         success = true
-                        break
                     end
                 end
             end
-            
-            ::continue::
-            task.wait(0.25)
+            if not success then
+                task.wait(0.5)
+            end
         end
     end
     
     task.wait(1)
     IsBusy = false
-    return success
+    return true
 end
 
 function TDX:Upgrade(identifier, path, level, cost)
-    while IsBusy do
-        task.wait(0.1)
-    end
+    while IsBusy do task.wait(0.1) end
     IsBusy = true
     
     local success = false
     local upgradeRemote = getRemote("TowerUpgradeRequest")
     
     local towerId = nil
-    if type(identifier) == "table" and identifier.x then
+    if type(identifier) == "table" then
         towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
     else
         towerId = identifier
@@ -159,47 +138,50 @@ function TDX:Upgrade(identifier, path, level, cost)
     
     if upgradeRemote and towerId then
         while not success do
-            task.wait(0.1)
-            
             local currentCash = getCurrentCash()
-            if currentCash < cost then
-                task.wait(0.5)
-                goto continue
-            end
-            
-            task.wait(0.1)
-            
-            local ok = pcall(function()
-                upgradeRemote:FireServer(towerId, path, 1)
-            end)
-            
-            if ok then
-                task.wait(0.2)
+            if currentCash >= cost then
+                local ok = pcall(function()
+                    upgradeRemote:FireServer(towerId, path, 1)
+                end)
                 
-                local newCash = getCurrentCash()
-                if newCash < currentCash then
-                    success = true
-                    break
+                if ok then
+                    task.wait(0.3)
+                    local newCash = getCurrentCash()
+                    if newCash < currentCash then
+                        success = true
+                    end
                 end
             end
-            
-            ::continue::
-            task.wait(0.25)
+            if not success then
+                task.wait(0.5)
+            end
         end
     end
     
     task.wait(1)
     IsBusy = false
-    return success
+    return true
+end
+
+function TDX:Sell(towerId)
+    while IsBusy do task.wait(0.1) end
+    IsBusy = true
+    
+    local sellRemote = getRemote("SellTower")
+    if sellRemote then
+        pcall(function()
+            sellRemote:FireServer(towerId)
+        end)
+    end
+    
+    task.wait(1)
+    IsBusy = false
+    return true
 end
 
 function TDX:TimeScale(speed)
-    while IsBusy do
-        task.wait(0.1)
-    end
+    while IsBusy do task.wait(0.1) end
     IsBusy = true
-    
-    task.wait(0.1)
     
     if speed ~= CurrentSpeed then
         local speedRemote = getRemote("SoloToggleSpeedControl")
@@ -215,110 +197,9 @@ function TDX:TimeScale(speed)
         end
     end
     
-    task.wait(0.1)
     task.wait(1)
     IsBusy = false
     return true
-end
-
-function TDX:Sell(towerId)
-    while IsBusy do
-        task.wait(0.1)
-    end
-    IsBusy = true
-    
-    task.wait(0.1)
-    
-    local sellRemote = getRemote("SellTower")
-    if sellRemote then
-        pcall(function()
-            sellRemote:FireServer(towerId)
-        end)
-    end
-    
-    task.wait(0.1)
-    task.wait(1)
-    IsBusy = false
-    return true
-end
-
-function TDX:JoinMapViaAPC(mapName)
-    local player = Players.LocalPlayer
-    local level = 0
-    local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
-    if lvl then level = lvl.Value end
-    
-    local startTime = tick()
-    
-    while tick() - startTime < 30 do
-        local apcsContainer = Workspace:FindFirstChild("APCs")
-        if apcsContainer then
-            for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
-                local attrMap = slotFolder:GetAttribute("MapName") or ""
-                local matched = attrMap == mapName
-                
-                if not matched then
-                    local apcFolder = slotFolder:FindFirstChild("APC")
-                    if apcFolder and apcFolder:GetAttribute("MapName") == mapName then
-                        matched = true
-                    end
-                end
-                
-                if matched then
-                    local detector = slotFolder:FindFirstChild("Detector")
-                    if not detector and slotFolder:FindFirstChild("APC") then
-                        detector = slotFolder.APC:FindFirstChild("Detector")
-                    end
-                    
-                    if detector and detector:IsA("BasePart") then
-                        local character = player.Character
-                        if character and character:FindFirstChild("HumanoidRootPart") then
-                            character.HumanoidRootPart.CFrame = detector.CFrame
-                            task.wait(2)
-                            return true
-                        end
-                    end
-                end
-            end
-        end
-        
-        if level >= 31 then
-            local apcs2Container = Workspace:FindFirstChild("APCs2")
-            if apcs2Container then
-                for _, slotFolder in ipairs(apcs2Container:GetChildren()) do
-                    local attrMap = slotFolder:GetAttribute("MapName") or ""
-                    local matched = attrMap == mapName
-                    
-                    if not matched then
-                        local apcFolder = slotFolder:FindFirstChild("APC")
-                        if apcFolder and apcFolder:GetAttribute("MapName") == mapName then
-                            matched = true
-                        end
-                    end
-                    
-                    if matched then
-                        local detector = slotFolder:FindFirstChild("Detector")
-                        if not detector and slotFolder:FindFirstChild("APC") then
-                            detector = slotFolder.APC:FindFirstChild("Detector")
-                        end
-                        
-                        if detector and detector:IsA("BasePart") then
-                            local character = player.Character
-                            if character and character:FindFirstChild("HumanoidRootPart") then
-                                character.HumanoidRootPart.CFrame = detector.CFrame
-                                task.wait(2)
-                                return true
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        
-        task.wait(0.5)
-    end
-    
-    return false
 end
 
 function TDX:AutoSkip(enabled)
@@ -346,6 +227,84 @@ function TDX:WaitForGame()
     return getRemote("PlaceTower") ~= nil and getRemote("SellTower") ~= nil and getRemote("TowerUpgradeRequest") ~= nil
 end
 
+function TDX:ResetMappings()
+    PositionToTowerId = {}
+    TowerIdToPosition = {}
+    NextTowerId = 1
+end
+
+function TDX:RemapAllTowers()
+    self:ResetMappings()
+    local gameFolder = Workspace:FindFirstChild("Game")
+    if not gameFolder then return end
+    local towersFolder = gameFolder:FindFirstChild("Towers")
+    if not towersFolder then return end
+    for _, part in ipairs(towersFolder:GetChildren()) do
+        if part:IsA("BasePart") then
+            local pos = part.Position
+            updateTowerMapping(NextTowerId, pos.X, pos.Y, pos.Z)
+            NextTowerId = NextTowerId + 1
+        end
+    end
+end
+
+function TDX:JoinMapViaAPC(mapName)
+    local player = Players.LocalPlayer
+    local level = 0
+    local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
+    if lvl then level = lvl.Value end
+    
+    for i = 1, 60 do
+        local apcsContainer = Workspace:FindFirstChild("APCs")
+        if apcsContainer then
+            for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
+                local attrMap = slotFolder:GetAttribute("MapName") or ""
+                if attrMap == mapName then
+                    local detector = slotFolder:FindFirstChild("Detector")
+                    if not detector and slotFolder:FindFirstChild("APC") then
+                        detector = slotFolder.APC:FindFirstChild("Detector")
+                    end
+                    if detector then
+                        local character = player.Character
+                        if character and character:FindFirstChild("HumanoidRootPart") then
+                            character.HumanoidRootPart.CFrame = detector.CFrame
+                            task.wait(2)
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+        
+        if level >= 31 then
+            local apcs2Container = Workspace:FindFirstChild("APCs2")
+            if apcs2Container then
+                for _, slotFolder in ipairs(apcs2Container:GetChildren()) do
+                    local attrMap = slotFolder:GetAttribute("MapName") or ""
+                    if attrMap == mapName then
+                        local detector = slotFolder:FindFirstChild("Detector")
+                        if not detector and slotFolder:FindFirstChild("APC") then
+                            detector = slotFolder.APC:FindFirstChild("Detector")
+                        end
+                        if detector then
+                            local character = player.Character
+                            if character and character:FindFirstChild("HumanoidRootPart") then
+                                character.HumanoidRootPart.CFrame = detector.CFrame
+                                task.wait(2)
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        
+        task.wait(0.5)
+    end
+    
+    return false
+end
+
 function TDX:VoteMap(mapName, maxAttempts)
     maxAttempts = maxAttempts or 10
     for attempt = 1, maxAttempts do
@@ -353,10 +312,7 @@ function TDX:VoteMap(mapName, maxAttempts)
         if mapVote then
             mapVote:FireServer(mapName)
             task.wait(0.5)
-            local readyRemote = getRemote("MapVoteReady")
-            if readyRemote then
-                readyRemote:FireServer()
-            end
+            self:Ready()
             return true
         end
         local changeVote = getRemote("MapChangeVoteCast")
@@ -417,10 +373,7 @@ function TDX:Mode(mode)
             task.wait(0.5)
             partyMap:FireServer(mode)
             task.wait(0.5)
-            local startGame = network:FindFirstChild("ClientStartGameRequest")
-            if startGame then
-                startGame:FireServer()
-            end
+            self:StartMatchmaking()
         end
     end
 end
@@ -445,27 +398,6 @@ function TDX:Equip(items)
         end
     end
     task.wait(0.5)
-end
-
-function TDX:ResetMappings()
-    PositionToTowerId = {}
-    TowerIdToPosition = {}
-    NextTowerId = 1
-end
-
-function TDX:RemapAllTowers()
-    self:ResetMappings()
-    local gameFolder = Workspace:FindFirstChild("Game")
-    if not gameFolder then return end
-    local towersFolder = gameFolder:FindFirstChild("Towers")
-    if not towersFolder then return end
-    for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") then
-            local pos = part.Position
-            updateTowerMapping(NextTowerId, pos.X, pos.Y, pos.Z)
-            NextTowerId = NextTowerId + 1
-        end
-    end
 end
 
 return TDX
