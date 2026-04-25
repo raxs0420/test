@@ -114,12 +114,12 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
                 end
             end
             if not success then
-                task.wait(0.5)
+                task.wait(0.1)
             end
         end
     end
     
-    task.wait(1)
+    task.wait(0.1)
     IsBusy = false
     return true
 end
@@ -157,12 +157,12 @@ function TDX:Upgrade(identifier, path, level, cost)
                 end
             end
             if not success then
-                task.wait(0.5)
+                task.wait(0.1)
             end
         end
     end
     
-    task.wait(1)
+    task.wait(0.1)
     IsBusy = false
     return true
 end
