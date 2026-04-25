@@ -8,9 +8,6 @@ local CommandQueue = {}
 local IsProcessing = false
 local CurrentSpeed = 1
 local AutoSkipEnabled = false
-local PositionToTowerId = {}
-local TowerIdToPosition = {}
-local NextTowerId = 1
 local BATCH_DELAY = 0.15
 local NORMAL_DELAY = 0.5
 
@@ -41,12 +38,12 @@ end
 
 local function waitForCash(targetCash)
     while getCurrentCash() < targetCash do
-        task.wait(0.05)
+        task.wait(0.01)
     end
 end
 
 local function getPositionKey(x, y, z)
-    return string.format("%.2f_%.2f_%.2f", x, y, z)
+    return string.format("%.1f_%.1f_%.1f", x, y, z)
 end
 
 local function findTowerAtPosition(x, y, z)
@@ -56,7 +53,7 @@ local function findTowerAtPosition(x, y, z)
         if towersFolder then
             local targetPos = Vector3.new(x, y, z)
             for _, part in ipairs(towersFolder:GetChildren()) do
-                if part:IsA("BasePart") and (part.Position - targetPos).Magnitude < 1.5 then
+                if part:IsA("BasePart") and (part.Position - targetPos).Magnitude < 2 then
                     return part
                 end
             end
@@ -67,23 +64,6 @@ end
 
 local function isPositionOccupied(x, y, z)
     return findTowerAtPosition(x, y, z) ~= nil
-end
-
-local function updateTowerMapping(towerId, x, y, z)
-    local key = getPositionKey(x, y, z)
-    PositionToTowerId[key] = towerId
-    TowerIdToPosition[towerId] = {x = x, y = y, z = z}
-end
-
-local function getTowerIdFromPosition(x, y, z)
-    local key = getPositionKey(x, y, z)
-    return PositionToTowerId[key]
-end
-
-local function isTowerAlive(towerId)
-    local pos = TowerIdToPosition[towerId]
-    if not pos then return false end
-    return findTowerAtPosition(pos.x, pos.y, pos.z) ~= nil
 end
 
 local function waitForTowerToAppear(x, y, z)
@@ -119,20 +99,20 @@ local function isMapOnScreen(mapName)
     return false
 end
 
-local function executeUpgrade(towerId, path, cost)
+local function executeUpgrade(x, y, z, path, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
     if not upgradeRemote then return false end
+    
+    local tower = findTowerAtPosition(x, y, z)
+    if not tower then return false end
     
     waitForCash(cost)
     
     local success = pcall(function()
-        upgradeRemote:FireServer(towerId, path, 1)
+        upgradeRemote:FireServer(tower, path, 1)
     end)
     
-    if success then
-        return true
-    end
-    return false
+    return success
 end
 
 local function processCommand(command, ...)
@@ -160,45 +140,27 @@ local function processCommand(command, ...)
         
         if success and result then
             task.wait(NORMAL_DELAY)
-            
-            if waitForTowerToAppear(x, y, z) then
-                local towerId = NextTowerId
-                NextTowerId = NextTowerId + 1
-                updateTowerMapping(towerId, x, y, z)
-                return towerId
-            end
+            waitForTowerToAppear(x, y, z)
+            return true
         end
         return false
         
     elseif command == "Upgrade" then
-        local identifier, path, level, cost = unpack(args)
-        local towerId = nil
+        local x, y, z, path, level, cost = unpack(args)
         
-        if type(identifier) == "table" and identifier.x then
-            towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
-            if not towerId then
-                return false
-            end
-        else
-            towerId = identifier
-            if not isTowerAlive(towerId) then
-                return false
-            end
+        if not findTowerAtPosition(x, y, z) then
+            return false
         end
         
-        return executeUpgrade(towerId, path, cost)
+        return executeUpgrade(x, y, z, path, cost)
         
     elseif command == "Sell" then
-        local towerId = unpack(args)
-        if not isTowerAlive(towerId) then
-            return true
-        end
-        
+        local tower = unpack(args)
         local sellRemote = getRemote("SellTower")
         if sellRemote then
             task.wait(NORMAL_DELAY)
             pcall(function()
-                sellRemote:FireServer(towerId)
+                sellRemote:FireServer(tower)
             end)
             task.wait(NORMAL_DELAY)
             return true
@@ -240,57 +202,42 @@ local function processQueue()
         local batchProcessed = false
         
         if cmd.type == "Upgrade" then
-            local identifier = cmd.args[1]
-            local sameTowerUpgrades = {}
+            local x, y, z, path, level, cost = unpack(cmd.args)
+            local posKey = getPositionKey(x, y, z)
+            local samePosUpgrades = {}
             local totalCost = 0
-            local towerId = nil
             
-            if type(identifier) == "table" and identifier.x then
-                towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
-            else
-                towerId = identifier
+            local j = i
+            while j <= #CommandQueue and CommandQueue[j].type == "Upgrade" do
+                local nextCmd = CommandQueue[j]
+                local nx, ny, nz = unpack(nextCmd.args)
+                local nextKey = getPositionKey(nx, ny, nz)
+                
+                if nextKey == posKey then
+                    local nextCost = nextCmd.args[6] or 0
+                    totalCost = totalCost + nextCost
+                    table.insert(samePosUpgrades, nextCmd)
+                    j = j + 1
+                else
+                    break
+                end
             end
             
-            if towerId and isTowerAlive(towerId) then
-                local j = i
-                while j <= #CommandQueue and CommandQueue[j].type == "Upgrade" do
-                    local nextCmd = CommandQueue[j]
-                    local nextIdentifier = nextCmd.args[1]
-                    local nextTowerId = nil
-                    
-                    if type(nextIdentifier) == "table" and nextIdentifier.x then
-                        nextTowerId = getTowerIdFromPosition(nextIdentifier.x, nextIdentifier.y, nextIdentifier.z)
-                    else
-                        nextTowerId = nextIdentifier
-                    end
-                    
-                    if nextTowerId == towerId then
-                        local cost = nextCmd.args[4] or 0
-                        totalCost = totalCost + cost
-                        table.insert(sameTowerUpgrades, nextCmd)
-                        j = j + 1
-                    else
+            if #samePosUpgrades >= 3 and getCurrentCash() >= totalCost then
+                for _, upgradeCmd in ipairs(samePosUpgrades) do
+                    local ux, uy, uz, upath, ulevel, ucost = unpack(upgradeCmd.args)
+                    local success = executeUpgrade(ux, uy, uz, upath, ucost)
+                    if not success then
+                        batchProcessed = false
                         break
                     end
+                    batchProcessed = true
+                    task.wait(BATCH_DELAY)
                 end
                 
-                if #sameTowerUpgrades > 1 and getCurrentCash() >= totalCost then
-                    for _, upgradeCmd in ipairs(sameTowerUpgrades) do
-                        local path = upgradeCmd.args[2]
-                        local cost = upgradeCmd.args[4] or 0
-                        local success = executeUpgrade(towerId, path, cost)
-                        if not success then
-                            batchProcessed = false
-                            break
-                        end
-                        batchProcessed = true
-                        task.wait(BATCH_DELAY)
-                    end
-                    
-                    if batchProcessed then
-                        for _ = 1, #sameTowerUpgrades do
-                            table.remove(CommandQueue, i)
-                        end
+                if batchProcessed then
+                    for _ = 1, #samePosUpgrades do
+                        table.remove(CommandQueue, i)
                     end
                 end
             end
@@ -406,19 +353,19 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
     return true
 end
 
-function TDX:Upgrade(identifier, path, level, cost)
+function TDX:Upgrade(x, y, z, path, level, cost)
     table.insert(CommandQueue, {
         type = "Upgrade",
-        args = {identifier, path, level, cost}
+        args = {x, y, z, path, level, cost}
     })
     task.spawn(processQueue)
     return true
 end
 
-function TDX:Sell(towerId)
+function TDX:Sell(tower)
     table.insert(CommandQueue, {
         type = "Sell",
-        args = {towerId}
+        args = {tower}
     })
     task.spawn(processQueue)
     return true
@@ -465,27 +412,6 @@ function TDX:WaitForGame()
     local remotes = ensureRemotes()
     if not remotes then return false end
     return getRemote("PlaceTower") ~= nil and getRemote("SellTower") ~= nil and getRemote("TowerUpgradeRequest") ~= nil
-end
-
-function TDX:ResetMappings()
-    PositionToTowerId = {}
-    TowerIdToPosition = {}
-    NextTowerId = 1
-end
-
-function TDX:RemapAllTowers()
-    self:ResetMappings()
-    local gameFolder = Workspace:FindFirstChild("Game")
-    if not gameFolder then return end
-    local towersFolder = gameFolder:FindFirstChild("Towers")
-    if not towersFolder then return end
-    for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") then
-            local pos = part.Position
-            updateTowerMapping(NextTowerId, pos.X, pos.Y, pos.Z)
-            NextTowerId = NextTowerId + 1
-        end
-    end
 end
 
 function TDX:VoteMap(mapName, maxAttempts)
