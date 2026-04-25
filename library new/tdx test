@@ -13,6 +13,13 @@ local TowerIdToPosition = {}
 local NextTowerId = 1
 local BATCH_DELAY = 0.15
 local NORMAL_DELAY = 0.5
+local DEBUG = true
+
+local function log(...)
+    if DEBUG then
+        print("[TDX]", ...)
+    end
+end
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -80,6 +87,7 @@ local function updateTowerMapping(towerId, x, y, z)
     local key = getPositionKey(x, y, z)
     PositionToTowerId[key] = towerId
     TowerIdToPosition[towerId] = {x = x, y = y, z = z}
+    log("Mapped tower ID", towerId, "to position", x, y, z)
 end
 
 local function clearTowerMapping(towerId)
@@ -88,6 +96,7 @@ local function clearTowerMapping(towerId)
         local key = getPositionKey(pos.x, pos.y, pos.z)
         PositionToTowerId[key] = nil
         TowerIdToPosition[towerId] = nil
+        log("Cleared mapping for tower ID", towerId)
     end
 end
 
@@ -101,6 +110,7 @@ local function getTowerIdFromPosition(x, y, z)
     if tower then
         for id, pos in pairs(TowerIdToPosition) do
             if (Vector3.new(pos.x, pos.y, pos.z) - tower.Position).Magnitude < 1.5 then
+                log("Found tower ID", id, "by proximity at", x, y, z)
                 return id
             end
         end
@@ -131,6 +141,7 @@ local function monitorTowerDeath()
             task.wait(1)
             for towerId, pos in pairs(TowerIdToPosition) do
                 if not findTowerAtPosition(pos.x, pos.y, pos.z) then
+                    log("Tower ID", towerId, "died, clearing mapping")
                     clearTowerMapping(towerId)
                 end
             end
@@ -164,16 +175,20 @@ local function executeUpgrade(towerId, path, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
     if not upgradeRemote then return false end
     
+    log("Waiting for cash:", cost, "current:", getCurrentCash())
     waitForCash(cost)
     
+    log("Executing upgrade on tower", towerId, "path", path)
     local success = pcall(function()
         upgradeRemote:FireServer(towerId, path, 1)
     end)
     
     if success then
+        log("Upgrade success on tower", towerId)
         task.wait(BATCH_DELAY)
         return true
     end
+    log("Upgrade failed on tower", towerId)
     return false
 end
 
@@ -184,10 +199,12 @@ local function processCommand(command, ...)
         local towerName, x, y, z, rotation, cost = unpack(args)
         
         if isPositionOccupied(x, y, z) then
+            log("Position occupied, skipping place:", x, y, z)
             return false
         end
         
         if cost and cost > 0 then
+            log("Waiting for cash to place:", cost)
             waitForCash(cost)
         end
         
@@ -196,6 +213,7 @@ local function processCommand(command, ...)
         
         task.wait(NORMAL_DELAY)
         
+        log("Placing", towerName, "at", x, y, z)
         local success, result = pcall(function()
             return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
         end)
@@ -207,9 +225,11 @@ local function processCommand(command, ...)
                 local towerId = NextTowerId
                 NextTowerId = NextTowerId + 1
                 updateTowerMapping(towerId, x, y, z)
+                log("Place success, assigned ID:", towerId)
                 return towerId
             end
         end
+        log("Place failed")
         return false
         
     elseif command == "Upgrade" then
@@ -219,11 +239,14 @@ local function processCommand(command, ...)
         if type(identifier) == "table" and identifier.x then
             towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
             if not towerId then
+                log("No tower found at position", identifier.x, identifier.y, identifier.z)
                 return false
             end
+            log("Found tower ID", towerId, "at position", identifier.x, identifier.y, identifier.z)
         else
             towerId = identifier
             if not isTowerAlive(towerId) then
+                log("Tower ID", towerId, "not alive")
                 return false
             end
         end
@@ -319,13 +342,18 @@ local function processQueue()
                     end
                 end
                 
+                log("Found", #sameTowerUpgrades, "upgrades for tower", towerId, "total cost:", totalCost, "current cash:", getCurrentCash())
+                
                 if #sameTowerUpgrades >= 3 and getCurrentCash() >= totalCost then
+                    log("BATCHING", #sameTowerUpgrades, "upgrades for tower", towerId)
                     local allSuccess = true
-                    for _, upgradeCmd in ipairs(sameTowerUpgrades) do
+                    for idx, upgradeCmd in ipairs(sameTowerUpgrades) do
                         local path = upgradeCmd.args[2]
                         local cost = upgradeCmd.args[4] or 0
+                        log("Batch upgrade", idx, "/", #sameTowerUpgrades, "path:", path, "cost:", cost)
                         local success = executeUpgrade(towerId, path, cost)
                         if not success then
+                            log("Batch failed at upgrade", idx)
                             allSuccess = false
                             break
                         end
@@ -333,10 +361,13 @@ local function processQueue()
                     end
                     
                     if allSuccess then
+                        log("Batch complete, removing", #sameTowerUpgrades, "upgrades")
                         for _ = 1, #sameTowerUpgrades do
                             table.remove(CommandQueue, i)
                         end
                         batchProcessed = true
+                    else
+                        log("Batch failed, processing individually")
                     end
                 end
             end
@@ -347,6 +378,7 @@ local function processQueue()
             if success then
                 table.remove(CommandQueue, i)
             else
+                log("Command failed, retrying in", NORMAL_DELAY, "seconds")
                 task.wait(NORMAL_DELAY)
                 i = i + 1
             end
