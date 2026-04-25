@@ -6,6 +6,7 @@ local Workspace = game:GetService("Workspace")
 local Remotes = nil
 local NextID = 1
 local CurrentSpeed = 1
+local Busy = false
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -33,62 +34,90 @@ local function getCash()
 end
 
 function TDX:Place(name, x, y, z, rot, cost)
+    while Busy do task.wait(0.05) end
+    Busy = true
+
     local remote = getRemote("PlaceTower")
-    if not remote then return nil end
-    while true do
-        if getCash() >= cost then
+    if not remote then Busy = false return nil end
+
+    local id = nil
+    while not id do
+        local cash = getCash()
+        if cash >= cost then
+            task.wait(0.1)
             local ok, res = pcall(function()
                 return remote:InvokeServer(rot or 0, name, Vector3.new(x, y, z), 0)
             end)
             if ok and res == true then
                 task.wait(0.3)
-                local id = NextID
+                id = NextID
                 NextID = NextID + 1
-                return id
             end
         end
-        task.wait(0.1)
+        if not id then task.wait(0.2) end
     end
+
+    task.wait(0.1)
+    Busy = false
+    return id
 end
 
 function TDX:Upgrade(id, path, _, cost)
+    while Busy do task.wait(0.05) end
+    Busy = true
+
     local remote = getRemote("TowerUpgradeRequest")
-    if not remote then return false end
-    while true do
+    if not remote then Busy = false return false end
+
+    local success = false
+    while not success do
         local before = getCash()
         if before >= cost then
-            task.wait(0.2)
+            task.wait(0.1)
             local ok = pcall(function()
                 remote:FireServer(id, path, 1)
             end)
             if ok then
                 task.wait(0.3)
                 if getCash() < before then
-                    return true
+                    success = true
                 end
             end
         end
-        task.wait(0.1)
+        if not success then task.wait(0.2) end
     end
+
+    task.wait(0.1)
+    Busy = false
+    return true
 end
 
 function TDX:Sell(id)
+    while Busy do task.wait(0.05) end
+    Busy = true
     local remote = getRemote("SellTower")
     if remote then
         pcall(function() remote:FireServer(id) end)
     end
     task.wait(1)
+    Busy = false
     return true
 end
 
 function TDX:TimeScale(speed)
+    task.wait(0.2)
     if speed == CurrentSpeed then return true end
     local remote = getRemote("SoloToggleSpeedControl")
     if remote then
-        if speed == 1 then remote:FireServer(false)
-        elseif speed == 1.5 then remote:FireServer(true, true)
-        elseif speed == 0.5 then remote:FireServer(true, false)
-        else return false end
+        if speed == 1 then
+            remote:FireServer(false)
+        elseif speed == 1.5 then
+            remote:FireServer(true, true)
+        elseif speed == 0.5 then
+            remote:FireServer(true, false)
+        else
+            return false
+        end
         CurrentSpeed = speed
     end
     task.wait(1)
@@ -99,20 +128,31 @@ function TDX:AutoSkip(enabled)
     task.spawn(function()
         while enabled do
             local skip = getRemote("SkipWaveVoteCast")
-            if skip then pcall(function() skip:FireServer(true) end) end
+            if skip then
+                pcall(function() skip:FireServer(true) end)
+            end
             task.wait(0.1)
         end
     end)
     return true
 end
 
-function TDX:GetCurrentSpeed() return CurrentSpeed end
+function TDX:GetCurrentSpeed()
+    return CurrentSpeed
+end
+
 function TDX:WaitForGame()
     local r = ensureRemotes()
     return r and getRemote("PlaceTower") and getRemote("SellTower") and getRemote("TowerUpgradeRequest")
 end
-function TDX:ResetMappings() NextID = 1 end
-function TDX:RemapAllTowers() self:ResetMappings() end
+
+function TDX:ResetMappings()
+    NextID = 1
+end
+
+function TDX:RemapAllTowers()
+    self:ResetMappings()
+end
 
 function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
@@ -127,7 +167,9 @@ function TDX:JoinMapViaAPC(mapName)
                 local attr = slot:GetAttribute("MapName") or ""
                 if attr == mapName then
                     local detector = slot:FindFirstChild("Detector")
-                    if not detector and slot:FindFirstChild("APC") then detector = slot.APC:FindFirstChild("Detector") end
+                    if not detector and slot:FindFirstChild("APC") then
+                        detector = slot.APC:FindFirstChild("Detector")
+                    end
                     if detector then
                         local char = player.Character
                         if char and char:FindFirstChild("HumanoidRootPart") then
@@ -146,7 +188,9 @@ function TDX:JoinMapViaAPC(mapName)
                     local attr = slot:GetAttribute("MapName") or ""
                     if attr == mapName then
                         local detector = slot:FindFirstChild("Detector")
-                        if not detector and slot:FindFirstChild("APC") then detector = slot.APC:FindFirstChild("Detector") end
+                        if not detector and slot:FindFirstChild("APC") then
+                            detector = slot.APC:FindFirstChild("Detector")
+                        end
                         if detector then
                             local char = player.Character
                             if char and char:FindFirstChild("HumanoidRootPart") then
@@ -175,7 +219,9 @@ function TDX:VoteMap(map, attempts)
             return true
         end
         local change = getRemote("MapChangeVoteCast")
-        if change then change:FireServer(true) end
+        if change then
+            change:FireServer(true)
+        end
         task.wait(1)
     end
     return self:JoinMapViaAPC(map)
@@ -183,30 +229,40 @@ end
 
 function TDX:RerollMaps()
     local change = getRemote("MapChangeVoteCast")
-    if change then change:FireServer(true) end
+    if change then
+        change:FireServer(true)
+    end
     task.wait(0.5)
 end
 
 function TDX:Ready()
     local ready = getRemote("MapVoteReady")
-    if ready then ready:FireServer() end
+    if ready then
+        ready:FireServer()
+    end
     task.wait(0.3)
 end
 
 function TDX:VoteDifficulty(diff)
     task.wait(5.5)
     local vote = getRemote("DifficultyVoteCast")
-    if vote then vote:FireServer(diff) end
+    if vote then
+        vote:FireServer(diff)
+    end
     task.wait(0.5)
     local ready = getRemote("DifficultyVoteReady")
-    if ready then ready:FireServer(diff) end
+    if ready then
+        ready:FireServer(diff)
+    end
     task.wait(1)
 end
 
 function TDX:Loadout(id)
     task.wait(2)
     local load = getRemote("LoadoutSelectionChanged")
-    if load then load:FireServer(id) end
+    if load then
+        load:FireServer(id)
+    end
     task.wait(0.5)
 end
 
@@ -229,7 +285,9 @@ function TDX:StartMatchmaking()
     local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if net then
         local start = net:FindFirstChild("ClientStartGameRequest")
-        if start then start:FireServer() end
+        if start then
+            start:FireServer()
+        end
     end
     task.wait(0.5)
 end
@@ -238,7 +296,9 @@ function TDX:Equip(items)
     local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if net then
         local eq = net:FindFirstChild("UpdateLoadout")
-        if eq then eq:FireServer(items) end
+        if eq then
+            eq:FireServer(items)
+        end
     end
     task.wait(0.5)
 end
