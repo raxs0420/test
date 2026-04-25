@@ -41,7 +41,7 @@ end
 
 local function waitForCash(targetCash)
     while getCurrentCash() < targetCash do
-        task.wait(0.01)
+        task.wait(0.05)
     end
 end
 
@@ -119,16 +119,17 @@ local function isMapOnScreen(mapName)
     return false
 end
 
-local function executeUpgrade(towerId, path)
+local function executeUpgrade(towerId, path, cost)
     local upgradeRemote = getRemote("TowerUpgradeRequest")
     if not upgradeRemote then return false end
+    
+    waitForCash(cost)
     
     local success = pcall(function()
         upgradeRemote:FireServer(towerId, path, 1)
     end)
     
     if success then
-        task.wait(BATCH_DELAY)
         return true
     end
     return false
@@ -139,7 +140,6 @@ local function processCommand(command, ...)
     
     if command == "Place" then
         local towerName, x, y, z, rotation, cost = unpack(args)
-        local posKey = getPositionKey(x, y, z)
         
         if isPositionOccupied(x, y, z) then
             return false
@@ -186,11 +186,7 @@ local function processCommand(command, ...)
             end
         end
         
-        if cost and cost > 0 then
-            waitForCash(cost)
-        end
-        
-        return executeUpgrade(towerId, path)
+        return executeUpgrade(towerId, path, cost)
         
     elseif command == "Sell" then
         local towerId = unpack(args)
@@ -278,30 +274,22 @@ local function processQueue()
                     end
                 end
                 
-                if #sameTowerUpgrades > 1 then
-                    local requiredCash = totalCost * 1.1
-                    local currentCash = getCurrentCash()
-                    
-                    if currentCash >= requiredCash then
-                        local batchSuccess = true
-                        for _, upgradeCmd in ipairs(sameTowerUpgrades) do
-                            local path = upgradeCmd.args[2]
-                            local cost = upgradeCmd.args[4] or 0
-                            
-                            waitForCash(cost)
-                            
-                            local success = executeUpgrade(towerId, path)
-                            if not success then
-                                batchSuccess = false
-                                break
-                            end
+                if #sameTowerUpgrades > 1 and getCurrentCash() >= totalCost then
+                    for _, upgradeCmd in ipairs(sameTowerUpgrades) do
+                        local path = upgradeCmd.args[2]
+                        local cost = upgradeCmd.args[4] or 0
+                        local success = executeUpgrade(towerId, path, cost)
+                        if not success then
+                            batchProcessed = false
+                            break
                         end
-                        
-                        if batchSuccess then
-                            for _ = 1, #sameTowerUpgrades do
-                                table.remove(CommandQueue, i)
-                            end
-                            batchProcessed = true
+                        batchProcessed = true
+                        task.wait(BATCH_DELAY)
+                    end
+                    
+                    if batchProcessed then
+                        for _ = 1, #sameTowerUpgrades do
+                            table.remove(CommandQueue, i)
                         end
                     end
                 end
