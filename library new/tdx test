@@ -7,8 +7,7 @@ local Remotes = nil
 local PositionToTowerId = {}
 local TowerIdToPosition = {}
 local NextTowerId = 1
-local IsProcessing = false
-local CommandQueue = {}
+local IsBusy = false
 local CurrentSpeed = 1
 
 local function ensureRemotes()
@@ -90,181 +89,156 @@ local function waitForTowerToAppear(x, y, z)
     return false
 end
 
-local function executePlace(towerName, x, y, z, rotation, cost)
+function TDX:Place(towerName, x, y, z, rotation, cost)
+    while IsBusy do
+        task.wait(0.1)
+    end
+    IsBusy = true
+    
+    local success = false
     local placeRemote = getRemote("PlaceTower")
-    if not placeRemote then return false end
     
-    task.wait(0.1)
-    
-    local currentCash = getCurrentCash()
-    if currentCash < cost then
-        return false
+    if placeRemote then
+        while not success do
+            task.wait(0.1)
+            
+            local currentCash = getCurrentCash()
+            if currentCash < cost then
+                task.wait(0.5)
+                goto continue
+            end
+            
+            task.wait(0.1)
+            
+            local ok, result = pcall(function()
+                return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
+            end)
+            
+            if ok and result == true then
+                task.wait(0.2)
+                
+                local newCash = getCurrentCash()
+                if newCash < currentCash then
+                    task.wait(0.1)
+                    
+                    if waitForTowerToAppear(x, y, z) then
+                        local towerId = NextTowerId
+                        NextTowerId = NextTowerId + 1
+                        updateTowerMapping(towerId, x, y, z)
+                        success = true
+                        break
+                    end
+                end
+            end
+            
+            ::continue::
+            task.wait(0.25)
+        end
     end
     
-    task.wait(0.1)
-    
-    local success, result = pcall(function()
-        return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
-    end)
-    
-    if success and result then
-        task.wait(0.1)
-        
-        local newCash = getCurrentCash()
-        if newCash >= currentCash then
-            return false
-        end
-        
-        task.wait(0.1)
-        
-        if waitForTowerToAppear(x, y, z) then
-            local towerId = NextTowerId
-            NextTowerId = NextTowerId + 1
-            updateTowerMapping(towerId, x, y, z)
-            return true
-        end
-    end
-    return false
+    task.wait(1)
+    IsBusy = false
+    return success
 end
 
-local function executeUpgrade(identifier, path, cost)
+function TDX:Upgrade(identifier, path, level, cost)
+    while IsBusy do
+        task.wait(0.1)
+    end
+    IsBusy = true
+    
+    local success = false
     local upgradeRemote = getRemote("TowerUpgradeRequest")
-    if not upgradeRemote then return false end
     
     local towerId = nil
     if type(identifier) == "table" and identifier.x then
         towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
-        if not towerId then
-            return false
-        end
     else
         towerId = identifier
     end
     
-    task.wait(0.1)
-    
-    local currentCash = getCurrentCash()
-    if currentCash < cost then
-        return false
-    end
-    
-    task.wait(0.1)
-    
-    local success = pcall(function()
-        upgradeRemote:FireServer(towerId, path, 1)
-    end)
-    
-    if success then
-        task.wait(0.1)
-        
-        local newCash = getCurrentCash()
-        if newCash >= currentCash then
-            return false
-        end
-        
-        task.wait(0.1)
-        return true
-    end
-    return false
-end
-
-local function executeTimeScale(speed)
-    if speed == CurrentSpeed then return true end
-    
-    local speedRemote = getRemote("SoloToggleSpeedControl")
-    if not speedRemote then return false end
-    
-    task.wait(0.1)
-    
-    if speed == 1 then
-        speedRemote:FireServer(false)
-    elseif speed == 1.5 then
-        speedRemote:FireServer(true, true)
-    elseif speed == 0.5 then
-        speedRemote:FireServer(true, false)
-    else
-        return false
-    end
-    
-    CurrentSpeed = speed
-    task.wait(0.1)
-    return true
-end
-
-local function processQueue()
-    if IsProcessing then return end
-    IsProcessing = true
-    
-    while #CommandQueue > 0 do
-        local cmd = table.remove(CommandQueue, 1)
-        
-        if cmd.type == "Place" then
-            local success = executePlace(cmd.towerName, cmd.x, cmd.y, cmd.z, cmd.rotation, cmd.cost)
-            if not success then
-                table.insert(CommandQueue, 1, cmd)
+    if upgradeRemote and towerId then
+        while not success do
+            task.wait(0.1)
+            
+            local currentCash = getCurrentCash()
+            if currentCash < cost then
                 task.wait(0.5)
+                goto continue
             end
-        elseif cmd.type == "Upgrade" then
-            local success = executeUpgrade(cmd.identifier, cmd.path, cmd.cost)
-            if not success then
-                table.insert(CommandQueue, 1, cmd)
-                task.wait(0.5)
+            
+            task.wait(0.1)
+            
+            local ok = pcall(function()
+                upgradeRemote:FireServer(towerId, path, 1)
+            end)
+            
+            if ok then
+                task.wait(0.2)
+                
+                local newCash = getCurrentCash()
+                if newCash < currentCash then
+                    success = true
+                    break
+                end
             end
-        elseif cmd.type == "TimeScale" then
-            local success = executeTimeScale(cmd.speed)
-            if not success then
-                table.insert(CommandQueue, 1, cmd)
-                task.wait(0.5)
-            end
+            
+            ::continue::
+            task.wait(0.25)
         end
     end
     
-    IsProcessing = false
-end
-
-function TDX:Place(towerName, x, y, z, rotation, cost)
-    table.insert(CommandQueue, {
-        type = "Place",
-        towerName = towerName,
-        x = x,
-        y = y,
-        z = z,
-        rotation = rotation,
-        cost = cost
-    })
-    task.spawn(processQueue)
-    return true
-end
-
-function TDX:Upgrade(identifier, path, level, cost)
-    table.insert(CommandQueue, {
-        type = "Upgrade",
-        identifier = identifier,
-        path = path,
-        cost = cost
-    })
-    task.spawn(processQueue)
-    return true
+    task.wait(1)
+    IsBusy = false
+    return success
 end
 
 function TDX:TimeScale(speed)
-    table.insert(CommandQueue, {
-        type = "TimeScale",
-        speed = speed
-    })
-    task.spawn(processQueue)
+    while IsBusy do
+        task.wait(0.1)
+    end
+    IsBusy = true
+    
+    task.wait(0.1)
+    
+    if speed ~= CurrentSpeed then
+        local speedRemote = getRemote("SoloToggleSpeedControl")
+        if speedRemote then
+            if speed == 1 then
+                speedRemote:FireServer(false)
+            elseif speed == 1.5 then
+                speedRemote:FireServer(true, true)
+            elseif speed == 0.5 then
+                speedRemote:FireServer(true, false)
+            end
+            CurrentSpeed = speed
+        end
+    end
+    
+    task.wait(0.1)
+    task.wait(1)
+    IsBusy = false
     return true
 end
 
 function TDX:Sell(towerId)
+    while IsBusy do
+        task.wait(0.1)
+    end
+    IsBusy = true
+    
+    task.wait(0.1)
+    
     local sellRemote = getRemote("SellTower")
     if sellRemote then
-        task.wait(0.1)
         pcall(function()
             sellRemote:FireServer(towerId)
         end)
-        task.wait(0.1)
     end
+    
+    task.wait(0.1)
+    task.wait(1)
+    IsBusy = false
     return true
 end
 
