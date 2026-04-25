@@ -4,7 +4,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local Remotes = nil
-local NextTowerId = 1
+local NextID = 1
 local CurrentSpeed = 1
 
 local function ensureRemotes()
@@ -20,91 +20,75 @@ local function ensureRemotes()
     return Remotes
 end
 
-local function getRemote(remoteName)
-    local remotes = ensureRemotes()
-    return remotes and remotes:FindFirstChild(remoteName)
+local function getRemote(name)
+    local r = ensureRemotes()
+    return r and r:FindFirstChild(name)
 end
 
-local function getCurrentCash()
-    local player = Players.LocalPlayer
-    if not player or not player.leaderstats then return 0 end
-    local cash = player.leaderstats:FindFirstChild("Cash")
+local function getCash()
+    local plr = Players.LocalPlayer
+    if not plr or not plr.leaderstats then return 0 end
+    local cash = plr.leaderstats:FindFirstChild("Cash")
     return cash and cash.Value or 0
 end
 
-local function waitForCash(cost)
-    while getCurrentCash() < cost do
-        task.wait(0.05)
-    end
-end
-
-function TDX:Place(towerName, x, y, z, rotation, cost)
-    local placeRemote = getRemote("PlaceTower")
-    if not placeRemote then return nil end
-
+function TDX:Place(name, x, y, z, rot, cost)
+    local remote = getRemote("PlaceTower")
+    if not remote then return nil end
     while true do
-        local cash = getCurrentCash()
-        if cash >= cost then
-            local ok, result = pcall(function()
-                return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
+        if getCash() >= cost then
+            local ok, res = pcall(function()
+                return remote:InvokeServer(rot or 0, name, Vector3.new(x, y, z), 0)
             end)
-            if ok and result == true then
-                task.wait(0.3) -- wait for tower to register
-                local towerId = NextTowerId
-                NextTowerId = NextTowerId + 1
-                return towerId
+            if ok and res == true then
+                task.wait(0.3)
+                local id = NextID
+                NextID = NextID + 1
+                return id
             end
         end
-        task.wait(0.1)
+        task.wait(0.5)
     end
 end
 
-function TDX:Upgrade(towerId, path, level, cost)
-    local upgradeRemote = getRemote("TowerUpgradeRequest")
-    if not upgradeRemote then return false end
-
+function TDX:Upgrade(id, path, _, cost)
+    local remote = getRemote("TowerUpgradeRequest")
+    if not remote then return false end
     while true do
-        local cashBefore = getCurrentCash()
-        if cashBefore >= cost then
+        local before = getCash()
+        if before >= cost then
             local ok = pcall(function()
-                upgradeRemote:FireServer(towerId, path, 1)
+                remote:FireServer(id, path, 1)
             end)
             if ok then
                 task.wait(0.3)
-                local cashAfter = getCurrentCash()
-                if cashAfter < cashBefore then
+                if getCash() < before then
                     return true
                 end
             end
         end
-        task.wait(0.1)
+        task.wait(0.5)
     end
 end
 
-function TDX:Sell(towerId)
-    local sellRemote = getRemote("SellTower")
-    if sellRemote then
-        pcall(function()
-            sellRemote:FireServer(towerId)
-        end)
+function TDX:Sell(id)
+    local remote = getRemote("SellTower")
+    if remote then
+        pcall(function() remote:FireServer(id) end)
     end
-    task.wait(0.3)
+    task.wait(1)
     return true
 end
 
 function TDX:TimeScale(speed)
-    if speed ~= CurrentSpeed then
-        local speedRemote = getRemote("SoloToggleSpeedControl")
-        if speedRemote then
-            if speed == 1 then
-                speedRemote:FireServer(false)
-            elseif speed == 1.5 then
-                speedRemote:FireServer(true, true)
-            elseif speed == 0.5 then
-                speedRemote:FireServer(true, false)
-            end
-            CurrentSpeed = speed
-        end
+    if speed == CurrentSpeed then return true end
+    local remote = getRemote("SoloToggleSpeedControl")
+    if remote then
+        if speed == 1 then remote:FireServer(false)
+        elseif speed == 1.5 then remote:FireServer(true, true)
+        elseif speed == 0.5 then remote:FireServer(true, false)
+        else return false end
+        CurrentSpeed = speed
     end
     task.wait(1)
     return true
@@ -113,31 +97,21 @@ end
 function TDX:AutoSkip(enabled)
     task.spawn(function()
         while enabled do
-            local skipRemote = getRemote("SkipWaveVoteCast")
-            if skipRemote then
-                pcall(function()
-                    skipRemote:FireServer(true)
-                end)
-            end
+            local skip = getRemote("SkipWaveVoteCast")
+            if skip then pcall(function() skip:FireServer(true) end) end
             task.wait(0.1)
         end
     end)
     return true
 end
 
-function TDX:GetCurrentSpeed()
-    return CurrentSpeed
-end
-
+function TDX:GetCurrentSpeed() return CurrentSpeed end
 function TDX:WaitForGame()
-    local remotes = ensureRemotes()
-    if not remotes then return false end
-    return getRemote("PlaceTower") ~= nil and getRemote("SellTower") ~= nil and getRemote("TowerUpgradeRequest") ~= nil
+    local r = ensureRemotes()
+    return r and getRemote("PlaceTower") and getRemote("SellTower") and getRemote("TowerUpgradeRequest")
 end
-
-function TDX:ResetMappings()
-    NextTowerId = 1
-end
+function TDX:ResetMappings() NextID = 1 end
+function TDX:RemapAllTowers() self:ResetMappings() end
 
 function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
@@ -145,20 +119,18 @@ function TDX:JoinMapViaAPC(mapName)
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
 
-    for i = 1, 60 do
-        local apcsContainer = Workspace:FindFirstChild("APCs")
-        if apcsContainer then
-            for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
-                local attrMap = slotFolder:GetAttribute("MapName") or ""
-                if attrMap == mapName then
-                    local detector = slotFolder:FindFirstChild("Detector")
-                    if not detector and slotFolder:FindFirstChild("APC") then
-                        detector = slotFolder.APC:FindFirstChild("Detector")
-                    end
+    for _ = 1, 60 do
+        local apcs = Workspace:FindFirstChild("APCs")
+        if apcs then
+            for _, slot in ipairs(apcs:GetChildren()) do
+                local attr = slot:GetAttribute("MapName") or ""
+                if attr == mapName then
+                    local detector = slot:FindFirstChild("Detector")
+                    if not detector and slot:FindFirstChild("APC") then detector = slot.APC:FindFirstChild("Detector") end
                     if detector then
-                        local character = player.Character
-                        if character and character:FindFirstChild("HumanoidRootPart") then
-                            character.HumanoidRootPart.CFrame = detector.CFrame
+                        local char = player.Character
+                        if char and char:FindFirstChild("HumanoidRootPart") then
+                            char.HumanoidRootPart.CFrame = detector.CFrame
                             task.wait(2)
                             return true
                         end
@@ -166,21 +138,18 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
-
         if level >= 31 then
-            local apcs2Container = Workspace:FindFirstChild("APCs2")
-            if apcs2Container then
-                for _, slotFolder in ipairs(apcs2Container:GetChildren()) do
-                    local attrMap = slotFolder:GetAttribute("MapName") or ""
-                    if attrMap == mapName then
-                        local detector = slotFolder:FindFirstChild("Detector")
-                        if not detector and slotFolder:FindFirstChild("APC") then
-                            detector = slotFolder.APC:FindFirstChild("Detector")
-                        end
+            local apcs2 = Workspace:FindFirstChild("APCs2")
+            if apcs2 then
+                for _, slot in ipairs(apcs2:GetChildren()) do
+                    local attr = slot:GetAttribute("MapName") or ""
+                    if attr == mapName then
+                        local detector = slot:FindFirstChild("Detector")
+                        if not detector and slot:FindFirstChild("APC") then detector = slot.APC:FindFirstChild("Detector") end
                         if detector then
-                            local character = player.Character
-                            if character and character:FindFirstChild("HumanoidRootPart") then
-                                character.HumanoidRootPart.CFrame = detector.CFrame
+                            local char = player.Character
+                            if char and char:FindFirstChild("HumanoidRootPart") then
+                                char.HumanoidRootPart.CFrame = detector.CFrame
                                 task.wait(2)
                                 return true
                             end
@@ -189,75 +158,62 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
-
         task.wait(0.5)
     end
     return false
 end
 
-function TDX:VoteMap(mapName, maxAttempts)
-    maxAttempts = maxAttempts or 10
-    for attempt = 1, maxAttempts do
-        local mapVote = getRemote("MapVoteCast")
-        if mapVote then
-            mapVote:FireServer(mapName)
+function TDX:VoteMap(map, attempts)
+    attempts = attempts or 10
+    for _ = 1, attempts do
+        local vote = getRemote("MapVoteCast")
+        if vote then
+            vote:FireServer(map)
             task.wait(0.5)
             self:Ready()
             return true
         end
-        local changeVote = getRemote("MapChangeVoteCast")
-        if changeVote then
-            changeVote:FireServer(true)
-        end
+        local change = getRemote("MapChangeVoteCast")
+        if change then change:FireServer(true) end
         task.wait(1)
     end
-    return self:JoinMapViaAPC(mapName)
+    return self:JoinMapViaAPC(map)
 end
 
 function TDX:RerollMaps()
-    local changeVote = getRemote("MapChangeVoteCast")
-    if changeVote then
-        changeVote:FireServer(true)
-    end
+    local change = getRemote("MapChangeVoteCast")
+    if change then change:FireServer(true) end
     task.wait(0.5)
 end
 
 function TDX:Ready()
-    local readyRemote = getRemote("MapVoteReady")
-    if readyRemote then
-        readyRemote:FireServer()
-    end
+    local ready = getRemote("MapVoteReady")
+    if ready then ready:FireServer() end
     task.wait(0.3)
 end
 
-function TDX:VoteDifficulty(difficulty)
+function TDX:VoteDifficulty(diff)
     task.wait(5.5)
-    local voteRemote = getRemote("DifficultyVoteCast")
-    if voteRemote then
-        voteRemote:FireServer(difficulty)
-    end
+    local vote = getRemote("DifficultyVoteCast")
+    if vote then vote:FireServer(diff) end
     task.wait(0.5)
-    local readyRemote = getRemote("DifficultyVoteReady")
-    if readyRemote then
-        readyRemote:FireServer(difficulty)
-    end
+    local ready = getRemote("DifficultyVoteReady")
+    if ready then ready:FireServer(diff) end
     task.wait(1)
 end
 
-function TDX:Loadout(loadoutId)
+function TDX:Loadout(id)
     task.wait(2)
-    local loadoutRemote = getRemote("LoadoutSelectionChanged")
-    if loadoutRemote then
-        loadoutRemote:FireServer(loadoutId)
-    end
+    local load = getRemote("LoadoutSelectionChanged")
+    if load then load:FireServer(id) end
     task.wait(0.5)
 end
 
 function TDX:Mode(mode)
-    local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
-    if network then
-        local partyType = network:FindFirstChild("ClientChangePartyTypeRequest")
-        local partyMap = network:FindFirstChild("ClientChangePartyMapRequest")
+    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    if net then
+        local partyType = net:FindFirstChild("ClientChangePartyTypeRequest")
+        local partyMap = net:FindFirstChild("ClientChangePartyMapRequest")
         if partyType and partyMap then
             partyType:FireServer("Party")
             task.wait(0.5)
@@ -269,23 +225,19 @@ function TDX:Mode(mode)
 end
 
 function TDX:StartMatchmaking()
-    local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
-    if network then
-        local startGame = network:FindFirstChild("ClientStartGameRequest")
-        if startGame then
-            startGame:FireServer()
-        end
+    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    if net then
+        local start = net:FindFirstChild("ClientStartGameRequest")
+        if start then start:FireServer() end
     end
     task.wait(0.5)
 end
 
 function TDX:Equip(items)
-    local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
-    if network then
-        local updateLoadout = network:FindFirstChild("UpdateLoadout")
-        if updateLoadout then
-            updateLoadout:FireServer(items)
-        end
+    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    if net then
+        local eq = net:FindFirstChild("UpdateLoadout")
+        if eq then eq:FireServer(items) end
     end
     task.wait(0.5)
 end
