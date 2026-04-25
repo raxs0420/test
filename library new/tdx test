@@ -89,7 +89,7 @@ end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
     while IsBusy do
-        task.wait(0.2)
+        task.wait(0.1)
     end
     IsBusy = true
     
@@ -105,7 +105,7 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
                 end)
                 
                 if ok and result == true then
-                    task.wait(0.3)
+                    task.wait(0.2)
                     if waitForTowerToAppear(x, y, z) then
                         updateTowerMapping(NextTowerId, x, y, z)
                         NextTowerId = NextTowerId + 1
