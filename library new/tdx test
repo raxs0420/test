@@ -8,19 +8,18 @@ local CommandQueue = {}
 local IsProcessing = false
 local CurrentSpeed = 1
 local AutoSkipEnabled = false
-local LastSpeedChangeTime = 0
 local PositionToTowerId = {}
 local TowerIdToPosition = {}
 local NextTowerId = 1
-local WAIT_TIME = 0.45
-local BATCH_WAIT = 0.1
+local BATCH_DELAY = 0.15
+local NORMAL_DELAY = 0.5
 
 local function ensureRemotes()
     if Remotes then return Remotes end
     Remotes = ReplicatedStorage:FindFirstChild("Remotes")
     if not Remotes then
         for i = 1, 10 do
-            wait(0.5)
+            task.wait(0.5)
             Remotes = ReplicatedStorage:FindFirstChild("Remotes")
             if Remotes then break end
         end
@@ -30,8 +29,7 @@ end
 
 local function getRemote(remoteName)
     local remotes = ensureRemotes()
-    if not remotes then return nil end
-    return remotes:FindFirstChild(remoteName)
+    return remotes and remotes:FindFirstChild(remoteName)
 end
 
 local function getCurrentCash()
@@ -41,23 +39,9 @@ local function getCurrentCash()
     return cash and cash.Value or 0
 end
 
-local function waitForCashToReach(targetCash)
-    while true do
-        local currentCash = getCurrentCash()
-        if currentCash >= targetCash then
-            return true, currentCash
-        end
-        wait(0.05)
-    end
-end
-
-local function waitForCashChange(initialCash)
-    while true do
-        local currentCash = getCurrentCash()
-        if currentCash ~= initialCash then
-            return true, currentCash
-        end
-        wait(0.05)
+local function waitForCash(targetCash)
+    while getCurrentCash() < targetCash do
+        task.wait(0.05)
     end
 end
 
@@ -91,13 +75,9 @@ local function updateTowerMapping(towerId, x, y, z)
     TowerIdToPosition[towerId] = {x = x, y = y, z = z}
 end
 
-local function clearTowerMapping(towerId)
-    local pos = TowerIdToPosition[towerId]
-    if pos then
-        local key = getPositionKey(pos.x, pos.y, pos.z)
-        PositionToTowerId[key] = nil
-        TowerIdToPosition[towerId] = nil
-    end
+local function getTowerIdFromPosition(x, y, z)
+    local key = getPositionKey(x, y, z)
+    return PositionToTowerId[key]
 end
 
 local function isTowerAlive(towerId)
@@ -112,7 +92,7 @@ local function waitForTowerToAppear(x, y, z)
         if findTowerAtPosition(x, y, z) then
             return true
         end
-        wait(0.1)
+        task.wait(0.1)
     end
     return false
 end
@@ -128,7 +108,7 @@ local function isMapOnScreen(mapName)
     if not mapOverride then return false end
     local scrollingFrame = mapOverride:FindFirstChild("ScrollingFrame")
     if not scrollingFrame then return false end
-    
+
     for _, child in ipairs(scrollingFrame:GetChildren()) do
         if (child:IsA("ImageButton") or child:IsA("TextButton")) and child.Name == mapName then
             if child.Visible == false then
@@ -139,74 +119,19 @@ local function isMapOnScreen(mapName)
     return false
 end
 
-local function setGameSpeed(speed)
-    local remotes = ensureRemotes()
-    if not remotes then return false end
-    
-    local speedRemote = remotes:FindFirstChild("SoloToggleSpeedControl")
-    if not speedRemote then return false end
-    
-    if speed == 1 then
-        local args = {false}
-        speedRemote:FireServer(unpack(args))
-        CurrentSpeed = 1
-    elseif speed == 1.5 then
-        local args = {true, true}
-        speedRemote:FireServer(unpack(args))
-        CurrentSpeed = 1.5
-    elseif speed == 0.5 then
-        local args = {true, false}
-        speedRemote:FireServer(unpack(args))
-        CurrentSpeed = 0.5
-    else
-        return false
-    end
-    
-    LastSpeedChangeTime = tick()
-    return true
-end
-
-local function autoSkipLoop()
-    task.spawn(function()
-        while AutoSkipEnabled do
-            local remotes = ensureRemotes()
-            if remotes then
-                local skipRemote = remotes:FindFirstChild("SkipWaveVoteCast")
-                if skipRemote then
-                    pcall(function()
-                        skipRemote:FireServer(true)
-                    end)
-                end
-            end
-            wait(0.1)
-        end
-    end)
-end
-
-local function executeUpgrade(towerId, path, cost)
-    local initialCash = getCurrentCash()
-    waitForCashToReach(cost)
-    
-    local remotes = ensureRemotes()
-    if not remotes then return false end
-    
-    local upgradeRemote = remotes:FindFirstChild("TowerUpgradeRequest")
+local function executeUpgrade(towerId, path)
+    local upgradeRemote = getRemote("TowerUpgradeRequest")
     if not upgradeRemote then return false end
     
-    wait(BATCH_WAIT)
-    
-    local success, err = pcall(function()
+    local success = pcall(function()
         upgradeRemote:FireServer(towerId, path, 1)
     end)
     
     if success then
-        waitForCashChange(initialCash)
-        wait(BATCH_WAIT)
+        task.wait(BATCH_DELAY)
         return true
-    else
-        warn("Upgrade failed:", err)
-        return false
     end
+    return false
 end
 
 local function processCommand(command, ...)
@@ -216,83 +141,92 @@ local function processCommand(command, ...)
         local towerName, x, y, z, rotation, cost = unpack(args)
         
         if isPositionOccupied(x, y, z) then
-            print("Position occupied, skipping:", towerName, "at", x, y, z)
-            return "skip_retry"
+            return false
         end
-        
-        local initialCash = getCurrentCash()
         
         if cost and cost > 0 then
-            waitForCashToReach(cost)
+            waitForCash(cost)
         end
         
-        local remotes = ensureRemotes()
-        if not remotes then return false end
-        
-        local placeRemote = remotes:FindFirstChild("PlaceTower")
+        local placeRemote = getRemote("PlaceTower")
         if not placeRemote then return false end
         
-        local placeArgs = {rotation or 0, towerName, Vector3.new(x, y, z), 0}
-        
-        wait(WAIT_TIME)
+        task.wait(NORMAL_DELAY)
         
         local success, result = pcall(function()
-            return placeRemote:InvokeServer(unpack(placeArgs))
+            return placeRemote:InvokeServer(rotation or 0, towerName, Vector3.new(x, y, z), 0)
         end)
         
         if success and result then
-            waitForCashChange(initialCash)
-            wait(WAIT_TIME)
+            task.wait(NORMAL_DELAY)
             
             if waitForTowerToAppear(x, y, z) then
                 local towerId = NextTowerId
                 NextTowerId = NextTowerId + 1
                 updateTowerMapping(towerId, x, y, z)
-                print("Placed", towerName, "at", x, y, z, "with ID:", towerId)
                 return towerId
-            else
-                print("Tower", towerName, "at", x, y, z, "never appeared")
-                return nil
             end
         end
         return false
         
+    elseif command == "Upgrade" then
+        local identifier, path, level, cost = unpack(args)
+        local towerId = nil
+        
+        if type(identifier) == "table" and identifier.x then
+            towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
+            if not towerId then
+                return false
+            end
+        else
+            towerId = identifier
+            if not isTowerAlive(towerId) then
+                return false
+            end
+        end
+        
+        if cost and cost > 0 then
+            waitForCash(cost)
+        end
+        
+        return executeUpgrade(towerId, path)
+        
     elseif command == "Sell" then
         local towerId = unpack(args)
-        
         if not isTowerAlive(towerId) then
             return true
         end
         
-        local initialCash = getCurrentCash()
-        
-        wait(WAIT_TIME)
-        
-        local remotes = ensureRemotes()
-        if remotes and remotes:FindFirstChild("SellTower") then
+        local sellRemote = getRemote("SellTower")
+        if sellRemote then
+            task.wait(NORMAL_DELAY)
             pcall(function()
-                remotes.SellTower:FireServer(towerId)
+                sellRemote:FireServer(towerId)
             end)
-            
-            waitForCashChange(initialCash)
-            clearTowerMapping(towerId)
-            wait(WAIT_TIME)
+            task.wait(NORMAL_DELAY)
             return true
         end
         return false
+        
     elseif command == "TimeScale" then
         local targetSpeed = unpack(args)
+        if targetSpeed == CurrentSpeed then return true end
         
-        if targetSpeed == CurrentSpeed then
-            return true
+        local speedRemote = getRemote("SoloToggleSpeedControl")
+        if not speedRemote then return false end
+        
+        if targetSpeed == 1 then
+            speedRemote:FireServer(false)
+        elseif targetSpeed == 1.5 then
+            speedRemote:FireServer(true, true)
+        elseif targetSpeed == 0.5 then
+            speedRemote:FireServer(true, false)
+        else
+            return false
         end
         
-        local timeSinceLastChange = tick() - LastSpeedChangeTime
-        if timeSinceLastChange < 4 then
-            wait(4 - timeSinceLastChange)
-        end
-        
-        setGameSpeed(targetSpeed)
+        CurrentSpeed = targetSpeed
+        task.wait(NORMAL_DELAY)
         return true
     end
     
@@ -304,111 +238,49 @@ local function processQueue()
     IsProcessing = true
     
     local i = 1
-    local retryQueue = {}
-    
     while i <= #CommandQueue do
         local cmd = CommandQueue[i]
         
         if cmd.type == "Upgrade" then
-            -- Get the position of this upgrade
-            local currentPos = nil
-            local currentTowerId = nil
+            local identifier = cmd.args[1]
+            local sameTowerUpgrades = {}
+            local totalCost = 0
+            local towerId = nil
             
-            if type(cmd.args[1]) == "table" and cmd.args[1].x then
-                currentPos = cmd.args[1]
-                currentTowerId = PositionToTowerId[getPositionKey(currentPos.x, currentPos.y, currentPos.z)]
+            if type(identifier) == "table" and identifier.x then
+                towerId = getTowerIdFromPosition(identifier.x, identifier.y, identifier.z)
             else
-                currentTowerId = cmd.args[1]
-                local pos = TowerIdToPosition[currentTowerId]
-                if pos then
-                    currentPos = pos
-                end
+                towerId = identifier
             end
             
-            if not currentPos or not currentTowerId then
-                local singleCmd = table.remove(CommandQueue, i)
-                print("No position found, processing single upgrade")
-                local success = processCommand(singleCmd.type, unpack(singleCmd.args))
-                if success == "skip_all" then
-                    local skipTowerId = nil
-                    if type(singleCmd.args[1]) == "table" then
-                        local key = getPositionKey(singleCmd.args[1].x, singleCmd.args[1].y, singleCmd.args[1].z)
-                        skipTowerId = PositionToTowerId[key]
-                    else
-                        skipTowerId = singleCmd.args[1]
-                    end
-                    
-                    local newQueue = {}
-                    for _, remainingCmd in ipairs(CommandQueue) do
-                        if remainingCmd.type == "Upgrade" then
-                            local shouldKeep = true
-                            if skipTowerId then
-                                if type(remainingCmd.args[1]) == "table" then
-                                    local key = getPositionKey(remainingCmd.args[1].x, remainingCmd.args[1].y, remainingCmd.args[1].z)
-                                    if PositionToTowerId[key] == skipTowerId then
-                                        shouldKeep = false
-                                    end
-                                elseif remainingCmd.args[1] == skipTowerId then
-                                    shouldKeep = false
-                                end
-                            end
-                            if shouldKeep then
-                                table.insert(newQueue, remainingCmd)
-                            end
-                        else
-                            table.insert(newQueue, remainingCmd)
-                        end
-                    end
-                    CommandQueue = newQueue
-                elseif not success then
-                    wait(0.5)
-                    table.insert(CommandQueue, i, singleCmd)
-                    i = i + 1
-                end
-            else
-                -- Look ahead for ALL upgrades for the SAME tower
-                local sameTowerUpgrades = {}
+            if towerId and isTowerAlive(towerId) then
                 local j = i
-                local totalCost = 0
-                
                 while j <= #CommandQueue and CommandQueue[j].type == "Upgrade" do
-                    local upgradeCmd = CommandQueue[j]
-                    local upgradeTowerId = nil
+                    local nextCmd = CommandQueue[j]
+                    local nextIdentifier = nextCmd.args[1]
+                    local nextTowerId = nil
                     
-                    if type(upgradeCmd.args[1]) == "table" and upgradeCmd.args[1].x then
-                        local key = getPositionKey(upgradeCmd.args[1].x, upgradeCmd.args[1].y, upgradeCmd.args[1].z)
-                        upgradeTowerId = PositionToTowerId[key]
+                    if type(nextIdentifier) == "table" and nextIdentifier.x then
+                        nextTowerId = getTowerIdFromPosition(nextIdentifier.x, nextIdentifier.y, nextIdentifier.z)
                     else
-                        upgradeTowerId = upgradeCmd.args[1]
+                        nextTowerId = nextIdentifier
                     end
                     
-                    if upgradeTowerId == currentTowerId then
-                        local cost = upgradeCmd.args[4]
-                        if cost then
-                            totalCost = totalCost + cost
-                        end
-                        table.insert(sameTowerUpgrades, upgradeCmd)
+                    if nextTowerId == towerId then
+                        local cost = nextCmd.args[4] or 0
+                        totalCost = totalCost + cost
+                        table.insert(sameTowerUpgrades, nextCmd)
                         j = j + 1
                     else
                         break
                     end
                 end
                 
-                local currentCash = getCurrentCash()
-                
-                -- BATCH if we have enough cash for ALL upgrades for THIS tower
-                if #sameTowerUpgrades > 1 and currentCash >= totalCost then
-                    print(string.format("🚀 BATCHING %d upgrades for tower ID %d at (%.2f, %.2f, %.2f) (Total: $%d, Cash: $%d) - 0.1s each", 
-                        #sameTowerUpgrades, currentTowerId, currentPos.x, currentPos.y, currentPos.z, totalCost, currentCash))
-                    
+                if #sameTowerUpgrades > 1 and getCurrentCash() >= totalCost then
                     local batchSuccess = true
-                    for idx, upgradeData in ipairs(sameTowerUpgrades) do
-                        local path = upgradeData.args[2]
-                        local cost = upgradeData.args[4]
-                        
-                        print(string.format("  → Batch %d/%d (Path %d, Cost: $%d)", idx, #sameTowerUpgrades, path, cost))
-                        
-                        local success = executeUpgrade(currentTowerId, path, cost)
+                    for _, upgradeCmd in ipairs(sameTowerUpgrades) do
+                        local path = upgradeCmd.args[2]
+                        local success = executeUpgrade(towerId, path)
                         if not success then
                             batchSuccess = false
                             break
@@ -419,55 +291,21 @@ local function processQueue()
                         for _ = 1, #sameTowerUpgrades do
                             table.remove(CommandQueue, i)
                         end
-                        print(string.format("✅ Batch completed for tower ID %d! Removed %d upgrades", currentTowerId, #sameTowerUpgrades))
-                    else
-                        -- Fall back to individual processing
-                        print("❌ Batch failed, falling back to individual")
-                        for _ = 1, #sameTowerUpgrades do
-                            table.remove(CommandQueue, i)
-                        end
-                        for idx = #sameTowerUpgrades, 1, -1 do
-                            table.insert(CommandQueue, i, sameTowerUpgrades[idx])
-                        end
-                        i = i + 1
-                    end
-                else
-                    if #sameTowerUpgrades > 1 then
-                        print(string.format("⚠️ NOT ENOUGH CASH for batch (Need: $%d, Have: $%d), processing individually", totalCost, currentCash))
-                    end
-                    
-                    local singleCmd = table.remove(CommandQueue, i)
-                    print(string.format("Single upgrade: Tower ID %d Path %d Cost $%d", currentTowerId, singleCmd.args[2], singleCmd.args[4] or 0))
-                    
-                    local success = executeUpgrade(currentTowerId, singleCmd.args[2], singleCmd.args[4])
-                    if not success then
-                        wait(0.5)
-                        table.insert(CommandQueue, i, singleCmd)
-                        i = i + 1
+                        goto continue
                     end
                 end
             end
-        else
-            local singleCmd = table.remove(CommandQueue, i)
-            print("Processing:", singleCmd.type)
-            local success = processCommand(singleCmd.type, unpack(singleCmd.args))
-            if success == "skip_retry" then
-                table.insert(retryQueue, singleCmd)
-            elseif not success then
-                wait(0.5)
-                table.insert(CommandQueue, i, singleCmd)
-                i = i + 1
-            end
         end
-    end
-    
-    -- Add retry commands to end of queue
-    for _, retryCmd in ipairs(retryQueue) do
-        table.insert(CommandQueue, retryCmd)
-    end
-    
-    if #retryQueue > 0 then
-        print("Re-adding", #retryQueue, "skipped commands to end")
+        
+        local success = processCommand(cmd.type, unpack(cmd.args))
+        if success then
+            table.remove(CommandQueue, i)
+        else
+            task.wait(NORMAL_DELAY)
+            i = i + 1
+        end
+        
+        ::continue::
     end
     
     IsProcessing = false
@@ -475,309 +313,90 @@ end
 
 function TDX:JoinMapViaAPC(mapName)
     if self:WaitForGame() then
-        warn("Already in a game, cannot join via APC")
         return false
     end
-
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "APCFinder"
-    screenGui.Parent = game:GetService("CoreGui")
-
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 300, 0, 400)
-    mainFrame.Position = UDim2.new(0, 10, 0, 10)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    mainFrame.BackgroundTransparency = 0.1
-    mainFrame.BorderSizePixel = 1
-    mainFrame.Parent = screenGui
-
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 30)
-    title.Text = "APC Map Finder"
-    title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.BackgroundTransparency = 1
-    title.Parent = mainFrame
-
-    local searchingLabel = Instance.new("TextLabel")
-    searchingLabel.Size = UDim2.new(1, 0, 0, 30)
-    searchingLabel.Position = UDim2.new(0, 0, 0, 30)
-    searchingLabel.Text = "Searching for: " .. tostring(mapName)
-    searchingLabel.TextColor3 = Color3.fromRGB(255, 255, 0)
-    searchingLabel.BackgroundTransparency = 1
-    searchingLabel.Parent = mainFrame
-
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, 0, 0, 30)
-    statusLabel.Position = UDim2.new(0, 0, 0, 60)
-    statusLabel.Text = "Status: Waiting for APCs..."
-    statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Parent = mainFrame
-
-    local mapListFrame = Instance.new("ScrollingFrame")
-    mapListFrame.Size = UDim2.new(1, 0, 1, -100)
-    mapListFrame.Position = UDim2.new(0, 0, 0, 90)
-    mapListFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    mapListFrame.BackgroundTransparency = 0.3
-    mapListFrame.BorderSizePixel = 1
-    mapListFrame.Parent = mainFrame
-
-    local mapListLayout = Instance.new("UIListLayout")
-    mapListLayout.Padding = UDim.new(0, 2)
-    mapListLayout.Parent = mapListFrame
-
+    
     local player = Players.LocalPlayer
     local level = 0
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
-
-    local function updateMapList()
-        for _, child in ipairs(mapListFrame:GetChildren()) do
-            if child:IsA("TextLabel") then
-                child:Destroy()
-            end
-        end
-
-        local anyContainerFound = false
-
-        local apcsContainer = Workspace:FindFirstChild("APCs")
-        if apcsContainer then
-            anyContainerFound = true
-
-            local containerLabel = Instance.new("TextLabel")
-            containerLabel.Size = UDim2.new(1, -10, 0, 20)
-            containerLabel.Text = "--- APCs ---"
-            containerLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-            containerLabel.BackgroundTransparency = 1
-            containerLabel.TextXAlignment = Enum.TextXAlignment.Center
-            containerLabel.Parent = mapListFrame
-
-            for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
-                local attrMap = slotFolder:GetAttribute("MapName") or "Unknown"
-                local apcMap = (slotFolder:FindFirstChild("APC") or {}):GetAttribute("MapName")
-                local displayMap = attrMap ~= "Unknown" and attrMap or (apcMap or "No Map")
-
-                local mapLabel = Instance.new("TextLabel")
-                mapLabel.Size = UDim2.new(1, -10, 0, 25)
-                mapLabel.Text = "  " .. displayMap
-                mapLabel.TextColor3 = (displayMap == mapName) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
-                mapLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                mapLabel.BackgroundTransparency = 0.5
-                mapLabel.TextXAlignment = Enum.TextXAlignment.Left
-                mapLabel.Parent = mapListFrame
-            end
-        end
-
-        if level >= 31 then
-            local apcs2Container = Workspace:FindFirstChild("APCs2")
-            if apcs2Container then
-                anyContainerFound = true
-
-                local containerLabel = Instance.new("TextLabel")
-                containerLabel.Size = UDim2.new(1, -10, 0, 20)
-                containerLabel.Text = "--- APCs2 (Level 31+) ---"
-                containerLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-                containerLabel.BackgroundTransparency = 1
-                containerLabel.TextXAlignment = Enum.TextXAlignment.Center
-                containerLabel.Parent = mapListFrame
-
-                for _, slotFolder in ipairs(apcs2Container:GetChildren()) do
-                    local attrMap = slotFolder:GetAttribute("MapName") or "Unknown"
-                    local apcMap = (slotFolder:FindFirstChild("APC") or {}):GetAttribute("MapName")
-                    local displayMap = attrMap ~= "Unknown" and attrMap or (apcMap or "No Map")
-
-                    local mapLabel = Instance.new("TextLabel")
-                    mapLabel.Size = UDim2.new(1, -10, 0, 25)
-                    mapLabel.Text = "  " .. displayMap
-                    mapLabel.TextColor3 = (displayMap == mapName) and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 255, 255)
-                    mapLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                    mapLabel.BackgroundTransparency = 0.5
-                    mapLabel.TextXAlignment = Enum.TextXAlignment.Left
-                    mapLabel.Parent = mapListFrame
-                end
-            end
-        end
-
-        if not anyContainerFound then
-            local noContainerLabel = Instance.new("TextLabel")
-            noContainerLabel.Size = UDim2.new(1, -10, 0, 25)
-            noContainerLabel.Text = "No APC containers found"
-            noContainerLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-            noContainerLabel.BackgroundTransparency = 1
-            noContainerLabel.Parent = mapListFrame
-        end
-    end
-
+    
     local found = false
     local startTime = tick()
-
-    while not found do
+    
+    while not found and tick() - startTime < 30 do
         if self:WaitForGame() then
-            statusLabel.Text = "Status: Already in a game, stopping search..."
-            wait(2)
-            screenGui:Destroy()
             return false
         end
-
-        updateMapList()
-
-        local elapsed = math.floor(tick() - startTime)
-        local levelStatus = (level >= 31) and "Level " .. level .. " (APCs + APCs2)" or "Level " .. level .. " (APCs only)"
-        statusLabel.Text = string.format("Status: Searching for '%s'... (%ds) | %s", mapName, elapsed, levelStatus)
-
+        
         local apcsContainer = Workspace:FindFirstChild("APCs")
         if apcsContainer then
             for _, slotFolder in ipairs(apcsContainer:GetChildren()) do
-                local targetFolder = slotFolder
-                local attrMap = slotFolder:GetAttribute("MapName")
-                local matched = false
-
-                if attrMap == mapName then
-                    targetFolder = slotFolder
-                    matched = true
-                else
+                local attrMap = slotFolder:GetAttribute("MapName") or ""
+                local matched = attrMap == mapName
+                
+                if not matched then
                     local apcFolder = slotFolder:FindFirstChild("APC")
                     if apcFolder and apcFolder:GetAttribute("MapName") == mapName then
-                        targetFolder = apcFolder
                         matched = true
                     end
                 end
-
+                
                 if matched then
-                    statusLabel.Text = "Status: MATCH FOUND in APCs! Teleporting..."
-                    wait(0.5)
-
-                    local detector = targetFolder:FindFirstChild("Detector")
-                    if not detector and targetFolder ~= slotFolder then
-                        detector = slotFolder:FindFirstChild("Detector")
+                    local detector = slotFolder:FindFirstChild("Detector")
+                    if not detector and slotFolder:FindFirstChild("APC") then
+                        detector = slotFolder.APC:FindFirstChild("Detector")
                     end
-                    if not detector and targetFolder:FindFirstChild("APC") then
-                        detector = targetFolder.APC:FindFirstChild("Detector")
-                    end
-
+                    
                     if detector and detector:IsA("BasePart") then
                         local character = player.Character
                         if character and character:FindFirstChild("HumanoidRootPart") then
-                            statusLabel.Text = "Status: TELEPORTING TO APC..."
                             character.HumanoidRootPart.CFrame = detector.CFrame
-                            wait(2)
-                            found = true
-                            statusLabel.Text = "Status: SUCCESS! Joined " .. mapName
-                            wait(2)
-                            screenGui:Destroy()
+                            task.wait(2)
                             return true
-                        else
-                            statusLabel.Text = "Status: No character found!"
                         end
-                    else
-                        statusLabel.Text = "Status: Found map but no detector!"
                     end
                 end
             end
         end
-
+        
         if level >= 31 then
             local apcs2Container = Workspace:FindFirstChild("APCs2")
             if apcs2Container then
                 for _, slotFolder in ipairs(apcs2Container:GetChildren()) do
-                    local targetFolder = slotFolder
-                    local attrMap = slotFolder:GetAttribute("MapName")
-                    local matched = false
-
-                    if attrMap == mapName then
-                        targetFolder = slotFolder
-                        matched = true
-                    else
+                    local attrMap = slotFolder:GetAttribute("MapName") or ""
+                    local matched = attrMap == mapName
+                    
+                    if not matched then
                         local apcFolder = slotFolder:FindFirstChild("APC")
                         if apcFolder and apcFolder:GetAttribute("MapName") == mapName then
-                            targetFolder = apcFolder
                             matched = true
                         end
                     end
-
+                    
                     if matched then
-                        statusLabel.Text = "Status: MATCH FOUND in APCs2! Teleporting..."
-                        wait(0.5)
-
-                        local detector = targetFolder:FindFirstChild("Detector")
-                        if not detector and targetFolder ~= slotFolder then
-                            detector = slotFolder:FindFirstChild("Detector")
+                        local detector = slotFolder:FindFirstChild("Detector")
+                        if not detector and slotFolder:FindFirstChild("APC") then
+                            detector = slotFolder.APC:FindFirstChild("Detector")
                         end
-                        if not detector and targetFolder:FindFirstChild("APC") then
-                            detector = targetFolder.APC:FindFirstChild("Detector")
-                        end
-
+                        
                         if detector and detector:IsA("BasePart") then
                             local character = player.Character
                             if character and character:FindFirstChild("HumanoidRootPart") then
-                                statusLabel.Text = "Status: TELEPORTING TO APC..."
                                 character.HumanoidRootPart.CFrame = detector.CFrame
-                                wait(2)
-                                found = true
-                                statusLabel.Text = "Status: SUCCESS! Joined " .. mapName
-                                wait(2)
-                                screenGui:Destroy()
+                                task.wait(2)
                                 return true
-                            else
-                                statusLabel.Text = "Status: No character found!"
                             end
-                        else
-                            statusLabel.Text = "Status: Found map but no detector!"
                         end
                     end
                 end
             end
         end
-
-        wait(0.5)
+        
+        task.wait(0.5)
     end
-
-    screenGui:Destroy()
+    
     return false
-end
-
-function TDX:WaitForGame()
-    local remotes = ensureRemotes()
-    if not remotes then return false end
-    local placeTower = remotes:FindFirstChild("PlaceTower")
-    local sellTower = remotes:FindFirstChild("SellTower")
-    local upgrade = remotes:FindFirstChild("TowerUpgradeRequest")
-    return placeTower ~= nil and sellTower ~= nil and upgrade ~= nil
-end
-
-function TDX:ResetMappings()
-    PositionToTowerId = {}
-    TowerIdToPosition = {}
-    NextTowerId = 1
-    print("Reset all tower mappings")
-end
-
-function TDX:RemapAllTowers()
-    self:ResetMappings()
-    
-    local gameFolder = Workspace:FindFirstChild("Game")
-    if not gameFolder then 
-        print("No Game folder found")
-        return 
-    end
-    
-    local towersFolder = gameFolder:FindFirstChild("Towers")
-    if not towersFolder then 
-        print("No Towers folder found")
-        return 
-    end
-    
-    local newId = 1
-    for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") then
-            local pos = part.Position
-            updateTowerMapping(newId, pos.X, pos.Y, pos.Z)
-            print("Mapped existing tower at", pos.X, pos.Y, pos.Z, "to ID:", newId)
-            newId = newId + 1
-        end
-    end
-    NextTowerId = newId
-    print("Remapped", newId - 1, "towers")
 end
 
 function TDX:Place(towerName, x, y, z, rotation, cost)
@@ -785,16 +404,16 @@ function TDX:Place(towerName, x, y, z, rotation, cost)
         type = "Place",
         args = {towerName, x, y, z, rotation, cost}
     })
-    processQueue()
+    task.spawn(processQueue)
     return true
 end
 
-function TDX:Upgrade(towerId, path, level, cost)
+function TDX:Upgrade(identifier, path, level, cost)
     table.insert(CommandQueue, {
         type = "Upgrade",
-        args = {towerId, path, level, cost}
+        args = {identifier, path, level, cost}
     })
-    processQueue()
+    task.spawn(processQueue)
     return true
 end
 
@@ -803,7 +422,7 @@ function TDX:Sell(towerId)
         type = "Sell",
         args = {towerId}
     })
-    processQueue()
+    task.spawn(processQueue)
     return true
 end
 
@@ -812,145 +431,160 @@ function TDX:TimeScale(speed)
         type = "TimeScale",
         args = {speed}
     })
-    processQueue()
+    task.spawn(processQueue)
     return true
 end
 
 function TDX:AutoSkip(enabled)
     AutoSkipEnabled = enabled
     if enabled then
-        autoSkipLoop()
+        task.spawn(function()
+            while AutoSkipEnabled do
+                local skipRemote = getRemote("SkipWaveVoteCast")
+                if skipRemote then
+                    pcall(function()
+                        skipRemote:FireServer(true)
+                    end)
+                end
+                task.wait(0.1)
+            end
+        end)
     end
     return true
-end
-
-function TDX:SkipCurrentCommand()
-    if #CommandQueue > 0 then
-        table.remove(CommandQueue, 1)
-        print("Skipped current command")
-        return true
-    end
-    return false
-end
-
-function TDX:ClearQueue()
-    local count = #CommandQueue
-    CommandQueue = {}
-    print("Cleared", count, "commands from queue")
-    return count
-end
-
-function TDX:VoteMap(mapName, maxAttempts)
-    maxAttempts = maxAttempts or 10
-    for attempt = 1, maxAttempts do
-        if isMapOnScreen(mapName) then
-            local remotes = ensureRemotes()
-            if remotes and remotes:FindFirstChild("MapVoteCast") then
-                remotes.MapVoteCast:FireServer(mapName)
-            end
-            wait(0.5)
-            self:Ready()
-            return true
-        end
-        local remotes = ensureRemotes()
-        if remotes and remotes:FindFirstChild("MapChangeVoteCast") then
-            remotes.MapChangeVoteCast:FireServer(true)
-        end
-        wait(1)
-    end
-    self:JoinMapViaAPC(mapName)
-    return false
-end
-
-function TDX:RerollMaps()
-    local remotes = ensureRemotes()
-    if remotes and remotes:FindFirstChild("MapChangeVoteCast") then
-        remotes.MapChangeVoteCast:FireServer(true)
-    end
-    wait(0.5)
-end
-
-function TDX:Ready()
-    local remotes = ensureRemotes()
-    if remotes and remotes:FindFirstChild("MapVoteReady") then
-        remotes.MapVoteReady:FireServer()
-    end
-    wait(0.3)
 end
 
 function TDX:GetCurrentSpeed()
     return CurrentSpeed
 end
 
-function TDX:VoteDifficulty(difficulty)
-    wait(5.5)
+function TDX:ClearQueue()
+    local count = #CommandQueue
+    CommandQueue = {}
+    return count
+end
+
+function TDX:WaitForGame()
     local remotes = ensureRemotes()
-    if remotes then
-        if remotes:FindFirstChild("DifficultyVoteCast") then
-            remotes.DifficultyVoteCast:FireServer(difficulty)
-        end
-        wait(0.5)
-        if remotes:FindFirstChild("DifficultyVoteReady") then
-            remotes.DifficultyVoteReady:FireServer(difficulty)
+    if not remotes then return false end
+    return getRemote("PlaceTower") ~= nil and getRemote("SellTower") ~= nil and getRemote("TowerUpgradeRequest") ~= nil
+end
+
+function TDX:ResetMappings()
+    PositionToTowerId = {}
+    TowerIdToPosition = {}
+    NextTowerId = 1
+end
+
+function TDX:RemapAllTowers()
+    self:ResetMappings()
+    local gameFolder = Workspace:FindFirstChild("Game")
+    if not gameFolder then return end
+    local towersFolder = gameFolder:FindFirstChild("Towers")
+    if not towersFolder then return end
+    for _, part in ipairs(towersFolder:GetChildren()) do
+        if part:IsA("BasePart") then
+            local pos = part.Position
+            updateTowerMapping(NextTowerId, pos.X, pos.Y, pos.Z)
+            NextTowerId = NextTowerId + 1
         end
     end
-    wait(1)
+end
+
+function TDX:VoteMap(mapName, maxAttempts)
+    maxAttempts = maxAttempts or 10
+    for attempt = 1, maxAttempts do
+        if isMapOnScreen(mapName) then
+            local mapVote = getRemote("MapVoteCast")
+            if mapVote then
+                mapVote:FireServer(mapName)
+            end
+            task.wait(0.5)
+            self:Ready()
+            return true
+        end
+        local changeVote = getRemote("MapChangeVoteCast")
+        if changeVote then
+            changeVote:FireServer(true)
+        end
+        task.wait(1)
+    end
+    return self:JoinMapViaAPC(mapName)
+end
+
+function TDX:RerollMaps()
+    local changeVote = getRemote("MapChangeVoteCast")
+    if changeVote then
+        changeVote:FireServer(true)
+    end
+    task.wait(0.5)
+end
+
+function TDX:Ready()
+    local readyRemote = getRemote("MapVoteReady")
+    if readyRemote then
+        readyRemote:FireServer()
+    end
+    task.wait(0.3)
+end
+
+function TDX:VoteDifficulty(difficulty)
+    task.wait(5.5)
+    local voteRemote = getRemote("DifficultyVoteCast")
+    if voteRemote then
+        voteRemote:FireServer(difficulty)
+    end
+    task.wait(0.5)
+    local readyRemote = getRemote("DifficultyVoteReady")
+    if readyRemote then
+        readyRemote:FireServer(difficulty)
+    end
+    task.wait(1)
 end
 
 function TDX:Loadout(loadoutId)
-    wait(2)
-    local remotes = ensureRemotes()
-    if remotes and remotes:FindFirstChild("LoadoutSelectionChanged") then
-        remotes.LoadoutSelectionChanged:FireServer(loadoutId)
+    task.wait(2)
+    local loadoutRemote = getRemote("LoadoutSelectionChanged")
+    if loadoutRemote then
+        loadoutRemote:FireServer(loadoutId)
     end
-    wait(0.5)
+    task.wait(0.5)
 end
 
 function TDX:Mode(mode)
-    local network = ReplicatedStorage:FindFirstChild("Network")
-    if not network then
-        network = ReplicatedStorage:FindFirstChild("Remotes")
-    end
+    local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if network then
         local partyType = network:FindFirstChild("ClientChangePartyTypeRequest")
         local partyMap = network:FindFirstChild("ClientChangePartyMapRequest")
         if partyType and partyMap then
             partyType:FireServer("Party")
-            wait(0.5)
+            task.wait(0.5)
             partyMap:FireServer(mode)
-            wait(0.5)
+            task.wait(0.5)
             self:StartMatchmaking()
         end
     end
 end
 
 function TDX:StartMatchmaking()
-    local network = ReplicatedStorage:FindFirstChild("Network")
-    if not network then
-        network = ReplicatedStorage:FindFirstChild("Remotes")
-    end
+    local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if network then
         local startGame = network:FindFirstChild("ClientStartGameRequest")
         if startGame then
             startGame:FireServer()
         end
     end
-    wait(0.5)
+    task.wait(0.5)
 end
 
 function TDX:Equip(items)
-    local args = {items}
-    local network = ReplicatedStorage:FindFirstChild("Network")
-    if not network then
-        network = ReplicatedStorage:FindFirstChild("Remotes")
-    end
+    local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if network then
         local updateLoadout = network:FindFirstChild("UpdateLoadout")
         if updateLoadout then
-            updateLoadout:FireServer(unpack(args))
+            updateLoadout:FireServer(items)
         end
     end
-    wait(0.5)
+    task.wait(0.5)
 end
 
 return TDX
