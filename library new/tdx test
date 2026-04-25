@@ -9,6 +9,7 @@ local TowerIdToPosition = {}
 local NextTowerId = 1
 local IsProcessing = false
 local CommandQueue = {}
+local CurrentSpeed = 1
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -167,6 +168,29 @@ local function executeUpgrade(identifier, path, cost)
     return false
 end
 
+local function executeTimeScale(speed)
+    if speed == CurrentSpeed then return true end
+    
+    local speedRemote = getRemote("SoloToggleSpeedControl")
+    if not speedRemote then return false end
+    
+    task.wait(0.1)
+    
+    if speed == 1 then
+        speedRemote:FireServer(false)
+    elseif speed == 1.5 then
+        speedRemote:FireServer(true, true)
+    elseif speed == 0.5 then
+        speedRemote:FireServer(true, false)
+    else
+        return false
+    end
+    
+    CurrentSpeed = speed
+    task.wait(0.1)
+    return true
+end
+
 local function processQueue()
     if IsProcessing then return end
     IsProcessing = true
@@ -182,6 +206,12 @@ local function processQueue()
             end
         elseif cmd.type == "Upgrade" then
             local success = executeUpgrade(cmd.identifier, cmd.path, cmd.cost)
+            if not success then
+                table.insert(CommandQueue, 1, cmd)
+                task.wait(0.5)
+            end
+        elseif cmd.type == "TimeScale" then
+            local success = executeTimeScale(cmd.speed)
             if not success then
                 table.insert(CommandQueue, 1, cmd)
                 task.wait(0.5)
@@ -214,6 +244,27 @@ function TDX:Upgrade(identifier, path, level, cost)
         cost = cost
     })
     task.spawn(processQueue)
+    return true
+end
+
+function TDX:TimeScale(speed)
+    table.insert(CommandQueue, {
+        type = "TimeScale",
+        speed = speed
+    })
+    task.spawn(processQueue)
+    return true
+end
+
+function TDX:Sell(towerId)
+    local sellRemote = getRemote("SellTower")
+    if sellRemote then
+        task.wait(0.1)
+        pcall(function()
+            sellRemote:FireServer(towerId)
+        end)
+        task.wait(0.1)
+    end
     return true
 end
 
@@ -311,6 +362,10 @@ function TDX:AutoSkip(enabled)
     return true
 end
 
+function TDX:GetCurrentSpeed()
+    return CurrentSpeed
+end
+
 function TDX:WaitForGame()
     local remotes = ensureRemotes()
     if not remotes then return false end
@@ -339,6 +394,22 @@ function TDX:VoteMap(mapName, maxAttempts)
     return self:JoinMapViaAPC(mapName)
 end
 
+function TDX:RerollMaps()
+    local changeVote = getRemote("MapChangeVoteCast")
+    if changeVote then
+        changeVote:FireServer(true)
+    end
+    task.wait(0.5)
+end
+
+function TDX:Ready()
+    local readyRemote = getRemote("MapVoteReady")
+    if readyRemote then
+        readyRemote:FireServer()
+    end
+    task.wait(0.3)
+end
+
 function TDX:VoteDifficulty(difficulty)
     task.wait(5.5)
     local voteRemote = getRemote("DifficultyVoteCast")
@@ -350,6 +421,7 @@ function TDX:VoteDifficulty(difficulty)
     if readyRemote then
         readyRemote:FireServer(difficulty)
     end
+    task.wait(1)
 end
 
 function TDX:Loadout(loadoutId)
@@ -358,6 +430,7 @@ function TDX:Loadout(loadoutId)
     if loadoutRemote then
         loadoutRemote:FireServer(loadoutId)
     end
+    task.wait(0.5)
 end
 
 function TDX:Mode(mode)
@@ -378,12 +451,45 @@ function TDX:Mode(mode)
     end
 end
 
+function TDX:StartMatchmaking()
+    local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    if network then
+        local startGame = network:FindFirstChild("ClientStartGameRequest")
+        if startGame then
+            startGame:FireServer()
+        end
+    end
+    task.wait(0.5)
+end
+
 function TDX:Equip(items)
     local network = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if network then
         local updateLoadout = network:FindFirstChild("UpdateLoadout")
         if updateLoadout then
             updateLoadout:FireServer(items)
+        end
+    end
+    task.wait(0.5)
+end
+
+function TDX:ResetMappings()
+    PositionToTowerId = {}
+    TowerIdToPosition = {}
+    NextTowerId = 1
+end
+
+function TDX:RemapAllTowers()
+    self:ResetMappings()
+    local gameFolder = Workspace:FindFirstChild("Game")
+    if not gameFolder then return end
+    local towersFolder = gameFolder:FindFirstChild("Towers")
+    if not towersFolder then return end
+    for _, part in ipairs(towersFolder:GetChildren()) do
+        if part:IsA("BasePart") then
+            local pos = part.Position
+            updateTowerMapping(NextTowerId, pos.X, pos.Y, pos.Z)
+            NextTowerId = NextTowerId + 1
         end
     end
 end
