@@ -57,7 +57,7 @@ function TDX:Upgrade(id, path, _, cost)
     while getCash() < cost do
         task.wait(0.01)
     end
-    task.wait(0.1)
+    task.wait(0.2)
     pcall(function()
         remote:FireServer(id, path, 1)
     end)
