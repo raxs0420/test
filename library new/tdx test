@@ -54,7 +54,7 @@ function TDX:Place(name, x, y, z, rot, cost)
                 NextID = NextID + 1
             end
         end
-        if not id then task.wait(0.2) end
+        if not id then task.wait(0.5) end
     end
 
     task.wait(0.1)
@@ -84,7 +84,7 @@ function TDX:Upgrade(id, path, _, cost)
                 end
             end
         end
-        if not success then task.wait(0.2) end
+        if not success then task.wait(0.5) end
     end
 
     task.wait(0.1)
