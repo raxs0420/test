@@ -320,22 +320,23 @@ local function processQueue()
                 end
                 
                 if #sameTowerUpgrades >= 3 and getCurrentCash() >= totalCost then
+                    local allSuccess = true
                     for _, upgradeCmd in ipairs(sameTowerUpgrades) do
                         local path = upgradeCmd.args[2]
                         local cost = upgradeCmd.args[4] or 0
                         local success = executeUpgrade(towerId, path, cost)
                         if not success then
-                            batchProcessed = false
+                            allSuccess = false
                             break
                         end
-                        batchProcessed = true
                         task.wait(BATCH_DELAY)
                     end
                     
-                    if batchProcessed then
+                    if allSuccess then
                         for _ = 1, #sameTowerUpgrades do
                             table.remove(CommandQueue, i)
                         end
+                        batchProcessed = true
                     end
                 end
             end
