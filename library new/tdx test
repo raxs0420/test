@@ -8,7 +8,7 @@ local NextLogicalID = 1
 local CurrentSpeed = 1
 local AbilityConnections = {}
 
-TDX._Towers = {}          -- [logicalID] = {name, pos, upgrades = {{path,cost},...}, alive, rebuilding}
+TDX._Towers = {}        
 TDX._ScanConnection = nil
 TDX._LastScan = 0
 
@@ -129,7 +129,7 @@ local function startDeathScan()
     if TDX._ScanConnection then return end
     TDX._ScanConnection = game:GetService("RunService").Heartbeat:Connect(function()
         local now = tick()
-        if now - TDX._LastScan >= 0.2 then
+        if now - TDX._LastScan >= 0.05 then
             TDX._LastScan = now
             scanAndRebuild()
         end
@@ -145,7 +145,7 @@ function TDX:Place(name, x, y, z, rot, cost)
         return remote:InvokeServer(rot or 0, name, Vector3.new(x, y, z), 0)
     end)
     if not (ok and res == true) then return nil end
-    task.wait(0.2)
+    task.wait(0.25)
     local id = NextLogicalID
     NextLogicalID = NextLogicalID + 1
     TDX._Towers[id] = {
@@ -180,12 +180,12 @@ function TDX:Upgrade(logicalID, path, _, cost)
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
     while getCash() < cost do task.wait(0.01) end
-    task.wait(0.1)
+    task.wait(0.15)
     pcall(function()
         remote:FireServer(serverID, path, 1)
     end)
     table.insert(data.upgrades, {path = path, cost = cost})
-    task.wait(0.2)
+    task.wait(0.25)
     return true
 end
 
