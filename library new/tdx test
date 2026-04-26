@@ -54,13 +54,19 @@ local function isDeadColor(color)
     return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
 end
 
-local function waitForTowerStatus(position)
+local function waitForTowerStatus(position, towerName)
     while true do
         local container = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
         if container then
             for _, model in ipairs(container:GetChildren()) do
                 if model:IsA("Model") then
-                    if (model:GetPivot().Position - position).Magnitude < 5 then
+                    local match = false
+                    if (model:GetPivot().Position - position).Magnitude < 10 then
+                        match = true
+                    elseif towerName and string.find(model.Name, towerName) then
+                        match = true
+                    end
+                    if match then
                         local color = getTowerBeamColor(model)
                         if color then
                             return not isDeadColor(color)
@@ -85,7 +91,7 @@ local function scanAndCompact()
             local foundModel = nil
             for _, model in ipairs(container:GetChildren()) do
                 if model:IsA("Model") then
-                    if (model:GetPivot().Position - data.pos).Magnitude < 5 then
+                    if (model:GetPivot().Position - data.pos).Magnitude < 10 then
                         foundModel = model
                         break
                     end
@@ -145,7 +151,7 @@ function TDX:Place(name, x, y, z, rot, cost)
     NextID = NextID + 1
     local position = Vector3.new(x, y, z)
     
-    local isAlive = waitForTowerStatus(position)
+    local isAlive = waitForTowerStatus(position, name)
     
     TDX._Towers[id] = {
         name = name,
