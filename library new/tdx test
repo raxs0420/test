@@ -61,15 +61,12 @@ local function scanAndCompact()
     local dead = {}
     for id, data in pairs(TDX._Towers) do
         if data.alive == false then
-            -- already marked dead, remove it
             table.insert(dead, id)
         elseif data.alive == true then
-            -- check if still alive
             local foundModel = nil
             for _, model in ipairs(container:GetChildren()) do
                 if model:IsA("Model") then
-                    local modelPos = model:GetPivot().Position
-                    if (modelPos - data.pos).Magnitude < 5 then
+                    if (model:GetPivot().Position - data.pos).Magnitude < 5 then
                         foundModel = model
                         break
                     end
@@ -81,11 +78,8 @@ local function scanAndCompact()
                     data.alive = false
                     table.insert(dead, id)
                 end
-            else
-                -- model not found yet, keep alive (don't mark dead)
             end
         end
-        -- if alive == nil, ignore (still initialising)
     end
     
     if #dead == 0 then return end
@@ -134,16 +128,17 @@ function TDX:Place(name, x, y, z, rot, cost)
     TDX._Towers[id] = {
         name = name,
         pos = position,
-        alive = nil   -- not yet confirmed
+        alive = nil
     }
     
     if not TDX._ScanConnection then
         startDeathScan()
     end
     
-    -- Wait until tower is found and beam is alive (non‑dead)
-    local timeout = 10
+    -- Wait for healthy beam (or timeout)
+    local timeout = 15
     local startTime = tick()
+    local confirmed = false
     repeat
         task.wait(0.1)
         local container = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
@@ -155,9 +150,10 @@ function TDX:Place(name, x, y, z, rot, cost)
                         if color then
                             if not isDeadColor(color) then
                                 TDX._Towers[id].alive = true
+                                confirmed = true
                             else
-                                -- dead already? shouldn't happen, but mark false
                                 TDX._Towers[id].alive = false
+                                confirmed = true
                             end
                             break
                         end
@@ -166,24 +162,44 @@ function TDX:Place(name, x, y, z, rot, cost)
             end
         end
         if tick() - startTime > timeout then
-            warn("Timeout waiting for tower to become alive, forcing alive")
+            warn("Timeout waiting for tower", id, "assuming alive")
             TDX._Towers[id].alive = true
+            confirmed = true
             break
         end
-    until TDX._Towers[id].alive ~= nil
+    until confirmed
     
     return id
 end
 
 function TDX:Upgrade(id, path, _, cost)
-    if not TDX._Towers[id] or TDX._Towers[id].alive ~= true then
-        warn("Tower", id, "is dead or not ready, waiting...")
-        task.wait(0.5)
-        if not TDX._Towers[id] or TDX._Towers[id].alive ~= true then
-            warn("Tower", id, "still dead, skipping upgrade")
-            return false
+    local startTime = tick()
+    local timeout = 10
+    local waited = false
+    while not TDX._Towers[id] or TDX._Towers[id].alive == nil do
+        if tick() - startTime > timeout then
+            if not TDX._Towers[id] then
+                warn("Tower", id, "does not exist, skipping upgrade")
+                return false
+            end
+            if TDX._Towers[id].alive == nil then
+                warn("Tower", id, "still not ready after timeout, forcing alive")
+                TDX._Towers[id].alive = true
+            end
+            break
         end
+        if not waited then
+            warn("Waiting for tower", id, "to become ready...")
+            waited = true
+        end
+        task.wait(0.2)
     end
+    
+    if TDX._Towers[id].alive ~= true then
+        warn("Tower", id, "is dead, skipping upgrade")
+        return false
+    end
+    
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
     while getCash() < cost do task.wait(0.01) end
