@@ -322,16 +322,18 @@ local function start_anti_lag()
 
     task.spawn(function()
         while _G.AntiLag do
-            local projectiles_folder = workspace.Game.Projectiles
-
+            local projectiles_folder = workspace:FindFirstChild("Game")
             if projectiles_folder then
-                for _, projectile in ipairs(projectiles_folder:GetChildren()) do
-                    projectile:Destroy()
+                projectiles_folder = projectiles_folder:FindFirstChild("Projectiles")
+                if projectiles_folder then
+                    for _, projectile in ipairs(projectiles_folder:GetChildren()) do
+                        pcall(function() projectile:Destroy() end)
+                    end
                 end
             end
-
             task.wait(0.5)
         end
+        settings.QualityLevel = original_quality
         anti_lag_running = false
     end)
 end
