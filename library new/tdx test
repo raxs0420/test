@@ -12,7 +12,6 @@ local AbilityConnections = {}
 TDX._Towers = {}
 TDX._ScanConnection = nil
 TDX._LastScan = 0
-TDX._ScanStarted = false
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -52,7 +51,7 @@ local function getTowerColor(tower)
 end
 
 local function isDeadColor(col)
-    return col.R < 0.15 and col.G < 0.15 and col.B < 0.15
+    return col.R < 0.1 and col.G < 0.1 and col.B < 0.1
 end
 
 local function scanAndCompact()
@@ -78,9 +77,6 @@ local function scanAndCompact()
                     data.alive = false
                     table.insert(dead, id)
                 end
-            else
-                -- model not found yet, do NOT mark as dead (wait)
-                -- just skip this scan cycle
             end
         else
             table.insert(dead, id)
@@ -124,31 +120,60 @@ function TDX:Place(name, x, y, z, rot, cost)
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, Vector3.new(x, y, z), 0)
     end)
-    if ok and res == true then
-        task.wait(0.2)
-        local id = NextID
-        NextID = NextID + 1
-        TDX._Towers[id] = {
-            name = name,
-            pos = Vector3.new(x, y, z),
-            alive = true
-        }
-        if not TDX._ScanStarted then
-            TDX._ScanStarted = true
-            task.spawn(function()
-                task.wait(3)  -- wait 3 seconds after first tower before scanning
-                startDeathScan()
-            end)
-        end
-        return id
+    if not (ok and res == true) then return nil end
+    task.wait(0.2)
+    
+    local id = NextID
+    NextID = NextID + 1
+    local position = Vector3.new(x, y, z)
+    TDX._Towers[id] = {
+        name = name,
+        pos = position,
+        alive = false   -- start as false, will be set true when beam is detected alive
+    }
+    
+    if not TDX._ScanConnection then
+        startDeathScan()
     end
-    return nil
+    
+    -- Wait until the tower's beam is detected and alive (not dead)
+    local timeout = 10  -- seconds
+    local startTime = tick()
+    repeat
+        task.wait(0.1)
+        local container = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
+        if container then
+            for _, model in ipairs(container:GetChildren()) do
+                if model:IsA("Model") then
+                    if (model:GetPivot().Position - position).Magnitude < 5 then
+                        local color = getTowerColor(model)
+                        if color and not isDeadColor(color) then
+                            TDX._Towers[id].alive = true
+                            break
+                        end
+                    end
+                end
+            end
+        end
+        if tick() - startTime > timeout then
+            warn("Timeout waiting for tower to become alive, continuing anyway")
+            TDX._Towers[id].alive = true
+            break
+        end
+    until TDX._Towers[id].alive == true
+    
+    return id
 end
 
 function TDX:Upgrade(id, path, _, cost)
     if not TDX._Towers[id] or not TDX._Towers[id].alive then
-        warn("Tower", id, "is dead or missing, skipping upgrade")
-        return false
+        warn("Tower", id, "is dead or not ready, waiting...")
+        -- Wait a moment and try again once
+        task.wait(0.5)
+        if not TDX._Towers[id] or not TDX._Towers[id].alive then
+            warn("Tower", id, "still dead, skipping upgrade")
+            return false
+        end
     end
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
