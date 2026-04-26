@@ -9,6 +9,7 @@ local Remotes = nil
 local NextID = 1
 local CurrentSpeed = 1
 local AbilityConnections = {}
+local TowerMap = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -35,6 +36,18 @@ local function getCash()
     return cash and cash.Value or 0
 end
 
+local function findTowerAtPosition(pos)
+    for _, child in ipairs(Workspace:GetDescendants()) do
+        if child:IsA("Model") and child:FindFirstChild("Humanoid") then
+            local root = child:FindFirstChild("HumanoidRootPart") or child:FindFirstChild("Torso")
+            if root and (root.Position - pos).Magnitude < 3 then
+                return child
+            end
+        end
+    end
+    return nil
+end
+
 function TDX:Place(name, x, y, z, rot, cost)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
@@ -49,26 +62,37 @@ function TDX:Place(name, x, y, z, rot, cost)
         task.wait(0.2)
         local id = NextID
         NextID = NextID + 1
+        local tower = findTowerAtPosition(Vector3.new(x, y, z))
+        if tower then
+            TowerMap[id] = tower
+        end
         return id
     end
     return nil
 end
 
 function TDX:Upgrade(id, path, _, cost)
+    if not TowerMap[id] or not TowerMap[id].Parent then
+        return false
+    end
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
     while getCash() < cost do
         task.wait(0.01)
     end
     task.wait(0.1)
-    pcall(function()
+    local success = pcall(function()
         remote:FireServer(id, path, 1)
     end)
     task.wait(0.2)
-    return true
+    if not TowerMap[id] or not TowerMap[id].Parent then
+        return false
+    end
+    return success
 end
 
 function TDX:Sell(id)
+    TowerMap[id] = nil
     local remote = getRemote("SellTower")
     if remote then
         pcall(function() remote:FireServer(id) end)
@@ -120,6 +144,7 @@ end
 
 function TDX:ResetMappings()
     NextID = 1
+    TowerMap = {}
 end
 
 function TDX:RemapAllTowers()
@@ -283,14 +308,14 @@ function TDX:Ability(Id, AbilitySlot, Loop)
         AbilityConnections[key] = nil
     end
 
-    if auto == nil then
+    if Loop == nil then
         local args = {Id, AbilitySlot}
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
         return
     end
 
     local interval = 0.3
-    if type(auto) == "number" then
+    if type(Loop) == "number" then
         interval = Loop
     end
 
@@ -328,7 +353,7 @@ function TDX:Uber(MedicID, AbilitySlot, TowerID, Loop)
     end
 
     local uberKey = "uber_" .. tostring(MedicID) .. "_" .. tostring(AbilitySlot) .. "_" .. tostring(TowerID)
-    
+
     if AbilityConnections[uberKey] then
         AbilityConnections[uberKey]:Disconnect()
         AbilityConnections[uberKey] = nil
@@ -346,7 +371,7 @@ function TDX:Uber(MedicID, AbilitySlot, TowerID, Loop)
         end)
         task.wait(interval)
     end)
-    
+
     AbilityConnections[uberKey] = connection
 end
 
