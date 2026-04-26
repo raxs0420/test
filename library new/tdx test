@@ -64,7 +64,7 @@ function TDX:Upgrade(id, path, _, cost)
     pcall(function()
         remote:FireServer(id, path, 1)
     end)
-    task.wait(0.1)
+    task.wait(0.2)
     return true
 end
 
@@ -73,7 +73,7 @@ function TDX:Sell(id)
     if remote then
         pcall(function() remote:FireServer(id) end)
     end
-    task.wait(0.5)
+    task.wait(0.3)
     return true
 end
 
@@ -309,37 +309,6 @@ function TDX:Ability(Id, AbilitySlot, auto)
     end)
 
     AbilityConnections[key] = connection
-end
-
-local function start_anti_lag()
-    if anti_lag_running then return end
-    anti_lag_running = true
-
-    local settings = settings().Rendering
-    local original_quality = settings.QualityLevel
-    settings.QualityLevel = Enum.QualityLevel.Level01
-
-    task.spawn(function()
-        while _G.AntiLag do
-            local game_folder = workspace:FindFirstChild("Game")
-            if game_folder then
-                local projectiles_folder = game_folder:FindFirstChild("Projectiles")
-                if projectiles_folder then
-                    for _, projectile in ipairs(projectiles_folder:GetChildren()) do
-                        pcall(function() projectile:Destroy() end)
-                    end
-                end
-            end
-            task.wait(0.5)
-        end
-        settings.QualityLevel = original_quality
-        anti_lag_running = false
-    end)
-end
-
-function TDX:StartAntiLag()
-    _G.AntiLag = true
-    start_anti_lag()
 end
 
 return TDX
