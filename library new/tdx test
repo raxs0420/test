@@ -43,7 +43,8 @@ local function getTowerBeamColor(towerModel)
     if not ring then return nil end
     local beam = ring:FindFirstChildWhichIsA("Beam")
     if not beam then return nil end
-    local seq = beam.Color
+    local success, seq = pcall(function() return beam.Color end)
+    if not success then return nil end
     if seq and seq.Keypoints and #seq.Keypoints > 0 then
         return seq.Keypoints[1].Value
     end
@@ -54,19 +55,16 @@ local function isDeadColor(color)
     return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
 end
 
-local function waitForTowerStatus(position, towerName)
+local function waitForTowerStatus(position, name)
     while true do
-        local container = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
-        if container then
-            for _, model in ipairs(container:GetChildren()) do
+        local towersContainer = Workspace:FindFirstChild("Game")
+        if towersContainer then
+            towersContainer = towersContainer:FindFirstChild("Towers")
+        end
+        if towersContainer then
+            for _, model in ipairs(towersContainer:GetChildren()) do
                 if model:IsA("Model") then
-                    local match = false
-                    if (model:GetPivot().Position - position).Magnitude < 10 then
-                        match = true
-                    elseif towerName and string.find(model.Name, towerName) then
-                        match = true
-                    end
-                    if match then
+                    if (model:GetPivot().Position - position).Magnitude < 15 then
                         local color = getTowerBeamColor(model)
                         if color then
                             return not isDeadColor(color)
@@ -80,8 +78,11 @@ local function waitForTowerStatus(position, towerName)
 end
 
 local function scanAndCompact()
-    local container = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
-    if not container then return end
+    local towersContainer = Workspace:FindFirstChild("Game")
+    if towersContainer then
+        towersContainer = towersContainer:FindFirstChild("Towers")
+    end
+    if not towersContainer then return end
     
     local dead = {}
     for id, data in pairs(TDX._Towers) do
@@ -89,9 +90,9 @@ local function scanAndCompact()
             table.insert(dead, id)
         elseif data.alive == true then
             local foundModel = nil
-            for _, model in ipairs(container:GetChildren()) do
+            for _, model in ipairs(towersContainer:GetChildren()) do
                 if model:IsA("Model") then
-                    if (model:GetPivot().Position - data.pos).Magnitude < 10 then
+                    if (model:GetPivot().Position - data.pos).Magnitude < 15 then
                         foundModel = model
                         break
                     end
@@ -175,12 +176,13 @@ function TDX:Upgrade(id, path, _, cost)
         local startTime = tick()
         while not TDX._Towers[id] or TDX._Towers[id].alive == nil do
             task.wait(0.1)
-            if tick() - startTime > 5 then
-                warn("Tower", id, "not ready after 5 seconds, skipping")
-                return false
+            if tick() - startTime > 10 then
+                warn("Tower", id, "not ready after 10 seconds, forcing upgrade")
+                if TDX._Towers[id] then TDX._Towers[id].alive = true end
+                break
             end
         end
-        if TDX._Towers[id].alive ~= true then
+        if TDX._Towers[id] and TDX._Towers[id].alive ~= true then
             warn("Tower", id, "dead, skipping upgrade")
             return false
         end
