@@ -323,17 +323,22 @@ local function start_anti_lag()
     task.spawn(function()
         while _G.AntiLag do
             local projectiles_folder = workspace.Game.Projectiles
-            
+
             if projectiles_folder then
                 for _, projectile in ipairs(projectiles_folder:GetChildren()) do
                     projectile:Destroy()
                 end
             end
-            
+
             task.wait(0.5)
         end
         anti_lag_running = false
     end)
+end
+
+function TDX:StartAntiLag()
+    _G.AntiLag = true
+    start_anti_lag()
 end
 
 return TDX
