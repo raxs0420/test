@@ -3,6 +3,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
+local anti_lag_running = false
+
 local Remotes = nil
 local NextID = 1
 local CurrentSpeed = 1
