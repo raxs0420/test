@@ -275,7 +275,7 @@ function TDX:Equip(items)
     task.wait(0.5)
 end
 
-function TDX:Ability(Id, AbilitySlot, auto)
+function TDX:Ability(Id, AbilitySlot, Loop)
     local key = tostring(Id) .. "_" .. tostring(AbilitySlot)
 
     if AbilityConnections[key] then
@@ -291,7 +291,7 @@ function TDX:Ability(Id, AbilitySlot, auto)
 
     local interval = 0.3
     if type(auto) == "number" then
-        interval = auto
+        interval = Loop
     end
 
     local running = true
