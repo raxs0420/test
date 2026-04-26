@@ -133,7 +133,7 @@ local function monitorUpgrades()
             if pendingUpgrade then
                 local cost = getUpgradeCostForPath(pendingUpgrade.path)
                 if cost > 0 and currentTime - lastUpgradeTime > 0.05 then
-                    local cmd = string.format('TDX:Upgrade(id%d, %d, %d, %d)', pendingUpgrade.id, pendingUpgrade.path, pendingUpgrade.level, cost)
+                    local cmd = string.format('TDX:Upgrade(%d, %d, 1, %d)', pendingUpgrade.id, pendingUpgrade.path, cost)
                     table.insert(actions, cmd)
                     addLog(cmd, Color3.fromRGB(150, 255, 150))
                     pendingUpgrade = nil
@@ -155,7 +155,7 @@ if TowersFolder then
         nextId = nextId + 1
         towerPositions[id] = {x = pos.X, y = pos.Y, z = pos.Z, name = name}
         local cost = getTowerCost(name)
-        local cmd = string.format('local id%d = TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d)', id, name, pos.X, pos.Y, pos.Z, cost)
+        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d)', name, pos.X, pos.Y, pos.Z, cost)
         table.insert(actions, cmd)
         addLog(cmd, Color3.fromRGB(100, 255, 100))
     end)
@@ -173,6 +173,11 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
             if towerPositions[id] then
                 pendingUpgrade = {id = id, path = path, level = level}
             end
+        elseif self.Name == "SellTower" then
+            local id = args[1]
+            local cmd = string.format('TDX:Sell(%d)', id)
+            table.insert(actions, cmd)
+            addLog(cmd, Color3.fromRGB(255, 150, 100))
         end
     end
     return oldNamecall(self, ...)
@@ -187,7 +192,7 @@ local function generateScript()
             table.insert(towerList, string.format('"%s"', data.name))
         end
     end
-    
+
     local lines = {
         "local TDX = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/tdx%20test\"))()",
         "",
