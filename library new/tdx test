@@ -59,21 +59,17 @@ local function getServerID(logicalID)
     local container = Workspace:FindFirstChild("Game")
     if container then container = container:FindFirstChild("Towers") end
     if not container then return nil end
-    local parts = {}
-    for _, child in ipairs(container:GetChildren()) do
-        if child:IsA("BasePart") then
-            table.insert(parts, child)
-        end
-    end
-    table.sort(parts, function(a,b) return a:GetPivot().Position.X < b:GetPivot().Position.X end)
-    for idx, part in ipairs(parts) do
-        if part.Name == data.name and (part.Position - data.pos).Magnitude < 5 then
-            local color = getTowerBeamColor(part)
-            if color and isDeadColor(color) then
-                data.alive = false
-                return nil
+    local children = container:GetChildren()
+    for idx, part in ipairs(children) do
+        if part:IsA("BasePart") and part.Name == data.name then
+            if (part.Position - data.pos).Magnitude < 5 then
+                local color = getTowerBeamColor(part)
+                if color and isDeadColor(color) then
+                    data.alive = false
+                    return nil
+                end
+                return idx   -- 1‑based index in the tower list = server ID
             end
-            return idx
         end
     end
     return nil
