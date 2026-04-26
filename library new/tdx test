@@ -12,6 +12,7 @@ local AbilityConnections = {}
 TDX._Towers = {}
 TDX._ScanConnection = nil
 TDX._LastScan = 0
+TDX._ScanStarted = false
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -63,14 +64,18 @@ local function scanAndCompact()
         if data.alive then
             local found = false
             for _, model in ipairs(container:GetChildren()) do
-                if model:IsA("Model") and (model:GetPivot().Position - data.pos).Magnitude < 0.5 then
-                    local col = getTowerColor(model)
-                    if col and isDeadColor(col) then
-                        data.alive = false
-                        table.insert(dead, id)
+                if model:IsA("Model") then
+                    local modelPos = model:GetPivot().Position
+                    local diff = (modelPos - data.pos).Magnitude
+                    if diff < 10 then
+                        found = true
+                        local col = getTowerColor(model)
+                        if col and isDeadColor(col) then
+                            data.alive = false
+                            table.insert(dead, id)
+                        end
+                        break
                     end
-                    found = true
-                    break
                 end
             end
             if not found then
@@ -128,7 +133,13 @@ function TDX:Place(name, x, y, z, rot, cost)
             pos = Vector3.new(x, y, z),
             alive = true
         }
-        startDeathScan()
+        if not TDX._ScanStarted then
+            TDX._ScanStarted = true
+            task.spawn(function()
+                task.wait(2)
+                startDeathScan()
+            end)
+        end
         return id
     end
     return nil
