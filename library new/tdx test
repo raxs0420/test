@@ -60,7 +60,11 @@ local function scanAndCompact()
     
     local dead = {}
     for id, data in pairs(TDX._Towers) do
-        if data.alive then
+        if data.alive == false then
+            -- already marked dead, remove it
+            table.insert(dead, id)
+        elseif data.alive == true then
+            -- check if still alive
             local foundModel = nil
             for _, model in ipairs(container:GetChildren()) do
                 if model:IsA("Model") then
@@ -77,10 +81,11 @@ local function scanAndCompact()
                     data.alive = false
                     table.insert(dead, id)
                 end
+            else
+                -- model not found yet, keep alive (don't mark dead)
             end
-        else
-            table.insert(dead, id)
         end
+        -- if alive == nil, ignore (still initialising)
     end
     
     if #dead == 0 then return end
@@ -129,15 +134,15 @@ function TDX:Place(name, x, y, z, rot, cost)
     TDX._Towers[id] = {
         name = name,
         pos = position,
-        alive = false   -- start as false, will be set true when beam is detected alive
+        alive = nil   -- not yet confirmed
     }
     
     if not TDX._ScanConnection then
         startDeathScan()
     end
     
-    -- Wait until the tower's beam is detected and alive (not dead)
-    local timeout = 10  -- seconds
+    -- Wait until tower is found and beam is alive (non‑dead)
+    local timeout = 10
     local startTime = tick()
     repeat
         task.wait(0.1)
@@ -147,8 +152,13 @@ function TDX:Place(name, x, y, z, rot, cost)
                 if model:IsA("Model") then
                     if (model:GetPivot().Position - position).Magnitude < 5 then
                         local color = getTowerColor(model)
-                        if color and not isDeadColor(color) then
-                            TDX._Towers[id].alive = true
+                        if color then
+                            if not isDeadColor(color) then
+                                TDX._Towers[id].alive = true
+                            else
+                                -- dead already? shouldn't happen, but mark false
+                                TDX._Towers[id].alive = false
+                            end
                             break
                         end
                     end
@@ -156,21 +166,20 @@ function TDX:Place(name, x, y, z, rot, cost)
             end
         end
         if tick() - startTime > timeout then
-            warn("Timeout waiting for tower to become alive, continuing anyway")
+            warn("Timeout waiting for tower to become alive, forcing alive")
             TDX._Towers[id].alive = true
             break
         end
-    until TDX._Towers[id].alive == true
+    until TDX._Towers[id].alive ~= nil
     
     return id
 end
 
 function TDX:Upgrade(id, path, _, cost)
-    if not TDX._Towers[id] or not TDX._Towers[id].alive then
+    if not TDX._Towers[id] or TDX._Towers[id].alive ~= true then
         warn("Tower", id, "is dead or not ready, waiting...")
-        -- Wait a moment and try again once
         task.wait(0.5)
-        if not TDX._Towers[id] or not TDX._Towers[id].alive then
+        if not TDX._Towers[id] or TDX._Towers[id].alive ~= true then
             warn("Tower", id, "still dead, skipping upgrade")
             return false
         end
@@ -187,7 +196,7 @@ function TDX:Upgrade(id, path, _, cost)
 end
 
 function TDX:Sell(id)
-    if not TDX._Towers[id] or not TDX._Towers[id].alive then
+    if not TDX._Towers[id] or TDX._Towers[id].alive ~= true then
         warn("Tower", id, "dead, cannot sell")
         return false
     end
