@@ -38,8 +38,8 @@ local function getCash()
     return cash and cash.Value or 0
 end
 
-local function getTowerColor(tower)
-    local ring = tower:FindFirstChild("Ring")
+local function getTowerBeamColor(towerModel)
+    local ring = towerModel:FindFirstChild("Ring")
     if not ring then return nil end
     local beam = ring:FindFirstChildWhichIsA("Beam")
     if not beam then return nil end
@@ -50,8 +50,27 @@ local function getTowerColor(tower)
     return nil
 end
 
-local function isDeadColor(col)
-    return col.R < 0.1 and col.G < 0.1 and col.B < 0.1
+local function isDeadColor(color)
+    return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
+end
+
+local function waitForTowerStatus(position)
+    while true do
+        local container = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
+        if container then
+            for _, model in ipairs(container:GetChildren()) do
+                if model:IsA("Model") then
+                    if (model:GetPivot().Position - position).Magnitude < 5 then
+                        local color = getTowerBeamColor(model)
+                        if color then
+                            return not isDeadColor(color)
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.05)
+    end
 end
 
 local function scanAndCompact()
@@ -73,7 +92,7 @@ local function scanAndCompact()
                 end
             end
             if foundModel then
-                local color = getTowerColor(foundModel)
+                local color = getTowerBeamColor(foundModel)
                 if color and isDeadColor(color) then
                     data.alive = false
                     table.insert(dead, id)
@@ -125,81 +144,41 @@ function TDX:Place(name, x, y, z, rot, cost)
     local id = NextID
     NextID = NextID + 1
     local position = Vector3.new(x, y, z)
+    
+    local isAlive = waitForTowerStatus(position)
+    
     TDX._Towers[id] = {
         name = name,
         pos = position,
-        alive = nil
+        alive = isAlive
     }
     
     if not TDX._ScanConnection then
         startDeathScan()
     end
     
-    -- Wait for healthy beam (or timeout)
-    local timeout = 15
-    local startTime = tick()
-    local confirmed = false
-    repeat
-        task.wait(0.1)
-        local container = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
-        if container then
-            for _, model in ipairs(container:GetChildren()) do
-                if model:IsA("Model") then
-                    if (model:GetPivot().Position - position).Magnitude < 5 then
-                        local color = getTowerColor(model)
-                        if color then
-                            if not isDeadColor(color) then
-                                TDX._Towers[id].alive = true
-                                confirmed = true
-                            else
-                                TDX._Towers[id].alive = false
-                                confirmed = true
-                            end
-                            break
-                        end
-                    end
-                end
-            end
-        end
-        if tick() - startTime > timeout then
-            warn("Timeout waiting for tower", id, "assuming alive")
-            TDX._Towers[id].alive = true
-            confirmed = true
-            break
-        end
-    until confirmed
-    
     return id
 end
 
 function TDX:Upgrade(id, path, _, cost)
-    local startTime = tick()
-    local timeout = 10
-    local waited = false
-    while not TDX._Towers[id] or TDX._Towers[id].alive == nil do
-        if tick() - startTime > timeout then
-            if not TDX._Towers[id] then
-                warn("Tower", id, "does not exist, skipping upgrade")
+    if not TDX._Towers[id] or TDX._Towers[id].alive ~= true then
+        if TDX._Towers[id] and TDX._Towers[id].alive == false then
+            warn("Tower", id, "is dead, skipping upgrade")
+            return false
+        end
+        local startTime = tick()
+        while not TDX._Towers[id] or TDX._Towers[id].alive == nil do
+            task.wait(0.1)
+            if tick() - startTime > 5 then
+                warn("Tower", id, "not ready after 5 seconds, skipping")
                 return false
             end
-            if TDX._Towers[id].alive == nil then
-                warn("Tower", id, "still not ready after timeout, forcing alive")
-                TDX._Towers[id].alive = true
-            end
-            break
         end
-        if not waited then
-            warn("Waiting for tower", id, "to become ready...")
-            waited = true
+        if TDX._Towers[id].alive ~= true then
+            warn("Tower", id, "dead, skipping upgrade")
+            return false
         end
-        task.wait(0.2)
     end
-    
-    if TDX._Towers[id].alive ~= true then
-        warn("Tower", id, "is dead, skipping upgrade")
-        return false
-    end
-    
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
     while getCash() < cost do task.wait(0.01) end
@@ -213,7 +192,7 @@ end
 
 function TDX:Sell(id)
     if not TDX._Towers[id] or TDX._Towers[id].alive ~= true then
-        warn("Tower", id, "dead, cannot sell")
+        warn("Tower", id, "cannot sell (dead or missing)")
         return false
     end
     local remote = getRemote("SellTower")
