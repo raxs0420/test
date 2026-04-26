@@ -5,11 +5,11 @@ local Workspace = game:GetService("Workspace")
 
 local anti_lag_running = false
 local Remotes = nil
-local NextID = 1
+local NextLogicalID = 1
 local CurrentSpeed = 1
 local AbilityConnections = {}
 
-TDX._Towers = {}          -- [stableID] = {name, pos, alive}
+TDX._Towers = {}
 TDX._ScanConnection = nil
 TDX._LastScan = 0
 
@@ -54,48 +54,49 @@ local function isDeadColor(color)
     return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
 end
 
-function TDX:GetCurrentServerID(stableID)
-    local data = TDX._Towers[stableID]
+local function getCurrentServerID(logicalID)
+    local data = TDX._Towers[logicalID]
     if not data or not data.alive then return nil end
-    local towersContainer = Workspace:FindFirstChild("Game")
-    if towersContainer then towersContainer = towersContainer:FindFirstChild("Towers") end
-    if not towersContainer then return nil end
-    local match = nil
-    for _, part in ipairs(towersContainer:GetChildren()) do
-        if part:IsA("BasePart") and part.Name == data.name then
-            if (part.Position - data.pos).Magnitude < 5 then
-                match = part
-                break
-            end
+    local container = Workspace:FindFirstChild("Game")
+    if container then container = container:FindFirstChild("Towers") end
+    if not container then return nil end
+    local towerParts = {}
+    for _, child in ipairs(container:GetChildren()) do
+        if child:IsA("BasePart") then
+            table.insert(towerParts, child)
         end
     end
-    if not match then return nil end
-    local color = getTowerBeamColor(match)
-    if color and isDeadColor(color) then
-        data.alive = false
-        return nil
+    table.sort(towerParts, function(a, b)
+        return a:GetPivot().Position.X < b:GetPivot().Position.X
+    end)
+    for idx, part in ipairs(towerParts) do
+        if part.Name == data.name and (part.Position - data.pos).Magnitude < 5 then
+            local color = getTowerBeamColor(part)
+            if color and isDeadColor(color) then
+                data.alive = false
+                return nil
+            end
+            return idx
+        end
     end
-    return match   -- the tower part itself (used as server ID)
+    return nil
 end
 
-local function scanAndUpdateDead()
-    local towersContainer = Workspace:FindFirstChild("Game")
-    if towersContainer then towersContainer = towersContainer:FindFirstChild("Towers") end
-    if not towersContainer then return end
-    
-    for stableID, data in pairs(TDX._Towers) do
+local function scanAndUpdate()
+    local container = Workspace:FindFirstChild("Game")
+    if container then container = container:FindFirstChild("Towers") end
+    if not container then return end
+    for logicalID, data in pairs(TDX._Towers) do
         if data.alive then
             local found = false
-            for _, part in ipairs(towersContainer:GetChildren()) do
-                if part:IsA("BasePart") and part.Name == data.name then
-                    if (part.Position - data.pos).Magnitude < 5 then
-                        found = true
-                        local color = getTowerBeamColor(part)
-                        if color and isDeadColor(color) then
-                            data.alive = false
-                        end
-                        break
+            for _, part in ipairs(container:GetChildren()) do
+                if part:IsA("BasePart") and part.Name == data.name and (part.Position - data.pos).Magnitude < 5 then
+                    found = true
+                    local color = getTowerBeamColor(part)
+                    if color and isDeadColor(color) then
+                        data.alive = false
                     end
+                    break
                 end
             end
             if not found then
@@ -109,9 +110,9 @@ local function startDeathScan()
     if TDX._ScanConnection then return end
     TDX._ScanConnection = game:GetService("RunService").Heartbeat:Connect(function()
         local now = tick()
-        if now - TDX._LastScan >= 0.01 then
+        if now - TDX._LastScan >= 0.05 then
             TDX._LastScan = now
-            scanAndUpdateDead()
+            scanAndUpdate()
         end
     end)
 end
@@ -126,29 +127,28 @@ function TDX:Place(name, x, y, z, rot, cost)
     end)
     if not (ok and res == true) then return nil end
     task.wait(0.2)
-    local stableID = NextID
-    NextID = NextID + 1
-    local pos = Vector3.new(x, y, z)
-    TDX._Towers[stableID] = {
+    local id = NextLogicalID
+    NextLogicalID = NextLogicalID + 1
+    TDX._Towers[id] = {
         name = name,
-        pos = pos,
-        alive = true,
+        pos = Vector3.new(x, y, z),
+        alive = true
     }
     if not TDX._ScanConnection then
         startDeathScan()
     end
-    return stableID
+    return id
 end
 
-function TDX:Upgrade(stableID, path, _, cost)
-    local data = TDX._Towers[stableID]
+function TDX:Upgrade(logicalID, path, _, cost)
+    local data = TDX._Towers[logicalID]
     if not data or not data.alive then
-        warn("Tower", stableID, "dead or missing, skipping upgrade")
+        warn("Tower", logicalID, "is dead, skipping upgrade")
         return false
     end
-    local serverID = TDX:GetCurrentServerID(stableID)
+    local serverID = getCurrentServerID(logicalID)
     if not serverID then
-        warn("Tower", stableID, "not found in world, skipping upgrade")
+        warn("Tower", logicalID, "cannot find current server ID, skipping")
         return false
     end
     local remote = getRemote("TowerUpgradeRequest")
@@ -162,15 +162,15 @@ function TDX:Upgrade(stableID, path, _, cost)
     return true
 end
 
-function TDX:Sell(stableID)
-    local data = TDX._Towers[stableID]
+function TDX:Sell(logicalID)
+    local data = TDX._Towers[logicalID]
     if not data or not data.alive then
-        warn("Tower", stableID, "dead, cannot sell")
+        warn("Tower", logicalID, "cannot sell (dead or missing)")
         return false
     end
-    local serverID = TDX:GetCurrentServerID(stableID)
+    local serverID = getCurrentServerID(logicalID)
     if not serverID then
-        warn("Tower", stableID, "not found, cannot sell")
+        warn("Tower", logicalID, "cannot find current server ID")
         return false
     end
     local remote = getRemote("SellTower")
@@ -178,7 +178,7 @@ function TDX:Sell(stableID)
         pcall(function() remote:FireServer(serverID) end)
     end
     task.wait(0.3)
-    TDX._Towers[stableID] = nil
+    TDX._Towers[logicalID] = nil
     return true
 end
 
@@ -224,7 +224,7 @@ function TDX:WaitForGame()
 end
 
 function TDX:ResetMappings()
-    NextID = 1
+    NextLogicalID = 1
     TDX._Towers = {}
 end
 
@@ -237,7 +237,6 @@ function TDX:JoinMapViaAPC(mapName)
     local level = 0
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
-
     for _ = 1, 60 do
         local apcs = Workspace:FindFirstChild("APCs")
         if apcs then
