@@ -4,11 +4,14 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local anti_lag_running = false
-
 local Remotes = nil
 local NextID = 1
 local CurrentSpeed = 1
 local AbilityConnections = {}
+
+TDX._Towers = {}
+TDX._ScanConnection = nil
+TDX._LastScan = 0
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -35,12 +38,83 @@ local function getCash()
     return cash and cash.Value or 0
 end
 
+local function getTowerColor(tower)
+    local ring = tower:FindFirstChild("Ring")
+    if not ring then return nil end
+    local beam = ring:FindFirstChildWhichIsA("Beam")
+    if not beam then return nil end
+    local seq = beam.Color
+    if seq and seq.Keypoints and #seq.Keypoints > 0 then
+        return seq.Keypoints[1].Value
+    end
+    return nil
+end
+
+local function isDeadColor(col)
+    return col.R < 0.15 and col.G < 0.15 and col.B < 0.15
+end
+
+local function scanAndCompact()
+    local container = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
+    if not container then return end
+    
+    local dead = {}
+    for id, data in pairs(TDX._Towers) do
+        if data.alive then
+            local found = false
+            for _, model in ipairs(container:GetChildren()) do
+                if model:IsA("Model") and (model:GetPivot().Position - data.pos).Magnitude < 0.5 then
+                    local col = getTowerColor(model)
+                    if col and isDeadColor(col) then
+                        data.alive = false
+                        table.insert(dead, id)
+                    end
+                    found = true
+                    break
+                end
+            end
+            if not found then
+                data.alive = false
+                table.insert(dead, id)
+            end
+        else
+            table.insert(dead, id)
+        end
+    end
+    
+    if #dead == 0 then return end
+    
+    for _, id in ipairs(dead) do
+        TDX._Towers[id] = nil
+    end
+    
+    local new = {}
+    local nextNewId = 1
+    for id = 1, NextID - 1 do
+        if TDX._Towers[id] then
+            new[nextNewId] = TDX._Towers[id]
+            nextNewId = nextNewId + 1
+        end
+    end
+    TDX._Towers = new
+    NextID = nextNewId
+end
+
+local function startDeathScan()
+    if TDX._ScanConnection then return end
+    TDX._ScanConnection = game:GetService("RunService").Heartbeat:Connect(function()
+        local now = tick()
+        if now - TDX._LastScan >= 0.1 then
+            TDX._LastScan = now
+            scanAndCompact()
+        end
+    end)
+end
+
 function TDX:Place(name, x, y, z, rot, cost)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
-    while getCash() < cost do
-        task.wait(0.01)
-    end
+    while getCash() < cost do task.wait(0.01) end
     task.wait(0.1)
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, Vector3.new(x, y, z), 0)
@@ -49,17 +123,25 @@ function TDX:Place(name, x, y, z, rot, cost)
         task.wait(0.2)
         local id = NextID
         NextID = NextID + 1
+        TDX._Towers[id] = {
+            name = name,
+            pos = Vector3.new(x, y, z),
+            alive = true
+        }
+        startDeathScan()
         return id
     end
     return nil
 end
 
 function TDX:Upgrade(id, path, _, cost)
+    if not TDX._Towers[id] or not TDX._Towers[id].alive then
+        warn("Tower", id, "dead, skipping")
+        return false
+    end
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
-    while getCash() < cost do
-        task.wait(0.01)
-    end
+    while getCash() < cost do task.wait(0.01) end
     task.wait(0.1)
     pcall(function()
         remote:FireServer(id, path, 1)
@@ -69,11 +151,16 @@ function TDX:Upgrade(id, path, _, cost)
 end
 
 function TDX:Sell(id)
+    if not TDX._Towers[id] or not TDX._Towers[id].alive then
+        warn("Tower", id, "dead, cannot sell")
+        return false
+    end
     local remote = getRemote("SellTower")
     if remote then
         pcall(function() remote:FireServer(id) end)
     end
     task.wait(0.3)
+    TDX._Towers[id] = nil
     return true
 end
 
@@ -120,6 +207,7 @@ end
 
 function TDX:ResetMappings()
     NextID = 1
+    TDX._Towers = {}
 end
 
 function TDX:RemapAllTowers()
@@ -277,76 +365,50 @@ end
 
 function TDX:Ability(Id, AbilitySlot, Loop)
     local key = tostring(Id) .. "_" .. tostring(AbilitySlot)
-
     if AbilityConnections[key] then
         AbilityConnections[key]:Disconnect()
         AbilityConnections[key] = nil
     end
-
-    if auto == nil then
+    if Loop == nil then
         local args = {Id, AbilitySlot}
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
         return
     end
-
     local interval = 0.3
-    if type(auto) == "number" then
-        interval = Loop
-    end
-
-    local running = true
+    if type(Loop) == "number" then interval = Loop end
     local connection
     connection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not running then
-            if connection then connection:Disconnect() end
-            return
-        end
+        if not connection then return end
         local args = {Id, AbilitySlot}
         pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
         end)
         task.wait(interval)
     end)
-
     AbilityConnections[key] = connection
 end
 
 function TDX:Uber(MedicID, AbilitySlot, TowerID, Loop)
     if Loop == nil then
-        local args = {
-            MedicID,
-            AbilitySlot,
-            [4] = TowerID
-        }
+        local args = {MedicID, AbilitySlot, [4] = TowerID}
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
         return
     end
-
     local interval = 0.3
-    if type(Loop) == "number" then
-        interval = Loop
-    end
-
+    if type(Loop) == "number" then interval = Loop end
     local uberKey = "uber_" .. tostring(MedicID) .. "_" .. tostring(AbilitySlot) .. "_" .. tostring(TowerID)
-
     if AbilityConnections[uberKey] then
         AbilityConnections[uberKey]:Disconnect()
         AbilityConnections[uberKey] = nil
     end
-
     local connection
     connection = game:GetService("RunService").Heartbeat:Connect(function()
-        local args = {
-            MedicID,
-            AbilitySlot,
-            [4] = TowerID
-        }
+        local args = {MedicID, AbilitySlot, [4] = TowerID}
         pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
         end)
         task.wait(interval)
     end)
-
     AbilityConnections[uberKey] = connection
 end
 
