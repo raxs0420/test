@@ -311,4 +311,43 @@ function TDX:Ability(Id, AbilitySlot, auto)
     AbilityConnections[key] = connection
 end
 
+function TDX:Uber(MedicID, AbilitySlot, TowerID, Loop)
+    if Loop == nil then
+        local args = {
+            MedicID,
+            AbilitySlot,
+            [4] = TowerID
+        }
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
+        return
+    end
+
+    local interval = 0.3
+    if type(Loop) == "number" then
+        interval = Loop
+    end
+
+    local uberKey = "uber_" .. tostring(MedicID) .. "_" .. tostring(AbilitySlot) .. "_" .. tostring(TowerID)
+    
+    if AbilityConnections[uberKey] then
+        AbilityConnections[uberKey]:Disconnect()
+        AbilityConnections[uberKey] = nil
+    end
+
+    local connection
+    connection = game:GetService("RunService").Heartbeat:Connect(function()
+        local args = {
+            MedicID,
+            AbilitySlot,
+            [4] = TowerID
+        }
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
+        end)
+        task.wait(interval)
+    end)
+    
+    AbilityConnections[uberKey] = connection
+end
+
 return TDX
