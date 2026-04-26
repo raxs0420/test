@@ -66,7 +66,6 @@ function TDX:Upgrade(id, path, _, cost)
     end)
     task.wait(0.1)
     return true
-    task.wait(0.1)
 end
 
 function TDX:Sell(id)
@@ -278,23 +277,23 @@ end
 
 function TDX:Ability(Id, AbilitySlot, auto)
     local key = tostring(Id) .. "_" .. tostring(AbilitySlot)
-    
+
     if AbilityConnections[key] then
         AbilityConnections[key]:Disconnect()
         AbilityConnections[key] = nil
     end
-    
+
     if auto == nil then
         local args = {Id, AbilitySlot}
         game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
         return
     end
-    
+
     local interval = 0.3
     if type(auto) == "number" then
         interval = auto
     end
-    
+
     local running = true
     local connection
     connection = game:GetService("RunService").Heartbeat:Connect(function()
@@ -308,7 +307,7 @@ function TDX:Ability(Id, AbilitySlot, auto)
         end)
         task.wait(interval)
     end)
-    
+
     AbilityConnections[key] = connection
 end
 
@@ -322,9 +321,9 @@ local function start_anti_lag()
 
     task.spawn(function()
         while _G.AntiLag do
-            local projectiles_folder = workspace:FindFirstChild("Game")
-            if projectiles_folder then
-                projectiles_folder = projectiles_folder:FindFirstChild("Projectiles")
+            local game_folder = workspace:FindFirstChild("Game")
+            if game_folder then
+                local projectiles_folder = game_folder:FindFirstChild("Projectiles")
                 if projectiles_folder then
                     for _, projectile in ipairs(projectiles_folder:GetChildren()) do
                         pcall(function() projectile:Destroy() end)
