@@ -273,22 +273,18 @@ function TDX:Equip(items)
     task.wait(0.5)
 end
 
-local function useAbility(Id, AbilitySlot)
-    local args = {Id, AbilitySlot}
-    game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
-end
-
 function TDX:Ability(Id, AbilitySlot, auto)
-    if auto == nil then
-        useAbility(Id, AbilitySlot)
-        return
-    end
-    
     local key = tostring(Id) .. "_" .. tostring(AbilitySlot)
     
     if AbilityConnections[key] then
         AbilityConnections[key]:Disconnect()
         AbilityConnections[key] = nil
+    end
+    
+    if auto == nil then
+        local args = {Id, AbilitySlot}
+        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
+        return
     end
     
     local interval = 0.3
@@ -303,28 +299,14 @@ function TDX:Ability(Id, AbilitySlot, auto)
             if connection then connection:Disconnect() end
             return
         end
-        useAbility(Id, AbilitySlot)
+        local args = {Id, AbilitySlot}
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
+        end)
         task.wait(interval)
     end)
     
     AbilityConnections[key] = connection
-end
-
-function TDX:StopAbility(Id, AbilitySlot)
-    local key = tostring(Id) .. "_" .. tostring(AbilitySlot)
-    if AbilityConnections[key] then
-        AbilityConnections[key]:Disconnect()
-        AbilityConnections[key] = nil
-    end
-end
-
-function TDX:StopAllAbilities()
-    for key, connection in pairs(AbilityConnections) do
-        if connection then
-            connection:Disconnect()
-        end
-    end
-    AbilityConnections = {}
 end
 
 return TDX
