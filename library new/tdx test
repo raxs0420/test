@@ -3,8 +3,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
-local anti_lag_running = false
-
 local Remotes = nil
 local NextID = 1
 local CurrentSpeed = 1
@@ -36,59 +34,88 @@ local function getCash()
     return cash and cash.Value or 0
 end
 
-local function findTowerAtPosition(pos)
-    for _, child in ipairs(Workspace:GetDescendants()) do
-        if child:IsA("Model") and child:FindFirstChild("Humanoid") then
-            local root = child:FindFirstChild("HumanoidRootPart") or child:FindFirstChild("Torso")
-            if root and (root.Position - pos).Magnitude < 3 then
-                return child
-            end
-        end
-    end
-    return nil
+local function getTowersFolder()
+    local gameFolder = Workspace:FindFirstChild("Game")
+    if not gameFolder then return nil end
+    return gameFolder:FindFirstChild("Towers")
 end
 
 function TDX:Place(name, x, y, z, rot, cost)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
+
     while getCash() < cost do
-        task.wait(0.01)
+        task.wait()
     end
-    task.wait(0.1)
+
+    local towersFolder = getTowersFolder()
+    local connection = nil
+    local towerPart = nil
+
+    if towersFolder then
+        connection = towersFolder.ChildAdded:Connect(function(child)
+            if child:IsA("BasePart") and (child.Position - Vector3.new(x, y, z)).Magnitude < 2 then
+                towerPart = child
+                connection:Disconnect()
+            end
+        end)
+    end
+
+    task.wait(0.02)
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, Vector3.new(x, y, z), 0)
     end)
+
+    if connection and not towerPart then
+        task.wait(0.1)
+        connection:Disconnect()
+    elseif connection then
+        connection:Disconnect()
+    end
+
     if ok and res == true then
-        task.wait(0.2)
+        task.wait(0.05)
         local id = NextID
         NextID = NextID + 1
-        local tower = findTowerAtPosition(Vector3.new(x, y, z))
-        if tower then
-            TowerMap[id] = tower
-        end
+        TowerMap[id] = towerPart or true
         return id
     end
     return nil
 end
 
 function TDX:Upgrade(id, path, _, cost)
-    if not TowerMap[id] or not TowerMap[id].Parent then
-        return false
+    local towerValid = false
+    if TowerMap[id] then
+        if type(TowerMap[id]) == "table" then
+            towerValid = TowerMap[id].Parent ~= nil
+        else
+            towerValid = true
+        end
     end
+    if not towerValid then return false end
+
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
+
     while getCash() < cost do
-        task.wait(0.01)
+        task.wait()
     end
-    task.wait(0.1)
+    task.wait(0.02)
     local success = pcall(function()
         remote:FireServer(id, path, 1)
     end)
-    task.wait(0.2)
-    if not TowerMap[id] or not TowerMap[id].Parent then
+    task.wait(0.05)
+
+    if not success then
+        TowerMap[id] = nil
         return false
     end
-    return success
+
+    if type(TowerMap[id]) == "table" and not TowerMap[id].Parent then
+        TowerMap[id] = nil
+        return false
+    end
+    return true
 end
 
 function TDX:Sell(id)
