@@ -100,11 +100,11 @@ function TDX:Upgrade(id, path, _, cost)
     while getCash() < cost do
         task.wait()
     end
-    task.wait(0.02)
+    task.wait(0.1)
     local success = pcall(function()
         remote:FireServer(id, path, 1)
     end)
-    task.wait(0.05)
+    task.wait(0.2)
 
     if not success then
         TowerMap[id] = nil
