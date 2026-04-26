@@ -62,25 +62,25 @@ local function scanAndCompact()
     local dead = {}
     for id, data in pairs(TDX._Towers) do
         if data.alive then
-            local found = false
+            local foundModel = nil
             for _, model in ipairs(container:GetChildren()) do
                 if model:IsA("Model") then
                     local modelPos = model:GetPivot().Position
-                    local diff = (modelPos - data.pos).Magnitude
-                    if diff < 10 then
-                        found = true
-                        local col = getTowerColor(model)
-                        if col and isDeadColor(col) then
-                            data.alive = false
-                            table.insert(dead, id)
-                        end
+                    if (modelPos - data.pos).Magnitude < 5 then
+                        foundModel = model
                         break
                     end
                 end
             end
-            if not found then
-                data.alive = false
-                table.insert(dead, id)
+            if foundModel then
+                local color = getTowerColor(foundModel)
+                if color and isDeadColor(color) then
+                    data.alive = false
+                    table.insert(dead, id)
+                end
+            else
+                -- model not found yet, do NOT mark as dead (wait)
+                -- just skip this scan cycle
             end
         else
             table.insert(dead, id)
@@ -136,7 +136,7 @@ function TDX:Place(name, x, y, z, rot, cost)
         if not TDX._ScanStarted then
             TDX._ScanStarted = true
             task.spawn(function()
-                task.wait(2)
+                task.wait(3)  -- wait 3 seconds after first tower before scanning
                 startDeathScan()
             end)
         end
@@ -147,7 +147,7 @@ end
 
 function TDX:Upgrade(id, path, _, cost)
     if not TDX._Towers[id] or not TDX._Towers[id].alive then
-        warn("Tower", id, "dead, skipping")
+        warn("Tower", id, "is dead or missing, skipping upgrade")
         return false
     end
     local remote = getRemote("TowerUpgradeRequest")
