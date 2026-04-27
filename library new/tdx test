@@ -16,6 +16,8 @@ TDX._Towers = towers
 TDX._ScanConnection = nil
 TDX._LastScan = 0
 
+local pendingUpgrades = {}
+
 local function ensureRemotes()
     if Remotes then return Remotes end
     Remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -132,6 +134,7 @@ local function addTower(name, pos, part)
         pos = pos,
         part = part,
         upgrades = {},
+        upgradeIndex = 1,
         alive = true,
         rebuilding = false,
         placedAfterAuto = true
@@ -142,22 +145,58 @@ local function addTower(name, pos, part)
     return id
 end
 
+local function applyPendingUpgrades(logicalID)
+    local data = towers[logicalID]
+    if not data then return end
+    
+    if pendingUpgrades[logicalID] and #pendingUpgrades[logicalID] > 0 then
+        task.spawn(function()
+            for _, upgradeInfo in ipairs(pendingUpgrades[logicalID]) do
+                if not data.alive or data.rebuilding then
+                    break
+                end
+                
+                local serverID = getServerID(logicalID)
+                if serverID then
+                    local remote = getRemote("TowerUpgradeRequest")
+                    if remote then
+                        while getCash() < upgradeInfo.cost do
+                            task.wait(0.5)
+                        end
+                        task.wait(0.15)
+                        pcall(function()
+                            remote:FireServer(serverID, upgradeInfo.path, 1)
+                        end)
+                        print(string.format("[TDX] ↑ Applied pending upgrade to Tower ID %d (%s) | Path: %d | Cost: $%d", logicalID, data.name, upgradeInfo.path, upgradeInfo.cost))
+                        task.wait(0.3)
+                    end
+                end
+            end
+            pendingUpgrades[logicalID] = nil
+        end)
+    end
+end
+
 local function rebuildTower(logicalID)
     local data = towers[logicalID]
     if not data or data.rebuilding then return end
     data.rebuilding = true
     task.spawn(function()
-        task.wait(2)
+        task.wait(3)
         local placed = false
         while not placed do
             local remote = getRemote("PlaceTower")
             if remote then
+                while getCash() < data.cost do
+                    task.wait(0.5)
+                end
+                
                 local ok, res = pcall(function()
                     return remote:InvokeServer(0, data.name, data.pos, 0)
                 end)
                 if ok and res == true then
                     placed = true
-                    task.wait(0.2)
+                    task.wait(0.5)
                     
                     local container = Workspace:FindFirstChild("Game")
                     if container then container = container:FindFirstChild("Towers") end
@@ -173,24 +212,14 @@ local function rebuildTower(logicalID)
                         end
                     end
                     
-                    for _, upg in ipairs(data.upgrades) do
-                        local upgradeRemote = getRemote("TowerUpgradeRequest")
-                        if upgradeRemote then
-                            local serverID = getServerID(logicalID)
-                            if serverID then
-                                pcall(function()
-                                    upgradeRemote:FireServer(serverID, upg.path, 1)
-                                end)
-                                task.wait(0.2)
-                            end
-                        end
-                    end
                     data.alive = true
                     data.rebuilding = false
+                    
+                    applyPendingUpgrades(logicalID)
                     return
                 end
             end
-            task.wait(0.5)
+            task.wait(1)
         end
     end)
 end
@@ -285,11 +314,12 @@ local function createUI()
         for _, id in ipairs(sortedIds) do
             local data = towers[id]
             if data and data.alive then
+                local status = data.rebuilding and " (REBUILDING)" or ""
                 local towerLabel = Instance.new("TextLabel")
                 towerLabel.Size = UDim2.new(1, -10, 0, 30)
                 towerLabel.Position = UDim2.new(0, 5, 0, yOffset)
-                towerLabel.Text = string.format("ID: %d | %s", id, data.name)
-                towerLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+                towerLabel.Text = string.format("ID: %d | %s%s", id, data.name, status)
+                towerLabel.TextColor3 = data.rebuilding and Color3.fromRGB(255, 200, 0) or Color3.fromRGB(100, 255, 100)
                 towerLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
                 towerLabel.Font = Enum.Font.Gotham
                 towerLabel.TextSize = 12
@@ -323,8 +353,8 @@ function TDX:Place(name, x, y, z, rot, cost)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
     
-    while getCash() < cost do task.wait(0.01) end
-    task.wait(0.1)
+    while getCash() < cost do task.wait(0.1) end
+    task.wait(0.2)
     
     local pos = Vector3.new(x, y, z)
     local ok, res = pcall(function()
@@ -332,7 +362,7 @@ function TDX:Place(name, x, y, z, rot, cost)
     end)
     
     if not (ok and res == true) then return nil end
-    task.wait(0.25)
+    task.wait(0.5)
     
     local container = Workspace:FindFirstChild("Game")
     if container then container = container:FindFirstChild("Towers") end
@@ -349,6 +379,7 @@ function TDX:Place(name, x, y, z, rot, cost)
     end
     
     local id = addTower(name, pos, part)
+    towers[id].cost = cost
     print(string.format("[TDX] ✓ Placed %s at position (%.1f, %.1f, %.1f) | Internal ID: %d", name, x, y, z, id))
     
     if not TDX._ScanConnection then
@@ -366,23 +397,30 @@ function TDX:Upgrade(logicalID, path, _, cost)
     end
     
     if not data.alive then
-        print(string.format("[TDX] ✗ Upgrade skipped - Tower ID %d is dead", logicalID))
+        print(string.format("[TDX] ⏳ Tower ID %d is dead - Upgrade queued for after rebuild", logicalID))
+        if not pendingUpgrades[logicalID] then
+            pendingUpgrades[logicalID] = {}
+        end
+        table.insert(pendingUpgrades[logicalID], {path = path, cost = cost})
         return false
     end
     
-    local startWait = tick()
-    while (data.rebuilding) and tick() - startWait < 10 do
-        task.wait(0.2)
-    end
-    
     if data.rebuilding then
-        print(string.format("[TDX] ✗ Upgrade skipped - Tower ID %d is rebuilding", logicalID))
+        print(string.format("[TDX] ⏳ Tower ID %d is rebuilding - Upgrade queued", logicalID))
+        if not pendingUpgrades[logicalID] then
+            pendingUpgrades[logicalID] = {}
+        end
+        table.insert(pendingUpgrades[logicalID], {path = path, cost = cost})
         return false
     end
     
     local serverID = getServerID(logicalID)
     if not serverID then
-        print(string.format("[TDX] ✗ Upgrade failed - Tower ID %d not found in world (may be dead)", logicalID))
+        print(string.format("[TDX] ⏳ Tower ID %d not found - Upgrade queued", logicalID))
+        if not pendingUpgrades[logicalID] then
+            pendingUpgrades[logicalID] = {}
+        end
+        table.insert(pendingUpgrades[logicalID], {path = path, cost = cost})
         data.alive = false
         return false
     end
@@ -390,8 +428,8 @@ function TDX:Upgrade(logicalID, path, _, cost)
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
     
-    while getCash() < cost do task.wait(0.01) end
-    task.wait(0.15)
+    while getCash() < cost do task.wait(0.1) end
+    task.wait(0.25)
     
     pcall(function()
         remote:FireServer(serverID, path, 1)
@@ -400,7 +438,7 @@ function TDX:Upgrade(logicalID, path, _, cost)
     table.insert(data.upgrades, {path = path, cost = cost})
     print(string.format("[TDX] ↑ Upgraded Tower ID %d (%s) | Path: %d | Cost: $%d", logicalID, data.name, path, cost))
     
-    task.wait(0.25)
+    task.wait(0.5)
     return true
 end
 
@@ -417,7 +455,7 @@ function TDX:Sell(logicalID)
     end
     
     print(string.format("[TDX] 💰 Sold Tower ID %d (%s)", logicalID, data.name))
-    task.wait(0.3)
+    task.wait(0.5)
     removeTower(logicalID)
     return true
 end
@@ -469,6 +507,7 @@ function TDX:ResetMappings()
     nextId = 1
     freeIds = {}
     partToId = {}
+    pendingUpgrades = {}
     for id in pairs(towers) do
         towers[id] = nil
     end
