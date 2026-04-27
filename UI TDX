@@ -1,0 +1,546 @@
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "TDXAuto"
+gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local screenHeight = workspace.CurrentCamera.ViewportSize.Y
+local frameHeight = screenHeight * 0.55
+local frameY = (screenHeight - frameHeight) / 2
+
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 400, 0, frameHeight)
+frame.Position = UDim2.new(0.5, -200, 0, frameY)
+frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BackgroundTransparency = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = gui
+Instance.new("UICorner", frame)
+
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
+minimizeBtn.Position = UDim2.new(1, -35, 0, 5)
+minimizeBtn.Text = "_"
+minimizeBtn.TextColor3 = Color3.fromRGB(255,255,255)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+minimizeBtn.Parent = frame
+Instance.new("UICorner", minimizeBtn)
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -50, 0, 30)
+title.Position = UDim2.new(0, 10, 0, 5)
+title.Text = "TDX Auto"
+title.TextColor3 = Color3.new(1,1,1)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = frame
+
+local topBtn = Instance.new("TextButton")
+topBtn.Size = UDim2.new(0, 150, 0, 35)
+topBtn.Position = UDim2.new(0, 10, 0, 45)
+topBtn.Text = "Auto Max Top"
+topBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+topBtn.TextColor3 = Color3.fromRGB(100,255,100)
+topBtn.Parent = frame
+Instance.new("UICorner", topBtn)
+
+local bottomBtn = Instance.new("TextButton")
+bottomBtn.Size = UDim2.new(0, 150, 0, 35)
+bottomBtn.Position = UDim2.new(1, -160, 0, 45)
+bottomBtn.Text = "Auto Max Bottom"
+bottomBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+bottomBtn.TextColor3 = Color3.fromRGB(100,255,100)
+bottomBtn.Parent = frame
+Instance.new("UICorner", bottomBtn)
+
+local skipBtn = Instance.new("TextButton")
+skipBtn.Size = UDim2.new(1, -20, 0, 35)
+skipBtn.Position = UDim2.new(0, 10, 0, 95)
+skipBtn.Text = "Auto Skip: OFF"
+skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+skipBtn.TextColor3 = Color3.fromRGB(100,255,100)
+skipBtn.Parent = frame
+Instance.new("UICorner", skipBtn)
+
+local abilityLabel = Instance.new("TextLabel")
+abilityLabel.Size = UDim2.new(1, -20, 0, 20)
+abilityLabel.Position = UDim2.new(0, 10, 0, 145)
+abilityLabel.Text = "Abilities (click to toggle)"
+abilityLabel.TextColor3 = Color3.fromRGB(200,200,200)
+abilityLabel.TextSize = 12
+abilityLabel.BackgroundTransparency = 1
+abilityLabel.Font = Enum.Font.GothamBold
+abilityLabel.TextXAlignment = Enum.TextXAlignment.Left
+abilityLabel.Parent = frame
+
+local abilitiesFrame = Instance.new("ScrollingFrame")
+abilitiesFrame.Size = UDim2.new(1, -20, 0, frameHeight - 195)
+abilitiesFrame.Position = UDim2.new(0, 10, 0, 170)
+abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+abilitiesFrame.BorderSizePixel = 0
+abilitiesFrame.ScrollBarThickness = 8
+abilitiesFrame.Parent = frame
+Instance.new("UICorner", abilitiesFrame)
+
+local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
+abilitiesLayout.Padding = UDim.new(0, 8)
+abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
+abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local anchorBtn = Instance.new("TextButton")
+anchorBtn.Size = UDim2.new(0, 50, 0, 50)
+anchorBtn.Position = UDim2.new(0, 10, 0, 10)
+anchorBtn.Text = "TDX"
+anchorBtn.TextColor3 = Color3.fromRGB(255,255,255)
+anchorBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+anchorBtn.TextSize = 14
+anchorBtn.Font = Enum.Font.GothamBold
+anchorBtn.Visible = false
+anchorBtn.Parent = gui
+Instance.new("UICorner", anchorBtn)
+
+local isMinimized = false
+
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    frame.Visible = not isMinimized
+    anchorBtn.Visible = isMinimized
+end
+
+minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
+anchorBtn.MouseButton1Click:Connect(toggleMinimize)
+
+local abilityOrder = {
+    "GRENADE",
+    "UNSTUN_HEALTH",
+    "HUMVEE",
+    "FLARE",
+    "DJ_Encore",
+    "AXE_RAGE",
+    "SHOCK_ROUNDS",
+    "STEALTH_SENSOR",
+    "TOXIC_BLAST",
+    "AP_ROUNDS",
+    "OVERCHARGE",
+    "GRAND_SLAM",
+    "GOLDEN_GRENADE",
+    "Charge_Throw",
+    "GLOBAL_STEALTH_REVEAL",
+    "REBOOT_SYSTEMS",
+    "OVERLOAD"
+}
+
+local towerToAbilitySlot = {
+    Ranger = {ability = "GRENADE", slot = 1},
+    Shotgunner = {ability = "UNSTUN_HEALTH", slot = 1},
+    Operator = {ability = "HUMVEE", slot = 1},
+    Sniper = {ability = "FLARE", slot = 1},
+    EDJ = {ability = "DJ_Encore", slot = 1},
+    John = {ability = "AXE_RAGE", slot = 1},
+    ["Laser Gunner"] = {ability = "SHOCK_ROUNDS", slot = 1},
+    ["Laser Gunner"] = {ability = "STEALTH_SENSOR", slot = 1},
+    Toxicnator = {ability = "TOXIC_BLAST", slot = 1},
+    Mobster = {ability = "AP_ROUNDS", slot = 1},
+    ["Machine Gunner"] = {ability = "OVERCHARGE", slot = 2},
+    Slammer = {ability = "GRAND_SLAM", slot = 1},
+    ["Golden Ranger"] = {ability = "GOLDEN_GRENADE", slot = 1},
+    ["Golden Mine Layer"] = {ability = "Charge_Throw", slot = 1},
+    Warship = {ability = "GLOBAL_STEALTH_REVEAL", slot = 1},
+    ["Golden Juggernaut"] = {ability = "REBOOT_SYSTEMS", slot = 1},
+    ["Golden Mobster"] = {ability = "OVERLOAD", slot = 1},
+}
+
+local abilityDisplayNames = {
+    GRENADE = "Grenade",
+    UNSTUN_HEALTH = "Health/UnStun",
+    HUMVEE = "Humvee",
+    FLARE = "Flare",
+    DJ_Encore = "DJ Encore",
+    AXE_RAGE = "Axe/Rage",
+    SHOCK_ROUNDS = "Shock Rounds",
+    STEALTH_SENSOR = "Stealth Sensor",
+    TOXIC_BLAST = "Toxic Blast",
+    AP_ROUNDS = "AP Rounds",
+    OVERCHARGE = "Overcharge",
+    GRAND_SLAM = "Grand Slam",
+    GOLDEN_GRENADE = "Golden Grenade",
+    Charge_Throw = "Charge Throw",
+    GLOBAL_STEALTH_REVEAL = "Global Stealth",
+    REBOOT_SYSTEMS = "Reboot Systems",
+    OVERLOAD = "Overload",
+}
+
+local activeAbilities = {}
+local abilityTargets = {}
+
+for towerName, data in pairs(towerToAbilitySlot) do
+    local abilityName = data.ability
+    if not abilityTargets[abilityName] then
+        abilityTargets[abilityName] = {towers = {}, slot = data.slot}
+    end
+    table.insert(abilityTargets[abilityName].towers, towerName)
+end
+
+local towers = {}
+local partToId = {}
+
+local function updateAbilityTargetIds(abilityName)
+    local data = abilityTargets[abilityName]
+    if not data then return {} end
+    local ids = {}
+    if type(towers) == "table" then
+        for id, towerData in pairs(towers) do
+            if towerData and towerData.name then
+                for _, towerName in ipairs(data.towers) do
+                    if towerData.name == towerName then
+                        ids[#ids + 1] = id
+                        break
+                    end
+                end
+            end
+        end
+    end
+    return ids
+end
+
+local function sendAbility(id, slot)
+    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+    if remote then
+        local req = remote:FindFirstChild("TowerUseAbilityRequest")
+        if req then
+            pcall(function() req:InvokeServer(id, slot) end)
+        end
+    end
+end
+
+local abilityLoops = {}
+
+local function startAbilityLoop(abilityName)
+    if abilityLoops[abilityName] then
+        task.cancel(abilityLoops[abilityName])
+        abilityLoops[abilityName] = nil
+        return false
+    end
+    
+    local data = abilityTargets[abilityName]
+    if not data then return false end
+    
+    abilityLoops[abilityName] = task.spawn(function()
+        while activeAbilities[abilityName] do
+            local targetIds = updateAbilityTargetIds(abilityName)
+            if #targetIds > 0 then
+                for _, id in ipairs(targetIds) do
+                    if not activeAbilities[abilityName] then break end
+                    sendAbility(id, data.slot)
+                    task.wait(0.15)
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+    return true
+end
+
+local rowFrame = nil
+local buttonsInRow = 0
+
+for _, abilityName in ipairs(abilityOrder) do
+    if abilityTargets[abilityName] then
+        if buttonsInRow == 0 then
+            rowFrame = Instance.new("Frame")
+            rowFrame.Size = UDim2.new(1, -10, 0, 40)
+            rowFrame.BackgroundTransparency = 1
+            rowFrame.Parent = abilitiesFrame
+        end
+        
+        local btn = Instance.new("TextButton")
+        local displayName = abilityDisplayNames[abilityName] or abilityName
+        btn.Size = UDim2.new(0, 170, 0, 34)
+        btn.Text = displayName
+        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+        btn.TextColor3 = Color3.fromRGB(255,255,255)
+        btn.TextSize = 12
+        btn.Font = Enum.Font.GothamSemibold
+        btn.Parent = rowFrame
+        Instance.new("UICorner", btn)
+        
+        if buttonsInRow == 0 then
+            btn.Position = UDim2.new(0, 5, 0, 3)
+            buttonsInRow = 1
+        else
+            btn.Position = UDim2.new(1, -175, 0, 3)
+            buttonsInRow = 0
+        end
+        
+        activeAbilities[abilityName] = false
+        
+        btn.MouseButton1Click:Connect(function()
+            if activeAbilities[abilityName] then
+                activeAbilities[abilityName] = false
+                btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+            else
+                activeAbilities[abilityName] = true
+                btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+                startAbilityLoop(abilityName)
+            end
+        end)
+    end
+end
+
+task.wait(0.1)
+local totalRows = math.ceil(#abilityOrder / 2)
+abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, totalRows * 46 + 10)
+
+local nextId = 1
+local freeIds = {}
+local autoTargetMode = nil  
+local autoActive = false
+local upgradeLoop = nil
+local deathLoop = nil
+
+local TowersFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
+if not TowersFolder then
+    TowersFolder = Instance.new("Folder")
+end
+
+local function sendUpgrade(id, path, level)
+    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+    if remote then
+        local req = remote:FindFirstChild("TowerUpgradeRequest")
+        if req then
+            pcall(function() req:FireServer(id, path, level) end)
+        end
+    end
+end
+
+local function upgradeTower(id)
+    local data = towers[id]
+    if not data or not data.placedAfterAuto then return end
+    local mode = autoTargetMode
+    if not mode then return end
+    
+    if mode == "top" then
+        if data.topCount < 5 then
+            sendUpgrade(id, 1, 5)
+            data.topCount = 5
+            task.wait(0.01)
+        end
+        if data.bottomCount < 2 then
+            sendUpgrade(id, 2, 2)
+            data.bottomCount = 2
+            task.wait(0.01)
+        end
+    else
+        if data.bottomCount < 5 then
+            sendUpgrade(id, 2, 5)
+            data.bottomCount = 5
+            task.wait(0.01)
+        end
+        if data.topCount < 2 then
+            sendUpgrade(id, 1, 2)
+            data.topCount = 2
+            task.wait(0.01)
+        end
+    end
+end
+
+local function allocateId()
+    if #freeIds > 0 then
+        return table.remove(freeIds)
+    else
+        local id = nextId
+        nextId = nextId + 1
+        return id
+    end
+end
+
+local function freeId(id)
+    if id and id > 0 then
+        if not towers[id] then return end
+        table.insert(freeIds, id)
+        towers[id] = nil
+    end
+end
+
+local function removeTower(part, reason)
+    local id = partToId[part]
+    if not id then return end
+    local data = towers[id]
+    if data and data.removed then return end
+    if data then data.removed = true end
+    freeId(id)
+    partToId[part] = nil
+end
+
+local function getTowerBeamColor(towerPart)
+    local ring = towerPart:FindFirstChild("Ring")
+    if not ring then return nil end
+    local beam = ring:FindFirstChildWhichIsA("Beam")
+    if not beam then return nil end
+    local seq = beam.Color
+    if seq and seq.Keypoints and #seq.Keypoints > 0 then
+        return seq.Keypoints[1].Value
+    end
+    return nil
+end
+
+local function isDeadColor(color)
+    return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
+end
+
+local function addTower(part, source)
+    if partToId[part] then return end
+    local beamColor = getTowerBeamColor(part)
+    if beamColor and isDeadColor(beamColor) then return end
+    local id = allocateId()
+    partToId[part] = id
+    towers[id] = {
+        part = part,
+        topCount = 0,
+        bottomCount = 0,
+        name = part.Name,
+        placedAfterAuto = autoActive,
+        removed = false
+    }
+end
+
+local function checkDeadTowers()
+    for part, id in pairs(partToId) do
+        local data = towers[id]
+        if data and data.removed then
+            removeTower(part, "ALREADY REMOVED")
+        elseif part and part.Parent then
+            local color = getTowerBeamColor(part)
+            if color and isDeadColor(color) then
+                if data then data.removed = true end
+                removeTower(part, "BEAM DEATH")
+            end
+        else
+            if data then data.removed = true end
+            removeTower(part, "MISSING PART")
+        end
+    end
+end
+
+local function startDeathLoop()
+    if deathLoop then task.cancel(deathLoop) end
+    deathLoop = task.spawn(function()
+        while true do
+            checkDeadTowers()
+            task.wait(0.05)
+        end
+    end)
+end
+startDeathLoop() 
+
+local function onTowerAdded(part)
+    if not part:IsA("BasePart") then return end
+    if partToId[part] then return end
+    task.wait(0.05)
+    if not part.Parent then return end
+    addTower(part, "PLACED")
+end
+
+local function onTowerRemoved(part)
+    local id = partToId[part]
+    if not id then return end
+    local data = towers[id]
+    if data and data.removed then return end
+    removeTower(part, "CHILD REMOVED")
+end
+
+if TowersFolder then
+    TowersFolder.ChildAdded:Connect(onTowerAdded)
+    TowersFolder.ChildRemoved:Connect(onTowerRemoved)
+end
+
+local scanLoop = RunService.Heartbeat:Connect(function()
+    if not TowersFolder then return end
+    for _, part in ipairs(TowersFolder:GetChildren()) do
+        if part:IsA("BasePart") and not partToId[part] then
+            addTower(part, "SCAN")
+        end
+    end
+end)
+
+local function startAutoUpgrade()
+    if upgradeLoop then task.cancel(upgradeLoop) end
+    upgradeLoop = task.spawn(function()
+        while autoActive do
+            for id, data in pairs(towers) do
+                if data.placedAfterAuto then
+                    upgradeTower(id)
+                end
+                task.wait(0.01)
+            end
+            task.wait(0.05)
+        end
+        upgradeLoop = nil
+    end)
+end
+
+local function setAutoMode(mode, btn)
+    if autoActive and autoTargetMode == mode then
+        autoActive = false
+        autoTargetMode = nil
+        btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    else
+        if autoActive then
+            if autoTargetMode == "top" then
+                topBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+            else
+                bottomBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+            end
+        end
+        autoActive = true
+        autoTargetMode = mode
+        btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+        for id, data in pairs(towers) do
+            data.placedAfterAuto = false
+        end
+        startAutoUpgrade()
+    end
+end
+
+topBtn.MouseButton1Click:Connect(function() setAutoMode("top", topBtn) end)
+bottomBtn.MouseButton1Click:Connect(function() setAutoMode("bottom", bottomBtn) end)
+
+local autoSkip = false
+local skipLoop = nil
+
+local function startSkipLoop()
+    if skipLoop then task.cancel(skipLoop) end
+    skipLoop = task.spawn(function()
+        while autoSkip do
+            local remote = ReplicatedStorage:FindFirstChild("Remotes")
+            if remote then
+                local skip = remote:FindFirstChild("SkipWaveVoteCast")
+                if skip then pcall(function() skip:FireServer(true) end) end
+            end
+            task.wait(0.1)
+        end
+        skipLoop = nil
+    end)
+end
+
+skipBtn.MouseButton1Click:Connect(function()
+    autoSkip = not autoSkip
+    if autoSkip then
+        skipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+        skipBtn.Text = "Auto Skip: ON"
+        startSkipLoop()
+    else
+        skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+        skipBtn.Text = "Auto Skip: OFF"
+    end
+end)
