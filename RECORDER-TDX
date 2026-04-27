@@ -153,9 +153,9 @@ if TowersFolder then
         local pos = part.Position
         local id = nextId
         nextId = nextId + 1
-        towerPositions[id] = {x = pos.X, y = pos.Y, z = pos.Z, name = name}
+        towerPositions[id] = {x = pos.X, y = pos.Y, z = pos.Z, name = name, id = id}
         local cost = getTowerCost(name)
-        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d)', name, pos.X, pos.Y, pos.Z, cost)
+        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d, %d)', name, pos.X, pos.Y, pos.Z, cost, id)
         table.insert(actions, cmd)
         addLog(cmd, Color3.fromRGB(100, 255, 100))
     end)
