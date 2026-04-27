@@ -12,8 +12,6 @@ local nextId = 1
 local freeIds = {}
 local partToId = {}
 
-TDX._Towers = towers
-
 local function ensureRemotes()
     if Remotes then return Remotes end
     Remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -39,25 +37,20 @@ local function getCash()
     return cash and cash.Value or 0
 end
 
-local function getTowerBeam(towerPart)
+local function getTowerBeamColor(towerPart)
     local ring = towerPart:FindFirstChild("Ring")
     if not ring then return nil end
     local beam = ring:FindFirstChildWhichIsA("Beam")
-    return beam
+    if not beam then return nil end
+    local seq = beam.Color
+    if seq and seq.Keypoints and #seq.Keypoints > 0 then
+        return seq.Keypoints[1].Value
+    end
+    return nil
 end
 
-local function isTowerAlive(towerPart)
-    local beam = getTowerBeam(towerPart)
-    if not beam then return false end
-    local colorSeq = beam.Color
-    if colorSeq and colorSeq.Keypoints and #colorSeq.Keypoints > 0 then
-        local color = colorSeq.Keypoints[1].Value
-        if color.R < 0.1 and color.G < 0.1 and color.B < 0.1 then
-            return false
-        end
-        return true
-    end
-    return false
+local function isDeadColor(color)
+    return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
 end
 
 local function allocateId()
@@ -93,6 +86,11 @@ local function getServerID(logicalID)
     local children = container:GetChildren()
     for idx, part in ipairs(children) do
         if part == data.part then
+            local color = getTowerBeamColor(part)
+            if color and isDeadColor(color) then
+                data.alive = false
+                return nil
+            end
             return idx
         end
     end
@@ -102,13 +100,17 @@ end
 local function checkAndHandleDeath()
     for id, data in pairs(towers) do
         if data.alive and data.part then
-            if not data.part.Parent or not isTowerAlive(data.part) then
-                print(string.format("[TDX] 💀 Tower ID %d (%s) died, freeing ID", id, data.name))
+            if not data.part.Parent then
+                print(string.format("[TDX] Tower ID %d (%s) removed, freeing ID", id, data.name))
                 data.alive = false
-                if data.part then
-                    partToId[data.part] = nil
-                end
                 freeId(id)
+            else
+                local color = getTowerBeamColor(data.part)
+                if color and isDeadColor(color) then
+                    print(string.format("[TDX] Tower ID %d (%s) died, freeing ID", id, data.name))
+                    data.alive = false
+                    freeId(id)
+                end
             end
         end
     end
@@ -226,6 +228,8 @@ function TDX:Place(name, x, y, z, rot, cost)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
     
+    print(string.format("[TDX] Placing %s at (%.1f, %.1f, %.1f) waiting for $%d...", name, x, y, z, cost))
+    
     while getCash() < cost do task.wait(0.1) end
     task.wait(0.1)
     
@@ -234,8 +238,12 @@ function TDX:Place(name, x, y, z, rot, cost)
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
     
-    if not (ok and res == true) then return nil end
-    task.wait(0.2)
+    if not (ok and res == true) then 
+        print(string.format("[TDX] Failed to place %s", name))
+        return nil 
+    end
+    
+    task.wait(0.3)
     
     local container = Workspace:FindFirstChild("Game")
     if container then container = container:FindFirstChild("Towers") end
@@ -245,12 +253,9 @@ function TDX:Place(name, x, y, z, rot, cost)
         if container then
             for _, p in ipairs(container:GetChildren()) do
                 if p:IsA("BasePart") and p.Name == name then
-                    if (p.Position - pos).Magnitude < 3 then
-                        local beam = getTowerBeam(p)
-                        if beam then
-                            part = p
-                            break
-                        end
+                    if (p.Position - pos).Magnitude < 5 then
+                        part = p
+                        break
                     end
                 end
             end
@@ -272,7 +277,7 @@ function TDX:Place(name, x, y, z, rot, cost)
         partToId[part] = id
     end
     
-    print(string.format("[TDX] ✓ Placed %s | Logical ID: %d", name, id))
+    print(string.format("[TDX] ✓ Placed %s | Assigned Logical ID: %d", name, id))
     
     startBeamCheck()
     
@@ -287,18 +292,21 @@ function TDX:Upgrade(logicalID, path, level, cost)
     end
     
     if not data.alive then
-        print(string.format("[TDX] ✗ Upgrade failed - Tower ID %d is dead", logicalID))
+        print(string.format("[TDX] ✗ Upgrade failed - Tower ID %d is dead (will be reused when new tower placed)", logicalID))
         return false
     end
     
     local serverID = getServerID(logicalID)
     if not serverID then
-        print(string.format("[TDX] ✗ Upgrade failed - Cannot find server ID for logical ID %d", logicalID))
+        print(string.format("[TDX] ✗ Upgrade failed - Cannot find server ID for logical ID %d (tower may be dead)", logicalID))
+        data.alive = false
         return false
     end
     
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
+    
+    print(string.format("[TDX] Upgrading Logical ID %d (Server ID: %d) | Path: %d | Level: %d | Cost: $%d", logicalID, serverID, path, level, cost))
     
     while getCash() < cost do task.wait(0.1) end
     task.wait(0.1)
@@ -307,7 +315,7 @@ function TDX:Upgrade(logicalID, path, level, cost)
         remote:FireServer(serverID, path, level)
     end)
     
-    print(string.format("[TDX] ↑ Upgraded Logical ID %d (Server ID: %d) | Path: %d | Level: %d | Cost: $%d", logicalID, serverID, path, level, cost))
+    print(string.format("[TDX] ↑ Upgraded Logical ID %d (Server ID: %d) | Path: %d | Level: %d", logicalID, serverID, path, level))
     
     task.wait(0.2)
     return true
