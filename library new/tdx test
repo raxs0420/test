@@ -4,11 +4,15 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
 local Remotes = nil
-local NextLogicalID = 1
 local CurrentSpeed = 1
 local AbilityConnections = {}
 
-TDX._Towers = {}        
+local towers = {}
+local nextId = 1
+local freeIds = {}
+local partToId = {}
+
+TDX._Towers = towers
 TDX._ScanConnection = nil
 TDX._LastScan = 0
 
@@ -54,11 +58,26 @@ local function isDeadColor(color)
 end
 
 local function getServerID(logicalID)
-    local data = TDX._Towers[logicalID]
+    local data = towers[logicalID]
     if not data or not data.alive then return nil end
     local container = Workspace:FindFirstChild("Game")
     if container then container = container:FindFirstChild("Towers") end
     if not container then return nil end
+    
+    if data.part and data.part.Parent then
+        local children = container:GetChildren()
+        for idx, part in ipairs(children) do
+            if part == data.part then
+                local color = getTowerBeamColor(part)
+                if color and isDeadColor(color) then
+                    data.alive = false
+                    return nil
+                end
+                return idx
+            end
+        end
+    end
+    
     local children = container:GetChildren()
     for idx, part in ipairs(children) do
         if part:IsA("BasePart") and part.Name == data.name then
@@ -68,15 +87,63 @@ local function getServerID(logicalID)
                     data.alive = false
                     return nil
                 end
-                return idx   -- 1‑based index in the tower list = server ID
+                data.part = part
+                partToId[part] = logicalID
+                return idx
             end
         end
     end
     return nil
 end
 
+local function allocateId()
+    if #freeIds > 0 then
+        return table.remove(freeIds)
+    else
+        local id = nextId
+        nextId = nextId + 1
+        return id
+    end
+end
+
+local function freeId(id)
+    if id and id > 0 then
+        if not towers[id] then return end
+        table.insert(freeIds, id)
+        towers[id] = nil
+    end
+end
+
+local function removeTower(logicalID)
+    local data = towers[logicalID]
+    if not data then return end
+    
+    if data.part then
+        partToId[data.part] = nil
+    end
+    
+    freeId(logicalID)
+end
+
+local function addTower(name, pos, part)
+    local id = allocateId()
+    towers[id] = {
+        name = name,
+        pos = pos,
+        part = part,
+        upgrades = {},
+        alive = true,
+        rebuilding = false,
+        placedAfterAuto = true
+    }
+    if part then
+        partToId[part] = id
+    end
+    return id
+end
+
 local function rebuildTower(logicalID)
-    local data = TDX._Towers[logicalID]
+    local data = towers[logicalID]
     if not data or data.rebuilding then return end
     data.rebuilding = true
     task.spawn(function()
@@ -91,6 +158,21 @@ local function rebuildTower(logicalID)
                 if ok and res == true then
                     placed = true
                     task.wait(0.2)
+                    
+                    local container = Workspace:FindFirstChild("Game")
+                    if container then container = container:FindFirstChild("Towers") end
+                    if container then
+                        for _, part in ipairs(container:GetChildren()) do
+                            if part:IsA("BasePart") and part.Name == data.name then
+                                if (part.Position - data.pos).Magnitude < 5 then
+                                    data.part = part
+                                    partToId[part] = logicalID
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    
                     for _, upg in ipairs(data.upgrades) do
                         local upgradeRemote = getRemote("TowerUpgradeRequest")
                         if upgradeRemote then
@@ -114,7 +196,7 @@ local function rebuildTower(logicalID)
 end
 
 local function scanAndRebuild()
-    for id, data in pairs(TDX._Towers) do
+    for id, data in pairs(towers) do
         if data.alive and not data.rebuilding then
             local serverID = getServerID(id)
             if not serverID then
@@ -136,62 +218,196 @@ local function startDeathScan()
     end)
 end
 
+local function createUI()
+    local player = Players.LocalPlayer
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "TDX_ID_Display"
+    gui.ResetOnSpawn = false
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = player:WaitForChild("PlayerGui")
+    
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 300, 0, 400)
+    mainFrame.Position = UDim2.new(1, -310, 0, 10)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    mainFrame.BackgroundTransparency = 0.1
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = gui
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = mainFrame
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.Position = UDim2.new(0, 0, 0, 0)
+    title.Text = "TDX Tower Monitor"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 14
+    title.Parent = mainFrame
+    
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.Parent = title
+    
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, -10, 1, -40)
+    scrollFrame.Position = UDim2.new(0, 5, 0, 35)
+    scrollFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    scrollFrame.BackgroundTransparency = 0
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 6
+    scrollFrame.Parent = mainFrame
+    
+    local scrollCorner = Instance.new("UICorner")
+    scrollCorner.Parent = scrollFrame
+    
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding = UDim.new(0, 5)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.Parent = scrollFrame
+    
+    local updateUI = function()
+        for _, child in ipairs(scrollFrame:GetChildren()) do
+            if child:IsA("TextLabel") then
+                child:Destroy()
+            end
+        end
+        
+        local sortedIds = {}
+        for id in pairs(towers) do
+            table.insert(sortedIds, id)
+        end
+        table.sort(sortedIds)
+        
+        local yOffset = 0
+        for _, id in ipairs(sortedIds) do
+            local data = towers[id]
+            if data and data.alive then
+                local towerLabel = Instance.new("TextLabel")
+                towerLabel.Size = UDim2.new(1, -10, 0, 30)
+                towerLabel.Position = UDim2.new(0, 5, 0, yOffset)
+                towerLabel.Text = string.format("ID: %d | %s", id, data.name)
+                towerLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+                towerLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+                towerLabel.Font = Enum.Font.Gotham
+                towerLabel.TextSize = 12
+                towerLabel.TextXAlignment = Enum.TextXAlignment.Left
+                towerLabel.Parent = scrollFrame
+                
+                local labelCorner = Instance.new("UICorner")
+                labelCorner.CornerRadius = UDim.new(0, 4)
+                labelCorner.Parent = towerLabel
+                
+                yOffset = yOffset + 35
+            end
+        end
+        
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
+    end
+    
+    game:GetService("RunService").Heartbeat:Connect(function()
+        updateUI()
+    end)
+    
+    updateUI()
+end
+
+task.spawn(function()
+    task.wait(2)
+    createUI()
+end)
+
 function TDX:Place(name, x, y, z, rot, cost)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
+    
     while getCash() < cost do task.wait(0.01) end
     task.wait(0.1)
+    
+    local pos = Vector3.new(x, y, z)
     local ok, res = pcall(function()
-        return remote:InvokeServer(rot or 0, name, Vector3.new(x, y, z), 0)
+        return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
+    
     if not (ok and res == true) then return nil end
     task.wait(0.25)
-    local id = NextLogicalID
-    NextLogicalID = NextLogicalID + 1
-    TDX._Towers[id] = {
-        name = name,
-        pos = Vector3.new(x, y, z),
-        upgrades = {},
-        alive = true,
-        rebuilding = false
-    }
+    
+    local container = Workspace:FindFirstChild("Game")
+    if container then container = container:FindFirstChild("Towers") end
+    local part = nil
+    if container then
+        for _, p in ipairs(container:GetChildren()) do
+            if p:IsA("BasePart") and p.Name == name then
+                if (p.Position - pos).Magnitude < 5 then
+                    part = p
+                    break
+                end
+            end
+        end
+    end
+    
+    local id = addTower(name, pos, part)
+    print(string.format("[TDX] ✓ Placed %s at position (%.1f, %.1f, %.1f) | Internal ID: %d", name, x, y, z, id))
+    
     if not TDX._ScanConnection then
         startDeathScan()
     end
+    
     return id
 end
 
 function TDX:Upgrade(logicalID, path, _, cost)
-    local data = TDX._Towers[logicalID]
-    if not data then return false end
+    local data = towers[logicalID]
+    if not data then 
+        print(string.format("[TDX] ✗ Upgrade failed - Tower ID %d does not exist", logicalID))
+        return false 
+    end
+    
+    if not data.alive then
+        print(string.format("[TDX] ✗ Upgrade skipped - Tower ID %d is dead", logicalID))
+        return false
+    end
+    
     local startWait = tick()
-    while (not data.alive or data.rebuilding) and tick() - startWait < 10 do
+    while (data.rebuilding) and tick() - startWait < 10 do
         task.wait(0.2)
     end
-    if not data.alive or data.rebuilding then
-        warn("Tower", logicalID, "cannot upgrade after waiting")
+    
+    if data.rebuilding then
+        print(string.format("[TDX] ✗ Upgrade skipped - Tower ID %d is rebuilding", logicalID))
         return false
     end
+    
     local serverID = getServerID(logicalID)
     if not serverID then
-        warn("Tower", logicalID, "not found, skipping upgrade")
+        print(string.format("[TDX] ✗ Upgrade failed - Tower ID %d not found in world (may be dead)", logicalID))
+        data.alive = false
         return false
     end
+    
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
+    
     while getCash() < cost do task.wait(0.01) end
     task.wait(0.15)
+    
     pcall(function()
         remote:FireServer(serverID, path, 1)
     end)
+    
     table.insert(data.upgrades, {path = path, cost = cost})
+    print(string.format("[TDX] ↑ Upgraded Tower ID %d (%s) | Path: %d | Cost: $%d", logicalID, data.name, path, cost))
+    
     task.wait(0.25)
     return true
 end
 
 function TDX:Sell(logicalID)
-    local data = TDX._Towers[logicalID]
+    local data = towers[logicalID]
     if not data then return false end
+    
     local serverID = getServerID(logicalID)
     if serverID then
         local remote = getRemote("SellTower")
@@ -199,8 +415,10 @@ function TDX:Sell(logicalID)
             pcall(function() remote:FireServer(serverID) end)
         end
     end
+    
+    print(string.format("[TDX] 💰 Sold Tower ID %d (%s)", logicalID, data.name))
     task.wait(0.3)
-    TDX._Towers[logicalID] = nil
+    removeTower(logicalID)
     return true
 end
 
@@ -218,6 +436,7 @@ function TDX:TimeScale(speed)
             return false
         end
         CurrentSpeed = speed
+        print(string.format("[TDX] ⚡ Time scale changed to: %dx", speed))
     end
     task.wait(0.5)
     return true
@@ -233,6 +452,7 @@ function TDX:AutoSkip(enabled)
             task.wait(0.1)
         end
     end)
+    print(string.format("[TDX] 🔄 Auto-skip: %s", enabled and "ON" or "OFF"))
     return true
 end
 
@@ -246,8 +466,13 @@ function TDX:WaitForGame()
 end
 
 function TDX:ResetMappings()
-    NextLogicalID = 1
-    TDX._Towers = {}
+    nextId = 1
+    freeIds = {}
+    partToId = {}
+    for id in pairs(towers) do
+        towers[id] = nil
+    end
+    print("[TDX] 🔄 Tower mappings reset")
 end
 
 function TDX:RemapAllTowers()
@@ -259,6 +484,7 @@ function TDX:JoinMapViaAPC(mapName)
     local level = 0
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
+    
     for _ = 1, 60 do
         local apcs = Workspace:FindFirstChild("APCs")
         if apcs then
@@ -449,6 +675,19 @@ function TDX:Uber(MedicID, AbilitySlot, TowerID, Loop)
         task.wait(interval)
     end)
     AbilityConnections[uberKey] = connection
+end
+
+function TDX:GetTowerIDs()
+    local ids = {}
+    for id in pairs(towers) do
+        table.insert(ids, id)
+    end
+    table.sort(ids)
+    return ids
+end
+
+function TDX:TowerExists(logicalID)
+    return towers[logicalID] ~= nil
 end
 
 return TDX
