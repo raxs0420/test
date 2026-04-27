@@ -12,9 +12,12 @@ local towers = {}
 local partToId = {}
 local nextId = 1
 local freeIds = {}
-local expectedIdToActualId = {}  
-local positionToExpectedId = {}  
- 
+local expectedIdToActualId = {}
+local pendingPlacements = {}
+
+local actionQueue = {}
+local isProcessing = false
+
 local function ensureRemotes()
     if Remotes then return Remotes end
     Remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -75,10 +78,9 @@ local function freeId(id)
             end
             towers[id] = nil
         end
-        -- Remove from mapping if this actual ID is freed
-        for expectedId, actualId in pairs(expectedIdToActualId) do
+        for macroId, actualId in pairs(expectedIdToActualId) do
             if actualId == id then
-                expectedIdToActualId[expectedId] = nil
+                expectedIdToActualId[macroId] = nil
             end
         end
     end
@@ -101,12 +103,11 @@ local function addTower(part, expectedMacroId)
         expectedMacroId = expectedMacroId
     }
     
-    -- Map the macro's expected ID to the actual tower ID
     if expectedMacroId then
         expectedIdToActualId[expectedMacroId] = actualId
-        print(string.format("[TDX] Tower detected: %s | Macro ID: %d → Actual ID: %d", part.Name, expectedMacroId, actualId))
+        print(string.format("[TDX] ✓ Tower detected: %s | Macro ID: %d → Actual ID: %d", part.Name, expectedMacroId, actualId))
     else
-        print(string.format("[TDX] Tower detected: %s | Actual ID: %d", part.Name, actualId))
+        print(string.format("[TDX] ✓ Tower detected: %s | Actual ID: %d", part.Name, actualId))
     end
 end
 
@@ -124,7 +125,7 @@ local function checkDeadTowers()
                     data.alive = false
                 end
                 local macroId = data and data.expectedMacroId or id
-                print(string.format("[TDX] Tower died | Macro ID: %d (Actual ID: %d)", macroId, id))
+                print(string.format("[TDX] 💀 Tower died | Macro ID: %d (Actual ID: %d)", macroId, id))
                 freeId(id)
                 partToId[part] = nil
             end
@@ -144,21 +145,19 @@ if not TowersFolder then
     TowersFolder = Instance.new("Folder")
 end
 
-local pendingPlacements = {}  -- position -> {name, expectedId}
-
 local function onTowerAdded(part)
     if not part:IsA("BasePart") then return end
     if partToId[part] then return end
-    task.wait(0.05)
+    task.wait(0.1)
     if not part.Parent then return end
     
-    -- Check if this tower matches any pending placement
     local expectedId = nil
     for posStr, pending in pairs(pendingPlacements) do
         local pos = Vector3.new(unpack(string.split(posStr, ",")))
         if (part.Position - pos).Magnitude < 5 and pending.name == part.Name then
             expectedId = pending.expectedId
             pendingPlacements[posStr] = nil
+            print(string.format("[TDX] 📍 Matched placement at position to Macro ID: %d", expectedId))
             break
         end
     end
@@ -198,6 +197,153 @@ local scanLoop = RunService.Heartbeat:Connect(function()
     end
 end)
 
+local function processQueue()
+    if isProcessing then return end
+    if #actionQueue == 0 then
+        isProcessing = false
+        return
+    end
+    
+    isProcessing = true
+    
+    task.spawn(function()
+        while #actionQueue > 0 do
+            local action = table.remove(actionQueue, 1)
+            
+            if action.type == "place" then
+                local remote = getRemote("PlaceTower")
+                if remote then
+                    print(string.format("[TDX] 📦 Placing %s at (%.1f, %.1f, %.1f) | Need $%d", action.name, action.x, action.y, action.z, action.cost))
+                    
+                    while getCash() < action.cost do
+                        task.wait(0.5)
+                        print(string.format("[TDX] 💰 Waiting for $%d, have $%d", action.cost, getCash()))
+                    end
+                    task.wait(0.2)
+                    
+                    local pos = Vector3.new(action.x, action.y, action.z)
+                    local ok, res = pcall(function()
+                        return remote:InvokeServer(action.rot or 0, action.name, pos, 0)
+                    end)
+                    
+                    if ok and res == true then
+                        print(string.format("[TDX] ✓ %s placement sent successfully", action.name))
+                        local posKey = tostring(pos)
+                        pendingPlacements[posKey] = {name = action.name, expectedId = action.expectedId}
+                        task.wait(0.5)
+                    else
+                        print(string.format("[TDX] ✗ Failed to place %s, retrying...", action.name))
+                        table.insert(actionQueue, 1, action)
+                        task.wait(1)
+                    end
+                end
+                
+            elseif action.type == "upgrade" then
+                local actualId = expectedIdToActualId[action.macroId]
+                local data = towers[actualId]
+                
+                if not data or not data.alive then
+                    print(string.format("[TDX] ⚠️ Macro ID %d has no alive tower (mapping: %s) - Waiting for tower...", action.macroId, actualId or "none"))
+                    table.insert(actionQueue, 1, action)
+                    task.wait(2)
+                else
+                    local part = data.part
+                    if not part or not part.Parent then
+                        print(string.format("[TDX] ⚠️ Tower Macro ID %d has no valid part - Waiting...", action.macroId))
+                        table.insert(actionQueue, 1, action)
+                        task.wait(1)
+                    else
+                        local color = getTowerBeamColor(part)
+                        if color and isDeadColor(color) then
+                            print(string.format("[TDX] 💀 Tower Macro ID %d is dead - Removing mapping", action.macroId))
+                            expectedIdToActualId[action.macroId] = nil
+                            data.alive = false
+                            table.insert(actionQueue, 1, action)
+                            task.wait(2)
+                        else
+                            local container = Workspace:FindFirstChild("Game")
+                            if container then container = container:FindFirstChild("Towers") end
+                            
+                            local serverID = nil
+                            if container then
+                                local children = container:GetChildren()
+                                for idx, p in ipairs(children) do
+                                    if p == part then
+                                        serverID = idx
+                                        break
+                                    end
+                                end
+                            end
+                            
+                            if serverID then
+                                local remote = getRemote("TowerUpgradeRequest")
+                                if remote then
+                                    print(string.format("[TDX] ⬆️ Upgrading Macro ID: %d (Actual ID: %d, Server ID: %d) | Path: %d | Level: %d | Need $%d", action.macroId, actualId, serverID, action.path, action.level, action.cost))
+                                    
+                                    while getCash() < action.cost do
+                                        task.wait(0.5)
+                                        print(string.format("[TDX] 💰 Waiting for $%d, have $%d", action.cost, getCash()))
+                                    end
+                                    task.wait(0.2)
+                                    
+                                    pcall(function()
+                                        remote:FireServer(serverID, action.path, action.level)
+                                    end)
+                                    print(string.format("[TDX] ✓ Upgraded Macro ID: %d | Path: %d | Level: %d", action.macroId, action.path, action.level))
+                                    task.wait(0.3)
+                                end
+                            else
+                                print(string.format("[TDX] ⚠️ Cannot find server ID for Macro ID %d - Waiting...", action.macroId))
+                                table.insert(actionQueue, 1, action)
+                                task.wait(1)
+                            end
+                        end
+                    end
+                end
+                
+            elseif action.type == "ability" then
+                local actualId = expectedIdToActualId[action.macroId]
+                local data = towers[actualId]
+                
+                if data and data.alive then
+                    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+                    if remote then
+                        local req = remote:FindFirstChild("TowerUseAbilityRequest")
+                        if req then
+                            local container = Workspace:FindFirstChild("Game")
+                            if container then container = container:FindFirstChild("Towers") end
+                            local serverID = nil
+                            if container then
+                                local children = container:GetChildren()
+                                for idx, p in ipairs(children) do
+                                    if p == data.part then
+                                        serverID = idx
+                                        break
+                                    end
+                                end
+                            end
+                            if serverID then
+                                pcall(function() req:InvokeServer(serverID, action.slot) end)
+                                print(string.format("[TDX] ✨ Used ability on Macro ID: %d (Slot: %d)", action.macroId, action.slot))
+                                task.wait(0.5)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            task.wait(0.2)
+        end
+        
+        isProcessing = false
+    end)
+end
+
+local function queueAction(action)
+    table.insert(actionQueue, action)
+    processQueue()
+end
+
 local function createUI()
     local player = Players.LocalPlayer
     local gui = Instance.new("ScreenGui")
@@ -207,7 +353,7 @@ local function createUI()
     gui.Parent = player:WaitForChild("PlayerGui")
     
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 350, 0, 400)
+    mainFrame.Size = UDim2.new(0, 350, 0, 300)
     mainFrame.Position = UDim2.new(1, -360, 0, 10)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     mainFrame.BackgroundTransparency = 0.1
@@ -248,15 +394,13 @@ local function createUI()
         end
         
         local yOffset = 0
-        
-        -- Show macro ID mappings
         for macroId, actualId in pairs(expectedIdToActualId) do
             local data = towers[actualId]
             if data and data.alive then
                 local towerLabel = Instance.new("TextLabel")
                 towerLabel.Size = UDim2.new(1, -10, 0, 30)
                 towerLabel.Position = UDim2.new(0, 5, 0, yOffset)
-                towerLabel.Text = string.format("Macro ID: %d → Actual ID: %d | %s", macroId, actualId, data.name)
+                towerLabel.Text = string.format("Macro %d → Actual %d | %s", macroId, actualId, data.name)
                 towerLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
                 towerLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
                 towerLabel.Font = Enum.Font.Gotham
@@ -269,37 +413,6 @@ local function createUI()
                 labelCorner.Parent = towerLabel
                 
                 yOffset = yOffset + 35
-            end
-        end
-        
-        -- Show unmapped towers
-        for actualId, data in pairs(towers) do
-            if data.alive then
-                local isMapped = false
-                for _, mappedId in pairs(expectedIdToActualId) do
-                    if mappedId == actualId then
-                        isMapped = true
-                        break
-                    end
-                end
-                if not isMapped then
-                    local towerLabel = Instance.new("TextLabel")
-                    towerLabel.Size = UDim2.new(1, -10, 0, 30)
-                    towerLabel.Position = UDim2.new(0, 5, 0, yOffset)
-                    towerLabel.Text = string.format("Actual ID: %d | %s (no macro mapping)", actualId, data.name)
-                    towerLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
-                    towerLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-                    towerLabel.Font = Enum.Font.Gotham
-                    towerLabel.TextSize = 11
-                    towerLabel.TextXAlignment = Enum.TextXAlignment.Left
-                    towerLabel.Parent = scrollFrame
-                    
-                    local labelCorner = Instance.new("UICorner")
-                    labelCorner.CornerRadius = UDim.new(0, 4)
-                    labelCorner.Parent = towerLabel
-                    
-                    yOffset = yOffset + 35
-                end
             end
         end
         
@@ -318,128 +431,48 @@ task.spawn(function()
     createUI()
 end)
 
-function TDX:Place(name, x, y, z, rot, cost, expectedMacroId)
-    local remote = getRemote("PlaceTower")
-    if not remote then return nil end
-    
-    local pos = Vector3.new(x, y, z)
-    local posKey = tostring(pos)
-    
-    -- Store pending placement with expected macro ID
-    pendingPlacements[posKey] = {name = name, expectedId = expectedMacroId}
-    
-    print(string.format("[TDX] Placing %s at (%.1f, %.1f, %.1f) | Expected Macro ID: %s", name, x, y, z, expectedMacroId or "auto"))
-    
-    while getCash() < cost do task.wait(0.1) end
-    task.wait(0.1)
-    
-    local ok, res = pcall(function()
-        return remote:InvokeServer(rot or 0, name, pos, 0)
-    end)
-    
-    if not (ok and res == true) then 
-        pendingPlacements[posKey] = nil
-        print(string.format("[TDX] Failed to place %s", name))
-        return nil 
-    end
-    
-    print(string.format("[TDX] %s placement command sent", name))
+function TDX:Place(name, x, y, z, rot, cost, expectedId)
+    queueAction({
+        type = "place",
+        name = name,
+        x = x,
+        y = y,
+        z = z,
+        rot = rot,
+        cost = cost,
+        expectedId = expectedId
+    })
+    startDeathLoop()
     return true
 end
 
 function TDX:Upgrade(macroId, path, level, cost)
-    -- Convert macro ID to actual tower ID
-    local actualId = expectedIdToActualId[macroId]
-    local data = towers[actualId]
-    
-    if not data or not data.alive then
-        print(string.format("[TDX] ✗ Upgrade failed - Macro ID %d has no alive tower (mapping: %s)", macroId, actualId or "none"))
-        return false
-    end
-    
-    local part = data.part
-    if not part or not part.Parent then
-        print(string.format("[TDX] ✗ Upgrade failed - Tower has no valid part"))
-        return false
-    end
-    
-    local color = getTowerBeamColor(part)
-    if color and isDeadColor(color) then
-        print(string.format("[TDX] ✗ Upgrade failed - Tower is dead"))
-        data.alive = false
-        return false
-    end
-    
-    local container = Workspace:FindFirstChild("Game")
-    if container then container = container:FindFirstChild("Towers") end
-    if not container then
-        print(string.format("[TDX] ✗ Upgrade failed - Cannot find Towers container"))
-        return false
-    end
-    
-    local serverID = nil
-    local children = container:GetChildren()
-    for idx, p in ipairs(children) do
-        if p == part then
-            serverID = idx
-            break
-        end
-    end
-    
-    if not serverID then
-        print(string.format("[TDX] ✗ Upgrade failed - Cannot find server ID"))
-        return false
-    end
-    
-    local remote = getRemote("TowerUpgradeRequest")
-    if not remote then return false end
-    
-    print(string.format("[TDX] Upgrading | Macro ID: %d → Actual ID: %d → Server ID: %d | Path: %d | Level: %d | Cost: $%d", macroId, actualId, serverID, path, level, cost))
-    
-    while getCash() < cost do task.wait(0.1) end
-    task.wait(0.1)
-    
-    pcall(function()
-        remote:FireServer(serverID, path, level)
-    end)
-    
-    print(string.format("[TDX] ↑ Upgraded Macro ID: %d | Path: %d | Level: %d", macroId, path, level))
-    
-    task.wait(0.2)
+    queueAction({
+        type = "upgrade",
+        macroId = macroId,
+        path = path,
+        level = level,
+        cost = cost
+    })
     return true
 end
 
-function TDX:Sell(macroId)
-    local actualId = expectedIdToActualId[macroId]
-    local data = towers[actualId]
-    if not data then return false end
-    
-    local part = data.part
-    if not part or not part.Parent then return false end
-    
-    local container = Workspace:FindFirstChild("Game")
-    if container then container = container:FindFirstChild("Towers") end
-    if not container then return false end
-    
-    local serverID = nil
-    local children = container:GetChildren()
-    for idx, p in ipairs(children) do
-        if p == part then
-            serverID = idx
-            break
-        end
+function TDX:Ability(macroId, slot, loop)
+    if loop then
+        task.spawn(function()
+            while true do
+                TDX:Ability(macroId, slot, false)
+                task.wait(0.5)
+            end
+        end)
+        return
     end
     
-    if serverID then
-        local remote = getRemote("SellTower")
-        if remote then
-            pcall(function() remote:FireServer(serverID) end)
-        end
-    end
-    
-    print(string.format("[TDX] 💰 Sold Macro ID: %d (Actual ID: %d, Server ID: %d)", macroId, actualId, serverID or 0))
-    task.wait(0.3)
-    return true
+    queueAction({
+        type = "ability",
+        macroId = macroId,
+        slot = slot
+    })
 end
 
 function TDX:TimeScale(speed)
@@ -485,130 +518,6 @@ function TDX:WaitForGame()
     return r and getRemote("PlaceTower") and getRemote("SellTower") and getRemote("TowerUpgradeRequest")
 end
 
-function TDX:ResetMappings()
-    nextId = 1
-    freeIds = {}
-    partToId = {}
-    expectedIdToActualId = {}
-    pendingPlacements = {}
-    for id in pairs(towers) do
-        towers[id] = nil
-    end
-    print("[TDX] 🔄 Tower mappings reset")
-end
-
-function TDX:JoinMapViaAPC(mapName)
-    local player = Players.LocalPlayer
-    local level = 0
-    local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
-    if lvl then level = lvl.Value end
-    
-    for _ = 1, 60 do
-        local apcs = Workspace:FindFirstChild("APCs")
-        if apcs then
-            for _, slot in ipairs(apcs:GetChildren()) do
-                local attr = slot:GetAttribute("MapName") or ""
-                if attr == mapName then
-                    local detector = slot:FindFirstChild("Detector")
-                    if not detector and slot:FindFirstChild("APC") then
-                        detector = slot.APC:FindFirstChild("Detector")
-                    end
-                    if detector then
-                        local char = player.Character
-                        if char and char:FindFirstChild("HumanoidRootPart") then
-                            char.HumanoidRootPart.CFrame = detector.CFrame
-                            task.wait(2)
-                            return true
-                        end
-                    end
-                end
-            end
-        end
-        if level >= 31 then
-            local apcs2 = Workspace:FindFirstChild("APCs2")
-            if apcs2 then
-                for _, slot in ipairs(apcs2:GetChildren()) do
-                    local attr = slot:GetAttribute("MapName") or ""
-                    if attr == mapName then
-                        local detector = slot:FindFirstChild("Detector")
-                        if not detector and slot:FindFirstChild("APC") then
-                            detector = slot.APC:FindFirstChild("Detector")
-                        end
-                        if detector then
-                            local char = player.Character
-                            if char and char:FindFirstChild("HumanoidRootPart") then
-                                char.HumanoidRootPart.CFrame = detector.CFrame
-                                task.wait(2)
-                                return true
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(0.5)
-    end
-    return false
-end
-
-function TDX:VoteMap(map, attempts)
-    attempts = attempts or 10
-    for _ = 1, attempts do
-        local vote = getRemote("MapVoteCast")
-        if vote then
-            vote:FireServer(map)
-            task.wait(0.5)
-            self:Ready()
-            return true
-        end
-        local change = getRemote("MapChangeVoteCast")
-        if change then
-            change:FireServer(true)
-        end
-        task.wait(1)
-    end
-    return self:JoinMapViaAPC(map)
-end
-
-function TDX:RerollMaps()
-    local change = getRemote("MapChangeVoteCast")
-    if change then
-        change:FireServer(true)
-    end
-    task.wait(0.5)
-end
-
-function TDX:Ready()
-    local ready = getRemote("MapVoteReady")
-    if ready then
-        ready:FireServer()
-    end
-    task.wait(0.3)
-end
-
-function TDX:VoteDifficulty(diff)
-    task.wait(5.5)
-    local vote = getRemote("DifficultyVoteCast")
-    if vote then
-        vote:FireServer(diff)
-    end
-    task.wait(0.5)
-    local ready = getRemote("DifficultyVoteReady")
-    if ready then
-        ready:FireServer(diff)
-    end
-    task.wait(1)
-end
-
-function TDX:Loadout(id)
-    task.wait(2)
-    local load = getRemote("LoadoutSelectionChanged")
-    if load then
-        load:FireServer(id)
-    end
-    task.wait(0.5)
-end
-
 function TDX:Mode(mode)
     local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if net then
@@ -635,6 +544,56 @@ function TDX:StartMatchmaking()
     task.wait(0.5)
 end
 
+function TDX:Loadout(id)
+    task.wait(2)
+    local load = getRemote("LoadoutSelectionChanged")
+    if load then
+        load:FireServer(id)
+    end
+    task.wait(0.5)
+end
+
+function TDX:VoteDifficulty(diff)
+    task.wait(5.5)
+    local vote = getRemote("DifficultyVoteCast")
+    if vote then
+        vote:FireServer(diff)
+    end
+    task.wait(0.5)
+    local ready = getRemote("DifficultyVoteReady")
+    if ready then
+        ready:FireServer(diff)
+    end
+    task.wait(1)
+end
+
+function TDX:VoteMap(map, attempts)
+    attempts = attempts or 10
+    for _ = 1, attempts do
+        local vote = getRemote("MapVoteCast")
+        if vote then
+            vote:FireServer(map)
+            task.wait(0.5)
+            self:Ready()
+            return true
+        end
+        local change = getRemote("MapChangeVoteCast")
+        if change then
+            change:FireServer(true)
+        end
+        task.wait(1)
+    end
+    return false
+end
+
+function TDX:Ready()
+    local ready = getRemote("MapVoteReady")
+    if ready then
+        ready:FireServer()
+    end
+    task.wait(0.3)
+end
+
 function TDX:Equip(items)
     local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if net then
@@ -646,53 +605,16 @@ function TDX:Equip(items)
     task.wait(0.5)
 end
 
-function TDX:Ability(Id, AbilitySlot, Loop)
-    local key = tostring(Id) .. "_" .. tostring(AbilitySlot)
-    if AbilityConnections[key] then
-        AbilityConnections[key]:Disconnect()
-        AbilityConnections[key] = nil
+function TDX:ResetMappings()
+    nextId = 1
+    freeIds = {}
+    partToId = {}
+    expectedIdToActualId = {}
+    pendingPlacements = {}
+    for id in pairs(towers) do
+        towers[id] = nil
     end
-    if Loop == nil then
-        local args = {Id, AbilitySlot}
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
-        return
-    end
-    local interval = 0.3
-    if type(Loop) == "number" then interval = Loop end
-    local connection
-    connection = game:GetService("RunService").Heartbeat:Connect(function()
-        if not connection then return end
-        local args = {Id, AbilitySlot}
-        pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
-        end)
-        task.wait(interval)
-    end)
-    AbilityConnections[key] = connection
-end
-
-function TDX:Uber(MedicID, AbilitySlot, TowerID, Loop)
-    if Loop == nil then
-        local args = {MedicID, AbilitySlot, [4] = TowerID}
-        game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
-        return
-    end
-    local interval = 0.3
-    if type(Loop) == "number" then interval = Loop end
-    local uberKey = "uber_" .. tostring(MedicID) .. "_" .. tostring(AbilitySlot) .. "_" .. tostring(TowerID)
-    if AbilityConnections[uberKey] then
-        AbilityConnections[uberKey]:Disconnect()
-        AbilityConnections[uberKey] = nil
-    end
-    local connection
-    connection = game:GetService("RunService").Heartbeat:Connect(function()
-        local args = {MedicID, AbilitySlot, [4] = TowerID}
-        pcall(function()
-            game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerUseAbilityRequest"):InvokeServer(unpack(args))
-        end)
-        task.wait(interval)
-    end)
-    AbilityConnections[uberKey] = connection
+    print("[TDX] 🔄 Tower mappings reset")
 end
 
 return TDX
