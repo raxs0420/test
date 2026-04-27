@@ -181,7 +181,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     print(string.format("[TDX] Placing %s (Macro ID: %d) - Need $%d", name, expectedId, cost))
     
     while getCash() < cost do
-        task.wait()
+        task.wait(0.05)
     end
     
     local ok, res = pcall(function()
@@ -191,7 +191,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     if ok and res == true then
         pendingPlacements[posKey] = {name = name, expectedId = expectedId}
         print(string.format("[TDX] ✓ %s placed", name))
-        task.wait(0.2)
+        task.wait(0.3)
         return true
     end
     
