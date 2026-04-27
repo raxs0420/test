@@ -18,6 +18,7 @@ local actionQueue = {}
 local isProcessing = false
 local upgradeBuffer = {}
 local upgradeBatchTracker = {}
+local batchTimeout = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -179,6 +180,8 @@ local function processNextAction()
                         end
                     end
                 end
+                task.wait(0.2)
+                task.wait(0.1)
                 
             elseif action.type == "upgrade" then
                 local data = towers[action.logicalID]
@@ -187,6 +190,18 @@ local function processNextAction()
                     if serverID then
                         local remote = getRemote("TowerUpgradeRequest")
                         if remote then
+                            local totalCost = 0
+                            for i = data.currentTopLevel + 1, action.targetLevel do
+                                if action.costs and action.costs[i] then
+                                    totalCost = totalCost + action.costs[i]
+                                end
+                            end
+                            
+                            while getCash() < totalCost do
+                                task.wait(0.1)
+                            end
+                            task.wait(0.1)
+                            
                             pcall(function()
                                 remote:FireServer(serverID, action.path, action.targetLevel)
                             end)
@@ -195,7 +210,7 @@ local function processNextAction()
                             else
                                 data.currentBottomLevel = action.targetLevel
                             end
-                            print(string.format("[TDX] ↑ Upgraded ID %d | Path %d to level %d | Cost: $%d", action.logicalID, action.path, action.targetLevel, action.totalCost))
+                            print(string.format("[TDX] ↑ Upgraded ID %d | Path %d to level %d", action.logicalID, action.path, action.targetLevel))
                             task.wait(0.15)
                         end
                     else
@@ -203,7 +218,7 @@ local function processNextAction()
                             upgradeBuffer[action.logicalID] = {}
                         end
                         table.insert(upgradeBuffer[action.logicalID], action)
-                        print(string.format("[TDX] ⏳ ID %d dead - upgrade to level %d queued", action.logicalID, action.targetLevel))
+                        print(string.format("[TDX] ⏳ ID %d dead - upgrade queued", action.logicalID))
                     end
                 else
                     if not upgradeBuffer[action.logicalID] then
@@ -212,6 +227,8 @@ local function processNextAction()
                     table.insert(upgradeBuffer[action.logicalID], action)
                     print(string.format("[TDX] ⏳ ID %d not found - upgrade queued", action.logicalID))
                 end
+                task.wait(0.2)
+                task.wait(0.1)
                 
             elseif action.type == "sell" then
                 local data = towers[action.logicalID]
@@ -227,9 +244,9 @@ local function processNextAction()
                     freeId(action.logicalID)
                     task.wait(0.2)
                 end
+                task.wait(0.2)
+                task.wait(0.1)
             end
-            
-            task.wait(0.1)
         end
         
         isProcessing = false
@@ -453,22 +470,46 @@ function TDX:Upgrade(logicalID, path, increment, cost)
             logicalID = logicalID,
             path = path,
             targetLevel = increment,
-            totalCost = cost,
-            isBatch = true
+            costs = {[increment] = cost}
         }
         queueAction(action)
         return true
     end
     
-    if not upgradeBatchTracker[logicalID] then
-        upgradeBatchTracker[logicalID] = {top = {count = 0, totalCost = 0}, bottom = {count = 0, totalCost = 0}}
+    local key = logicalID .. "_" .. path
+    
+    if batchTimeout[key] then
+        if tick() - batchTimeout[key] > 0.5 then
+            if upgradeBatchTracker[key] and upgradeBatchTracker[key].count > 0 then
+                local data = towers[logicalID]
+                local currentLevel = 0
+                if data and data.alive then
+                    currentLevel = (path == 1) and (data.currentTopLevel or 0) or (data.currentBottomLevel or 0)
+                end
+                
+                local targetLevel = currentLevel + upgradeBatchTracker[key].count
+                local action = {
+                    type = "upgrade",
+                    logicalID = logicalID,
+                    path = path,
+                    targetLevel = targetLevel,
+                    costs = upgradeBatchTracker[key].costs
+                }
+                queueAction(action)
+                printToUI(string.format("📦 Batched %d upgrades for ID %d path %d to level %d", upgradeBatchTracker[key].count, logicalID, path, targetLevel), Color3.fromRGB(255, 200, 0))
+                upgradeBatchTracker[key] = nil
+            end
+            batchTimeout[key] = nil
+        end
     end
     
-    local targetPath = (path == 1) and "top" or "bottom"
-    local tracker = upgradeBatchTracker[logicalID][targetPath]
+    if not upgradeBatchTracker[key] then
+        upgradeBatchTracker[key] = {count = 0, costs = {}}
+    end
     
+    local tracker = upgradeBatchTracker[key]
     tracker.count = tracker.count + 1
-    tracker.totalCost = tracker.totalCost + cost
+    tracker.costs[tracker.count] = cost
     
     local data = towers[logicalID]
     local currentLevel = 0
@@ -476,23 +517,30 @@ function TDX:Upgrade(logicalID, path, increment, cost)
         currentLevel = (path == 1) and (data.currentTopLevel or 0) or (data.currentBottomLevel or 0)
     end
     
-    local expectedNextLevel = currentLevel + 1
-    
-    if tracker.count == expectedNextLevel then
+    local expectedCount = 1
+    if tracker.count == 5 or (currentLevel + tracker.count) >= 5 then
         local targetLevel = currentLevel + tracker.count
+        if targetLevel > 5 then targetLevel = 5 end
+        
         local action = {
             type = "upgrade",
             logicalID = logicalID,
             path = path,
             targetLevel = targetLevel,
-            totalCost = tracker.totalCost,
-            isBatch = true
+            costs = tracker.costs
         }
         queueAction(action)
-        upgradeBatchTracker[logicalID][targetPath] = {count = 0, totalCost = 0}
-        printToUI(string.format("📦 Batched %d upgrades for ID %d path %d to level %d (total $%d)", tracker.count, logicalID, path, targetLevel, tracker.totalCost), Color3.fromRGB(255, 200, 0))
+        printToUI(string.format("📦 Batched %d upgrades for ID %d path %d to level %d", tracker.count, logicalID, path, targetLevel), Color3.fromRGB(255, 200, 0))
+        upgradeBatchTracker[key] = nil
+        batchTimeout[key] = nil
     else
-        printToUI(string.format("⏳ Collected upgrade #%d for ID %d path %d (waiting for %d more)", tracker.count, logicalID, path, expectedNextLevel - tracker.count), Color3.fromRGB(255, 200, 100))
+        printToUI(string.format("⏳ Collected upgrade #%d for ID %d path %d (need %d more for max path)", tracker.count, logicalID, path, 5 - tracker.count), Color3.fromRGB(255, 200, 100))
+        
+        if batchTimeout[key] then
+            batchTimeout[key] = tick()
+        else
+            batchTimeout[key] = tick()
+        end
     end
     
     return true
@@ -556,6 +604,7 @@ function TDX:ResetMappings()
     partToId = {}
     upgradeBatchTracker = {}
     upgradeBuffer = {}
+    batchTimeout = {}
     for id in pairs(towers) do
         towers[id] = nil
     end
