@@ -13,10 +13,11 @@ local freeIds = {}
 local partToId = {}
 
 TDX._Towers = towers
-TDX._ScanConnection = nil
 
+local actionQueue = {}
+local isProcessing = false
 local upgradeBuffer = {}
-local processingBuffer = false
+local upgradeBatchTracker = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -103,154 +104,153 @@ local function getServerID(logicalID)
     return nil
 end
 
-local function sendBatchUpgrade(logicalID, path, targetLevel)
-    local data = towers[logicalID]
-    if not data then return false end
-    
-    local serverID = getServerID(logicalID)
-    if not serverID then return false end
-    
-    local remote = getRemote("TowerUpgradeRequest")
-    if not remote then return false end
-    
-    local totalCost = 0
-    for i = data.currentTopLevel + 1, targetLevel do
-        if data.costs and data.costs[i] then
-            totalCost = totalCost + data.costs[i]
-        end
+local function processNextAction()
+    if isProcessing then return end
+    if #actionQueue == 0 then
+        isProcessing = false
+        return
     end
     
-    if getCash() < totalCost then
-        print(string.format("[TDX] ⏳ Need $%d more for batch upgrade ID %d", totalCost - getCash(), logicalID))
-        return false
-    end
-    
-    task.wait(0.1)
-    pcall(function()
-        remote:FireServer(serverID, path, targetLevel)
-    end)
-    
-    if path == 1 then
-        data.currentTopLevel = targetLevel
-    else
-        data.currentBottomLevel = targetLevel
-    end
-    
-    print(string.format("[TDX] ↑ Batch upgraded ID %d (%s) | Path %d to level %d | Cost: $%d", logicalID, data.name, path, targetLevel, totalCost))
-    return true
-end
-
-local function sendSingleUpgrade(logicalID, path, level, cost)
-    local data = towers[logicalID]
-    if not data then return false end
-    
-    local serverID = getServerID(logicalID)
-    if not serverID then return false end
-    
-    local remote = getRemote("TowerUpgradeRequest")
-    if not remote then return false end
-    
-    if getCash() < cost then
-        print(string.format("[TDX] ⏳ Need $%d more for upgrade ID %d level %d", cost - getCash(), logicalID, level))
-        return false
-    end
-    
-    task.wait(0.1)
-    pcall(function()
-        remote:FireServer(serverID, path, level)
-    end)
-    
-    if path == 1 then
-        data.currentTopLevel = level
-    else
-        data.currentBottomLevel = level
-    end
-    
-    print(string.format("[TDX] ↑ Upgraded ID %d (%s) | Path %d to level %d | Cost: $%d", logicalID, data.name, path, level, cost))
-    return true
-end
-
-local function processUpgradeBuffer()
-    if processingBuffer then return end
-    processingBuffer = true
+    isProcessing = true
     
     task.spawn(function()
-        while #upgradeBuffer > 0 do
-            local upgrade = table.remove(upgradeBuffer, 1)
-            local data = towers[upgrade.logicalID]
+        while #actionQueue > 0 do
+            local action = table.remove(actionQueue, 1)
             
-            if not data or not data.alive then
-                print(string.format("[TDX] ⏳ ID %d dead - upgrade queued", upgrade.logicalID))
-                if not data then
-                    table.insert(upgradeBuffer, 1, upgrade)
-                    task.wait(1)
+            if action.type == "place" then
+                local remote = getRemote("PlaceTower")
+                if remote then
+                    while getCash() < action.cost do
+                        task.wait(0.1)
+                    end
+                    task.wait(0.1)
+                    
+                    local ok, res = pcall(function()
+                        return remote:InvokeServer(action.rot or 0, action.name, action.pos, 0)
+                    end)
+                    
+                    if ok and res == true then
+                        task.wait(0.3)
+                        
+                        local container = Workspace:FindFirstChild("Game")
+                        if container then container = container:FindFirstChild("Towers") end
+                        
+                        local part = nil
+                        for i = 1, 10 do
+                            if container then
+                                for _, p in ipairs(container:GetChildren()) do
+                                    if p:IsA("BasePart") and p.Name == action.name then
+                                        if (p.Position - action.pos).Magnitude < 3 then
+                                            local beam = getTowerBeam(p)
+                                            if beam then
+                                                part = p
+                                                break
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            if part then break end
+                            task.wait(0.1)
+                        end
+                        
+                        local id = allocateId()
+                        towers[id] = {
+                            name = action.name,
+                            pos = action.pos,
+                            part = part,
+                            currentTopLevel = 0,
+                            currentBottomLevel = 0,
+                            alive = part ~= nil,
+                            cost = action.cost
+                        }
+                        
+                        if part then
+                            partToId[part] = id
+                        end
+                        
+                        print(string.format("[TDX] ✓ Placed %s | ID: %d", action.name, id))
+                        
+                        if upgradeBuffer[id] then
+                            for _, upgrade in ipairs(upgradeBuffer[id]) do
+                                table.insert(actionQueue, upgrade)
+                            end
+                            upgradeBuffer[id] = nil
+                        end
+                    end
                 end
-            else
-                if upgrade.isBatch then
-                    sendBatchUpgrade(upgrade.logicalID, upgrade.path, upgrade.targetLevel)
+                
+            elseif action.type == "upgrade" then
+                local data = towers[action.logicalID]
+                if data and data.alive then
+                    local serverID = getServerID(action.logicalID)
+                    if serverID then
+                        local remote = getRemote("TowerUpgradeRequest")
+                        if remote then
+                            pcall(function()
+                                remote:FireServer(serverID, action.path, action.targetLevel)
+                            end)
+                            if action.path == 1 then
+                                data.currentTopLevel = action.targetLevel
+                            else
+                                data.currentBottomLevel = action.targetLevel
+                            end
+                            print(string.format("[TDX] ↑ Upgraded ID %d | Path %d to level %d | Cost: $%d", action.logicalID, action.path, action.targetLevel, action.totalCost))
+                            task.wait(0.15)
+                        end
+                    else
+                        if not upgradeBuffer[action.logicalID] then
+                            upgradeBuffer[action.logicalID] = {}
+                        end
+                        table.insert(upgradeBuffer[action.logicalID], action)
+                        print(string.format("[TDX] ⏳ ID %d dead - upgrade to level %d queued", action.logicalID, action.targetLevel))
+                    end
                 else
-                    sendSingleUpgrade(upgrade.logicalID, upgrade.path, upgrade.level, upgrade.cost)
+                    if not upgradeBuffer[action.logicalID] then
+                        upgradeBuffer[action.logicalID] = {}
+                    end
+                    table.insert(upgradeBuffer[action.logicalID], action)
+                    print(string.format("[TDX] ⏳ ID %d not found - upgrade queued", action.logicalID))
+                end
+                
+            elseif action.type == "sell" then
+                local data = towers[action.logicalID]
+                if data then
+                    local serverID = getServerID(action.logicalID)
+                    if serverID then
+                        local remote = getRemote("SellTower")
+                        if remote then
+                            pcall(function() remote:FireServer(serverID) end)
+                        end
+                    end
+                    print(string.format("[TDX] 💰 Sold ID %d", action.logicalID))
+                    freeId(action.logicalID)
+                    task.wait(0.2)
                 end
             end
             
-            task.wait(0.2)
+            task.wait(0.1)
         end
-        processingBuffer = false
+        
+        isProcessing = false
     end)
 end
 
-local function addToBuffer(logicalID, path, level, cost, isBatch, targetLevel)
-    table.insert(upgradeBuffer, {
-        logicalID = logicalID,
-        path = path,
-        level = level,
-        cost = cost,
-        isBatch = isBatch or false,
-        targetLevel = targetLevel or level
-    })
-    processUpgradeBuffer()
-end
-
-local function findAndAssignPart(logicalID)
-    local data = towers[logicalID]
-    if not data then return nil end
-    
-    local container = Workspace:FindFirstChild("Game")
-    if container then container = container:FindFirstChild("Towers") end
-    if not container then return nil end
-    
-    for _, part in ipairs(container:GetChildren()) do
-        if part:IsA("BasePart") and part.Name == data.name then
-            if (part.Position - data.pos).Magnitude < 3 then
-                local beam = getTowerBeam(part)
-                if beam then
-                    data.part = part
-                    partToId[part] = logicalID
-                    data.alive = true
-                    return part
-                end
-            end
-        end
-    end
-    return nil
+local function queueAction(action)
+    table.insert(actionQueue, action)
+    processNextAction()
 end
 
 local function checkAndHandleDeath()
     for id, data in pairs(towers) do
         if data.alive and data.part then
             if not data.part.Parent or not isTowerAlive(data.part) then
-                print(string.format("[TDX] 💀 Tower ID %d (%s) died/sold", id, data.name))
+                print(string.format("[TDX] 💀 Tower ID %d (%s) died", id, data.name))
                 data.alive = false
                 data.part = nil
                 if data.part then
                     partToId[data.part] = nil
                 end
-            end
-        elseif data.alive and not data.part then
-            local part = findAndAssignPart(id)
-            if not part then
-                data.alive = false
-                print(string.format("[TDX] 💀 Tower ID %d (%s) lost", id, data.name))
             end
         end
     end
@@ -274,8 +274,8 @@ local function createUI()
     gui.Parent = player:WaitForChild("PlayerGui")
     
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 350, 0, 500)
-    mainFrame.Position = UDim2.new(1, -360, 0, 10)
+    mainFrame.Size = UDim2.new(0, 300, 0, 400)
+    mainFrame.Position = UDim2.new(1, -310, 0, 10)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     mainFrame.BackgroundTransparency = 0.1
     mainFrame.BorderSizePixel = 0
@@ -295,29 +295,9 @@ local function createUI()
     title.TextSize = 14
     title.Parent = mainFrame
     
-    local titleCorner = Instance.new("UICorner")
-    titleCorner.Parent = title
-    
-    local logFrame = Instance.new("ScrollingFrame")
-    logFrame.Size = UDim2.new(1, -10, 0.5, -40)
-    logFrame.Position = UDim2.new(0, 5, 0, 35)
-    logFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-    logFrame.BackgroundTransparency = 0
-    logFrame.BorderSizePixel = 0
-    logFrame.ScrollBarThickness = 6
-    logFrame.Parent = mainFrame
-    
-    local logCorner = Instance.new("UICorner")
-    logCorner.Parent = logFrame
-    
-    local logLayout = Instance.new("UIListLayout")
-    logLayout.Padding = UDim.new(0, 3)
-    logLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    logLayout.Parent = logFrame
-    
     local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Size = UDim2.new(1, -10, 0.5, -10)
-    scrollFrame.Position = UDim2.new(0, 5, 0.5, 5)
+    scrollFrame.Size = UDim2.new(1, -10, 1, -40)
+    scrollFrame.Position = UDim2.new(0, 5, 0, 35)
     scrollFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
     scrollFrame.BackgroundTransparency = 0
     scrollFrame.BorderSizePixel = 0
@@ -333,14 +313,37 @@ local function createUI()
     listLayout.Parent = scrollFrame
     
     local logMessages = {}
+    local logFrame = Instance.new("Frame")
+    logFrame.Size = UDim2.new(1, -10, 0, 120)
+    logFrame.Position = UDim2.new(0, 5, 1, -130)
+    logFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    logFrame.BackgroundTransparency = 0
+    logFrame.BorderSizePixel = 0
+    logFrame.Parent = mainFrame
+    
+    local logCorner = Instance.new("UICorner")
+    logCorner.Parent = logFrame
+    
+    local logScroll = Instance.new("ScrollingFrame")
+    logScroll.Size = UDim2.new(1, -10, 1, -10)
+    logScroll.Position = UDim2.new(0, 5, 0, 5)
+    logScroll.BackgroundTransparency = 1
+    logScroll.BorderSizePixel = 0
+    logScroll.ScrollBarThickness = 4
+    logScroll.Parent = logFrame
+    
+    local logLayout = Instance.new("UIListLayout")
+    logLayout.Padding = UDim.new(0, 2)
+    logLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    logLayout.Parent = logScroll
     
     local function addLogMessage(msg, color)
         table.insert(logMessages, 1, {text = msg, color = color})
-        if #logMessages > 20 then
+        if #logMessages > 15 then
             table.remove(logMessages)
         end
         
-        for _, child in ipairs(logFrame:GetChildren()) do
+        for _, child in ipairs(logScroll:GetChildren()) do
             if child:IsA("TextLabel") then
                 child:Destroy()
             end
@@ -350,7 +353,7 @@ local function createUI()
         for i = #logMessages, 1, -1 do
             local log = logMessages[i]
             local logLabel = Instance.new("TextLabel")
-            logLabel.Size = UDim2.new(1, -10, 0, 20)
+            logLabel.Size = UDim2.new(1, -10, 0, 18)
             logLabel.Position = UDim2.new(0, 5, 0, yOffset)
             logLabel.Text = log.text
             logLabel.TextColor3 = log.color
@@ -358,16 +361,12 @@ local function createUI()
             logLabel.Font = Enum.Font.Gotham
             logLabel.TextSize = 10
             logLabel.TextXAlignment = Enum.TextXAlignment.Left
-            logLabel.Parent = logFrame
+            logLabel.Parent = logScroll
             
-            local labelCorner = Instance.new("UICorner")
-            labelCorner.CornerRadius = UDim.new(0, 3)
-            labelCorner.Parent = logLabel
-            
-            yOffset = yOffset + 23
+            yOffset = yOffset + 20
         end
         
-        logFrame.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
+        logScroll.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
     end
     
     local function updateUI()
@@ -433,174 +432,78 @@ local function printToUI(msg, color)
     print(msg)
 end
 
-local upgradeTracker = {}
-
 function TDX:Place(name, x, y, z, rot, cost)
-    local remote = getRemote("PlaceTower")
-    if not remote then return nil end
-    
-    while getCash() < cost do task.wait(0.05) end
-    task.wait(0.1)
-    
     local pos = Vector3.new(x, y, z)
-    local ok, res = pcall(function()
-        return remote:InvokeServer(rot or 0, name, pos, 0)
-    end)
-    
-    if not (ok and res == true) then return nil end
-    task.wait(0.5)
-    
-    local container = Workspace:FindFirstChild("Game")
-    if container then container = container:FindFirstChild("Towers") end
-    
-    local part = nil
-    for i = 1, 10 do
-        if container then
-            for _, p in ipairs(container:GetChildren()) do
-                if p:IsA("BasePart") and p.Name == name then
-                    if (p.Position - pos).Magnitude < 3 then
-                        local beam = getTowerBeam(p)
-                        if beam then
-                            part = p
-                            break
-                        end
-                    end
-                end
-            end
-        end
-        if part then break end
-        task.wait(0.1)
-    end
-    
-    local id = allocateId()
-    towers[id] = {
+    local action = {
+        type = "place",
         name = name,
         pos = pos,
-        part = part,
-        currentTopLevel = 0,
-        currentBottomLevel = 0,
-        alive = part ~= nil,
-        cost = cost,
-        pendingUpgrades = {}
+        rot = rot or 0,
+        cost = cost
     }
-    
-    if part then
-        partToId[part] = id
-    end
-    
-    upgradeTracker[id] = {top = {}, bottom = {}}
-    
-    printToUI(string.format("✓ Placed %s | ID: %d | Cost: $%d", name, id, cost), Color3.fromRGB(100, 255, 100))
-    
+    queueAction(action)
     startBeamCheck()
-    
-    return id
+    return true
 end
 
-function TDX:Upgrade(logicalID, path, level, cost)
-    local data = towers[logicalID]
-    if not data then 
-        printToUI(string.format("✗ Upgrade failed - ID %d not found", logicalID), Color3.fromRGB(255, 100, 100))
-        return false 
+function TDX:Upgrade(logicalID, path, increment, cost)
+    if increment ~= 1 then
+        local action = {
+            type = "upgrade",
+            logicalID = logicalID,
+            path = path,
+            targetLevel = increment,
+            totalCost = cost,
+            isBatch = true
+        }
+        queueAction(action)
+        return true
     end
     
-    if not upgradeTracker[logicalID] then
-        upgradeTracker[logicalID] = {top = {}, bottom = {}}
+    if not upgradeBatchTracker[logicalID] then
+        upgradeBatchTracker[logicalID] = {top = {count = 0, totalCost = 0}, bottom = {count = 0, totalCost = 0}}
     end
     
-    local tracker = upgradeTracker[logicalID]
     local targetPath = (path == 1) and "top" or "bottom"
+    local tracker = upgradeBatchTracker[logicalID][targetPath]
     
-    table.insert(tracker[targetPath], {level = level, cost = cost})
+    tracker.count = tracker.count + 1
+    tracker.totalCost = tracker.totalCost + cost
     
-    local levels = {}
-    for _, upgrade in ipairs(tracker[targetPath]) do
-        levels[upgrade.level] = upgrade.cost
+    local data = towers[logicalID]
+    local currentLevel = 0
+    if data and data.alive then
+        currentLevel = (path == 1) and (data.currentTopLevel or 0) or (data.currentBottomLevel or 0)
     end
     
-    local sortedLevels = {}
-    for lvl in pairs(levels) do
-        table.insert(sortedLevels, lvl)
-    end
-    table.sort(sortedLevels)
+    local expectedNextLevel = currentLevel + 1
     
-    local isConsecutive = true
-    for i = 1, #sortedLevels do
-        if sortedLevels[i] ~= i then
-            isConsecutive = false
-            break
-        end
-    end
-    
-    local currentLevel = (path == 1) and data.currentTopLevel or data.currentBottomLevel
-    
-    if isConsecutive and #sortedLevels >= 2 and currentLevel == 0 then
-        local targetLevel = #sortedLevels
-        local totalCost = 0
-        for lvl, cst in pairs(levels) do
-            totalCost = totalCost + cst
-        end
-        
-        data.costs = levels
-        
-        if data.alive and getCash() >= totalCost then
-            addToBuffer(logicalID, path, targetLevel, totalCost, true, targetLevel)
-            tracker[targetPath] = {}
-        else
-            printToUI(string.format("📦 Batched %d upgrades for ID %d path %d (target level %d, cost $%d)", #sortedLevels, logicalID, path, targetLevel, totalCost), Color3.fromRGB(255, 200, 0))
-            data.pendingBatch = {path = path, targetLevel = targetLevel, totalCost = totalCost}
-        end
-    elseif isConsecutive and #sortedLevels >= 2 and currentLevel > 0 then
-        local neededLevels = {}
-        local totalCost = 0
-        for lvl, cst in pairs(levels) do
-            if lvl > currentLevel then
-                neededLevels[lvl] = cst
-                totalCost = totalCost + cst
-            end
-        end
-        
-        if #neededLevels >= 2 then
-            local targetLevel = math.max(table.unpack(sortedLevels))
-            if data.alive and getCash() >= totalCost then
-                addToBuffer(logicalID, path, targetLevel, totalCost, true, targetLevel)
-                tracker[targetPath] = {}
-            else
-                printToUI(string.format("📦 Batched %d upgrades for ID %d path %d (need %d more levels to %d, cost $%d)", #neededLevels, logicalID, path, targetLevel - currentLevel, targetLevel, totalCost), Color3.fromRGB(255, 200, 0))
-            end
-        else
-            if data.alive then
-                addToBuffer(logicalID, path, level, cost, false, level)
-            end
-            tracker[targetPath] = {}
-        end
+    if tracker.count == expectedNextLevel then
+        local targetLevel = currentLevel + tracker.count
+        local action = {
+            type = "upgrade",
+            logicalID = logicalID,
+            path = path,
+            targetLevel = targetLevel,
+            totalCost = tracker.totalCost,
+            isBatch = true
+        }
+        queueAction(action)
+        upgradeBatchTracker[logicalID][targetPath] = {count = 0, totalCost = 0}
+        printToUI(string.format("📦 Batched %d upgrades for ID %d path %d to level %d (total $%d)", tracker.count, logicalID, path, targetLevel, tracker.totalCost), Color3.fromRGB(255, 200, 0))
     else
-        if data.alive then
-            addToBuffer(logicalID, path, level, cost, false, level)
-        else
-            printToUI(string.format("⏳ ID %d dead - upgrade to level %d queued", logicalID, level), Color3.fromRGB(255, 200, 0))
-        end
-        tracker[targetPath] = {}
+        printToUI(string.format("⏳ Collected upgrade #%d for ID %d path %d (waiting for %d more)", tracker.count, logicalID, path, expectedNextLevel - tracker.count), Color3.fromRGB(255, 200, 100))
     end
     
     return true
 end
 
 function TDX:Sell(logicalID)
-    local data = towers[logicalID]
-    if not data then return false end
-    
-    local serverID = getServerID(logicalID)
-    if serverID then
-        local remote = getRemote("SellTower")
-        if remote then
-            pcall(function() remote:FireServer(serverID) end)
-        end
-    end
-    
-    printToUI(string.format("💰 Sold ID %d (%s)", logicalID, data.name), Color3.fromRGB(255, 200, 100))
-    task.wait(0.3)
-    freeId(logicalID)
+    local action = {
+        type = "sell",
+        logicalID = logicalID
+    }
+    queueAction(action)
     return true
 end
 
@@ -651,8 +554,8 @@ function TDX:ResetMappings()
     nextId = 1
     freeIds = {}
     partToId = {}
+    upgradeBatchTracker = {}
     upgradeBuffer = {}
-    upgradeTracker = {}
     for id in pairs(towers) do
         towers[id] = nil
     end
