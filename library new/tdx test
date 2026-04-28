@@ -409,6 +409,58 @@ function TDX:ResetMappings()
     end
 end
 
+local abilitySpamLoops = {}
+
+local function getTowerIdsByName(towerName)
+    local ids = {}
+    for id, data in pairs(towers) do
+        if data and data.alive and data.name == towerName then
+            table.insert(ids, id)
+        end
+    end
+    return ids
+end
+
+local function useAbilityOnTower(actualId, slot)
+    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+    if remote then
+        local req = remote:FindFirstChild("TowerUseAbilityRequest")
+        if req then
+            pcall(function() req:InvokeServer(actualId, slot) end)
+        end
+    end
+end
+
+function TDX:AbilitySpam(towerName, slot, loop)
+    local key = towerName .. "_" .. tostring(slot)
+    if loop == true then
+        if abilitySpamLoops[key] then
+            return
+        end
+        abilitySpamLoops[key] = task.spawn(function()
+            while abilitySpamLoops[key] do
+                local ids = getTowerIdsByName(towerName)
+                for _, id in ipairs(ids) do
+                    useAbilityOnTower(id, slot)
+                    task.wait(0.15)
+                end
+                task.wait(0.5)
+            end
+        end)
+    elseif loop == false then
+        if abilitySpamLoops[key] then
+            task.cancel(abilitySpamLoops[key])
+            abilitySpamLoops[key] = nil
+        end
+    else
+        local ids = getTowerIdsByName(towerName)
+        for _, id in ipairs(ids) do
+            useAbilityOnTower(id, slot)
+            task.wait(0.1)
+        end
+    end
+end
+
 local function startCoinCollector()
     task.spawn(function()
         local remote = nil
