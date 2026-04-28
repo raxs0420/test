@@ -247,6 +247,45 @@ function TDX:Upgrade(macroId, path, level, cost)
     return true
 end
 
+function TDX:Sell(macroId)
+    local actualId = expectedIdToActualId[macroId]
+    local data = towers[actualId]
+    
+    if not data or not data.alive then
+        print(string.format("[TDX] ⚠️ Macro %d not found - cannot sell", macroId))
+        return false
+    end
+    
+    local part = data.part
+    if not part or not part.Parent then
+        return false
+    end
+    
+    local container = Workspace:FindFirstChild("Game")
+    if container then container = container:FindFirstChild("Towers") end
+    
+    local serverID = nil
+    if container then
+        local children = container:GetChildren()
+        for idx, p in ipairs(children) do
+            if p == part then
+                serverID = idx
+                break
+            end
+        end
+    end
+    
+    if serverID then
+        local remote = getRemote("SellTower")
+        if remote then
+            pcall(function() remote:FireServer(serverID) end)
+            print(string.format("[TDX] 💰 Sold Macro %d", macroId))
+        end
+    end
+    
+    return true
+end
+
 function TDX:Ability(macroId, slot, loop)
     if loop then
         task.spawn(function()
