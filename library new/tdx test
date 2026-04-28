@@ -1,3 +1,4 @@
+
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -409,36 +410,39 @@ local abilitySpamLoops = {}
 local function getTowerIdsByPartialName(partialName)
     local ids = {}
     local lowerPartial = partialName:lower()
-    print("[DEBUG] Looking for towers containing:", partialName)
-    for id, data in pairs(towers) do
-        if data and data.alive then
-            print("[DEBUG]   Tower ID", id, "Name:", data.name, "Alive:", data.alive)
-            local towerName = data.name:lower()
+    local towersFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
+    if not towersFolder then return ids end
+    
+    for _, part in ipairs(towersFolder:GetChildren()) do
+        if part:IsA("BasePart") then
+            local towerName = part.Name:lower()
             if towerName:find(lowerPartial, 1, true) then
-                print("[DEBUG]     MATCH found!")
+                local id = partToId[part]
+                if not id then
+                    id = allocateId()
+                    partToId[part] = id
+                    towers[id] = {
+                        part = part,
+                        name = part.Name,
+                        alive = true,
+                        position = part.Position,
+                        macroId = nil
+                    }
+                end
                 table.insert(ids, id)
             end
-        elseif data then
-            print("[DEBUG]   Tower ID", id, "is dead/alive false")
         end
     end
-    print("[DEBUG] Found", #ids, "towers matching", partialName)
     return ids
 end
 
 local function useAbilityOnTower(actualId, slot)
-    print("[DEBUG] useAbilityOnTower called for ID", actualId, "slot", slot)
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
     if remote then
         local req = remote:FindFirstChild("TowerUseAbilityRequest")
         if req then
-            print("[DEBUG] Firing ability on actual ID", actualId)
             pcall(function() req:InvokeServer(actualId, slot) end)
-        else
-            warn("[DEBUG] TowerUseAbilityRequest not found")
         end
-    else
-        warn("[DEBUG] Remotes not found")
     end
 end
 
