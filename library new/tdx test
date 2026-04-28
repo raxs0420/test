@@ -409,54 +409,76 @@ local abilitySpamLoops = {}
 local function getTowerIdsByPartialName(partialName)
     local ids = {}
     local lowerPartial = partialName:lower()
+    print("[DEBUG] Looking for towers containing:", partialName)
     for id, data in pairs(towers) do
         if data and data.alive then
+            print("[DEBUG]   Tower ID", id, "Name:", data.name, "Alive:", data.alive)
             local towerName = data.name:lower()
             if towerName:find(lowerPartial, 1, true) then
+                print("[DEBUG]     MATCH found!")
                 table.insert(ids, id)
             end
+        elseif data then
+            print("[DEBUG]   Tower ID", id, "is dead/alive false")
         end
     end
+    print("[DEBUG] Found", #ids, "towers matching", partialName)
     return ids
 end
 
 local function useAbilityOnTower(actualId, slot)
+    print("[DEBUG] useAbilityOnTower called for ID", actualId, "slot", slot)
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
     if remote then
         local req = remote:FindFirstChild("TowerUseAbilityRequest")
         if req then
+            print("[DEBUG] Firing ability on actual ID", actualId)
             pcall(function() req:InvokeServer(actualId, slot) end)
+        else
+            warn("[DEBUG] TowerUseAbilityRequest not found")
         end
+    else
+        warn("[DEBUG] Remotes not found")
     end
 end
 
 function TDX:AbilitySpam(towerName, slot, loop)
     local key = towerName .. "_" .. tostring(slot)
+    print("[DEBUG] AbilitySpam called:", towerName, slot, loop)
     if loop == true then
-        if abilitySpamLoops[key] then return end
+        if abilitySpamLoops[key] then 
+            print("[DEBUG] Loop already running for", key)
+            return 
+        end
+        print("[DEBUG] Starting ability spam loop for", towerName, "slot", slot)
         abilitySpamLoops[key] = task.spawn(function()
             while abilitySpamLoops[key] do
                 local ids = getTowerIdsByPartialName(towerName)
                 for _, id in ipairs(ids) do
                     useAbilityOnTower(id, slot)
+                    task.wait(0.1)
                 end
                 task.wait(0.5)
             end
         end)
     elseif loop == false then
         if abilitySpamLoops[key] then
+            print("[DEBUG] Stopping ability spam loop for", key)
             task.cancel(abilitySpamLoops[key])
             abilitySpamLoops[key] = nil
         end
     else
+        print("[DEBUG] Single use ability spam")
         local ids = getTowerIdsByPartialName(towerName)
         for _, id in ipairs(ids) do
             useAbilityOnTower(id, slot)
+            task.wait(0.1)
         end
     end
 end
 
 function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop)
+    print("[DEBUG] AbilitySpamRange called:", startMacroId, endMacroId, slot, loop)
     if loop then
         local active = true
         task.spawn(function()
@@ -478,6 +500,7 @@ function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop)
 end
 
 function TDX:AbilitySpamList(macroIds, slot, loop)
+    print("[DEBUG] AbilitySpamList called")
     if loop then
         local active = true
         task.spawn(function()
