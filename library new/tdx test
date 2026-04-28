@@ -57,7 +57,7 @@ end
 
 local function allocateId()
     if #freeIds > 0 then
-        return table.remove(freeIds)
+        return table.remove(freeIds, #freeIds)
     else
         local id = nextId
         nextId = nextId + 1
@@ -95,9 +95,9 @@ local function addTower(part, expectedMacroId)
     
     if expectedMacroId then
         expectedIdToActualId[expectedMacroId] = actualId
-        print(string.format("[TDX] ✓ Macro %d → Actual %d (%s)", expectedMacroId, actualId, part.Name))
+        print(string.format("[TDX] ✓ Macro %d → Actual ID %d (%s)", expectedMacroId, actualId, part.Name))
     else
-        print(string.format("[TDX] ✓ Tower %s → Actual %d", part.Name, actualId))
+        print(string.format("[TDX] ✓ Tower %s → Actual ID %d", part.Name, actualId))
     end
 end
 
@@ -107,7 +107,7 @@ local function checkDeadTowers()
         if data then
             if not part.Parent then
                 if data.macroId then
-                    print(string.format("[TDX] 💀 Macro %d died", data.macroId))
+                    print(string.format("[TDX] 💀 Macro %d (Actual %d) died", data.macroId, id))
                 end
                 freeId(id)
                 partToId[part] = nil
@@ -115,7 +115,7 @@ local function checkDeadTowers()
                 local color = getTowerBeamColor(part)
                 if color and isDeadColor(color) then
                     if data.macroId then
-                        print(string.format("[TDX] 💀 Macro %d died (beam dark)", data.macroId))
+                        print(string.format("[TDX] 💀 Macro %d (Actual %d) died", data.macroId, id))
                     end
                     freeId(id)
                     partToId[part] = nil
@@ -178,10 +178,10 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local pos = Vector3.new(x, y, z)
     local posKey = tostring(pos)
     
-    print(string.format("[TDX] Placing %s (Macro ID: %d) - Need $%d", name, expectedId, cost))
+    print(string.format("[TDX] Placing %s (Macro ID: %s)", name, expectedId or "auto"))
     
     while getCash() < cost do
-        task.wait(0.05)
+        task.wait()
     end
     
     local ok, res = pcall(function()
@@ -191,7 +191,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     if ok and res == true then
         pendingPlacements[posKey] = {name = name, expectedId = expectedId}
         print(string.format("[TDX] ✓ %s placed", name))
-        task.wait(0.3)
+        task.wait(0.2)
         return true
     end
     
@@ -203,7 +203,7 @@ function TDX:Upgrade(macroId, path, level, cost)
     local data = towers[actualId]
     
     if not data or not data.alive then
-        print(string.format("[TDX] ⏳ Macro %d not found - skipping upgrade (will retry later if tower appears)", macroId))
+        print(string.format("[TDX] ⏳ Macro %d not found - skipping", macroId))
         return false
     end
     
@@ -227,7 +227,6 @@ function TDX:Upgrade(macroId, path, level, cost)
     end
     
     if not serverID then
-        print(string.format("[TDX] ⚠️ Macro %d - Cannot find server ID", macroId))
         return false
     end
     
@@ -235,15 +234,15 @@ function TDX:Upgrade(macroId, path, level, cost)
     if not remote then return false end
     
     while getCash() < cost do
-        task.wait(0.05)
+        task.wait()
     end
     
     pcall(function()
         remote:FireServer(serverID, path, level)
     end)
     
-    print(string.format("[TDX] ↑ Macro %d | Path %d | Level %d | Cost $%d", macroId, path, level, cost))
-    task.wait(0.2)
+    print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d", macroId, path, level))
+    task.wait(0.05)
     return true
 end
 
