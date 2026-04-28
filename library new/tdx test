@@ -185,13 +185,13 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
-
+        task.wait(0.1)
     if ok and res == true then
         if expectedId then
             table.insert(pendingMacroQueue, expectedId)
         end
         print(string.format("[TDX] ✓ %s placed", name))
-        task.wait(0.2)
+        task.wait(0.1)
         return true
     end
 
@@ -218,13 +218,13 @@ function TDX:Upgrade(macroId, path, level, cost)
     while getCash() < cost do
         task.wait(0.05)
     end
-
+    task.wait(0.15)
     pcall(function()
         remote:FireServer(actualId, path, level)
     end)
 
     print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d (Actual ID: %d)", macroId, path, level, actualId))
-    task.wait(0.25)
+    task.wait(0.15)
     return true
 end
 
@@ -244,6 +244,7 @@ function TDX:Sell(macroId)
 
     local remote = getRemote("SellTower")
     if remote then
+    task.wait(0.15)
         pcall(function() remote:FireServer(actualId) end)
         print(string.format("[TDX] 💰 Sold Macro %d (Actual ID: %d)", macroId, actualId))
     end
