@@ -13,6 +13,7 @@ local partToId = {}
 local nextId = 1
 local freeIds = {}
 local expectedIdToActualId = {}
+local actualIdToMacroId = {}
 local pendingMacroQueue = {}
 
 local function ensureRemotes()
@@ -56,22 +57,7 @@ local function isDeadColor(color)
     return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
 end
 
--- Modified: allocateId now respects expectedMacroId directly
-local function allocateId(expectedId)
-    if expectedId then
-        -- If the expected ID is not already in use, use it directly
-        if not towers[expectedId] then
-            -- Remove from freeIds if present
-            for i, fid in ipairs(freeIds) do
-                if fid == expectedId then
-                    table.remove(freeIds, i)
-                    break
-                end
-            end
-            return expectedId
-        end
-    end
-    -- Fallback to normal allocation
+local function allocateId()
     if #freeIds > 0 then
         return table.remove(freeIds, #freeIds)
     else
@@ -88,6 +74,11 @@ local function freeId(id)
             if towers[id].part then
                 partToId[towers[id].part] = nil
             end
+            local macroId = actualIdToMacroId[id]
+            if macroId then
+                expectedIdToActualId[macroId] = nil
+                actualIdToMacroId[id] = nil
+            end
             towers[id] = nil
         end
     end
@@ -98,7 +89,7 @@ local function addTower(part, expectedMacroId)
     local beamColor = getTowerBeamColor(part)
     if beamColor and isDeadColor(beamColor) then return end
 
-    local actualId = allocateId(expectedMacroId)
+    local actualId = allocateId()
     partToId[part] = actualId
 
     towers[actualId] = {
@@ -111,6 +102,7 @@ local function addTower(part, expectedMacroId)
 
     if expectedMacroId then
         expectedIdToActualId[expectedMacroId] = actualId
+        actualIdToMacroId[actualId] = expectedMacroId
         print(string.format("[TDX] ✓ Macro %d → Actual ID %d (%s)", expectedMacroId, actualId, part.Name))
     else
         print(string.format("[TDX] ✓ Tower %s → Actual ID %d", part.Name, actualId))
@@ -220,24 +212,7 @@ function TDX:Upgrade(macroId, path, level, cost)
         return false
     end
 
-    local container = Workspace:FindFirstChild("Game")
-    if container then container = container:FindFirstChild("Towers") end
-
-    local serverID = nil
-    if container then
-        local children = container:GetChildren()
-        for idx, p in ipairs(children) do
-            if p == part then
-                serverID = idx
-                break
-            end
-        end
-    end
-
-    if not serverID then
-        return false
-    end
-
+    -- IMPORTANT: Use the actual ID directly, not the server ID
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
 
@@ -246,10 +221,10 @@ function TDX:Upgrade(macroId, path, level, cost)
     end
 
     pcall(function()
-        remote:FireServer(serverID, path, level)
+        remote:FireServer(actualId, path, level)
     end)
 
-    print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d (Actual ID: %d, Server ID: %d)", macroId, path, level, actualId, serverID))
+    print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d (Actual ID: %d)", macroId, path, level, actualId))
     task.wait(0.05)
     return true
 end
@@ -268,32 +243,15 @@ function TDX:Sell(macroId)
         return false
     end
 
-    local container = Workspace:FindFirstChild("Game")
-    if container then container = container:FindFirstChild("Towers") end
-
-    local serverID = nil
-    if container then
-        local children = container:GetChildren()
-        for idx, p in ipairs(children) do
-            if p == part then
-                serverID = idx
-                break
-            end
-        end
-    end
-
-    if serverID then
-        local remote = getRemote("SellTower")
-        if remote then
-            pcall(function() remote:FireServer(serverID) end)
-            print(string.format("[TDX] 💰 Sold Macro %d (Actual ID: %d, Server ID: %d)", macroId, actualId, serverID))
-        end
+    local remote = getRemote("SellTower")
+    if remote then
+        pcall(function() remote:FireServer(actualId) end)
+        print(string.format("[TDX] 💰 Sold Macro %d (Actual ID: %d)", macroId, actualId))
     end
 
     return true
 end
 
--- All other functions (Ability, TimeScale, etc.) remain unchanged
 function TDX:Ability(macroId, slot, loop)
     if loop then
         task.spawn(function()
@@ -312,27 +270,11 @@ function TDX:Ability(macroId, slot, loop)
         return
     end
 
-    local container = Workspace:FindFirstChild("Game")
-    if container then container = container:FindFirstChild("Towers") end
-
-    local serverID = nil
-    if container then
-        local children = container:GetChildren()
-        for idx, p in ipairs(children) do
-            if p == data.part then
-                serverID = idx
-                break
-            end
-        end
-    end
-
-    if serverID then
-        local remote = ReplicatedStorage:FindFirstChild("Remotes")
-        if remote then
-            local req = remote:FindFirstChild("TowerUseAbilityRequest")
-            if req then
-                pcall(function() req:InvokeServer(serverID, slot) end)
-            end
+    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+    if remote then
+        local req = remote:FindFirstChild("TowerUseAbilityRequest")
+        if req then
+            pcall(function() req:InvokeServer(actualId, slot) end)
         end
     end
 end
@@ -460,6 +402,7 @@ function TDX:ResetMappings()
     freeIds = {}
     partToId = {}
     expectedIdToActualId = {}
+    actualIdToMacroId = {}
     pendingMacroQueue = {}
     for id in pairs(towers) do
         towers[id] = nil
