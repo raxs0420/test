@@ -6,13 +6,14 @@ local RunService = game:GetService("RunService")
 
 local Remotes = nil
 local CurrentSpeed = 1
+local AbilityConnections = {}
 
 local towers = {}
 local partToId = {}
 local nextId = 1
 local freeIds = {}
 local expectedIdToActualId = {}
-local pendingPlacements = {}
+local pendingMacroQueue = {}  -- Queue of expected macro IDs in order of TDX:Place calls
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -81,10 +82,10 @@ local function addTower(part, expectedMacroId)
     if partToId[part] then return end
     local beamColor = getTowerBeamColor(part)
     if beamColor and isDeadColor(beamColor) then return end
-    
+
     local actualId = allocateId()
     partToId[part] = actualId
-    
+
     towers[actualId] = {
         part = part,
         name = part.Name,
@@ -92,7 +93,7 @@ local function addTower(part, expectedMacroId)
         position = part.Position,
         macroId = expectedMacroId
     }
-    
+
     if expectedMacroId then
         expectedIdToActualId[expectedMacroId] = actualId
         print(string.format("[TDX] ✓ Macro %d → Actual ID %d (%s)", expectedMacroId, actualId, part.Name))
@@ -135,17 +136,9 @@ local function onTowerAdded(part)
     if partToId[part] then return end
     task.wait(0.05)
     if not part.Parent then return end
-    
-    local expectedId = nil
-    for posStr, pending in pairs(pendingPlacements) do
-        local pos = Vector3.new(unpack(string.split(posStr, ",")))
-        if (part.Position - pos).Magnitude < 5 and pending.name == part.Name then
-            expectedId = pending.expectedId
-            pendingPlacements[posStr] = nil
-            break
-        end
-    end
-    
+
+    -- Get the next expected macro ID from the queue
+    local expectedId = table.remove(pendingMacroQueue, 1)
     addTower(part, expectedId)
 end
 
@@ -174,47 +167,49 @@ end)
 function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
-    
+
     local pos = Vector3.new(x, y, z)
-    local posKey = tostring(pos)
-    
+
     print(string.format("[TDX] Placing %s (Macro ID: %s)", name, expectedId or "auto"))
-    
+
     while getCash() < cost do
         task.wait()
     end
-    
+
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
-    
+
     if ok and res == true then
-        pendingPlacements[posKey] = {name = name, expectedId = expectedId}
+        -- Queue the expected macro ID for the next tower detection
+        if expectedId then
+            table.insert(pendingMacroQueue, expectedId)
+        end
         print(string.format("[TDX] ✓ %s placed", name))
         task.wait(0.2)
         return true
     end
-    
+
     return false
 end
 
 function TDX:Upgrade(macroId, path, level, cost)
     local actualId = expectedIdToActualId[macroId]
     local data = towers[actualId]
-    
+
     if not data or not data.alive then
         print(string.format("[TDX] ⏳ Macro %d not found - skipping", macroId))
         return false
     end
-    
+
     local part = data.part
     if not part or not part.Parent then
         return false
     end
-    
+
     local container = Workspace:FindFirstChild("Game")
     if container then container = container:FindFirstChild("Towers") end
-    
+
     local serverID = nil
     if container then
         local children = container:GetChildren()
@@ -225,22 +220,22 @@ function TDX:Upgrade(macroId, path, level, cost)
             end
         end
     end
-    
+
     if not serverID then
         return false
     end
-    
+
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
-    
+
     while getCash() < cost do
         task.wait()
     end
-    
+
     pcall(function()
         remote:FireServer(serverID, path, level)
     end)
-    
+
     print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d", macroId, path, level))
     task.wait(0.05)
     return true
@@ -249,20 +244,20 @@ end
 function TDX:Sell(macroId)
     local actualId = expectedIdToActualId[macroId]
     local data = towers[actualId]
-    
+
     if not data or not data.alive then
         print(string.format("[TDX] ⚠️ Macro %d not found - cannot sell", macroId))
         return false
     end
-    
+
     local part = data.part
     if not part or not part.Parent then
         return false
     end
-    
+
     local container = Workspace:FindFirstChild("Game")
     if container then container = container:FindFirstChild("Towers") end
-    
+
     local serverID = nil
     if container then
         local children = container:GetChildren()
@@ -273,7 +268,7 @@ function TDX:Sell(macroId)
             end
         end
     end
-    
+
     if serverID then
         local remote = getRemote("SellTower")
         if remote then
@@ -281,7 +276,7 @@ function TDX:Sell(macroId)
             print(string.format("[TDX] 💰 Sold Macro %d", macroId))
         end
     end
-    
+
     return true
 end
 
@@ -295,17 +290,17 @@ function TDX:Ability(macroId, slot, loop)
         end)
         return
     end
-    
+
     local actualId = expectedIdToActualId[macroId]
     local data = towers[actualId]
-    
+
     if not data or not data.alive then
         return
     end
-    
+
     local container = Workspace:FindFirstChild("Game")
     if container then container = container:FindFirstChild("Towers") end
-    
+
     local serverID = nil
     if container then
         local children = container:GetChildren()
@@ -316,7 +311,7 @@ function TDX:Ability(macroId, slot, loop)
             end
         end
     end
-    
+
     if serverID then
         local remote = ReplicatedStorage:FindFirstChild("Remotes")
         if remote then
@@ -451,7 +446,7 @@ function TDX:ResetMappings()
     freeIds = {}
     partToId = {}
     expectedIdToActualId = {}
-    pendingPlacements = {}
+    pendingMacroQueue = {}
     for id in pairs(towers) do
         towers[id] = nil
     end
