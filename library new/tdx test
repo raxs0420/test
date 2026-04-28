@@ -13,7 +13,7 @@ local partToId = {}
 local nextId = 1
 local freeIds = {}
 local expectedIdToActualId = {}
-local pendingMacroQueue = {}  -- Queue of expected macro IDs in order of TDX:Place calls
+local pendingMacroQueue = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -137,7 +137,6 @@ local function onTowerAdded(part)
     task.wait(0.05)
     if not part.Parent then return end
 
-    -- Get the next expected macro ID from the queue
     local expectedId = table.remove(pendingMacroQueue, 1)
     addTower(part, expectedId)
 end
@@ -181,7 +180,6 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     end)
 
     if ok and res == true then
-        -- Queue the expected macro ID for the next tower detection
         if expectedId then
             table.insert(pendingMacroQueue, expectedId)
         end
