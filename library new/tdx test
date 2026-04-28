@@ -185,12 +185,13 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
+        task.wait(0.05)
     if ok and res == true then
         if expectedId then
             table.insert(pendingMacroQueue, expectedId)
         end
         print(string.format("[TDX] ✓ %s placed", name))
-        task.wait(0.25)
+        task.wait(0.15)
         return true
     end
 
