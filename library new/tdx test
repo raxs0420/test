@@ -410,11 +410,43 @@ end
 
 local abilitySpamLoops = {}
 
-local function getTowerIdsByName(towerName)
+local towerToAbilitySlot = {
+    Ranger = {ability = "GRENADE", slot = 1},
+    Shotgunner = {ability = "UNSTUN_HEALTH", slot = 1},
+    Operator = {ability = "HUMVEE", slot = 1},
+    Sniper = {ability = "FLARE", slot = 1},
+    EDJ = {ability = "DJ_Encore", slot = 1},
+    John = {ability = "AXE_RAGE", slot = 1},
+    ["Laser Gunner"] = {ability = "SHOCK_ROUNDS", slot = 1},
+    Toxicnator = {ability = "TOXIC_BLAST", slot = 1},
+    Mobster = {ability = "AP_ROUNDS", slot = 1},
+    ["Machine Gunner"] = {ability = "OVERCHARGE", slot = 2},
+    Slammer = {ability = "GRAND_SLAM", slot = 1},
+    ["Golden Ranger"] = {ability = "GOLDEN_GRENADE", slot = 1},
+    ["Golden Mine Layer"] = {ability = "Charge_Throw", slot = 1},
+    Warship = {ability = "GLOBAL_STEALTH_REVEAL", slot = 1},
+    ["Golden Juggernaut"] = {ability = "REBOOT_SYSTEMS", slot = 1},
+    ["Golden Mobster"] = {ability = "OVERLOAD", slot = 1},
+}
+
+local abilityTargets = {}
+for towerName, data in pairs(towerToAbilitySlot) do
+    local abilityName = data.ability
+    if not abilityTargets[abilityName] then
+        abilityTargets[abilityName] = {towers = {}, slot = data.slot}
+    end
+    table.insert(abilityTargets[abilityName].towers, towerName)
+end
+
+local function getTowerIdsByPartialName(partialName)
     local ids = {}
+    local lowerPartial = partialName:lower()
     for id, data in pairs(towers) do
-        if data and data.alive and data.name == towerName then
-            table.insert(ids, id)
+        if data and data.alive then
+            local towerName = data.name:lower()
+            if towerName:find(lowerPartial, 1, true) then
+                table.insert(ids, id)
+            end
         end
     end
     return ids
@@ -438,7 +470,7 @@ function TDX:AbilitySpam(towerName, slot, loop)
         end
         abilitySpamLoops[key] = task.spawn(function()
             while abilitySpamLoops[key] do
-                local ids = getTowerIdsByName(towerName)
+                local ids = getTowerIdsByPartialName(towerName)
                 for _, id in ipairs(ids) do
                     useAbilityOnTower(id, slot)
                     task.wait(0.15)
@@ -452,10 +484,51 @@ function TDX:AbilitySpam(towerName, slot, loop)
             abilitySpamLoops[key] = nil
         end
     else
-        local ids = getTowerIdsByName(towerName)
+        local ids = getTowerIdsByPartialName(towerName)
         for _, id in ipairs(ids) do
             useAbilityOnTower(id, slot)
             task.wait(0.1)
+        end
+    end
+end
+
+function TDX:AbilitySpamByAbility(abilityName, loop)
+    local data = abilityTargets[abilityName]
+    if not data then
+        print(string.format("[TDX] Unknown ability: %s", abilityName))
+        return
+    end
+    local slot = data.slot
+    local towerNames = data.towers
+    local key = "ability_" .. abilityName
+    if loop == true then
+        if abilitySpamLoops[key] then
+            return
+        end
+        abilitySpamLoops[key] = task.spawn(function()
+            while abilitySpamLoops[key] do
+                for _, towerName in ipairs(towerNames) do
+                    local ids = getTowerIdsByPartialName(towerName)
+                    for _, id in ipairs(ids) do
+                        useAbilityOnTower(id, slot)
+                        task.wait(0.15)
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+    elseif loop == false then
+        if abilitySpamLoops[key] then
+            task.cancel(abilitySpamLoops[key])
+            abilitySpamLoops[key] = nil
+        end
+    else
+        for _, towerName in ipairs(towerNames) do
+            local ids = getTowerIdsByPartialName(towerName)
+            for _, id in ipairs(ids) do
+                useAbilityOnTower(id, slot)
+                task.wait(0.1)
+            end
         end
     end
 end
