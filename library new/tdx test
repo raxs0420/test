@@ -411,6 +411,8 @@ end
 local function startCoinCollector()
     task.spawn(function()
         local remote = nil
+        local numbers = {1, 2, 3}
+        local idx = 1
         while true do
             if not remote or not remote.Parent then
                 local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -419,7 +421,8 @@ local function startCoinCollector()
                 end
             end
             if remote then
-                pcall(function() remote:FireServer(1) end)
+                pcall(function() remote:FireServer(numbers[idx]) end)
+                idx = idx % #numbers + 1
             end
             task.wait(0.5)
         end
