@@ -460,6 +460,48 @@ function TDX:AbilitySpam(towerName, slot, loop)
     end
 end
 
+function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop)
+    if loop then
+        local active = true
+        task.spawn(function()
+            while active do
+                for macroId = startMacroId, endMacroId do
+                    TDX:Ability(macroId, slot, false)
+                    task.wait(0.1)
+                end
+                task.wait(0.5)
+            end
+        end)
+        return function() active = false end
+    else
+        for macroId = startMacroId, endMacroId do
+            TDX:Ability(macroId, slot, false)
+            task.wait(0.1)
+        end
+    end
+end
+
+function TDX:AbilitySpamList(macroIds, slot, loop)
+    if loop then
+        local active = true
+        task.spawn(function()
+            while active do
+                for _, macroId in ipairs(macroIds) do
+                    TDX:Ability(macroId, slot, false)
+                    task.wait(0.1)
+                end
+                task.wait(0.5)
+            end
+        end)
+        return function() active = false end
+    else
+        for _, macroId in ipairs(macroIds) do
+            TDX:Ability(macroId, slot, false)
+            task.wait(0.1)
+        end
+    end
+end
+
 local function startCoinCollector()
     task.spawn(function()
         local remote = nil
