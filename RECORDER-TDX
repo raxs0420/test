@@ -1,6 +1,5 @@
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TowersFolder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Towers")
 
 if not TowersFolder then
@@ -65,10 +64,11 @@ logLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 local recording = false
 local actions = {}
-local nextOutputId = 1
-local serverIdToOutputId = {}      -- Current server ID → output ID (for active towers)
-local soldMacroToNewOutput = {}    -- Sold macro ID → new output ID (LIFO)
-local soldMacroQueue = {}          -- LIFO queue of sold macro IDs
+local nextMacroId = 1
+local nextRealId = 1
+local freeRealIds = {}         
+local realIdToMacroId = {}
+local macroIdToRealId = {}     
 local pendingUpgrade = nil
 
 local function getTowerCost(towerName)
@@ -111,6 +111,20 @@ local function getUpgradeCostForPath(path)
     return 0
 end
 
+local function allocateRealId()
+    if #freeRealIds > 0 then
+        return table.remove(freeRealIds)  
+    else
+        local id = nextRealId
+        nextRealId = nextRealId + 1
+        return id
+    end
+end
+
+local function freeRealId(id)
+    table.insert(freeRealIds, id)  
+end
+
 local function addLog(msg, color)
     local label = Instance.new("TextLabel", logBox)
     label.Size = UDim2.new(1, -10, 0, 14)
@@ -133,7 +147,7 @@ local function monitorUpgrades()
             if pendingUpgrade then
                 local cost = getUpgradeCostForPath(pendingUpgrade.path)
                 if cost > 0 then
-                    local cmd = string.format('TDX:Upgrade(%d, %d, 1, %d)', pendingUpgrade.outputId, pendingUpgrade.path, cost)
+                    local cmd = string.format('TDX:Upgrade(%d, %d, 1, %d)', pendingUpgrade.macroId, pendingUpgrade.path, cost)
                     table.insert(actions, cmd)
                     addLog(cmd, Color3.fromRGB(150, 255, 150))
                     pendingUpgrade = nil
@@ -143,116 +157,81 @@ local function monitorUpgrades()
     end)
 end
 
--- Detect towers being placed
 if TowersFolder then
     TowersFolder.ChildAdded:Connect(function(part)
         if not recording then return end
         if not part:IsA("BasePart") then return end
         task.wait(0.05)
         if not part.Parent then return end
-        
+
         local name = part.Name
         local pos = part.Position
-        
-        local serverId = nil
-        local children = TowersFolder:GetChildren()
-        for idx, p in ipairs(children) do
-            if p == part then
-                serverId = idx
-                break
-            end
-        end
-        
-        if not serverId then return end
-        
-        local outputId = nextOutputId
-        nextOutputId = nextOutputId + 1
-        
-        -- Update direct mapping
-        serverIdToOutputId[serverId] = outputId
-        
-        -- Map sold macro to new output (LIFO)
-        if #soldMacroQueue > 0 then
-            local soldMacroId = table.remove(soldMacroQueue, #soldMacroQueue)
-            soldMacroToNewOutput[soldMacroId] = outputId
-            addLog(string.format("  → MAPPING: Sold Macro %d → New Output %d (via Server ID %d)", soldMacroId, outputId, serverId), Color3.fromRGB(100, 255, 200))
-        end
-        
+
+        local realId = allocateRealId()
+
+        local macroId = nextMacroId
+        nextMacroId = nextMacroId + 1
+
+        realIdToMacroId[realId] = macroId
+        macroIdToRealId[macroId] = realId
+
         local cost = getTowerCost(name)
-        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d, %d)', name, pos.X, pos.Y, pos.Z, cost, outputId)
+        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d, %d)', name, pos.X, pos.Y, pos.Z, cost, macroId)
         table.insert(actions, cmd)
         addLog(cmd, Color3.fromRGB(100, 255, 100))
-        addLog(string.format("  → Server ID: %d → Output ID: %d", serverId, outputId), Color3.fromRGB(150, 150, 150))
+        addLog(string.format("  → Real ID: %d → Macro ID: %d", realId, macroId), Color3.fromRGB(150, 150, 150))
     end)
 end
 
--- Hook for upgrade and sell detection
 local oldNamecall
 oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local method = getnamecallmethod()
     local args = {...}
-    
+
     if recording and (method == "FireServer" or method == "InvokeServer") then
         if self.Name == "TowerUpgradeRequest" then
-            local serverId = args[1]
+            local realId = args[1]
             local path = args[2] or 1
-            local level = args[3] or 1
-            
-            local outputId = nil
-            
-            if soldMacroToNewOutput[serverId] then
-                outputId = soldMacroToNewOutput[serverId]
-                addLog(string.format("  → CONVERTED: Sold Macro %d → New Output %d", serverId, outputId), Color3.fromRGB(255, 255, 100))
-            else
-                -- Otherwise use direct server mapping
-                outputId = serverIdToOutputId[serverId]
+            local macroId = realIdToMacroId[realId]
+            if macroId then
+                pendingUpgrade = {macroId = macroId, path = path}
             end
-            
-            if outputId then
-                pendingUpgrade = {outputId = outputId, path = path, level = level}
-                addLog(string.format("  → Upgrade: Server ID %d → Output ID %d", serverId, outputId), Color3.fromRGB(200, 200, 200))
-            else
-                addLog(string.format("  → Upgrade: Server ID %d has no mapping!", serverId), Color3.fromRGB(255, 100, 100))
-            end
-            
+
         elseif self.Name == "SellTower" then
-            local serverId = args[1]
-            local outputId = serverIdToOutputId[serverId]
-            
-            if outputId then
-                local cmd = string.format('TDX:Sell(%d)', outputId)
+            local realId = args[1]
+            local macroId = realIdToMacroId[realId]
+            if macroId then
+                local cmd = string.format('TDX:Sell(%d)', macroId)
                 table.insert(actions, cmd)
                 addLog(cmd, Color3.fromRGB(255, 150, 100))
-                addLog(string.format("  → Sold: Server ID %d (Output ID %d)", serverId, outputId), Color3.fromRGB(200, 200, 200))
-                
-                -- Remove direct mapping for this server ID
-                serverIdToOutputId[serverId] = nil
-                
-                -- Add to sold macro queue (LIFO)
-                table.insert(soldMacroQueue, outputId)
+                freeRealId(realId)
+                realIdToMacroId[realId] = nil
+                macroIdToRealId[macroId] = nil
             end
         end
     end
-    
+
     return oldNamecall(self, ...)
 end)
 
 local function generateScript()
     local towerNames = {}
-    local addedTowers = {}
-    
     for _, cmd in ipairs(actions) do
         local name = string.match(cmd, 'TDX:Place%"([^"]+)"')
-        if name and not addedTowers[name] then
-            addedTowers[name] = true
-            table.insert(towerNames, string.format('"%s"', name))
+        if name and not towerNames[name] then
+            towerNames[name] = true
         end
+    end
+
+    local towerList = {}
+    for name in pairs(towerNames) do
+        table.insert(towerList, string.format('"%s"', name))
     end
 
     local lines = {
         "local TDX = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/tdx%20test\"))()",
         "",
-        string.format("TDX:Equip({%s})", table.concat(towerNames, ", ")),
+        string.format("TDX:Equip({%s})", table.concat(towerList, ", ")),
         "TDX:TimeScale(1.5)",
         "",
         "",
@@ -267,16 +246,16 @@ end
 local function startRecording()
     recording = true
     actions = {}
-    nextOutputId = 1
-    serverIdToOutputId = {}
-    soldMacroToNewOutput = {}
-    soldMacroQueue = {}
+    nextMacroId = 1
+    nextRealId = 1
+    freeRealIds = {}
+    realIdToMacroId = {}
+    macroIdToRealId = {}
     pendingUpgrade = nil
     recordBtn.Text = "STOP RECORDING"
     recordBtn.BackgroundColor3 = Color3.fromRGB(231,76,60)
     addLog("=== RECORDING STARTED ===", Color3.fromRGB(100, 255, 100))
-    addLog("Output IDs are SEQUENTIAL (1,2,3,4,5...)", Color3.fromRGB(255, 200, 100))
-    addLog("Sold Macro IDs mapped LIFO → new Output IDs", Color3.fromRGB(255, 200, 100))
+    addLog("Macro IDs are SEQUENTIAL (1,2,3...)", Color3.fromRGB(255, 200, 100))
     monitorUpgrades()
 end
 
@@ -286,7 +265,7 @@ local function stopRecording()
     recordBtn.BackgroundColor3 = Color3.fromRGB(46,204,113)
     if #actions > 0 then
         addLog(string.format("=== RECORDING STOPPED - %d actions ===", #actions), Color3.fromRGB(100, 255, 100))
-        addLog(string.format("Output IDs used: 1 through %d", nextOutputId - 1), Color3.fromRGB(255, 200, 100))
+        addLog(string.format("Macro IDs used: 1 through %d", nextMacroId - 1), Color3.fromRGB(255, 200, 100))
     else
         addLog("=== RECORDING STOPPED - No actions ===", Color3.fromRGB(255, 200, 100))
     end
