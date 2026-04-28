@@ -13,7 +13,6 @@ local partToId = {}
 local nextId = 1
 local freeIds = {}
 local expectedIdToActualId = {}
-local actualIdToMacroId = {}
 local pendingMacroQueue = {}
 
 local function ensureRemotes()
@@ -57,7 +56,22 @@ local function isDeadColor(color)
     return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
 end
 
-local function allocateId()
+-- Modified: allocateId now respects expectedMacroId directly
+local function allocateId(expectedId)
+    if expectedId then
+        -- If the expected ID is not already in use, use it directly
+        if not towers[expectedId] then
+            -- Remove from freeIds if present
+            for i, fid in ipairs(freeIds) do
+                if fid == expectedId then
+                    table.remove(freeIds, i)
+                    break
+                end
+            end
+            return expectedId
+        end
+    end
+    -- Fallback to normal allocation
     if #freeIds > 0 then
         return table.remove(freeIds, #freeIds)
     else
@@ -74,11 +88,6 @@ local function freeId(id)
             if towers[id].part then
                 partToId[towers[id].part] = nil
             end
-            local macroId = actualIdToMacroId[id]
-            if macroId then
-                expectedIdToActualId[macroId] = nil
-                actualIdToMacroId[id] = nil
-            end
             towers[id] = nil
         end
     end
@@ -89,7 +98,7 @@ local function addTower(part, expectedMacroId)
     local beamColor = getTowerBeamColor(part)
     if beamColor and isDeadColor(beamColor) then return end
 
-    local actualId = allocateId()
+    local actualId = allocateId(expectedMacroId)
     partToId[part] = actualId
 
     towers[actualId] = {
@@ -102,7 +111,6 @@ local function addTower(part, expectedMacroId)
 
     if expectedMacroId then
         expectedIdToActualId[expectedMacroId] = actualId
-        actualIdToMacroId[actualId] = expectedMacroId
         print(string.format("[TDX] ✓ Macro %d → Actual ID %d (%s)", expectedMacroId, actualId, part.Name))
     else
         print(string.format("[TDX] ✓ Tower %s → Actual ID %d", part.Name, actualId))
@@ -241,7 +249,7 @@ function TDX:Upgrade(macroId, path, level, cost)
         remote:FireServer(serverID, path, level)
     end)
 
-    print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d | (Server ID: %d)", macroId, path, level, serverID))
+    print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d (Actual ID: %d, Server ID: %d)", macroId, path, level, actualId, serverID))
     task.wait(0.05)
     return true
 end
@@ -278,13 +286,14 @@ function TDX:Sell(macroId)
         local remote = getRemote("SellTower")
         if remote then
             pcall(function() remote:FireServer(serverID) end)
-            print(string.format("[TDX] 💰 Sold Macro %d (Server ID: %d)", macroId, serverID))
+            print(string.format("[TDX] 💰 Sold Macro %d (Actual ID: %d, Server ID: %d)", macroId, actualId, serverID))
         end
     end
 
     return true
 end
 
+-- All other functions (Ability, TimeScale, etc.) remain unchanged
 function TDX:Ability(macroId, slot, loop)
     if loop then
         task.spawn(function()
@@ -451,7 +460,6 @@ function TDX:ResetMappings()
     freeIds = {}
     partToId = {}
     expectedIdToActualId = {}
-    actualIdToMacroId = {}
     pendingMacroQueue = {}
     for id in pairs(towers) do
         towers[id] = nil
