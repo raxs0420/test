@@ -13,6 +13,7 @@ local partToId = {}
 local nextId = 1
 local freeIds = {}
 local expectedIdToActualId = {}
+local actualIdToMacroId = {} -- reverse mapping for cleanup
 local pendingMacroQueue = {}
 
 local function ensureRemotes()
@@ -73,6 +74,12 @@ local function freeId(id)
             if towers[id].part then
                 partToId[towers[id].part] = nil
             end
+            -- Clear macro mapping for this actual ID
+            local macroId = actualIdToMacroId[id]
+            if macroId then
+                expectedIdToActualId[macroId] = nil
+                actualIdToMacroId[id] = nil
+            end
             towers[id] = nil
         end
     end
@@ -96,6 +103,7 @@ local function addTower(part, expectedMacroId)
 
     if expectedMacroId then
         expectedIdToActualId[expectedMacroId] = actualId
+        actualIdToMacroId[actualId] = expectedMacroId
         print(string.format("[TDX] ✓ Macro %d → Actual ID %d (%s)", expectedMacroId, actualId, part.Name))
     else
         print(string.format("[TDX] ✓ Tower %s → Actual ID %d", part.Name, actualId))
@@ -444,6 +452,7 @@ function TDX:ResetMappings()
     freeIds = {}
     partToId = {}
     expectedIdToActualId = {}
+    actualIdToMacroId = {}
     pendingMacroQueue = {}
     for id in pairs(towers) do
         towers[id] = nil
