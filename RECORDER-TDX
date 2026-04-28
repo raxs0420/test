@@ -65,8 +65,8 @@ logLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
 local recording = false
 local actions = {}
-local nextId = 1
-local towerPositions = {}
+local nextMacroId = 1
+local towerMacroIds = {}  -- Maps game ID to macro ID
 local lastUpgradeTime = 0
 local pendingUpgrade = nil
 
@@ -133,7 +133,8 @@ local function monitorUpgrades()
             if pendingUpgrade then
                 local cost = getUpgradeCostForPath(pendingUpgrade.path)
                 if cost > 0 and currentTime - lastUpgradeTime > 0.05 then
-                    local cmd = string.format('TDX:Upgrade(%d, %d, 1, %d)', pendingUpgrade.id, pendingUpgrade.path, cost)
+                    -- Use MACRO ID, not game ID
+                    local cmd = string.format('TDX:Upgrade(%d, %d, 1, %d)', pendingUpgrade.macroId, pendingUpgrade.path, cost)
                     table.insert(actions, cmd)
                     addLog(cmd, Color3.fromRGB(150, 255, 150))
                     pendingUpgrade = nil
@@ -151,11 +152,28 @@ if TowersFolder then
         task.wait(0.05)
         local name = part.Name
         local pos = part.Position
-        local id = nextId
-        nextId = nextId + 1
-        towerPositions[id] = {x = pos.X, y = pos.Y, z = pos.Z, name = name, id = id}
+        
+        -- Assign macro ID sequentially
+        local macroId = nextMacroId
+        nextMacroId = nextMacroId + 1
+        
+        -- Store mapping from game ID to macro ID
+        -- We need to get the game ID from the tower's position in the folder
+        local gameId = nil
+        local children = TowersFolder:GetChildren()
+        for idx, p in ipairs(children) do
+            if p == part then
+                gameId = idx
+                break
+            end
+        end
+        
+        if gameId then
+            towerMacroIds[gameId] = macroId
+        end
+        
         local cost = getTowerCost(name)
-        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d, %d)', name, pos.X, pos.Y, pos.Z, cost, id)
+        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d, %d)', name, pos.X, pos.Y, pos.Z, cost, macroId)
         table.insert(actions, cmd)
         addLog(cmd, Color3.fromRGB(100, 255, 100))
     end)
@@ -167,17 +185,24 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
     local args = {...}
     if recording and (method == "FireServer" or method == "InvokeServer") then
         if self.Name == "TowerUpgradeRequest" then
-            local id = args[1]
+            local gameId = args[1]
             local path = args[2] or 1
             local level = args[3] or 1
-            if towerPositions[id] then
-                pendingUpgrade = {id = id, path = path, level = level}
+            
+            -- Convert game ID to macro ID
+            local macroId = towerMacroIds[gameId]
+            if macroId then
+                pendingUpgrade = {macroId = macroId, path = path, level = level}
             end
+            
         elseif self.Name == "SellTower" then
-            local id = args[1]
-            local cmd = string.format('TDX:Sell(%d)', id)
-            table.insert(actions, cmd)
-            addLog(cmd, Color3.fromRGB(255, 150, 100))
+            local gameId = args[1]
+            local macroId = towerMacroIds[gameId]
+            if macroId then
+                local cmd = string.format('TDX:Sell(%d)', macroId)
+                table.insert(actions, cmd)
+                addLog(cmd, Color3.fromRGB(255, 150, 100))
+            end
         end
     end
     return oldNamecall(self, ...)
@@ -186,10 +211,13 @@ end)
 local function generateScript()
     local towerList = {}
     local addedTowers = {}
-    for id, data in pairs(towerPositions) do
-        if data.name and not addedTowers[data.name] then
-            addedTowers[data.name] = true
-            table.insert(towerList, string.format('"%s"', data.name))
+    
+    -- Get unique tower names from recorded actions
+    for _, cmd in ipairs(actions) do
+        local name = string.match(cmd, 'TDX:Place%"([^"]+)"')
+        if name and not addedTowers[name] then
+            addedTowers[name] = true
+            table.insert(towerList, string.format('"%s"', name))
         end
     end
 
@@ -211,13 +239,13 @@ end
 local function startRecording()
     recording = true
     actions = {}
-    nextId = 1
-    towerPositions = {}
+    nextMacroId = 1
+    towerMacroIds = {}
     pendingUpgrade = nil
     lastUpgradeTime = 0
     recordBtn.Text = "STOP RECORDING"
     recordBtn.BackgroundColor3 = Color3.fromRGB(231,76,60)
-    addLog("=== RECORDING STARTED ===", Color3.fromRGB(100, 255, 100))
+    addLog("=== RECORDING STARTED (using Macro IDs) ===", Color3.fromRGB(100, 255, 100))
     monitorUpgrades()
 end
 
