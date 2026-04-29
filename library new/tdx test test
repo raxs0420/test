@@ -296,20 +296,46 @@ end)
 
 -- Public API ----------------------------------------------------------------
 
+local upgradeQueue = {}
+local isProcessing = false
+
 function TDX:TowerUpgrade(TowerName, Skill)
-	while true do
-		local success, result = pcall(function()
-			return game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest"):InvokeServer(TowerName, Skill)
-		end)
-		
-		if success and result == true then
-			return true
-		end
-		
-		-- Wait 0.5 seconds before retrying
-		task.wait(0.5)
+	table.insert(upgradeQueue, {TowerName = TowerName, Skill = Skill})
+	
+	if not isProcessing then
+		coroutine.wrap(function()
+			isProcessing = true
+			while #upgradeQueue > 0 do
+				local upgrade = table.remove(upgradeQueue, 1)
+				local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
+				
+				local success = false
+				while not success do
+					local result = pcall(function()
+						return remote:InvokeServer(upgrade.TowerName, upgrade.Skill)
+					end)
+					
+					if result and result == true then
+						success = true
+						print("Upgraded:", upgrade.TowerName, upgrade.Skill)
+					else
+						task.wait(1)
+					end
+				end
+				task.wait(0.1)
+			end
+			isProcessing = false
+		end)()
 	end
 end
+
+-- Now you can call them sequentially without waiting
+TDX:TowerUpgrade("Sniper", "Pierce")
+TDX:TowerUpgrade("Sniper", "AbilityCooldowns")
+TDX:TowerUpgrade("Sniper", "Range")
+TDX:TowerUpgrade("Sniper", "Firerate")
+TDX:TowerUpgrade("Sniper", "Pierce")
+-- They will execute one after another automatically
 
 
 -- Usage with verification:
