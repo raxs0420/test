@@ -491,7 +491,7 @@ function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop)
                     TDX:Ability(macroId, slot, false)
                     task.wait(0.05)
                 end
-                task.wait(0.5)
+                task.wait(0.1)
             end
         end)
         return function() active = false end
