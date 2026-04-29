@@ -296,55 +296,46 @@ end)
 
 -- Public API ----------------------------------------------------------------
 
+-- Add this to your TDX library
 local upgradeQueue = {}
 local isProcessing = false
 
 function TDX:TowerUpgrade(TowerName, Skill)
+	-- Add to queue
 	table.insert(upgradeQueue, {TowerName = TowerName, Skill = Skill})
 	
+	-- Start processing if not already running
 	if not isProcessing then
-		coroutine.wrap(function()
+		task.spawn(function()
 			isProcessing = true
+			
 			while #upgradeQueue > 0 do
 				local upgrade = table.remove(upgradeQueue, 1)
 				local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
 				
-				local success = false
-				while not success do
-					local result = pcall(function()
+				-- Keep trying this specific upgrade until it works
+				local upgraded = false
+				while not upgraded do
+					local success, result = pcall(function()
 						return remote:InvokeServer(upgrade.TowerName, upgrade.Skill)
 					end)
 					
-					if result and result == true then
-						success = true
-						print("Upgraded:", upgrade.TowerName, upgrade.Skill)
+					if success and result == true then
+						upgraded = true
+						print(string.format("[TDX] Upgraded %s: %s", upgrade.TowerName, upgrade.Skill))
 					else
-						task.wait(1)
+						task.wait(0.5) -- Wait before retrying
 					end
 				end
-				task.wait(0.1)
+				
+				task.wait(0.1) -- Small delay between different upgrades
 			end
+			
 			isProcessing = false
-		end)()
+		end)
 	end
 end
 
--- Now you can call them sequentially without waiting
-TDX:TowerUpgrade("Sniper", "Pierce")
-TDX:TowerUpgrade("Sniper", "AbilityCooldowns")
-TDX:TowerUpgrade("Sniper", "Range")
-TDX:TowerUpgrade("Sniper", "Firerate")
-TDX:TowerUpgrade("Sniper", "Pierce")
--- They will execute one after another automatically
-
-
--- Usage with verification:
-local response = TDX:TowerUpgrade("Sniper", "Pierce")
-if response == true then
-	print("Upgrade successful!")
-else
-	print("Upgrade failed:", response)
-end
 
 function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local remote = getRemote("PlaceTower")
