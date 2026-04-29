@@ -297,24 +297,20 @@ end)
 -- Public API ----------------------------------------------------------------
 
 function TDX:TowerUpgrade(TowerName, Skill)
-	local success, result = pcall(function()
-		return game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest"):InvokeServer(TowerName, Skill)
-	end)
-	
-	if not success then
-		error("TowerUpgrade failed to invoke: " .. tostring(result), 2)
+	while true do
+		local success, result = pcall(function()
+			return game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest"):InvokeServer(TowerName, Skill)
+		end)
+		
+		if success and result == true then
+			return true
+		end
+		
+		-- Wait 0.5 seconds before retrying
+		task.wait(0.5)
 	end
-	
-	-- result contains whatever the server returned
-	-- This could be:
-	-- - true/false (success/failure)
-	-- - An error message string
-	-- - A status code/table
-	-- You'll need to check what the server actually returns
-	
-	print("Server response:", result)
-	return result
 end
+
 
 -- Usage with verification:
 local response = TDX:TowerUpgrade("Sniper", "Pierce")
