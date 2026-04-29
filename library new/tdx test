@@ -337,6 +337,43 @@ function TDX:Ability(macroId, slot, loop)
     end
 end
 
+local upgradeQueue = {}
+local isProcessing = false
+
+function TDX:TowerUpgrade(TowerName, Skill)
+         
+    table.insert(upgradeQueue, {TowerName = TowerName, Skill = Skill})
+
+    if not isProcessing then
+    task.spawn(function()
+    isProcessing = true
+
+    while #upgradeQueue > 0 do
+    local upgrade = table.remove(upgradeQueue, 1)
+    local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
+
+        local upgraded = false
+        while not upgraded do
+        local success, result = pcall(function()
+        return remote:InvokeServer(upgrade.TowerName, upgrade.Skill)
+    end)
+
+        if success and result == true then
+        upgraded = true
+        print(string.format("[TDX] Upgraded %s: %s", upgrade.TowerName, upgrade.Skill))
+        else
+        task.wait(0.5) -- Wait before retrying
+        end
+    end
+
+        task.wait(0.1) -- Small delay between different upgrades
+    end
+
+        isProcessing = false
+    end)
+    end
+end
+
 function TDX:TimeScale(speed)
     if speed == CurrentSpeed then return true end
     local remote = getRemote("SoloToggleSpeedControl")
