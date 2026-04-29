@@ -49,7 +49,10 @@ function TDX:JoinMapViaAPC(mapName)
     local level = 0
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
-    for _ = 1, 60 do
+    
+    local startTime = tick()
+    
+    while tick() - startTime < 2 do
         local apcs = Workspace:FindFirstChild("APCs")
         if apcs then
             for _, slot in ipairs(apcs:GetChildren()) do
@@ -70,6 +73,7 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
+        
         if level >= 31 then
             local apcs2 = Workspace:FindFirstChild("APCs2")
             if apcs2 then
@@ -92,8 +96,10 @@ function TDX:JoinMapViaAPC(mapName)
                 end
             end
         end
-        task.wait(0.5)
+        
+        task.wait()
     end
+    
     return false
 end
 
