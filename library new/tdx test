@@ -215,7 +215,7 @@ function TDX:Upgrade(macroId, path, level, cost)
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then return false end
 
-    while getCash() < cost do
+    while getCash() < cost * 1.05 do
         task.wait(0.05)
     end
     task.wait(0.25)
