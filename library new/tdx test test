@@ -6,18 +6,21 @@ local RunService = game:GetService("RunService")
 
 local Remotes = nil
 local CurrentSpeed = 1
-local AbilityConnections = {}
 
-local towers = {}
-local partToId = {}
+-- Core mappings
+local towers = {}          -- [actualId] = {part, name, macroId, position}
+local partToId = {}        -- [part] = actualId
+local expectedIdToActualId = {}  -- macroId -> actualId
+local actualIdToMacroId = {}     -- actualId -> macroId
+
+-- ID allocation
 local nextId = 1
 local freeIds = {}
-local expectedIdToActualId = {}
-local actualIdToMacroId = {}
 
--- New: position-based pending placements instead of a FIFO queue
-local pendingPlacements = {} -- { [expectedId] = { pos = Vector3, time = os.time() } }
+-- Position-based pending placements (instead of FIFO queue)
+local pendingPlacements = {}   -- [expectedId] = {pos = Vector3, time = number}
 
+-- Helper functions
 local function ensureRemotes()
     if Remotes then return Remotes end
     Remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -59,6 +62,12 @@ local function isDeadColor(color)
     return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
 end
 
+local function isPartAlive(part)
+    if not part or not part.Parent then return false end
+    local color = getTowerBeamColor(part)
+    return color and not isDeadColor(color)
+end
+
 local function allocateId()
     if #freeIds > 0 then
         return table.remove(freeIds, #freeIds)
@@ -70,38 +79,45 @@ local function allocateId()
 end
 
 local function freeId(id)
-    if id and id > 0 then
-        table.insert(freeIds, id)
-        if towers[id] then
-            if towers[id].part then
-                partToId[towers[id].part] = nil
-            end
-            local macroId = actualIdToMacroId[id]
-            if macroId then
-                expectedIdToActualId[macroId] = nil
-                actualIdToMacroId[id] = nil
-            end
-            towers[id] = nil
-        end
+    if not id or id == 0 then return end
+    table.insert(freeIds, id)
+    local data = towers[id]
+    if data and data.part then
+        partToId[data.part] = nil
     end
+    local macroId = actualIdToMacroId[id]
+    if macroId then
+        expectedIdToActualId[macroId] = nil
+        actualIdToMacroId[id] = nil
+    end
+    towers[id] = nil
 end
 
+-- Match a pending placement by position (within 5 studs)
+local function matchPendingPlacement(pos)
+    local bestId = nil
+    local bestDist = 5
+    for expectedId, data in pairs(pendingPlacements) do
+        local dist = (pos - data.pos).Magnitude
+        if dist < bestDist then
+            bestDist = dist
+            bestId = expectedId
+        end
+    end
+    return bestId
+end
+
+-- Add a new tower mapping (called only when part is alive and not mapped)
 local function addTower(part, expectedMacroId)
     if partToId[part] then return end
-    local beamColor = getTowerBeamColor(part)
-    if beamColor and isDeadColor(beamColor) then return end
-
     local actualId = allocateId()
     partToId[part] = actualId
-
     towers[actualId] = {
         part = part,
         name = part.Name,
-        alive = true,
         position = part.Position,
         macroId = expectedMacroId
     }
-
     if expectedMacroId then
         expectedIdToActualId[expectedMacroId] = actualId
         actualIdToMacroId[actualId] = expectedMacroId
@@ -111,144 +127,111 @@ local function addTower(part, expectedMacroId)
     end
 end
 
-local function checkDeadTowers()
-    for part, id in pairs(partToId) do
-        local data = towers[id]
-        if data then
-            if not part.Parent then
-                if data.macroId then
-                    print(string.format("[TDX] 💀 Macro %d (Actual %d) died", data.macroId, id))
-                end
-                freeId(id)
-                partToId[part] = nil
-            else
-                local color = getTowerBeamColor(part)
-                if color and isDeadColor(color) then
-                    if data.macroId then
-                        print(string.format("[TDX] 💀 Macro %d (Actual %d) died", data.macroId, id))
-                    end
-                    freeId(id)
-                    partToId[part] = nil
-                end
-            end
-        end
+-- Remove a tower mapping (called when part becomes dead or removed)
+local function removeTower(part, reason)
+    local actualId = partToId[part]
+    if not actualId then return end
+    local macroId = actualIdToMacroId[actualId]
+    if macroId then
+        print(string.format("[TDX] 💀 Macro %d (Actual %d) %s", macroId, actualId, reason or "died"))
     end
+    freeId(actualId)
+    partToId[part] = nil
 end
 
--- Cleanup old pending placements (e.g., tower never appeared)
+-- Clean up stale pending placements (tower never appeared)
 local function cleanupPendingPlacements()
     local now = os.time()
     for expectedId, data in pairs(pendingPlacements) do
         if now - data.time > 5 then
             pendingPlacements[expectedId] = nil
-            print(string.format("[TDX] ⏰ Pending macro %d timed out (tower never appeared)", expectedId))
+            print(string.format("[TDX] ⏰ Pending macro %d timed out", expectedId))
         end
     end
 end
 
-local function matchPendingPlacement(partPos)
-    local bestId = nil
-    local bestDist = 5 -- studs threshold
-    for expectedId, data in pairs(pendingPlacements) do
-        local dist = (partPos - data.pos).Magnitude
-        if dist < bestDist then
-            bestDist = dist
-            bestId = expectedId
+-- Sync all towers: check each part's alive status and update mappings
+local function syncAllTowers()
+    local towersFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
+    if not towersFolder then return end
+
+    -- First, collect parts that are currently alive
+    local aliveParts = {}
+    for _, part in ipairs(towersFolder:GetChildren()) do
+        if part:IsA("BasePart") and isPartAlive(part) then
+            aliveParts[part] = true
         end
     end
-    return bestId
-end
 
-local function onTowerAdded(part)
-    if not part:IsA("BasePart") then return end
-    if partToId[part] then return end
-    task.wait(0.01)
-    if not part.Parent then return end
-
-    local expectedId = matchPendingPlacement(part.Position)
-    if expectedId then
-        -- Remove from pending table
-        pendingPlacements[expectedId] = nil
-        addTower(part, expectedId)
-    else
-        -- No pending placement matches – treat as an unknown tower (e.g., auto-placed)
-        addTower(part, nil)
-    end
-end
-
-local function onTowerRemoved(part)
-    local id = partToId[part]
-    if not id then return end
-    freeId(id)
-    partToId[part] = nil
-end
-
-local TowersFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
-if not TowersFolder then
-    TowersFolder = Instance.new("Folder")
-end
-
-if TowersFolder then
-    TowersFolder.ChildAdded:Connect(onTowerAdded)
-    TowersFolder.ChildRemoved:Connect(onTowerRemoved)
-end
-
-RunService.Heartbeat:Connect(function()
-    if not TowersFolder then return end
-    -- Add any newly appeared towers that were missed
-    for _, part in ipairs(TowersFolder:GetChildren()) do
-        if part:IsA("BasePart") and not partToId[part] then
-            onTowerAdded(part)
+    -- Remove mappings for parts that are no longer alive (dead or gone)
+    for part, actualId in pairs(partToId) do
+        if not aliveParts[part] then
+            removeTower(part, "died (beam dark)")
         end
     end
-    checkDeadTowers()
-    cleanupPendingPlacements() -- remove stale pending placements
-end)
 
--- Main placement function – stores pending macro ID together with position
+    -- Add mappings for alive parts that are not yet mapped
+    for part, _ in pairs(aliveParts) do
+        if not partToId[part] then
+            -- Find if there is a pending placement matching this position
+            local expectedId = matchPendingPlacement(part.Position)
+            if expectedId then
+                pendingPlacements[expectedId] = nil
+                addTower(part, expectedId)
+            else
+                addTower(part, nil)  -- unknown tower
+            end
+        end
+    end
+
+    cleanupPendingPlacements()
+end
+
+-- Periodically sync (every heartbeat)
+RunService.Heartbeat:Connect(syncAllTowers)
+
+-- Public API ----------------------------------------------------------------
+
 function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
 
     local pos = Vector3.new(x, y, z)
-
     print(string.format("[TDX] Placing %s (Macro ID: %s)", name, expectedId or "auto"))
 
     while getCash() < cost do
         task.wait(0.01)
     end
     task.wait(0.01)
+
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
+
     if ok and res == true then
         if expectedId then
-            -- Store the expected ID together with the position and timestamp
+            -- Store pending placement by position (not queue)
             pendingPlacements[expectedId] = {
                 pos = pos,
                 time = os.time()
             }
         end
         print(string.format("[TDX] ✓ %s placed", name))
-        task.wait(0.3)
+        task.wait(0.3) -- allow time for tower to appear
         return true
     end
-
     return false
 end
 
--- All other functions remain exactly the same (Upgrade, Sell, Ability, etc.)
 function TDX:Upgrade(macroId, path, level, cost)
     local actualId = expectedIdToActualId[macroId]
-    local data = towers[actualId]
-
-    if not data or not data.alive then
+    if not actualId then
         print(string.format("[TDX] ⏳ Macro %d not found - skipping", macroId))
         return false
     end
-
-    local part = data.part
-    if not part or not part.Parent then
+    local data = towers[actualId]
+    if not data or not data.part or not isPartAlive(data.part) then
+        print(string.format("[TDX] ⏳ Macro %d tower is dead - skipping", macroId))
         return false
     end
 
@@ -270,15 +253,13 @@ end
 
 function TDX:Sell(macroId)
     local actualId = expectedIdToActualId[macroId]
-    local data = towers[actualId]
-
-    if not data or not data.alive then
+    if not actualId then
         print(string.format("[TDX] ⚠️ Macro %d not found - cannot sell", macroId))
         return false
     end
-
-    local part = data.part
-    if not part or not part.Parent then
+    local data = towers[actualId]
+    if not data or not data.part or not isPartAlive(data.part) then
+        print(string.format("[TDX] ⚠️ Macro %d tower is dead - cannot sell", macroId))
         return false
     end
 
@@ -288,7 +269,6 @@ function TDX:Sell(macroId)
         pcall(function() remote:FireServer(actualId) end)
         print(string.format("[TDX] 💰 Sold Macro %d (Actual ID: %d)", macroId, actualId))
     end
-
     return true
 end
 
@@ -305,6 +285,8 @@ function TDX:Ability(macroId, slot, loop)
 
     local actualId = expectedIdToActualId[macroId]
     if not actualId then return end
+    local data = towers[actualId]
+    if not data or not data.part or not isPartAlive(data.part) then return end
 
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
     if remote then
@@ -439,46 +421,14 @@ function TDX:ResetMappings()
     partToId = {}
     expectedIdToActualId = {}
     actualIdToMacroId = {}
-    pendingPlacements = {} -- clear pending placements too
+    pendingPlacements = {}
     for id in pairs(towers) do
         towers[id] = nil
     end
 end
 
--- Ability spam helpers (unchanged)
-local function getTowerIdsByPartialName(partialName)
-    local ids = {}
-    local lowerPartial = partialName:lower()
-    local towersFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
-    if not towersFolder then return ids end
-
-    for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") then
-            local towerName = part.Name:lower()
-            if towerName:find(lowerPartial, 1, true) then
-                local id = partToId[part]
-                if not id then
-                    id = allocateId()
-                    partToId[part] = id
-                    towers[id] = {
-                        part = part,
-                        name = part.Name,
-                        alive = true,
-                        position = part.Position,
-                        macroId = nil
-                    }
-                end
-                table.insert(ids, id)
-            end
-        end
-    end
-    return ids
-end
-
 function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop, cycleDelay)
     cycleDelay = cycleDelay or 1
-    print("[DEBUG] AbilitySpamRange called:", startMacroId, endMacroId, slot, loop, cycleDelay)
-
     if loop then
         local active = true
         task.spawn(function()
@@ -498,7 +448,6 @@ function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop, cycleDelay)
 end
 
 function TDX:AbilitySpamList(macroIds, slot, loop)
-    print("[DEBUG] AbilitySpamList called")
     if loop then
         local active = true
         task.spawn(function()
