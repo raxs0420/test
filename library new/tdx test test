@@ -296,6 +296,10 @@ end)
 
 -- Public API ----------------------------------------------------------------
 
+function TDX:TowerUpgrade(TowerName, Skill)
+	return game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest"):InvokeServer(TowerName, Skill)
+end
+
 function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
