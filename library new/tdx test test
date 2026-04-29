@@ -16,16 +16,15 @@ local actualIdToMacroId = {}
 local nextId = 1
 local freeIds = {}
 local pendingPlacements = {}
-local upgradeRetryQueue = {} -- [macroId] = {path, level, cost, retries}
+local upgradeRetryQueue = {}
 
-local MATCH_TOLERANCE = 0.4 -- even tighter for tiny towers
+local MATCH_TOLERANCE = 0.4
 local PENDING_TIMEOUT = 8
+local gameOverTriggered = false -- Prevent multiple teleports
 
 -- Cache frequently accessed objects
 local player = Players.LocalPlayer
 local towersFolder = nil
-local lastSyncTime = 0
-local SYNC_INTERVAL = 1/120 -- ~120 times per second (faster than Heartbeat)
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -69,7 +68,6 @@ end
 
 local function isPartAlive(part)
     if not part or not part.Parent then return false end
-    -- Check beam color directly without caching (freshest data)
     local ring = part:FindFirstChild("Ring")
     if not ring then return false end
     local beam = ring:FindFirstChildWhichIsA("Beam")
@@ -185,7 +183,6 @@ local function cleanupPendingPlacements()
     end
 end
 
--- Process upgrade retry queue
 local function processUpgradeRetries()
     for macroId, data in pairs(upgradeRetryQueue) do
         if data.retries > 0 then
@@ -213,14 +210,12 @@ local function processUpgradeRetries()
     end
 end
 
--- Ultra-fast sync using Stepped (called before each frame render)
 local function syncAllTowers()
     if not towersFolder then
         towersFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
         if not towersFolder then return end
     end
 
-    -- Fast scan: collect alive parts in one pass
     local aliveParts = {}
     local children = towersFolder:GetChildren()
     for i = 1, #children do
@@ -242,14 +237,12 @@ local function syncAllTowers()
         end
     end
 
-    -- Remove dead towers
     for part, actualId in pairs(partToId) do
         if not aliveParts[part] then
             removeTower(part)
         end
     end
 
-    -- Add new towers
     for part, _ in pairs(aliveParts) do
         if not partToId[part] then
             local expectedId = matchPendingPlacement(part.Name, part.Position)
@@ -266,13 +259,14 @@ local function syncAllTowers()
     processUpgradeRetries()
 end
 
--- Use Stepped (higher frequency than Heartbeat)
 RunService.Stepped:Connect(function()
     syncAllTowers()
 end)
 
--- Game Over detection
+-- Fixed Game Over detection - checks for actual visibility
 local function checkGameOver()
+    if gameOverTriggered then return end -- Already teleporting
+    
     local playerGui = player:FindFirstChild("PlayerGui")
     if not playerGui then return end
     
@@ -283,7 +277,34 @@ local function checkGameOver()
     if not gameOverScreen then return end
     
     local main = gameOverScreen:FindFirstChild("Main")
-    if main and main.Visible then
+    if not main then return end
+    
+    -- Check if the frame is actually visible (not just exists)
+    local isVisible = false
+    if main:IsA("Frame") or main:IsA("ScreenGui") then
+        -- Check Visible property if it exists
+        if main.Visible ~= nil then
+            isVisible = main.Visible == true
+        else
+            -- If no Visible property, check if it's in the hierarchy and enabled
+            isVisible = main.Enabled ~= false and main.Parent ~= nil
+        end
+    end
+    
+    -- Also check for GameOver text or other indicators as fallback
+    local hasGameOverText = false
+    for _, child in ipairs(main:GetDescendants()) do
+        if child:IsA("TextLabel") or child:IsA("TextButton") then
+            local text = child.Text or ""
+            if text:lower():find("game over") or text:lower():find("defeat") then
+                hasGameOverText = true
+                break
+            end
+        end
+    end
+    
+    if isVisible or hasGameOverText then
+        gameOverTriggered = true
         print("[TDX] Game Over detected! Teleporting in 2 seconds...")
         task.wait(2)
         pcall(function()
@@ -292,11 +313,11 @@ local function checkGameOver()
     end
 end
 
--- Check Game Over every second
+-- Check Game Over more frequently (every 0.5 seconds)
 task.spawn(function()
     while true do
         checkGameOver()
-        task.wait(1)
+        task.wait(0.5)
     end
 end)
 
@@ -328,7 +349,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             print(string.format("[TDX] 📝 Pending macro %d for %s at (%.2f, %.2f, %.2f)", expectedId, name, x, y, z))
         end
         print(string.format("[TDX] ✓ %s placed", name))
-        task.wait(0.3)
+        task.wait(0.3) -- Back to 0.3 seconds
         return true
     end
     return false
@@ -349,7 +370,7 @@ function TDX:Upgrade(macroId, path, level, cost)
                     remote:FireServer(actualId, path, level)
                 end)
                 print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d (ID: %d)", macroId, path, level, actualId))
-                task.wait(0.3)
+                task.wait(0.3) -- Back to 0.3 seconds
                 return true
             end
         end
@@ -362,7 +383,7 @@ function TDX:Upgrade(macroId, path, level, cost)
             path = path,
             level = level,
             cost = cost,
-            retries = 5 -- will retry 5 times over ~0.5 seconds
+            retries = 5
         }
     end
     return false
@@ -382,7 +403,7 @@ function TDX:Sell(macroId)
 
     local remote = getRemote("SellTower")
     if remote then
-        task.wait(0.1)
+        task.wait(0.15)
         pcall(function() remote:FireServer(actualId) end)
         print(string.format("[TDX] 💰 Sold Macro %d (ID: %d)", macroId, actualId))
     end
