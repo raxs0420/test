@@ -362,11 +362,11 @@ function TDX:TowerUpgrade(TowerName, Skill)
         upgraded = true
         print(string.format("[TDX] Upgraded %s: %s", upgrade.TowerName, upgrade.Skill))
         else
-        task.wait(0.5) -- Wait before retrying
+        task.wait(0.5)
         end
     end
 
-        task.wait(0.1) -- Small delay between different upgrades
+        task.wait(0.1) 
     end
 
         isProcessing = false
