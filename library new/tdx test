@@ -447,24 +447,24 @@ local function useAbilityOnTower(actualId, slot)
 end
 
 
-function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop)
-    print("[DEBUG] AbilitySpamRange called:", startMacroId, endMacroId, slot, loop)
+function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop, cycleDelay)
+    cycleDelay = cycleDelay or 1
+    print("[DEBUG] AbilitySpamRange called:", startMacroId, endMacroId, slot, loop, cycleDelay)
+
     if loop then
         local active = true
         task.spawn(function()
             while active do
                 for macroId = startMacroId, endMacroId do
                     TDX:Ability(macroId, slot, false)
-                    task.wait(0.01)
                 end
-                task.wait(0.01)
+                task.wait(cycleDelay)
             end
         end)
         return function() active = false end
     else
         for macroId = startMacroId, endMacroId do
             TDX:Ability(macroId, slot, false)
-            task.wait(0.01)
         end
     end
 end
