@@ -52,7 +52,7 @@ function TDX:JoinMapViaAPC(mapName)
     
     local startTime = tick()
     
-    while tick() - startTime < 2 do
+    while tick() - startTime < 5 do
         local apcs = Workspace:FindFirstChild("APCs")
         if apcs then
             for _, slot in ipairs(apcs:GetChildren()) do
