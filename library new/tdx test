@@ -525,7 +525,7 @@ local function startCoinCollector()
                 pcall(function() remote:FireServer(numbers[idx]) end)
                 idx = idx % #numbers + 1
             end
-            task.wait(1)
+            task.wait(0.2)
         end
     end)
 end
