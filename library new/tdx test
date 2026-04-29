@@ -142,7 +142,7 @@ end
 local function onTowerAdded(part)
     if not part:IsA("BasePart") then return end
     if partToId[part] then return end
-    task.wait(0.05)
+    task.wait(0.01)
     if not part.Parent then return end
 
     local expectedId = table.remove(pendingMacroQueue, 1)
@@ -182,7 +182,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     while getCash() < cost do
         task.wait(0.01)
     end
-    task.wait(0.05)
+    task.wait(0.01)
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
@@ -191,7 +191,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             table.insert(pendingMacroQueue, expectedId)
         end
         print(string.format("[TDX] ✓ %s placed", name))
-        task.wait(0.25)
+        task.wait(0.3)
         return true
     end
 
@@ -218,13 +218,13 @@ function TDX:Upgrade(macroId, path, level, cost)
     while getCash() < cost do
         task.wait(0.01)
     end
-    task.wait(0.05)
+    task.wait(0.01)
     pcall(function()
         remote:FireServer(actualId, path, level)
     end)
 
     print(string.format("[TDX] ↑ Macro %d | Path %d | Lv %d (Actual ID: %d)", macroId, path, level, actualId))
-    task.wait(0.25)
+    task.wait(0.3)
     return true
 end
 
