@@ -180,7 +180,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     print(string.format("[TDX] Placing %s (Macro ID: %s)", name, expectedId or "auto"))
 
     while getCash() < cost do
-        task.wait(0.05)
+        task.wait(0.01)
     end
 
     local ok, res = pcall(function()
@@ -191,7 +191,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             table.insert(pendingMacroQueue, expectedId)
         end
         print(string.format("[TDX] ✓ %s placed", name))
-        task.wait(0.25)
+        task.wait(0.15)
         return true
     end
 
@@ -216,9 +216,9 @@ function TDX:Upgrade(macroId, path, level, cost)
     if not remote then return false end
 
     while getCash() < cost do
-        task.wait(0.05)
+        task.wait(0.01)
     end
-    task.wait(0.5)
+    task.wait(0.05)
     pcall(function()
         remote:FireServer(actualId, path, level)
     end)
