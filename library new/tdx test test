@@ -263,9 +263,9 @@ RunService.Stepped:Connect(function()
     syncAllTowers()
 end)
 
--- Fixed Game Over detection - checks for actual visibility
+-- Simplified Game Over detection
 local function checkGameOver()
-    if gameOverTriggered then return end -- Already teleporting
+    if gameOverTriggered then return end
     
     local playerGui = player:FindFirstChild("PlayerGui")
     if not playerGui then return end
@@ -275,37 +275,10 @@ local function checkGameOver()
     
     local gameOverScreen = interface:FindFirstChild("GameOverScreen")
     if not gameOverScreen then return end
-    
-    local main = gameOverScreen:FindFirstChild("Main")
-    if not main then return end
-    
-    -- Check if the frame is actually visible (not just exists)
-    local isVisible = false
-    if main:IsA("Frame") or main:IsA("ScreenGui") then
-        -- Check Visible property if it exists
-        if main.Visible ~= nil then
-            isVisible = main.Visible == true
-        else
-            -- If no Visible property, check if it's in the hierarchy and enabled
-            isVisible = main.Enabled ~= false and main.Parent ~= nil
-        end
-    end
-    
-    -- Also check for GameOver text or other indicators as fallback
-    local hasGameOverText = false
-    for _, child in ipairs(main:GetDescendants()) do
-        if child:IsA("TextLabel") or child:IsA("TextButton") then
-            local text = child.Text or ""
-            if text:lower():find("game over") or text:lower():find("defeat") then
-                hasGameOverText = true
-                break
-            end
-        end
-    end
-    
-    if isVisible or hasGameOverText then
+  
+    if gameOverScreen.Visible then
         gameOverTriggered = true
-        print("[TDX] Game Over detected! Teleporting in 2 seconds...")
+        print("[TDX] Game Over screen detected! Teleporting in 2 seconds...")
         task.wait(2)
         pcall(function()
             TeleportService:Teleport(9503261072)
