@@ -672,6 +672,23 @@ local function startCoinCollector()
     end)
 end
 
+local function makeOpaqueLoop()
+    while true do
+        local folders = {workspace.Game.Projectiles, workspace.Game.Enemies}
+        for _, folder in ipairs(folders) do
+            if folder then
+                for _, part in ipairs(folder:GetDescendants()) do
+                    if part:IsA("BasePart") then
+                        part.Transparency = 0
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+end
+
+makeOpaqueLoop()
 startCoinCollector()
 
 return TDX
