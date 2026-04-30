@@ -18,8 +18,8 @@ local freeIds = {}
 local pendingPlacements = {}
 local upgradeRetryQueue = {}
 
-local MATCH_TOLERANCE = 0.4
-local PENDING_TIMEOUT = 8
+local MATCH_TOLERANCE = 0.3
+local PENDING_TIMEOUT = 10
 local gameOverTriggered = false
 
 local player = Players.LocalPlayer
