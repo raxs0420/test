@@ -340,7 +340,7 @@ local upgradeQueue = {}
 local isProcessing = false
 
 function TDX:TowerUpgrade(TowerName, Skill)
-         
+
     table.insert(upgradeQueue, {TowerName = TowerName, Skill = Skill})
 
     if not isProcessing then
@@ -551,6 +551,50 @@ function TDX:AbilitySpamList(macroIds, slot, loop)
     end
 end
 
+local typeMap = {
+    Elite = 0,
+    First = 1,
+    Last = 2,
+    Strong = 3,
+    Weak = 4,
+    Random = 5
+}
+
+local function getTypeValue(t)
+    if type(t) == "number" then
+        return math.clamp(t, 0, 5)
+    elseif type(t) == "string" then
+        return typeMap[t]
+    end
+    return nil
+end
+
+function TDX:SetTarget(towerID, targetType)
+    local remote = getRemote("ChangeQueryType")
+    if not remote then return false end
+    local tv = getTypeValue(targetType)
+    if tv == nil then return false end
+    pcall(function() remote:FireServer(towerID, tv) end)
+    return true
+end
+
+function TDX:TargetRange(startID, endID, targetType, interval)
+    interval = interval or 1
+    local remote = getRemote("ChangeQueryType")
+    if not remote then return false end
+    local tv = getTypeValue(targetType)
+    if tv == nil then return false end
+    task.spawn(function()
+        while true do
+            for id = startID, endID do
+                pcall(function() remote:FireServer(id, tv) end)
+            end
+            task.wait(interval)
+        end
+    end)
+    return true
+end
+
 local player = game.Players.LocalPlayer
 
 local function Jump()
@@ -647,7 +691,7 @@ end
 local function startCoinCollector()
     task.spawn(function()
         local remote = nil
-        
+
         local function getRemote()
             if not remote or not remote.Parent then
                 local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -657,7 +701,7 @@ local function startCoinCollector()
             end
             return remote
         end
-        
+
         while true do
             local currentRemote = getRemote()
             if currentRemote then
@@ -673,5 +717,6 @@ local function startCoinCollector()
 end
 
 startCoinCollector()
+
 
 return TDX
