@@ -253,7 +253,6 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     if not remote then return nil end
     local pos = Vector3.new(x, y, z)
     while getCash() < cost do task.wait() end
-    task.wait(0.05)
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
@@ -266,7 +265,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             }
         end
         print(string.format("[TDX] + %s (ID:%s)", name, expectedId or "auto"))
-        task.wait(0.3)
+        task.wait(0.35)
         return true
     end
     return false
@@ -284,7 +283,7 @@ function TDX:Upgrade(macroId, path, level, cost)
                     remote:FireServer(actualId, path, level)
                 end)
                 print(string.format("[TDX] ↑ Macro %d Lv%d", macroId, level))
-                task.wait(0.3)
+                task.wait(0.35)
                 return true
             end
         end
@@ -307,7 +306,7 @@ function TDX:Sell(macroId)
     if not data or not data.part or not isPartAlive(data.part) then return false end
     local remote = getRemote("SellTower")
     if remote then
-        task.wait(0.15)
+        task.wait(0.3)
         pcall(function() remote:FireServer(actualId) end)
         print(string.format("[TDX] 💰 Sold Macro %d", macroId))
     end
@@ -362,11 +361,11 @@ function TDX:TowerUpgrade(TowerName, Skill)
         upgraded = true
         print(string.format("[TDX] Upgraded %s: %s", upgrade.TowerName, upgrade.Skill))
         else
-        task.wait(0.5)
+        task.wait(1)
         end
     end
 
-        task.wait(0.1) 
+        task.wait(0.5) 
     end
 
         isProcessing = false
@@ -668,7 +667,7 @@ local function startCoinCollector()
                     end)
                 end
             end
-            task.wait(0.5)
+            task.wait(1)
         end
     end)
 end
