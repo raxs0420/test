@@ -399,6 +399,12 @@ function TDX:AutoSkip(enabled)
             if skip then
                 pcall(function() skip:FireServer(true) end)
             end
+
+            local cutscene = getRemote("CutsceneVoteCast")
+            if cutscene then
+                pcall(function() cutscene:FireServer(true) end)
+            end
+
             task.wait(0.1)
         end
     end)
