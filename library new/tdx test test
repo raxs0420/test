@@ -44,6 +44,33 @@ local function getRemote(name)
     return r and r:FindFirstChild(name)
 end
 
+local player = game.Players.LocalPlayer
+
+local function Jump()
+    local character = player.Character
+    local humanoid = character and character:FindFirstChild("Humanoid")
+    
+    if humanoid and humanoid.Health > 0 then
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end
+
+local function RandomJumpLoop()
+    while true do
+        local waitTime = math.random(300, 600)
+        task.wait(waitTime)
+        
+        local character = player.Character
+        local humanoid = character and character:FindFirstChild("Humanoid")
+        
+        if humanoid and humanoid.Health > 0 then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end
+
+task.spawn(RandomJumpLoop)
+
 function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
     local level = 0
