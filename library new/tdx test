@@ -674,16 +674,22 @@ end
 
 local function makeOpaqueLoop()
     while true do
-        local folders = {workspace.Game.Projectiles, workspace.Game.Enemies}
-        for _, folder in ipairs(folders) do
-            if folder then
-                for _, part in ipairs(folder:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Transparency = 0
-                    end
+        if workspace.Game and workspace.Game.Projectiles then
+            for _, part in ipairs(workspace.Game.Projectiles:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0
                 end
             end
         end
+        
+        if workspace.Game and workspace.Game.Enemies then
+            for _, part in ipairs(workspace.Game.Enemies:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0
+                end
+            end
+        end
+        
         task.wait(0.5)
     end
 end
