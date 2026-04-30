@@ -546,6 +546,99 @@ function TDX:AbilitySpamList(macroIds, slot, loop)
     end
 end
 
+local player = game.Players.LocalPlayer
+
+local function Jump()
+    local character = player.Character
+    local humanoid = character and character:FindFirstChild("Humanoid")
+
+    if humanoid and humanoid.Health > 0 then
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+end
+
+local function RandomJumpLoop()
+    while true do
+        local waitTime = math.random(300, 600)
+        task.wait(waitTime)
+
+        local character = player.Character
+        local humanoid = character and character:FindFirstChild("Humanoid")
+
+        if humanoid and humanoid.Health > 0 then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end
+
+task.spawn(RandomJumpLoop)
+
+function TDX:JoinMapViaAPC(mapName)
+    local player = Players.LocalPlayer
+    local level = 0
+    local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
+    if lvl then level = lvl.Value end
+
+    local startTime = tick()
+    local apcsFolder = nil
+
+    while true do
+        apcsFolder = Workspace:FindFirstChild("APCs")
+
+        if not apcsFolder then
+            if tick() - startTime >= 3 then
+                return false
+            end
+            task.wait()
+            continue
+        end
+
+        for _, slot in ipairs(apcsFolder:GetChildren()) do
+            local attr = slot:GetAttribute("MapName") or ""
+            if attr == mapName then
+                local detector = slot:FindFirstChild("Detector")
+                if not detector and slot:FindFirstChild("APC") then
+                    detector = slot.APC:FindFirstChild("Detector")
+                end
+                if detector then
+                    local char = player.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        char.HumanoidRootPart.CFrame = detector.CFrame
+                        task.wait(2)
+                        return true
+                    end
+                end
+            end
+        end
+
+        if level >= 31 then
+            local apcs2Folder = Workspace:FindFirstChild("APCs2")
+            if apcs2Folder then
+                for _, slot in ipairs(apcs2Folder:GetChildren()) do
+                    local attr = slot:GetAttribute("MapName") or ""
+                    if attr == mapName then
+                        local detector = slot:FindFirstChild("Detector")
+                        if not detector and slot:FindFirstChild("APC") then
+                            detector = slot.APC:FindFirstChild("Detector")
+                        end
+                        if detector then
+                            local char = player.Character
+                            if char and char:FindFirstChild("HumanoidRootPart") then
+                                char.HumanoidRootPart.CFrame = detector.CFrame
+                                task.wait(2)
+                                return true
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        startTime = tick()
+        task.wait()
+    end
+end
+
 local function startCoinCollector()
     task.spawn(function()
         local remote = nil
