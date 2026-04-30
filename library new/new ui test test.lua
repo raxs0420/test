@@ -1389,31 +1389,32 @@ local function start_anti_lag()
     end)
 end
 
-local function start_anti_afk()
-    local Players = game:GetService("Players")
-    local GC = getconnections and getconnections or get_signal_cons
-    if GC then
-        for i, v in pairs(GC(Players.LocalPlayer.Idled)) do
-            if v.Disable then
-                v:Disable()
-            elseif v.Disconnect then
-                v:Disconnect()
-            end
-        end
-    else
-        Players.LocalPlayer.Idled:Connect(function()
-            local VirtualUser = game:GetService("VirtualUser")
-            VirtualUser:CaptureController()
-            VirtualUser:ClickButton2(Vector2.new())
-        end)
+local player = game.Players.LocalPlayer
+
+local function Jump()
+    local character = player.Character
+    local humanoid = character and character:FindFirstChild("Humanoid")
+
+    if humanoid and humanoid.Health > 0 then
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
-    local ANTIAFK = Players.LocalPlayer.Idled:Connect(function()
-        local VirtualUser = game:GetService("VirtualUser")
-        VirtualUser:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-        task.wait(1)
-        VirtualUser:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-    end)
 end
+
+local function RandomJumpLoop()
+    while true do
+        local waitTime = math.random(300, 600)
+        task.wait(waitTime)
+
+        local character = player.Character
+        local humanoid = character and character:FindFirstChild("Humanoid")
+
+        if humanoid and humanoid.Health > 0 then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end
+
+task.spawn(RandomJumpLoop)
 
 local function start_rejoin_on_disconnect()
     task.spawn(function()
@@ -1745,7 +1746,6 @@ if _G.ClaimRewards and not auto_claim_rewards then
 end
 
 start_back_to_lobby()
-start_anti_afk()
 start_rejoin_on_disconnect()
 
 return TDS
