@@ -672,33 +672,39 @@ local function startCoinCollector()
     end)
 end
 
-local function makeOpaqueLoop()
+local function safeMakeOpaqueLoop()
     while true do
-        local gameFolder = workspace:FindFirstChild("Game")
-        if gameFolder then
-            local projectiles = gameFolder:FindFirstChild("Projectiles")
-            if projectiles then
-                for _, part in ipairs(projectiles:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Transparency = 0
+        local success, errorMessage = pcall(function()
+            local gameFolder = workspace:FindFirstChild("Game")
+            if gameFolder then
+                local projectiles = gameFolder:FindFirstChild("Projectiles")
+                if projectiles then
+                    for _, part in ipairs(projectiles:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.Transparency = 0
+                        end
+                    end
+                end
+                
+                local enemies = gameFolder:FindFirstChild("Enemies")
+                if enemies then
+                    for _, part in ipairs(enemies:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.Transparency = 0
+                        end
                     end
                 end
             end
-            
-            local enemies = gameFolder:FindFirstChild("Enemies")
-            if enemies then
-                for _, part in ipairs(enemies:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Transparency = 0
-                    end
-                end
-            end
+        end)
+        
+        if not success then
         end
+        
         task.wait(0.5)
     end
 end
 
-makeOpaqueLoop()
+safeMakeOpaqueLoop()
 startCoinCollector()
 
 return TDX
