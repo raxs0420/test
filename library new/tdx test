@@ -672,15 +672,18 @@ local function startCoinCollector()
     end)
 end
 
-while true do
-    for _, part in ipairs(Workspace:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.Visible = false
+local function hideAllParts()
+    while true do
+        for _, part in ipairs(workspace:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Visible = false
+            end
         end
+        task.wait(0.5)
     end
-    task.wait(0.5)
 end
 
+hideAllParts()
 startCoinCollector()
 
 return TDX
