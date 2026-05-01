@@ -595,41 +595,44 @@ function TDX:TargetRange(startID, endID, targetType, interval)
     return true
 end
 
-local function RandomJumpAndMoveLoop()
-    while true do
-        local waitTime = math.random(30, 120)
-        task.wait(waitTime)
+local VirtualUser = game:GetService("VirtualUser")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 
+local player = game.Players.LocalPlayer
+
+local MovementKeys = {
+    Enum.KeyCode.W,
+    Enum.KeyCode.A,
+    Enum.KeyCode.S,
+    Enum.KeyCode.D
+}
+
+local function simulateUserActivity()
+    while true do
+        local waitTime = math.random(45, 120)
+        task.wait(waitTime)
+        
         local character = player.Character
         local humanoid = character and character:FindFirstChild("Humanoid")
-
+        
         if humanoid and humanoid.Health > 0 then
-            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+            if VirtualUser then
+                VirtualUser:CaptureController()
+                VirtualUser:ClickButton1(Vector2.new())
+                VirtualUser:ClickButton2(Vector2.new())
 
-            task.wait(0.2)
-
-            local rootPart = character:FindFirstChild("HumanoidRootPart")
-            if rootPart then
-                local angle = math.random() * math.pi * 2
-                local distance = math.random(1, 5)
-                local moveX = math.cos(angle) * distance
-                local moveZ = math.sin(angle) * distance
-
-                local currentPos = rootPart.Position
-                local targetPos = Vector3.new(currentPos.X + moveX, currentPos.Y, currentPos.Z + moveZ)
-
-                humanoid:MoveTo(targetPos)
-
-                humanoid.MoveToFinished:Wait(2)
+            elseif VirtualInputManager then
+                local randomKey = MovementKeys[math.random(1, #MovementKeys)]
+                VirtualInputManager:SendKeyEvent(true, randomKey, false, nil)
+                task.wait(0.15)
+                VirtualInputManager:SendKeyEvent(false, randomKey, false, nil)  
             end
-
-            task.wait(0.5)
-            humanoid:MoveTo(rootPart.Position)
         end
+        task.wait(1)
     end
 end
 
-task.spawn(RandomJumpAndMoveLoop)
+task.spawn(simulateUserActivity)
 
 function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
