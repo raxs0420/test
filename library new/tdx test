@@ -45,17 +45,8 @@ end
 
 local function getCash()
     if not player or not player.leaderstats then return 0 end
-    
     local cash = player.leaderstats:FindFirstChild("Cash")
-    local first = cash and cash.Value or 0
-    
-    task.wait()
-
-    if not player or not player.leaderstats then return first end
-    cash = player.leaderstats:FindFirstChild("Cash")
-    local second = cash and cash.Value or first
-    
-    return (first + second) / 2
+    return cash and cash.Value or 0
 end
 
 local function isPartAlive(part)
@@ -302,7 +293,7 @@ function TDX:Upgrade(macroId, path, level, cost)
             path = path,
             level = level,
             cost = cost,
-            retries = 5
+            retries = 10
         }
     end
     return false
