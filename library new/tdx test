@@ -256,7 +256,6 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
-    task.wait(0.1)
     if ok and res == true then
         if expectedId then
             pendingPlacements[expectedId] = {
@@ -266,7 +265,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             }
         end
         print(string.format("[TDX] + %s (ID:%s)", name, expectedId or "auto"))
-        task.wait(0.15)
+        task.wait(0.35)
         return true
     end
     return false
