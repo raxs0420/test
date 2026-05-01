@@ -608,7 +608,7 @@ end
 
 local function RandomJumpLoop()
     while true do
-        local waitTime = math.random(300, 600)
+        local waitTime = math.random(100, 200)
         task.wait(waitTime)
 
         local character = player.Character
