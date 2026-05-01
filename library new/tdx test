@@ -595,20 +595,9 @@ function TDX:TargetRange(startID, endID, targetType, interval)
     return true
 end
 
-local player = game.Players.LocalPlayer
-
-local function Jump()
-    local character = player.Character
-    local humanoid = character and character:FindFirstChild("Humanoid")
-
-    if humanoid and humanoid.Health > 0 then
-        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-end
-
-local function RandomJumpLoop()
+local function RandomJumpAndMoveLoop()
     while true do
-        local waitTime = math.random(100, 200)
+        local waitTime = math.random(30, 120)
         task.wait(waitTime)
 
         local character = player.Character
@@ -616,11 +605,31 @@ local function RandomJumpLoop()
 
         if humanoid and humanoid.Health > 0 then
             humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+
+            task.wait(0.2)
+
+            local rootPart = character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                local angle = math.random() * math.pi * 2
+                local distance = math.random(1, 5)
+                local moveX = math.cos(angle) * distance
+                local moveZ = math.sin(angle) * distance
+
+                local currentPos = rootPart.Position
+                local targetPos = Vector3.new(currentPos.X + moveX, currentPos.Y, currentPos.Z + moveZ)
+
+                humanoid:MoveTo(targetPos)
+
+                humanoid.MoveToFinished:Wait(2)
+            end
+
+            task.wait(0.5)
+            humanoid:MoveTo(rootPart.Position)
         end
     end
 end
 
-task.spawn(RandomJumpLoop)
+task.spawn(RandomJumpAndMoveLoop)
 
 function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
