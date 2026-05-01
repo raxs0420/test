@@ -265,7 +265,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             }
         end
         print(string.format("[TDX] + %s (ID:%s)", name, expectedId or "auto"))
-        task.wait(0.35)
+        task.wait(0.25)
         return true
     end
     return false
