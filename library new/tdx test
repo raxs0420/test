@@ -19,7 +19,7 @@ local pendingPlacements = {}
 local upgradeRetryQueue = {}
 
 local MATCH_TOLERANCE = 0.01
-local PENDING_TIMEOUT = 2
+local PENDING_TIMEOUT = 5
 local gameOverTriggered = false
 
 local player = Players.LocalPlayer
@@ -265,7 +265,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             }
         end
         print(string.format("[TDX] + %s (ID:%s)", name, expectedId or "auto"))
-        task.wait(0.3)
+        task.wait(0.25)
         return true
     end
     return false
@@ -283,7 +283,7 @@ function TDX:Upgrade(macroId, path, level, cost)
                     remote:FireServer(actualId, path, level)
                 end)
                 print(string.format("[TDX] ↑ Macro %d Lv%d", macroId, level))
-                task.wait(0.35)
+                task.wait(0.25)
                 return true
             end
         end
@@ -293,7 +293,7 @@ function TDX:Upgrade(macroId, path, level, cost)
             path = path,
             level = level,
             cost = cost,
-            retries = 10
+            retries = 5
         }
     end
     return false
