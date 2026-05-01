@@ -45,8 +45,17 @@ end
 
 local function getCash()
     if not player or not player.leaderstats then return 0 end
+    
     local cash = player.leaderstats:FindFirstChild("Cash")
-    return cash and cash.Value or 0
+    local first = cash and cash.Value or 0
+    
+    task.wait()
+
+    if not player or not player.leaderstats then return first end
+    cash = player.leaderstats:FindFirstChild("Cash")
+    local second = cash and cash.Value or first
+    
+    return (first + second) / 2
 end
 
 local function isPartAlive(part)
