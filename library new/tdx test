@@ -728,35 +728,37 @@ local function startCoinCollector()
     end)
 end
 
-task.spawn(function()
-	local function removeFolders()
-		local gameFolder = workspace:FindFirstChild("Game")
-		if gameFolder then
-			local enemies = gameFolder:FindFirstChild("Enemies")
-			if enemies then
-				enemies:Destroy()
-			end
-		end
-		
-		local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
-		if tdxShared then
-			local common = tdxShared:FindFirstChild("Common")
-			if common then
-				local resources = common:FindFirstChild("Resources")
-				if resources then
-					local deathEffects = resources:FindFirstChild("DeathEffects")
-					if deathEffects then
-						deathEffects:Destroy()
-					end
-				end
-			end
-		end
-	end
-	
-	while true do
-		removeFolders()
-		task.wait(0.5)
-	end
+local function removeFolders()
+    local gameFolder = workspace:FindFirstChild("Game")
+    if gameFolder then
+        local enemies = gameFolder:FindFirstChild("Enemies")
+        if enemies then
+            enemies:Destroy()
+        end
+    end
+
+    local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
+    if tdxShared then
+        local common = tdxShared:FindFirstChild("Common")
+        if common then
+            local resources = common:FindFirstChild("Resources")
+            if resources then
+                local deathEffects = resources:FindFirstChild("DeathEffects")
+                if deathEffects then
+                    deathEffects:Destroy()
+                end
+            end
+        end
+    end
+end
+
+local lastCheck = 0
+RunService.Heartbeat:Connect(function(deltaTime)
+    lastCheck = lastCheck + deltaTime
+    if lastCheck >= 0.5 then
+        lastCheck = 0
+        removeFolders()
+    end
 end)
 
 startCoinCollector()
