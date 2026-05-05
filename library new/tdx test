@@ -752,13 +752,15 @@ local function removeFolders()
     end
 end
 
-local lastCheck = 0
-RunService.Heartbeat:Connect(function(deltaTime)
-    lastCheck = lastCheck + deltaTime
-    if lastCheck >= 0.5 then
-        lastCheck = 0
-        removeFolders()
-    end
+task.delay(10, function()
+    local lastCheck = 0
+    RunService.Heartbeat:Connect(function(deltaTime)
+        lastCheck = lastCheck + deltaTime
+        if lastCheck >= 0.5 then
+            lastCheck = 0
+            removeFolders()
+        end
+    end)
 end)
 
 startCoinCollector()
