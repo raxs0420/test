@@ -71,9 +71,18 @@ skipBtn.TextColor3 = Color3.fromRGB(100,255,100)
 skipBtn.Parent = frame
 Instance.new("UICorner", skipBtn)
 
+local emoteBtn = Instance.new("TextButton")
+emoteBtn.Size = UDim2.new(1, -20, 0, 35)
+emoteBtn.Position = UDim2.new(0, 10, 0, 145)
+emoteBtn.Text = "Spam Emote: OFF"
+emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+emoteBtn.TextColor3 = Color3.fromRGB(100,255,100)
+emoteBtn.Parent = frame
+Instance.new("UICorner", emoteBtn)
+
 local abilityLabel = Instance.new("TextLabel")
 abilityLabel.Size = UDim2.new(1, -20, 0, 20)
-abilityLabel.Position = UDim2.new(0, 10, 0, 145)
+abilityLabel.Position = UDim2.new(0, 10, 0, 195)
 abilityLabel.Text = "Abilities (click to toggle)"
 abilityLabel.TextColor3 = Color3.fromRGB(200,200,200)
 abilityLabel.TextSize = 12
@@ -83,8 +92,8 @@ abilityLabel.TextXAlignment = Enum.TextXAlignment.Left
 abilityLabel.Parent = frame
 
 local abilitiesFrame = Instance.new("ScrollingFrame")
-abilitiesFrame.Size = UDim2.new(1, -20, 0, frameHeight - 195)
-abilitiesFrame.Position = UDim2.new(0, 10, 0, 170)
+abilitiesFrame.Size = UDim2.new(1, -20, 0, frameHeight - 245)
+abilitiesFrame.Position = UDim2.new(0, 10, 0, 220)
 abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
 abilitiesFrame.BorderSizePixel = 0
 abilitiesFrame.ScrollBarThickness = 8
@@ -96,6 +105,20 @@ abilitiesLayout.Padding = UDim.new(0, 8)
 abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
 abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
 abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local gmIdLabel = Instance.new("TextLabel")
+gmIdLabel.Size = UDim2.new(1, -10, 0, 50)
+gmIdLabel.Position = UDim2.new(0, 0, 0, 0)
+gmIdLabel.Text = "Golden Mobsters: scanning..."
+gmIdLabel.TextColor3 = Color3.fromRGB(255,255,150)
+gmIdLabel.BackgroundColor3 = Color3.fromRGB(50,50,50)
+gmIdLabel.TextXAlignment = Enum.TextXAlignment.Left
+gmIdLabel.TextYAlignment = Enum.TextYAlignment.Top
+gmIdLabel.TextWrapped = true
+gmIdLabel.Font = Enum.Font.Gotham
+gmIdLabel.TextSize = 12
+gmIdLabel.Parent = abilitiesFrame
+Instance.new("UICorner", gmIdLabel)
 
 local anchorBtn = Instance.new("TextButton")
 anchorBtn.Size = UDim2.new(0, 50, 0, 50)
@@ -110,34 +133,19 @@ anchorBtn.Parent = gui
 Instance.new("UICorner", anchorBtn)
 
 local isMinimized = false
-
 local function toggleMinimize()
     isMinimized = not isMinimized
     frame.Visible = not isMinimized
     anchorBtn.Visible = isMinimized
 end
-
 minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
 anchorBtn.MouseButton1Click:Connect(toggleMinimize)
 
 local abilityOrder = {
-    "GRENADE",
-    "UNSTUN_HEALTH",
-    "HUMVEE",
-    "FLARE",
-    "DJ_Encore",
-    "AXE_RAGE",
-    "SHOCK_ROUNDS",
-    "STEALTH_SENSOR",
-    "TOXIC_BLAST",
-    "AP_ROUNDS",
-    "OVERCHARGE",
-    "GRAND_SLAM",
-    "GOLDEN_GRENADE",
-    "Charge_Throw",
-    "GLOBAL_STEALTH_REVEAL",
-    "REBOOT_SYSTEMS",
-    "OVERLOAD"
+    "GRENADE", "UNSTUN_HEALTH", "HUMVEE", "FLARE", "DJ_Encore", "AXE_RAGE",
+    "LaserGunner", "TOXIC_BLAST", "AP_ROUNDS", "OVERCHARGE",
+    "GRAND_SLAM", "GOLDEN_GRENADE", "Charge_Throw", "GLOBAL_STEALTH_REVEAL",
+    "REBOOT_SYSTEMS", "OVERLOAD"
 }
 
 local towerToAbilitySlot = {
@@ -147,8 +155,7 @@ local towerToAbilitySlot = {
     Sniper = {ability = "FLARE", slot = 1},
     EDJ = {ability = "DJ_Encore", slot = 1},
     John = {ability = "AXE_RAGE", slot = 1},
-    ["Laser Gunner"] = {ability = "SHOCK_ROUNDS", slot = 1},
-    ["Laser Gunner"] = {ability = "STEALTH_SENSOR", slot = 1},
+    ["Laser Gunner"] = {ability = "LaserGunner", slot = 1},
     Toxicnator = {ability = "TOXIC_BLAST", slot = 1},
     Mobster = {ability = "AP_ROUNDS", slot = 1},
     ["Machine Gunner"] = {ability = "OVERCHARGE", slot = 2},
@@ -167,8 +174,7 @@ local abilityDisplayNames = {
     FLARE = "Flare",
     DJ_Encore = "DJ Encore",
     AXE_RAGE = "Axe/Rage",
-    SHOCK_ROUNDS = "Shock Rounds",
-    STEALTH_SENSOR = "Stealth Sensor",
+    LaserGunner = "Laser Gunner",
     TOXIC_BLAST = "Toxic Blast",
     AP_ROUNDS = "AP Rounds",
     OVERCHARGE = "Overcharge",
@@ -177,7 +183,7 @@ local abilityDisplayNames = {
     Charge_Throw = "Charge Throw",
     GLOBAL_STEALTH_REVEAL = "Global Stealth",
     REBOOT_SYSTEMS = "Reboot Systems",
-    OVERLOAD = "Overload",
+    OVERLOAD = "G Mobster",
 }
 
 local activeAbilities = {}
@@ -194,65 +200,179 @@ end
 local towers = {}
 local partToId = {}
 
-local function updateAbilityTargetIds(abilityName)
-    local data = abilityTargets[abilityName]
-    if not data then return {} end
-    local ids = {}
-    if type(towers) == "table" then
-        for id, towerData in pairs(towers) do
-            if towerData and towerData.name then
-                for _, towerName in ipairs(data.towers) do
-                    if towerData.name == towerName then
-                        ids[#ids + 1] = id
-                        break
-                    end
-                end
+local function getAllEnemies()
+    local enemiesFolder = workspace.Game:FindFirstChild("Enemies")
+    if not enemiesFolder then return {} end
+    local enemies = {}
+    for _, child in ipairs(enemiesFolder:GetChildren()) do
+        if child:IsA("BasePart") and child.Name ~= "Arrow" then
+            table.insert(enemies, child)
+        end
+    end
+    return enemies
+end
+
+local function getClosestEnemy(position, enemies, blacklist)
+    local best, bestDist = nil, math.huge
+    for _, enemy in ipairs(enemies) do
+        if not blacklist[enemy] then
+            local dist = (position - enemy.Position).Magnitude
+            if dist < bestDist then
+                bestDist = dist
+                best = enemy
             end
         end
     end
-    return ids
+    return best
 end
 
-local function sendAbility(id, slot)
+local globalHitBlacklist = {}
+local towerPauseUntil = {}
+
+local function updateGMIdDisplay()
+    local ids = {}
+    for id, data in pairs(towers) do
+        if data.name == "Golden Mobster" then
+            table.insert(ids, tostring(id))
+        end
+    end
+    if #ids == 0 then
+        gmIdLabel.Text = "Golden Mobsters: none placed"
+    else
+        gmIdLabel.Text = "Golden Mobsters: " .. table.concat(ids, ", ")
+    end
+end
+
+local function sendOverloadAbility(id, slot, position)
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
     if remote then
         local req = remote:FindFirstChild("TowerUseAbilityRequest")
         if req then
-            pcall(function() req:InvokeServer(id, slot) end)
+            local success, response = pcall(function()
+                return req:InvokeServer(id, slot, position)
+            end)
+            if success then
+                return response
+            else
+                warn("Invoke error:", response)
+                return nil
+            end
         end
+    end
+    return nil
+end
+
+local overloadLoop = nil
+local function runOverloadSequential(slot)
+    while activeAbilities["OVERLOAD"] do
+        local gmIds = {}
+        for id, data in pairs(towers) do
+            if data.name == "Golden Mobster" and data.part and data.part.Parent then
+                local pauseUntil = towerPauseUntil[id]
+                if not pauseUntil or tick() >= pauseUntil then
+                    table.insert(gmIds, id)
+                end
+            end
+        end
+
+        if #gmIds == 0 then
+            task.wait(0.5)
+            continue
+        end
+
+        local enemies = getAllEnemies()
+        if #enemies == 0 then
+            task.wait(0.5)
+            continue
+        end
+
+        for _, id in ipairs(gmIds) do
+            if not activeAbilities["OVERLOAD"] then break end
+
+            local towerData = towers[id]
+            if not towerData or not towerData.part then continue end
+
+            local target = getClosestEnemy(towerData.part.Position, enemies, globalHitBlacklist)
+            if not target then
+                task.wait(0.1)
+                continue
+            end
+
+            local response = sendOverloadAbility(id, slot, target.Position)
+
+            if response == true then
+                globalHitBlacklist[target] = true
+                towerPauseUntil[id] = tick() + 2
+                print(string.format("[G Mobster] Tower %d hit %s - pausing 2s", id, target.Name))
+            elseif response == false then
+                print(string.format("[G Mobster] Tower %d too far from %s", id, target.Name))
+            elseif response == nil then
+                print(string.format("[G Mobster] Tower %d cooldown or invalid", id))
+                task.wait(0.3)
+            end
+
+            task.wait(0.1)
+        end
+
+        task.wait(0.5)
     end
 end
 
 local abilityLoops = {}
 
 local function startAbilityLoop(abilityName)
-    if abilityLoops[abilityName] then
-        task.cancel(abilityLoops[abilityName])
-        abilityLoops[abilityName] = nil
-        return false
-    end
-    
-    local data = abilityTargets[abilityName]
-    if not data then return false end
-    
-    abilityLoops[abilityName] = task.spawn(function()
-        while activeAbilities[abilityName] do
-            local targetIds = updateAbilityTargetIds(abilityName)
-            if #targetIds > 0 then
-                for _, id in ipairs(targetIds) do
-                    if not activeAbilities[abilityName] then break end
-                    sendAbility(id, data.slot)
-                    task.wait(0.15)
-                end
-            end
-            task.wait(0.5)
+    if abilityName == "OVERLOAD" then
+        if overloadLoop then
+            task.cancel(overloadLoop)
+            overloadLoop = nil
         end
-    end)
-    return true
+        if not activeAbilities["OVERLOAD"] then return false end
+        overloadLoop = task.spawn(runOverloadSequential, abilityTargets["OVERLOAD"].slot)
+        return true
+    else
+        if abilityLoops[abilityName] then
+            task.cancel(abilityLoops[abilityName])
+            abilityLoops[abilityName] = nil
+            return false
+        end
+        local data = abilityTargets[abilityName]
+        if not data then return false end
+        abilityLoops[abilityName] = task.spawn(function()
+            while activeAbilities[abilityName] do
+                local targetIds = {}
+                for id, towerData in pairs(towers) do
+                    if towerData and towerData.name then
+                        for _, towerName in ipairs(data.towers) do
+                            if towerData.name == towerName then
+                                targetIds[#targetIds + 1] = id
+                                break
+                            end
+                        end
+                    end
+                end
+                if #targetIds > 0 then
+                    for _, id in ipairs(targetIds) do
+                        if not activeAbilities[abilityName] then break end
+                        local remote = ReplicatedStorage:FindFirstChild("Remotes")
+                        if remote then
+                            local req = remote:FindFirstChild("TowerUseAbilityRequest")
+                            if req then
+                                pcall(function() req:InvokeServer(id, data.slot) end)
+                            end
+                        end
+                        task.wait(0.15)
+                    end
+                end
+                task.wait(0.5)
+            end
+        end)
+        return true
+    end
 end
 
 local rowFrame = nil
 local buttonsInRow = 0
+gmIdLabel.LayoutOrder = 0
 
 for _, abilityName in ipairs(abilityOrder) do
     if abilityTargets[abilityName] then
@@ -261,8 +381,9 @@ for _, abilityName in ipairs(abilityOrder) do
             rowFrame.Size = UDim2.new(1, -10, 0, 40)
             rowFrame.BackgroundTransparency = 1
             rowFrame.Parent = abilitiesFrame
+            rowFrame.LayoutOrder = 1
         end
-        
+
         local btn = Instance.new("TextButton")
         local displayName = abilityDisplayNames[abilityName] or abilityName
         btn.Size = UDim2.new(0, 170, 0, 34)
@@ -273,7 +394,7 @@ for _, abilityName in ipairs(abilityOrder) do
         btn.Font = Enum.Font.GothamSemibold
         btn.Parent = rowFrame
         Instance.new("UICorner", btn)
-        
+
         if buttonsInRow == 0 then
             btn.Position = UDim2.new(0, 5, 0, 3)
             buttonsInRow = 1
@@ -281,16 +402,23 @@ for _, abilityName in ipairs(abilityOrder) do
             btn.Position = UDim2.new(1, -175, 0, 3)
             buttonsInRow = 0
         end
-        
+
         activeAbilities[abilityName] = false
-        
+
         btn.MouseButton1Click:Connect(function()
             if activeAbilities[abilityName] then
                 activeAbilities[abilityName] = false
                 btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+                if abilityName == "OVERLOAD" and overloadLoop then
+                    task.cancel(overloadLoop)
+                    overloadLoop = nil
+                end
             else
                 activeAbilities[abilityName] = true
                 btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+                if abilityName == "OVERLOAD" then
+                    for k in pairs(towerPauseUntil) do towerPauseUntil[k] = nil end
+                end
                 startAbilityLoop(abilityName)
             end
         end)
@@ -299,7 +427,14 @@ end
 
 task.wait(0.1)
 local totalRows = math.ceil(#abilityOrder / 2)
-abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, totalRows * 46 + 10)
+abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, totalRows * 46 + 10 + 60)
+
+task.spawn(function()
+    while true do
+        updateGMIdDisplay()
+        task.wait(1)
+    end
+end)
 
 local nextId = 1
 local freeIds = {}
@@ -328,7 +463,7 @@ local function upgradeTower(id)
     if not data or not data.placedAfterAuto then return end
     local mode = autoTargetMode
     if not mode then return end
-    
+
     if mode == "top" then
         if data.topCount < 5 then
             sendUpgrade(id, 1, 5)
@@ -412,6 +547,7 @@ local function addTower(part, source)
         placedAfterAuto = autoActive,
         removed = false
     }
+    updateGMIdDisplay()
 end
 
 local function checkDeadTowers()
@@ -441,7 +577,7 @@ local function startDeathLoop()
         end
     end)
 end
-startDeathLoop() 
+startDeathLoop()
 
 local function onTowerAdded(part)
     if not part:IsA("BasePart") then return end
@@ -457,6 +593,7 @@ local function onTowerRemoved(part)
     local data = towers[id]
     if data and data.removed then return end
     removeTower(part, "CHILD REMOVED")
+    updateGMIdDisplay()
 end
 
 if TowersFolder then
@@ -544,3 +681,89 @@ skipBtn.MouseButton1Click:Connect(function()
         skipBtn.Text = "Auto Skip: OFF"
     end
 end)
+
+local emoteSpam = false
+local emoteLoop = nil
+
+local function startEmoteSpam()
+    if emoteLoop then task.cancel(emoteLoop) end
+    emoteLoop = task.spawn(function()
+        local emoteEvent = ReplicatedStorage:FindFirstChild("EmoteEvent")
+        while emoteSpam and emoteEvent do
+            pcall(function()
+                emoteEvent:FireServer("KeyframeEvent", "Bunny Plush", "PlaySqueak")
+            end)
+            task.wait(0.01)
+        end
+        emoteLoop = nil
+    end)
+end
+
+emoteBtn.MouseButton1Click:Connect(function()
+    emoteSpam = not emoteSpam
+    if emoteSpam then
+        emoteBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+        emoteBtn.Text = "Spam Emote: ON"
+        startEmoteSpam()
+    else
+        emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+        emoteBtn.Text = "Spam Emote: OFF"
+        if emoteLoop then
+            task.cancel(emoteLoop)
+            emoteLoop = nil
+        end
+    end
+end)
+
+local function removeFolders()
+    local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
+    if tdxShared then
+        local common = tdxShared:FindFirstChild("Common")
+        if common then
+            local resources = common:FindFirstChild("Resources")
+            if resources then
+                local deathEffects = resources:FindFirstChild("DeathEffects")
+                if deathEffects then
+                    deathEffects:Destroy()
+                end
+            end
+        end
+    end
+end
+
+task.delay(12, function()
+    local lastCheck = 0
+    RunService.Heartbeat:Connect(function(deltaTime)
+        lastCheck = lastCheck + deltaTime
+        if lastCheck >= 0.5 then
+            lastCheck = 0
+            removeFolders()
+        end
+    end)
+end)
+
+local function startCoinCollector()
+    task.spawn(function()
+        local remote = nil
+        local function getRemote()
+            if not remote or not remote.Parent then
+                local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+                if remotes then
+                    remote = remotes:FindFirstChild("ClientsideCoinCollectedEvent")
+                end
+            end
+            return remote
+        end
+        while true do
+            local currentRemote = getRemote()
+            if currentRemote then
+                for i = 1, 100 do
+                    pcall(function() currentRemote:FireServer(i) end)
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+startCoinCollector()
