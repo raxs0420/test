@@ -595,45 +595,6 @@ function TDX:TargetRange(startID, endID, targetType, interval)
     return true
 end
 
-local VirtualUser = game:GetService("VirtualUser")
-local VirtualInputManager = game:GetService("VirtualInputManager")
-
-local player = game.Players.LocalPlayer
-
-local MovementKeys = {
-    Enum.KeyCode.W,
-    Enum.KeyCode.A,
-    Enum.KeyCode.S,
-    Enum.KeyCode.D
-}
-
-local function simulateUserActivity()
-    while true do
-        local waitTime = math.random(45, 120)
-        task.wait(waitTime)
-        
-        local character = player.Character
-        local humanoid = character and character:FindFirstChild("Humanoid")
-        
-        if humanoid and humanoid.Health > 0 then
-            if VirtualUser then
-                VirtualUser:CaptureController()
-                VirtualUser:ClickButton1(Vector2.new())
-                VirtualUser:ClickButton2(Vector2.new())
-
-            elseif VirtualInputManager then
-                local randomKey = MovementKeys[math.random(1, #MovementKeys)]
-                VirtualInputManager:SendKeyEvent(true, randomKey, false, nil)
-                task.wait(0.15)
-                VirtualInputManager:SendKeyEvent(false, randomKey, false, nil)  
-            end
-        end
-        task.wait(1)
-    end
-end
-
-task.spawn(simulateUserActivity)
-
 function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
     local level = 0
@@ -752,7 +713,7 @@ local function removeFolders()
     end
 end
 
-task.delay(10, function()
+task.delay(13, function()
     local lastCheck = 0
     RunService.Heartbeat:Connect(function(deltaTime)
         lastCheck = lastCheck + deltaTime
