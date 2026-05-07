@@ -226,27 +226,38 @@ RunService.Stepped:Connect(syncAllTowers)
 
 local function checkGameOver()
     if gameOverTriggered then return end
+
     local playerGui = player:FindFirstChild("PlayerGui")
     if not playerGui then return end
+
     local interface = playerGui:FindFirstChild("Interface")
     if not interface then return end
-    local gameOverScreen = interface:FindFirstChild("GameOverScreen")
-    if gameOverScreen and gameOverScreen.Visible then
-        gameOverTriggered = true
-        print("[TDX] Game Over! Teleporting...")
-        task.wait(2)
-        pcall(function()
-            TeleportService:Teleport(9503261072)
-        end)
-    end
-end
 
-task.spawn(function()
-    while true do
-        checkGameOver()
-        task.wait(0.5)
+    local gameOverScreen = interface:FindFirstChild("GameOverScreen")
+   
+    if not gameOverScreen then
+        task.spawn(function()
+            task.wait(10)
+            checkGameOver() -- re-check after delay
+        end)
+        return
     end
-end)
+
+    task.spawn(function()
+        while not gameOverTriggered do
+            if gameOverScreen.Visible then
+                gameOverTriggered = true
+                print("[TDX] Game Over! Teleporting...")
+                task.wait(2)
+                pcall(function()
+                    TeleportService:Teleport(9503261072)
+                end)
+                break
+            end
+            task.wait(0.5)
+        end
+    end)
+end
 
 function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local remote = getRemote("PlaceTower")
@@ -724,6 +735,7 @@ task.delay(13, function()
     end)
 end)
 
+checkGameOver()
 startCoinCollector()
 
 return TDX
