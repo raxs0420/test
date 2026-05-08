@@ -3,6 +3,23 @@ local LocalPlayer = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+
+local enemyBlocklist = {
+    "Skulldrone",
+    "Pilot",
+    "Artemis",    
+    "Slow",    
+    "Quick",    
+    "Normal",    
+    "Buzzard",    
+    "Zombie+",    
+    "Fast Zombie+", 
+    "Heavy Zombie+",               
+    "VX-Drone",
+    "Healing Drone",
+    "Missile Drone",    
+}
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "TDXAuto"
@@ -45,7 +62,7 @@ title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = frame
 
 local topBtn = Instance.new("TextButton")
-topBtn.Size = UDim2.new(0, 150, 0, 35)
+topBtn.Size = UDim2.new(0, 185, 0, 35)
 topBtn.Position = UDim2.new(0, 10, 0, 45)
 topBtn.Text = "Auto Max Top"
 topBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
@@ -54,8 +71,8 @@ topBtn.Parent = frame
 Instance.new("UICorner", topBtn)
 
 local bottomBtn = Instance.new("TextButton")
-bottomBtn.Size = UDim2.new(0, 150, 0, 35)
-bottomBtn.Position = UDim2.new(1, -160, 0, 45)
+bottomBtn.Size = UDim2.new(0, 185, 0, 35)
+bottomBtn.Position = UDim2.new(1, -195, 0, 45)
 bottomBtn.Text = "Auto Max Bottom"
 bottomBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 bottomBtn.TextColor3 = Color3.fromRGB(100,255,100)
@@ -63,7 +80,7 @@ bottomBtn.Parent = frame
 Instance.new("UICorner", bottomBtn)
 
 local skipBtn = Instance.new("TextButton")
-skipBtn.Size = UDim2.new(1, -20, 0, 35)
+skipBtn.Size = UDim2.new(0, 185, 0, 35)
 skipBtn.Position = UDim2.new(0, 10, 0, 95)
 skipBtn.Text = "Auto Skip: OFF"
 skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
@@ -72,13 +89,22 @@ skipBtn.Parent = frame
 Instance.new("UICorner", skipBtn)
 
 local emoteBtn = Instance.new("TextButton")
-emoteBtn.Size = UDim2.new(1, -20, 0, 35)
-emoteBtn.Position = UDim2.new(0, 10, 0, 145)
+emoteBtn.Size = UDim2.new(0, 185, 0, 35)
+emoteBtn.Position = UDim2.new(1, -195, 0, 95)
 emoteBtn.Text = "Spam Emote: OFF"
 emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 emoteBtn.TextColor3 = Color3.fromRGB(100,255,100)
 emoteBtn.Parent = frame
 Instance.new("UICorner", emoteBtn)
+
+local teleportBtn = Instance.new("TextButton")
+teleportBtn.Size = UDim2.new(1, -20, 0, 35)
+teleportBtn.Position = UDim2.new(0, 10, 0, 145)
+teleportBtn.Text = "Teleport to Lobby"
+teleportBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+teleportBtn.TextColor3 = Color3.fromRGB(255,200,100)
+teleportBtn.Parent = frame
+Instance.new("UICorner", teleportBtn)
 
 local abilityLabel = Instance.new("TextLabel")
 abilityLabel.Size = UDim2.new(1, -20, 0, 20)
@@ -92,7 +118,7 @@ abilityLabel.TextXAlignment = Enum.TextXAlignment.Left
 abilityLabel.Parent = frame
 
 local abilitiesFrame = Instance.new("ScrollingFrame")
-abilitiesFrame.Size = UDim2.new(1, -20, 0, frameHeight - 245)
+abilitiesFrame.Size = UDim2.new(1, -20, 0, frameHeight - 225)
 abilitiesFrame.Position = UDim2.new(0, 10, 0, 220)
 abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
 abilitiesFrame.BorderSizePixel = 0
@@ -105,20 +131,6 @@ abilitiesLayout.Padding = UDim.new(0, 8)
 abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
 abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
 abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local gmIdLabel = Instance.new("TextLabel")
-gmIdLabel.Size = UDim2.new(1, -10, 0, 50)
-gmIdLabel.Position = UDim2.new(0, 0, 0, 0)
-gmIdLabel.Text = "Golden Mobsters: scanning..."
-gmIdLabel.TextColor3 = Color3.fromRGB(255,255,150)
-gmIdLabel.BackgroundColor3 = Color3.fromRGB(50,50,50)
-gmIdLabel.TextXAlignment = Enum.TextXAlignment.Left
-gmIdLabel.TextYAlignment = Enum.TextYAlignment.Top
-gmIdLabel.TextWrapped = true
-gmIdLabel.Font = Enum.Font.Gotham
-gmIdLabel.TextSize = 12
-gmIdLabel.Parent = abilitiesFrame
-Instance.new("UICorner", gmIdLabel)
 
 local anchorBtn = Instance.new("TextButton")
 anchorBtn.Size = UDim2.new(0, 50, 0, 50)
@@ -140,6 +152,55 @@ local function toggleMinimize()
 end
 minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
 anchorBtn.MouseButton1Click:Connect(toggleMinimize)
+
+teleportBtn.MouseButton1Click:Connect(function()
+    local confirmGui = Instance.new("ScreenGui")
+    confirmGui.Name = "TeleportConfirm"
+    confirmGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    local overlay = Instance.new("Frame")
+    overlay.Size = UDim2.new(1,0,1,0)
+    overlay.BackgroundColor3 = Color3.new(0,0,0)
+    overlay.BackgroundTransparency = 0.5
+    overlay.Parent = confirmGui
+    local confirmFrame = Instance.new("Frame")
+    confirmFrame.Size = UDim2.new(0, 300, 0, 150)
+    confirmFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
+    confirmFrame.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    confirmFrame.Parent = overlay
+    Instance.new("UICorner", confirmFrame)
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1,0,0,50)
+    text.Position = UDim2.new(0,0,0,20)
+    text.Text = "Teleport to lobby?"
+    text.TextColor3 = Color3.new(1,1,1)
+    text.BackgroundTransparency = 1
+    text.Font = Enum.Font.GothamBold
+    text.TextSize = 18
+    text.Parent = confirmFrame
+    local yesBtn = Instance.new("TextButton")
+    yesBtn.Size = UDim2.new(0, 100, 0, 40)
+    yesBtn.Position = UDim2.new(0.25, -50, 1, -50)
+    yesBtn.Text = "Yes"
+    yesBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    yesBtn.Parent = confirmFrame
+    Instance.new("UICorner", yesBtn)
+    local noBtn = Instance.new("TextButton")
+    noBtn.Size = UDim2.new(0, 100, 0, 40)
+    noBtn.Position = UDim2.new(0.75, -50, 1, -50)
+    noBtn.Text = "No"
+    noBtn.BackgroundColor3 = Color3.fromRGB(150,70,70)
+    noBtn.Parent = confirmFrame
+    Instance.new("UICorner", noBtn)
+    yesBtn.MouseButton1Click:Connect(function()
+        pcall(function()
+            TeleportService:Teleport(9503261072)
+        end)
+        confirmGui:Destroy()
+    end)
+    noBtn.MouseButton1Click:Connect(function()
+        confirmGui:Destroy()
+    end)
+end)
 
 local abilityOrder = {
     "GRENADE", "UNSTUN_HEALTH", "HUMVEE", "FLARE", "DJ_Encore", "AXE_RAGE",
@@ -199,6 +260,8 @@ end
 
 local towers = {}
 local partToId = {}
+local nextId = 1
+local freeIds = {}
 
 local function getAllEnemies()
     local enemiesFolder = workspace.Game:FindFirstChild("Enemies")
@@ -216,10 +279,19 @@ local function getClosestEnemy(position, enemies, blacklist)
     local best, bestDist = nil, math.huge
     for _, enemy in ipairs(enemies) do
         if not blacklist[enemy] then
-            local dist = (position - enemy.Position).Magnitude
-            if dist < bestDist then
-                bestDist = dist
-                best = enemy
+            local blocked = false
+            for _, blockedName in ipairs(enemyBlocklist) do
+                if enemy.Name == blockedName then
+                    blocked = true
+                    break
+                end
+            end
+            if not blocked then
+                local dist = (position - enemy.Position).Magnitude
+                if dist < bestDist then
+                    bestDist = dist
+                    best = enemy
+                end
             end
         end
     end
@@ -229,18 +301,104 @@ end
 local globalHitBlacklist = {}
 local towerPauseUntil = {}
 
-local function updateGMIdDisplay()
-    local ids = {}
-    for id, data in pairs(towers) do
-        if data.name == "Golden Mobster" then
-            table.insert(ids, tostring(id))
+local function isTowerDead(part)
+    if not part or not part.Parent then return true end
+    local towersFolder = workspace.Game:FindFirstChild("Towers")
+    if not towersFolder or part.Parent ~= towersFolder then return false end
+    return false
+end
+
+local function allocateId()
+    if #freeIds > 0 then
+        return table.remove(freeIds)
+    else
+        local id = nextId
+        nextId = nextId + 1
+        return id
+    end
+end
+
+local function freeId(id)
+    if id and id > 0 then
+        table.insert(freeIds, id)
+    end
+end
+
+local function addTower(part)
+    if partToId[part] then return end
+    if isTowerDead(part) then return end
+    local id = allocateId()
+    partToId[part] = id
+    towers[id] = {
+        part = part,
+        name = part.Name,
+        topCount = 0,
+        bottomCount = 0,
+        placedAfterAuto = autoActive,
+        removed = false
+    }
+end
+
+local function removeTower(part)
+    local id = partToId[part]
+    if not id then return end
+    partToId[part] = nil
+    towers[id] = nil
+    freeId(id)
+end
+
+local function cleanupDeadTowers()
+    for part, id in pairs(partToId) do
+        if isTowerDead(part) then
+            partToId[part] = nil
+            towers[id] = nil
+            freeId(id)
         end
     end
-    if #ids == 0 then
-        gmIdLabel.Text = "Golden Mobsters: none placed"
-    else
-        gmIdLabel.Text = "Golden Mobsters: " .. table.concat(ids, ", ")
+end
+
+local function fullResync()
+    local towersFolder = workspace.Game:FindFirstChild("Towers")
+    if not towersFolder then return end
+    local liveParts = {}
+    for _, part in ipairs(towersFolder:GetChildren()) do
+        if part:IsA("BasePart") and not isTowerDead(part) then
+            table.insert(liveParts, part)
+        end
     end
+    local newPartToId = {}
+    local newTowers = {}
+    local usedIds = {}
+    for _, part in ipairs(liveParts) do
+        local oldId = partToId[part]
+        if oldId and towers[oldId] and towers[oldId].part == part then
+            newPartToId[part] = oldId
+            newTowers[oldId] = towers[oldId]
+            usedIds[oldId] = true
+        end
+    end
+    for _, part in ipairs(liveParts) do
+        if not newPartToId[part] then
+            local newId = allocateId()
+            newPartToId[part] = newId
+            usedIds[newId] = true
+            newTowers[newId] = {
+                part = part,
+                name = part.Name,
+                topCount = 0,
+                bottomCount = 0,
+                placedAfterAuto = autoActive,
+                removed = false
+            }
+        end
+    end
+    for id, _ in pairs(towers) do
+        if not usedIds[id] then
+            freeId(id)
+        end
+    end
+    partToId = newPartToId
+    towers = newTowers
 end
 
 local function sendOverloadAbility(id, slot, position)
@@ -254,7 +412,6 @@ local function sendOverloadAbility(id, slot, position)
             if success then
                 return response
             else
-                warn("Invoke error:", response)
                 return nil
             end
         end
@@ -274,47 +431,36 @@ local function runOverloadSequential(slot)
                 end
             end
         end
-
         if #gmIds == 0 then
             task.wait(0.5)
             continue
         end
-
         local enemies = getAllEnemies()
         if #enemies == 0 then
-            task.wait(0.5)
+            task.wait(0.1)
             continue
         end
-
         for _, id in ipairs(gmIds) do
             if not activeAbilities["OVERLOAD"] then break end
-
             local towerData = towers[id]
             if not towerData or not towerData.part then continue end
-
             local target = getClosestEnemy(towerData.part.Position, enemies, globalHitBlacklist)
             if not target then
                 task.wait(0.1)
                 continue
             end
-
             local response = sendOverloadAbility(id, slot, target.Position)
-
             if response == true then
                 globalHitBlacklist[target] = true
-                towerPauseUntil[id] = tick() + 2
-                print(string.format("[G Mobster] Tower %d hit %s - pausing 2s", id, target.Name))
+                towerPauseUntil[id] = tick() + 3
             elseif response == false then
-                print(string.format("[G Mobster] Tower %d too far from %s", id, target.Name))
+                task.wait(0.15)
             elseif response == nil then
-                print(string.format("[G Mobster] Tower %d cooldown or invalid", id))
-                task.wait(0.3)
+                task.wait(0.15)
             end
-
-            task.wait(0.1)
+            task.wait(0.15)
         end
-
-        task.wait(0.5)
+        task.wait(0.3)
     end
 end
 
@@ -360,10 +506,10 @@ local function startAbilityLoop(abilityName)
                                 pcall(function() req:InvokeServer(id, data.slot) end)
                             end
                         end
-                        task.wait(0.15)
+                        task.wait(0.2)
                     end
                 end
-                task.wait(0.5)
+                task.wait(0.3)
             end
         end)
         return true
@@ -372,7 +518,6 @@ end
 
 local rowFrame = nil
 local buttonsInRow = 0
-gmIdLabel.LayoutOrder = 0
 
 for _, abilityName in ipairs(abilityOrder) do
     if abilityTargets[abilityName] then
@@ -383,7 +528,6 @@ for _, abilityName in ipairs(abilityOrder) do
             rowFrame.Parent = abilitiesFrame
             rowFrame.LayoutOrder = 1
         end
-
         local btn = Instance.new("TextButton")
         local displayName = abilityDisplayNames[abilityName] or abilityName
         btn.Size = UDim2.new(0, 170, 0, 34)
@@ -394,7 +538,6 @@ for _, abilityName in ipairs(abilityOrder) do
         btn.Font = Enum.Font.GothamSemibold
         btn.Parent = rowFrame
         Instance.new("UICorner", btn)
-
         if buttonsInRow == 0 then
             btn.Position = UDim2.new(0, 5, 0, 3)
             buttonsInRow = 1
@@ -402,9 +545,7 @@ for _, abilityName in ipairs(abilityOrder) do
             btn.Position = UDim2.new(1, -175, 0, 3)
             buttonsInRow = 0
         end
-
         activeAbilities[abilityName] = false
-
         btn.MouseButton1Click:Connect(function()
             if activeAbilities[abilityName] then
                 activeAbilities[abilityName] = false
@@ -427,26 +568,11 @@ end
 
 task.wait(0.1)
 local totalRows = math.ceil(#abilityOrder / 2)
-abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, totalRows * 46 + 10 + 60)
+abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, totalRows * 46 + 10)
 
-task.spawn(function()
-    while true do
-        updateGMIdDisplay()
-        task.wait(1)
-    end
-end)
-
-local nextId = 1
-local freeIds = {}
-local autoTargetMode = nil  
+local autoTargetMode = nil
 local autoActive = false
 local upgradeLoop = nil
-local deathLoop = nil
-
-local TowersFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
-if not TowersFolder then
-    TowersFolder = Instance.new("Folder")
-end
 
 local function sendUpgrade(id, path, level)
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
@@ -463,7 +589,6 @@ local function upgradeTower(id)
     if not data or not data.placedAfterAuto then return end
     local mode = autoTargetMode
     if not mode then return end
-
     if mode == "top" then
         if data.topCount < 5 then
             sendUpgrade(id, 1, 5)
@@ -488,127 +613,6 @@ local function upgradeTower(id)
         end
     end
 end
-
-local function allocateId()
-    if #freeIds > 0 then
-        return table.remove(freeIds)
-    else
-        local id = nextId
-        nextId = nextId + 1
-        return id
-    end
-end
-
-local function freeId(id)
-    if id and id > 0 then
-        if not towers[id] then return end
-        table.insert(freeIds, id)
-        towers[id] = nil
-    end
-end
-
-local function removeTower(part, reason)
-    local id = partToId[part]
-    if not id then return end
-    local data = towers[id]
-    if data and data.removed then return end
-    if data then data.removed = true end
-    freeId(id)
-    partToId[part] = nil
-end
-
-local function getTowerBeamColor(towerPart)
-    local ring = towerPart:FindFirstChild("Ring")
-    if not ring then return nil end
-    local beam = ring:FindFirstChildWhichIsA("Beam")
-    if not beam then return nil end
-    local seq = beam.Color
-    if seq and seq.Keypoints and #seq.Keypoints > 0 then
-        return seq.Keypoints[1].Value
-    end
-    return nil
-end
-
-local function isDeadColor(color)
-    return color.R < 0.1 and color.G < 0.1 and color.B < 0.1
-end
-
-local function addTower(part, source)
-    if partToId[part] then return end
-    local beamColor = getTowerBeamColor(part)
-    if beamColor and isDeadColor(beamColor) then return end
-    local id = allocateId()
-    partToId[part] = id
-    towers[id] = {
-        part = part,
-        topCount = 0,
-        bottomCount = 0,
-        name = part.Name,
-        placedAfterAuto = autoActive,
-        removed = false
-    }
-    updateGMIdDisplay()
-end
-
-local function checkDeadTowers()
-    for part, id in pairs(partToId) do
-        local data = towers[id]
-        if data and data.removed then
-            removeTower(part, "ALREADY REMOVED")
-        elseif part and part.Parent then
-            local color = getTowerBeamColor(part)
-            if color and isDeadColor(color) then
-                if data then data.removed = true end
-                removeTower(part, "BEAM DEATH")
-            end
-        else
-            if data then data.removed = true end
-            removeTower(part, "MISSING PART")
-        end
-    end
-end
-
-local function startDeathLoop()
-    if deathLoop then task.cancel(deathLoop) end
-    deathLoop = task.spawn(function()
-        while true do
-            checkDeadTowers()
-            task.wait(0.05)
-        end
-    end)
-end
-startDeathLoop()
-
-local function onTowerAdded(part)
-    if not part:IsA("BasePart") then return end
-    if partToId[part] then return end
-    task.wait(0.05)
-    if not part.Parent then return end
-    addTower(part, "PLACED")
-end
-
-local function onTowerRemoved(part)
-    local id = partToId[part]
-    if not id then return end
-    local data = towers[id]
-    if data and data.removed then return end
-    removeTower(part, "CHILD REMOVED")
-    updateGMIdDisplay()
-end
-
-if TowersFolder then
-    TowersFolder.ChildAdded:Connect(onTowerAdded)
-    TowersFolder.ChildRemoved:Connect(onTowerRemoved)
-end
-
-local scanLoop = RunService.Heartbeat:Connect(function()
-    if not TowersFolder then return end
-    for _, part in ipairs(TowersFolder:GetChildren()) do
-        if part:IsA("BasePart") and not partToId[part] then
-            addTower(part, "SCAN")
-        end
-    end
-end)
 
 local function startAutoUpgrade()
     if upgradeLoop then task.cancel(upgradeLoop) end
@@ -693,7 +697,7 @@ local function startEmoteSpam()
             pcall(function()
                 emoteEvent:FireServer("KeyframeEvent", "Bunny Plush", "PlaySqueak")
             end)
-            task.wait(0.01)
+            task.wait(0.1)
         end
         emoteLoop = nil
     end)
@@ -731,7 +735,7 @@ local function removeFolders()
     end
 end
 
-task.delay(12, function()
+task.delay(15, function()
     local lastCheck = 0
     RunService.Heartbeat:Connect(function(deltaTime)
         lastCheck = lastCheck + deltaTime
@@ -757,13 +761,55 @@ local function startCoinCollector()
         while true do
             local currentRemote = getRemote()
             if currentRemote then
-                for i = 1, 100 do
+                for i = 1, 250 do
                     pcall(function() currentRemote:FireServer(i) end)
                 end
             end
-            task.wait(0.5)
+            task.wait(2.5)
         end
     end)
 end
 
 startCoinCollector()
+
+local TowersFolder = workspace.Game:FindFirstChild("Towers")
+if not TowersFolder then
+    TowersFolder = Instance.new("Folder")
+    TowersFolder.Name = "Towers"
+    workspace.Game = workspace.Game or Instance.new("Folder", workspace)
+    workspace.Game.Name = "Game"
+    TowersFolder.Parent = workspace.Game
+end
+
+TowersFolder.ChildAdded:Connect(function(part)
+    if part:IsA("BasePart") then
+        task.wait(0.01)
+        addTower(part)
+    end
+end)
+
+TowersFolder.ChildRemoved:Connect(function(part)
+    if part:IsA("BasePart") then
+        removeTower(part)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        cleanupDeadTowers()
+        task.wait(0.1)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        fullResync()
+    end
+end)
+
+for _, part in ipairs(TowersFolder:GetChildren()) do
+    if part:IsA("BasePart") then
+        addTower(part)
+    end
+end
