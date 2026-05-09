@@ -13,12 +13,62 @@ local enemyBlocklist = {
     "Quick",    
     "Normal",    
     "Buzzard",    
+    "Jumper",      
     "Zombie+",    
     "Fast Zombie+", 
     "Heavy Zombie+",               
     "VX-Drone",
     "Healing Drone",
-    "Missile Drone",    
+    "Missile Drone",  
+    "Rusher",  
+    "X-Nader",    
+    "Chariot Turret",  
+    "Spawner",  
+    "Healing Drone",  
+    "Attack Drone",  
+    "Rocket Drone",  
+    "Multiplier 3",  
+    "Multiplier 2", 
+    "Multiplier 1", 
+    "Multiplier X",  
+    "Aerial Juggernaut",      
+    "Xcientist",
+    "Shock Head",
+    "Prisoner",
+    "Prisoner Soul",
+    "Contained",
+    "Light Contained",
+    "Heavy Contained",
+    "Resurrected Armored Ranger",
+    "Resurrected Slow Ranger",
+    "Resurrected Ranger",
+    "Skulldrone",
+    "Skulldrone",
+    "Skulldrone",
+    "Skulldrone",
+    "Skulldrone",
+}
+
+local enemyWhitelist = {
+    "Emperor",
+    "Void Apex Predator",
+    "Golden Eradicator MK IV",
+    "Calamity",
+    "Golden Eradicator MK I Combat",
+    "Eradicator MK IV",
+    "Eradicator MK I Combat",
+    "Eradicator MK II+",
+    "Alpha Predator",
+    "Apex Predator",
+    "Destructor",
+    "Nightmare Exo Santa",
+    "Exo Santa",
+    "Zeus",
+    "Phoebus",
+    "Revived Plague Doctor",
+    "Eradicator",
+    "Plague Doctor",
+    "Predator",
 }
 
 local gui = Instance.new("ScreenGui")
@@ -276,23 +326,46 @@ local function getAllEnemies()
 end
 
 local function getClosestEnemy(position, enemies, blacklist)
-    local best, bestDist = nil, math.huge
+    local whitelistSet = {}
+    for _, name in ipairs(enemyWhitelist) do
+        whitelistSet[name] = true
+    end
+    
+    local whitelistEnemies = {}
     for _, enemy in ipairs(enemies) do
-        if not blacklist[enemy] then
-            local blocked = false
-            for _, blockedName in ipairs(enemyBlocklist) do
-                if enemy.Name == blockedName then
-                    blocked = true
-                    break
+        if not blacklist[enemy] and whitelistSet[enemy.Name] then
+            local dist = (position - enemy.Position).Magnitude
+            if dist <= 25 then
+                table.insert(whitelistEnemies, enemy)
+            end
+        end
+    end
+    
+    local candidates = whitelistEnemies
+    if #candidates == 0 then
+        candidates = {}
+        for _, enemy in ipairs(enemies) do
+            if not blacklist[enemy] then
+                local blocked = false
+                for _, blockedName in ipairs(enemyBlocklist) do
+                    if enemy.Name == blockedName then
+                        blocked = true
+                        break
+                    end
+                end
+                if not blocked then
+                    table.insert(candidates, enemy)
                 end
             end
-            if not blocked then
-                local dist = (position - enemy.Position).Magnitude
-                if dist < bestDist then
-                    bestDist = dist
-                    best = enemy
-                end
-            end
+        end
+    end
+    
+    local best, bestDist = nil, math.huge
+    for _, enemy in ipairs(candidates) do
+        local dist = (position - enemy.Position).Magnitude
+        if dist < bestDist then
+            bestDist = dist
+            best = enemy
         end
     end
     return best
@@ -719,6 +792,12 @@ emoteBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+local function trackCreation(instance)
+    if not instance:GetAttribute("_created") then
+        instance:SetAttribute("_created", tick())
+    end
+end
+
 local function removeFolders()
     local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
     if tdxShared then
@@ -733,13 +812,39 @@ local function removeFolders()
             end
         end
     end
+
+    local gameProjectiles = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Projectiles")
+    if gameProjectiles then
+        gameProjectiles:Destroy()
+    end
+
+    local gameFolder = workspace:FindFirstChild("Game")
+    if gameFolder then
+        local enemies = gameFolder:FindFirstChild("Enemies")
+        if enemies then
+            local enemyParts = enemies:GetChildren()
+            for _, part in ipairs(enemyParts) do
+                trackCreation(part)
+            end
+            
+            if #enemyParts > 100 then
+                local excess = #enemyParts - 100
+                table.sort(enemyParts, function(a, b)
+                    return (a:GetAttribute("_created") or 0) < (b:GetAttribute("_created") or 0)
+                end)
+                for i = 1, excess do
+                    enemyParts[i]:Destroy()
+                end
+            end
+        end
+    end
 end
 
-task.delay(15, function()
+task.delay(5, function()
     local lastCheck = 0
     RunService.Heartbeat:Connect(function(deltaTime)
         lastCheck = lastCheck + deltaTime
-        if lastCheck >= 0.5 then
+        if lastCheck >= 0.1 then
             lastCheck = 0
             removeFolders()
         end
