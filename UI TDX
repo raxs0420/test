@@ -5,71 +5,56 @@ local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 
+if LocalPlayer.PlayerGui:FindFirstChild("TDXAuto") then return end
+
+local RAW_SCRIPT_URL = "https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/UI%20TDX"
+
 local enemyBlocklist = {
-    "Skulldrone",
-    "Pilot",
-    "Artemis",    
-    "Slow",    
-    "Quick",    
-    "Normal",    
-    "Buzzard",    
-    "Jumper",      
-    "Zombie+",    
-    "Fast Zombie+", 
-    "Heavy Zombie+",               
-    "VX-Drone",
-    "Healing Drone",
-    "Missile Drone",  
-    "Rusher",  
-    "X-Nader",    
-    "Chariot Turret",  
-    "Spawner",  
-    "Healing Drone",  
-    "Attack Drone",  
-    "Rocket Drone",  
-    "Multiplier 3",  
-    "Multiplier 2", 
-    "Multiplier 1", 
-    "Multiplier X",  
-    "Aerial Juggernaut",      
-    "Xcientist",
-    "Shock Head",
-    "Prisoner",
-    "Prisoner Soul",
-    "Contained",
-    "Light Contained",
-    "Heavy Contained",
-    "Resurrected Armored Ranger",
-    "Resurrected Slow Ranger",
-    "Resurrected Ranger",
-    "Skulldrone",
-    "Skulldrone",
-    "Skulldrone",
-    "Skulldrone",
-    "Skulldrone",
+    "Skulldrone", "Pilot", "Artemis", "Slow", "Quick", "Normal", "Buzzard", "Jumper",
+    "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drone",
+    "Rusher", "X-Nader", "Chariot Turret", "Spawner", "Attack Drone", "Rocket Drone",
+    "Multiplier 3", "Multiplier 2", "Multiplier 1", "Multiplier X", "Aerial Juggernaut",
+    "Xcientist", "Shock Head", "Prisoner", "Prisoner Soul", "Contained", "Light Contained",
+    "Heavy Contained", "Resurrected Armored Ranger", "Resurrected Slow Ranger", "Resurrected Ranger"
 }
 
 local enemyWhitelist = {
-    "Emperor",
-    "Void Apex Predator",
-    "Golden Eradicator MK IV",
-    "Calamity",
-    "Golden Eradicator MK I Combat",
-    "Eradicator MK IV",
-    "Eradicator MK I Combat",
-    "Eradicator MK II+",
-    "Alpha Predator",
-    "Apex Predator",
-    "Destructor",
-    "Nightmare Exo Santa",
-    "Exo Santa",
-    "Zeus",
-    "Phoebus",
-    "Revived Plague Doctor",
-    "Eradicator",
-    "Plague Doctor",
-    "Predator",
+    "Emperor", "Void Apex Predator", "Golden Eradicator MK IV", "Calamity",
+    "Golden Eradicator MK I Combat", "Eradicator MK IV", "Eradicator MK I Combat",
+    "Eradicator MK II+", "Alpha Predator", "Apex Predator", "Destructor",
+    "Nightmare Exo Santa", "Exo Santa", "Zeus", "Phoebus", "Revived Plague Doctor",
+    "Eradicator", "Plague Doctor", "Predator"
 }
+
+local SettingsFile = "TDXAuto_Settings.json"
+local defaultSettings = { autoTargetMode = nil, autoSkip = false, emoteSpam = false, antiLagEnabled = true, activeAbilities = {}, towerLoadout = {} }
+local settings = {}
+
+local function loadSettings()
+    local success, data = pcall(readfile, SettingsFile)
+    if success and data then
+        local decoded = game:GetService("HttpService"):JSONDecode(data)
+        for k, v in pairs(defaultSettings) do if decoded[k] == nil then decoded[k] = v end end
+        settings = decoded
+        settings.activeAbilities = settings.activeAbilities or {}
+        settings.towerLoadout = settings.towerLoadout or {}
+    else
+        settings = { autoTargetMode = nil, autoSkip = false, emoteSpam = false, antiLagEnabled = true, activeAbilities = {}, towerLoadout = {} }
+    end
+end
+
+local function saveSettings()
+    local encoded = game:GetService("HttpService"):JSONEncode(settings)
+    pcall(writefile, SettingsFile, encoded)
+end
+
+loadSettings()
+
+local screenSize = workspace.CurrentCamera.ViewportSize
+local frameWidth = 380
+local frameHeight = screenSize.Y * 0.55
+local frameX = (screenSize.X - frameWidth) / 2
+local frameY = (screenSize.Y - frameHeight) / 2
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "TDXAuto"
@@ -77,13 +62,9 @@ gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-local screenHeight = workspace.CurrentCamera.ViewportSize.Y
-local frameHeight = screenHeight * 0.55
-local frameY = (screenHeight - frameHeight) / 2
-
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 400, 0, frameHeight)
-frame.Position = UDim2.new(0.5, -200, 0, frameY)
+frame.Size = UDim2.new(0, frameWidth, 0, frameHeight)
+frame.Position = UDim2.new(0, frameX, 0, frameY)
 frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
 frame.BackgroundTransparency = 0
 frame.Active = true
@@ -92,8 +73,8 @@ frame.Parent = gui
 Instance.new("UICorner", frame)
 
 local minimizeBtn = Instance.new("TextButton")
-minimizeBtn.Size = UDim2.new(0, 30, 0, 30)
-minimizeBtn.Position = UDim2.new(1, -35, 0, 5)
+minimizeBtn.Size = UDim2.new(0, 25, 0, 25)
+minimizeBtn.Position = UDim2.new(1, -30, 0, 5)
 minimizeBtn.Text = "_"
 minimizeBtn.TextColor3 = Color3.fromRGB(255,255,255)
 minimizeBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
@@ -101,7 +82,7 @@ minimizeBtn.Parent = frame
 Instance.new("UICorner", minimizeBtn)
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -50, 0, 30)
+title.Size = UDim2.new(1, -40, 0, 25)
 title.Position = UDim2.new(0, 10, 0, 5)
 title.Text = "TDX Auto"
 title.TextColor3 = Color3.new(1,1,1)
@@ -111,204 +92,168 @@ title.TextSize = 16
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = frame
 
+local tabMainBtn = Instance.new("TextButton")
+tabMainBtn.Size = UDim2.new(0, 70, 0, 22)
+tabMainBtn.Position = UDim2.new(0, 10, 0, 32)
+tabMainBtn.Text = "Main"
+tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+tabMainBtn.TextColor3 = Color3.fromRGB(255,255,255)
+tabMainBtn.TextSize = 12
+tabMainBtn.Parent = frame
+Instance.new("UICorner", tabMainBtn)
+
+local tabTowersBtn = Instance.new("TextButton")
+tabTowersBtn.Size = UDim2.new(0, 70, 0, 22)
+tabTowersBtn.Position = UDim2.new(0, 85, 0, 32)
+tabTowersBtn.Text = "Towers"
+tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+tabTowersBtn.TextColor3 = Color3.fromRGB(255,255,255)
+tabTowersBtn.TextSize = 12
+tabTowersBtn.Parent = frame
+Instance.new("UICorner", tabTowersBtn)
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(1, -20, 1, -65)
+mainFrame.Position = UDim2.new(0, 10, 0, 58)
+mainFrame.BackgroundTransparency = 1
+mainFrame.Parent = frame
+
+local towersFrame = Instance.new("Frame")
+towersFrame.Size = UDim2.new(1, -20, 1, -65)
+towersFrame.Position = UDim2.new(0, 10, 0, 58)
+towersFrame.BackgroundTransparency = 1
+towersFrame.Visible = false
+towersFrame.Parent = frame
+
+tabMainBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = true
+    towersFrame.Visible = false
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+end)
+
+tabTowersBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    towersFrame.Visible = true
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    refreshEquippedDisplay()
+end)
+
 local topBtn = Instance.new("TextButton")
-topBtn.Size = UDim2.new(0, 185, 0, 35)
-topBtn.Position = UDim2.new(0, 10, 0, 45)
+topBtn.Size = UDim2.new(0, 165, 0, 30)
+topBtn.Position = UDim2.new(0, 5, 0, 5)
 topBtn.Text = "Auto Max Top"
 topBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 topBtn.TextColor3 = Color3.fromRGB(100,255,100)
-topBtn.Parent = frame
+topBtn.TextSize = 10
+topBtn.Parent = mainFrame
 Instance.new("UICorner", topBtn)
 
 local bottomBtn = Instance.new("TextButton")
-bottomBtn.Size = UDim2.new(0, 185, 0, 35)
-bottomBtn.Position = UDim2.new(1, -195, 0, 45)
+bottomBtn.Size = UDim2.new(0, 165, 0, 30)
+bottomBtn.Position = UDim2.new(1, -170, 0, 5)
 bottomBtn.Text = "Auto Max Bottom"
 bottomBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 bottomBtn.TextColor3 = Color3.fromRGB(100,255,100)
-bottomBtn.Parent = frame
+bottomBtn.TextSize = 10
+bottomBtn.Parent = mainFrame
 Instance.new("UICorner", bottomBtn)
 
 local skipBtn = Instance.new("TextButton")
-skipBtn.Size = UDim2.new(0, 185, 0, 35)
-skipBtn.Position = UDim2.new(0, 10, 0, 95)
+skipBtn.Size = UDim2.new(0, 165, 0, 30)
+skipBtn.Position = UDim2.new(0, 5, 0, 42)
 skipBtn.Text = "Auto Skip: OFF"
 skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 skipBtn.TextColor3 = Color3.fromRGB(100,255,100)
-skipBtn.Parent = frame
+skipBtn.TextSize = 10
+skipBtn.Parent = mainFrame
 Instance.new("UICorner", skipBtn)
 
 local emoteBtn = Instance.new("TextButton")
-emoteBtn.Size = UDim2.new(0, 185, 0, 35)
-emoteBtn.Position = UDim2.new(1, -195, 0, 95)
+emoteBtn.Size = UDim2.new(0, 165, 0, 30)
+emoteBtn.Position = UDim2.new(1, -170, 0, 42)
 emoteBtn.Text = "Spam Emote: OFF"
 emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 emoteBtn.TextColor3 = Color3.fromRGB(100,255,100)
-emoteBtn.Parent = frame
+emoteBtn.TextSize = 10
+emoteBtn.Parent = mainFrame
 Instance.new("UICorner", emoteBtn)
 
 local teleportBtn = Instance.new("TextButton")
-teleportBtn.Size = UDim2.new(1, -20, 0, 35)
-teleportBtn.Position = UDim2.new(0, 10, 0, 145)
+teleportBtn.Size = UDim2.new(1, -10, 0, 30)
+teleportBtn.Position = UDim2.new(0, 5, 0, 80)
 teleportBtn.Text = "Teleport to Lobby"
 teleportBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 teleportBtn.TextColor3 = Color3.fromRGB(255,200,100)
-teleportBtn.Parent = frame
+teleportBtn.TextSize = 10
+teleportBtn.Parent = mainFrame
 Instance.new("UICorner", teleportBtn)
 
 local antiLagBtn = Instance.new("TextButton")
-antiLagBtn.Size = UDim2.new(1, -20, 0, 35)
-antiLagBtn.Position = UDim2.new(0, 10, 0, 195)
+antiLagBtn.Size = UDim2.new(1, -10, 0, 30)
+antiLagBtn.Position = UDim2.new(0, 5, 0, 118)
 antiLagBtn.Text = "Anti Lag: ON"
 antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
 antiLagBtn.TextColor3 = Color3.fromRGB(255,255,100)
-antiLagBtn.Parent = frame
+antiLagBtn.TextSize = 10
+antiLagBtn.Parent = mainFrame
 Instance.new("UICorner", antiLagBtn)
 
 local abilityLabel = Instance.new("TextLabel")
-abilityLabel.Size = UDim2.new(1, -20, 0, 20)
-abilityLabel.Position = UDim2.new(0, 10, 0, 245)
+abilityLabel.Size = UDim2.new(1, -10, 0, 16)
+abilityLabel.Position = UDim2.new(0, 5, 0, 158)
 abilityLabel.Text = "Abilities (click to toggle)"
 abilityLabel.TextColor3 = Color3.fromRGB(200,200,200)
-abilityLabel.TextSize = 12
+abilityLabel.TextSize = 10
 abilityLabel.BackgroundTransparency = 1
 abilityLabel.Font = Enum.Font.GothamBold
 abilityLabel.TextXAlignment = Enum.TextXAlignment.Left
-abilityLabel.Parent = frame
+abilityLabel.Parent = mainFrame
 
 local abilitiesFrame = Instance.new("ScrollingFrame")
-abilitiesFrame.Size = UDim2.new(1, -20, 0, frameHeight - 275)
-abilitiesFrame.Position = UDim2.new(0, 10, 0, 270)
+abilitiesFrame.Size = UDim2.new(1, -10, 0, frameHeight - 240)
+abilitiesFrame.Position = UDim2.new(0, 5, 0, 178)
 abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
 abilitiesFrame.BorderSizePixel = 0
-abilitiesFrame.ScrollBarThickness = 8
-abilitiesFrame.Parent = frame
+abilitiesFrame.ScrollBarThickness = 6
+abilitiesFrame.Parent = mainFrame
 Instance.new("UICorner", abilitiesFrame)
 
 local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
-abilitiesLayout.Padding = UDim.new(0, 8)
+abilitiesLayout.Padding = UDim.new(0, 6)
 abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
 abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
 abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local anchorBtn = Instance.new("TextButton")
-anchorBtn.Size = UDim2.new(0, 50, 0, 50)
-anchorBtn.Position = UDim2.new(0, 10, 0, 10)
-anchorBtn.Text = "TDX"
-anchorBtn.TextColor3 = Color3.fromRGB(255,255,255)
-anchorBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-anchorBtn.TextSize = 14
-anchorBtn.Font = Enum.Font.GothamBold
-anchorBtn.Visible = false
-anchorBtn.Parent = gui
-Instance.new("UICorner", anchorBtn)
-
-local isMinimized = false
-local function toggleMinimize()
-    isMinimized = not isMinimized
-    frame.Visible = not isMinimized
-    anchorBtn.Visible = isMinimized
-end
-minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
-anchorBtn.MouseButton1Click:Connect(toggleMinimize)
-
-teleportBtn.MouseButton1Click:Connect(function()
-    local confirmGui = Instance.new("ScreenGui")
-    confirmGui.Name = "TeleportConfirm"
-    confirmGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    local overlay = Instance.new("Frame")
-    overlay.Size = UDim2.new(1,0,1,0)
-    overlay.BackgroundColor3 = Color3.new(0,0,0)
-    overlay.BackgroundTransparency = 0.5
-    overlay.Parent = confirmGui
-    local confirmFrame = Instance.new("Frame")
-    confirmFrame.Size = UDim2.new(0, 300, 0, 150)
-    confirmFrame.Position = UDim2.new(0.5, -150, 0.5, -75)
-    confirmFrame.BackgroundColor3 = Color3.fromRGB(50,50,50)
-    confirmFrame.Parent = overlay
-    Instance.new("UICorner", confirmFrame)
-    local text = Instance.new("TextLabel")
-    text.Size = UDim2.new(1,0,0,50)
-    text.Position = UDim2.new(0,0,0,20)
-    text.Text = "Teleport to lobby?"
-    text.TextColor3 = Color3.new(1,1,1)
-    text.BackgroundTransparency = 1
-    text.Font = Enum.Font.GothamBold
-    text.TextSize = 18
-    text.Parent = confirmFrame
-    local yesBtn = Instance.new("TextButton")
-    yesBtn.Size = UDim2.new(0, 100, 0, 40)
-    yesBtn.Position = UDim2.new(0.25, -50, 1, -50)
-    yesBtn.Text = "Yes"
-    yesBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    yesBtn.Parent = confirmFrame
-    Instance.new("UICorner", yesBtn)
-    local noBtn = Instance.new("TextButton")
-    noBtn.Size = UDim2.new(0, 100, 0, 40)
-    noBtn.Position = UDim2.new(0.75, -50, 1, -50)
-    noBtn.Text = "No"
-    noBtn.BackgroundColor3 = Color3.fromRGB(150,70,70)
-    noBtn.Parent = confirmFrame
-    Instance.new("UICorner", noBtn)
-    yesBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            TeleportService:Teleport(9503261072)
-        end)
-        confirmGui:Destroy()
-    end)
-    noBtn.MouseButton1Click:Connect(function()
-        confirmGui:Destroy()
-    end)
-end)
-
 local abilityOrder = {
     "GRENADE", "UNSTUN_HEALTH", "HUMVEE", "FLARE", "DJ_Encore", "AXE_RAGE",
     "LaserGunner", "TOXIC_BLAST", "AP_ROUNDS", "OVERCHARGE",
-    "GRAND_SLAM", "GOLDEN_GRENADE", "Charge_Throw", "GLOBAL_STEALTH_REVEAL",
+    "GRAND_SLAM", "GOLDEN_GRANDE", "Charge_Throw", "GLOBAL_STEALTH_REVEAL",
     "REBOOT_SYSTEMS", "OVERLOAD"
 }
 
 local towerToAbilitySlot = {
-    Ranger = {ability = "GRENADE", slot = 1},
-    Shotgunner = {ability = "UNSTUN_HEALTH", slot = 1},
-    Operator = {ability = "HUMVEE", slot = 1},
-    Sniper = {ability = "FLARE", slot = 1},
-    EDJ = {ability = "DJ_Encore", slot = 1},
-    John = {ability = "AXE_RAGE", slot = 1},
-    ["Laser Gunner"] = {ability = "LaserGunner", slot = 1},
-    Toxicnator = {ability = "TOXIC_BLAST", slot = 1},
-    Mobster = {ability = "AP_ROUNDS", slot = 1},
-    ["Machine Gunner"] = {ability = "OVERCHARGE", slot = 2},
-    Slammer = {ability = "GRAND_SLAM", slot = 1},
-    ["Golden Ranger"] = {ability = "GOLDEN_GRENADE", slot = 1},
-    ["Golden Mine Layer"] = {ability = "Charge_Throw", slot = 1},
-    Warship = {ability = "GLOBAL_STEALTH_REVEAL", slot = 1},
-    ["Golden Juggernaut"] = {ability = "REBOOT_SYSTEMS", slot = 1},
-    ["Golden Mobster"] = {ability = "OVERLOAD", slot = 1},
+    Ranger = {ability = "GRENADE", slot = 1}, Shotgunner = {ability = "UNSTUN_HEALTH", slot = 1},
+    Operator = {ability = "HUMVEE", slot = 1}, Sniper = {ability = "FLARE", slot = 1},
+    EDJ = {ability = "DJ_Encore", slot = 1}, John = {ability = "AXE_RAGE", slot = 1},
+    ["Laser Gunner"] = {ability = "LaserGunner", slot = 1}, Toxicnator = {ability = "TOXIC_BLAST", slot = 1},
+    Mobster = {ability = "AP_ROUNDS", slot = 1}, ["Machine Gunner"] = {ability = "OVERCHARGE", slot = 2},
+    Slammer = {ability = "GRAND_SLAM", slot = 1}, ["Golden Ranger"] = {ability = "GOLDEN_GRANDE", slot = 1},
+    ["Golden Mine Layer"] = {ability = "Charge_Throw", slot = 1}, Warship = {ability = "GLOBAL_STEALTH_REVEAL", slot = 1},
+    ["Golden Juggernaut"] = {ability = "REBOOT_SYSTEMS", slot = 1}, ["Golden Mobster"] = {ability = "OVERLOAD", slot = 1},
 }
 
 local abilityDisplayNames = {
-    GRENADE = "Grenade",
-    UNSTUN_HEALTH = "Health/UnStun",
-    HUMVEE = "Humvee",
-    FLARE = "Flare",
-    DJ_Encore = "DJ Encore",
-    AXE_RAGE = "Axe/Rage",
-    LaserGunner = "Laser Gunner",
-    TOXIC_BLAST = "Toxic Blast",
-    AP_ROUNDS = "AP Rounds",
-    OVERCHARGE = "Overcharge",
-    GRAND_SLAM = "Grand Slam",
-    GOLDEN_GRENADE = "Golden Grenade",
-    Charge_Throw = "Charge Throw",
-    GLOBAL_STEALTH_REVEAL = "Global Stealth",
-    REBOOT_SYSTEMS = "Reboot Systems",
+    GRENADE = "Grenade", UNSTUN_HEALTH = "Health/UnStun", HUMVEE = "Humvee", FLARE = "Flare",
+    DJ_Encore = "DJ Encore", AXE_RAGE = "Axe/Rage", LaserGunner = "Laser Gunner", TOXIC_BLAST = "Toxic Blast",
+    AP_ROUNDS = "AP Rounds", OVERCHARGE = "Overcharge", GRAND_SLAM = "Grand Slam", GOLDEN_GRANDE = "Golden Grenade",
+    Charge_Throw = "Charge Throw", GLOBAL_STEALTH_REVEAL = "Global Stealth", REBOOT_SYSTEMS = "Reboot Systems",
     OVERLOAD = "G Mobster",
 }
 
-local activeAbilities = {}
+local activeAbilities = settings.activeAbilities
 local abilityTargets = {}
-
 for towerName, data in pairs(towerToAbilitySlot) do
     local abilityName = data.ability
     if not abilityTargets[abilityName] then
@@ -336,20 +281,14 @@ end
 
 local function getClosestEnemy(position, enemies, blacklist)
     local whitelistSet = {}
-    for _, name in ipairs(enemyWhitelist) do
-        whitelistSet[name] = true
-    end
-    
+    for _, name in ipairs(enemyWhitelist) do whitelistSet[name] = true end
     local whitelistEnemies = {}
     for _, enemy in ipairs(enemies) do
         if not blacklist[enemy] and whitelistSet[enemy.Name] then
             local dist = (position - enemy.Position).Magnitude
-            if dist <= 25 then
-                table.insert(whitelistEnemies, enemy)
-            end
+            if dist <= 25 then table.insert(whitelistEnemies, enemy) end
         end
     end
-    
     local candidates = whitelistEnemies
     if #candidates == 0 then
         candidates = {}
@@ -357,25 +296,16 @@ local function getClosestEnemy(position, enemies, blacklist)
             if not blacklist[enemy] then
                 local blocked = false
                 for _, blockedName in ipairs(enemyBlocklist) do
-                    if enemy.Name == blockedName then
-                        blocked = true
-                        break
-                    end
+                    if enemy.Name == blockedName then blocked = true break end
                 end
-                if not blocked then
-                    table.insert(candidates, enemy)
-                end
+                if not blocked then table.insert(candidates, enemy) end
             end
         end
     end
-    
     local best, bestDist = nil, math.huge
     for _, enemy in ipairs(candidates) do
         local dist = (position - enemy.Position).Magnitude
-        if dist < bestDist then
-            bestDist = dist
-            best = enemy
-        end
+        if dist < bestDist then bestDist = dist best = enemy end
     end
     return best
 end
@@ -391,19 +321,11 @@ local function isTowerDead(part)
 end
 
 local function allocateId()
-    if #freeIds > 0 then
-        return table.remove(freeIds)
-    else
-        local id = nextId
-        nextId = nextId + 1
-        return id
-    end
+    if #freeIds > 0 then return table.remove(freeIds) else local id = nextId nextId = nextId + 1 return id end
 end
 
 local function freeId(id)
-    if id and id > 0 then
-        table.insert(freeIds, id)
-    end
+    if id and id > 0 then table.insert(freeIds, id) end
 end
 
 local function addTower(part)
@@ -411,14 +333,7 @@ local function addTower(part)
     if isTowerDead(part) then return end
     local id = allocateId()
     partToId[part] = id
-    towers[id] = {
-        part = part,
-        name = part.Name,
-        topCount = 0,
-        bottomCount = 0,
-        placedAfterAuto = autoActive,
-        removed = false
-    }
+    towers[id] = { part = part, name = part.Name, topCount = 0, bottomCount = 0, placedAfterAuto = autoActive, removed = false }
 end
 
 local function removeTower(part)
@@ -444,9 +359,7 @@ local function fullResync()
     if not towersFolder then return end
     local liveParts = {}
     for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") and not isTowerDead(part) then
-            table.insert(liveParts, part)
-        end
+        if part:IsA("BasePart") and not isTowerDead(part) then table.insert(liveParts, part) end
     end
     local newPartToId = {}
     local newTowers = {}
@@ -464,21 +377,10 @@ local function fullResync()
             local newId = allocateId()
             newPartToId[part] = newId
             usedIds[newId] = true
-            newTowers[newId] = {
-                part = part,
-                name = part.Name,
-                topCount = 0,
-                bottomCount = 0,
-                placedAfterAuto = autoActive,
-                removed = false
-            }
+            newTowers[newId] = { part = part, name = part.Name, topCount = 0, bottomCount = 0, placedAfterAuto = autoActive, removed = false }
         end
     end
-    for id, _ in pairs(towers) do
-        if not usedIds[id] then
-            freeId(id)
-        end
-    end
+    for id, _ in pairs(towers) do if not usedIds[id] then freeId(id) end end
     partToId = newPartToId
     towers = newTowers
 end
@@ -488,14 +390,8 @@ local function sendOverloadAbility(id, slot, position)
     if remote then
         local req = remote:FindFirstChild("TowerUseAbilityRequest")
         if req then
-            local success, response = pcall(function()
-                return req:InvokeServer(id, slot, position)
-            end)
-            if success then
-                return response
-            else
-                return nil
-            end
+            local success, response = pcall(function() return req:InvokeServer(id, slot, position) end)
+            if success then return response else return nil end
         end
     end
     return nil
@@ -508,29 +404,18 @@ local function runOverloadSequential(slot)
         for id, data in pairs(towers) do
             if data.name == "Golden Mobster" and data.part and data.part.Parent then
                 local pauseUntil = towerPauseUntil[id]
-                if not pauseUntil or tick() >= pauseUntil then
-                    table.insert(gmIds, id)
-                end
+                if not pauseUntil or tick() >= pauseUntil then table.insert(gmIds, id) end
             end
         end
-        if #gmIds == 0 then
-            task.wait(0.5)
-            continue
-        end
+        if #gmIds == 0 then task.wait(0.5) continue end
         local enemies = getAllEnemies()
-        if #enemies == 0 then
-            task.wait(0.1)
-            continue
-        end
+        if #enemies == 0 then task.wait(0.1) continue end
         for _, id in ipairs(gmIds) do
             if not activeAbilities["OVERLOAD"] then break end
             local towerData = towers[id]
             if not towerData or not towerData.part then continue end
             local target = getClosestEnemy(towerData.part.Position, enemies, globalHitBlacklist)
-            if not target then
-                task.wait(0.1)
-                continue
-            end
+            if not target then task.wait(0.1) continue end
             local response = sendOverloadAbility(id, slot, target.Position)
             if response == true then
                 globalHitBlacklist[target] = true
@@ -550,10 +435,7 @@ local abilityLoops = {}
 
 local function startAbilityLoop(abilityName)
     if abilityName == "OVERLOAD" then
-        if overloadLoop then
-            task.cancel(overloadLoop)
-            overloadLoop = nil
-        end
+        if overloadLoop then task.cancel(overloadLoop) overloadLoop = nil end
         if not activeAbilities["OVERLOAD"] then return false end
         overloadLoop = task.spawn(runOverloadSequential, abilityTargets["OVERLOAD"].slot)
         return true
@@ -571,10 +453,7 @@ local function startAbilityLoop(abilityName)
                 for id, towerData in pairs(towers) do
                     if towerData and towerData.name then
                         for _, towerName in ipairs(data.towers) do
-                            if towerData.name == towerName then
-                                targetIds[#targetIds + 1] = id
-                                break
-                            end
+                            if towerData.name == towerName then targetIds[#targetIds + 1] = id break end
                         end
                     end
                 end
@@ -584,9 +463,7 @@ local function startAbilityLoop(abilityName)
                         local remote = ReplicatedStorage:FindFirstChild("Remotes")
                         if remote then
                             local req = remote:FindFirstChild("TowerUseAbilityRequest")
-                            if req then
-                                pcall(function() req:InvokeServer(id, data.slot) end)
-                            end
+                            if req then pcall(function() req:InvokeServer(id, data.slot) end) end
                         end
                         task.wait(0.2)
                     end
@@ -605,18 +482,18 @@ for _, abilityName in ipairs(abilityOrder) do
     if abilityTargets[abilityName] then
         if buttonsInRow == 0 then
             rowFrame = Instance.new("Frame")
-            rowFrame.Size = UDim2.new(1, -10, 0, 40)
+            rowFrame.Size = UDim2.new(1, -10, 0, 34)
             rowFrame.BackgroundTransparency = 1
             rowFrame.Parent = abilitiesFrame
             rowFrame.LayoutOrder = 1
         end
         local btn = Instance.new("TextButton")
         local displayName = abilityDisplayNames[abilityName] or abilityName
-        btn.Size = UDim2.new(0, 170, 0, 34)
+        btn.Size = UDim2.new(0, 150, 0, 28)
         btn.Text = displayName
-        btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+        btn.BackgroundColor3 = activeAbilities[abilityName] and Color3.fromRGB(70,150,70) or Color3.fromRGB(60,60,60)
         btn.TextColor3 = Color3.fromRGB(255,255,255)
-        btn.TextSize = 12
+        btn.TextSize = 10
         btn.Font = Enum.Font.GothamSemibold
         btn.Parent = rowFrame
         Instance.new("UICorner", btn)
@@ -624,10 +501,9 @@ for _, abilityName in ipairs(abilityOrder) do
             btn.Position = UDim2.new(0, 5, 0, 3)
             buttonsInRow = 1
         else
-            btn.Position = UDim2.new(1, -175, 0, 3)
+            btn.Position = UDim2.new(1, -155, 0, 3)
             buttonsInRow = 0
         end
-        activeAbilities[abilityName] = false
         btn.MouseButton1Click:Connect(function()
             if activeAbilities[abilityName] then
                 activeAbilities[abilityName] = false
@@ -644,25 +520,24 @@ for _, abilityName in ipairs(abilityOrder) do
                 end
                 startAbilityLoop(abilityName)
             end
+            saveSettings()
         end)
     end
 end
 
 task.wait(0.1)
 local totalRows = math.ceil(#abilityOrder / 2)
-abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, totalRows * 46 + 10)
+abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, totalRows * 40 + 10)
 
-local autoTargetMode = nil
-local autoActive = false
+local autoTargetMode = settings.autoTargetMode
+local autoActive = (autoTargetMode ~= nil)
 local upgradeLoop = nil
 
 local function sendUpgrade(id, path, level)
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
     if remote then
         local req = remote:FindFirstChild("TowerUpgradeRequest")
-        if req then
-            pcall(function() req:FireServer(id, path, level) end)
-        end
+        if req then pcall(function() req:FireServer(id, path, level) end) end
     end
 end
 
@@ -672,27 +547,11 @@ local function upgradeTower(id)
     local mode = autoTargetMode
     if not mode then return end
     if mode == "top" then
-        if data.topCount < 5 then
-            sendUpgrade(id, 1, 5)
-            data.topCount = 5
-            task.wait(0.01)
-        end
-        if data.bottomCount < 2 then
-            sendUpgrade(id, 2, 2)
-            data.bottomCount = 2
-            task.wait(0.01)
-        end
+        if data.topCount < 5 then sendUpgrade(id, 1, 5) data.topCount = 5 task.wait(0.01) end
+        if data.bottomCount < 2 then sendUpgrade(id, 2, 2) data.bottomCount = 2 task.wait(0.01) end
     else
-        if data.bottomCount < 5 then
-            sendUpgrade(id, 2, 5)
-            data.bottomCount = 5
-            task.wait(0.01)
-        end
-        if data.topCount < 2 then
-            sendUpgrade(id, 1, 2)
-            data.topCount = 2
-            task.wait(0.01)
-        end
+        if data.bottomCount < 5 then sendUpgrade(id, 2, 5) data.bottomCount = 5 task.wait(0.01) end
+        if data.topCount < 2 then sendUpgrade(id, 1, 2) data.topCount = 2 task.wait(0.01) end
     end
 end
 
@@ -701,9 +560,7 @@ local function startAutoUpgrade()
     upgradeLoop = task.spawn(function()
         while autoActive do
             for id, data in pairs(towers) do
-                if data.placedAfterAuto then
-                    upgradeTower(id)
-                end
+                if data.placedAfterAuto then upgradeTower(id) end
                 task.wait(0.01)
             end
             task.wait(0.05)
@@ -719,26 +576,31 @@ local function setAutoMode(mode, btn)
         btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     else
         if autoActive then
-            if autoTargetMode == "top" then
-                topBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-            else
-                bottomBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-            end
+            if autoTargetMode == "top" then topBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+            else bottomBtn.BackgroundColor3 = Color3.fromRGB(70,70,70) end
         end
         autoActive = true
         autoTargetMode = mode
         btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-        for id, data in pairs(towers) do
-            data.placedAfterAuto = false
-        end
+        for id, data in pairs(towers) do data.placedAfterAuto = false end
         startAutoUpgrade()
     end
+    settings.autoTargetMode = autoTargetMode
+    saveSettings()
+end
+
+if autoTargetMode == "top" then
+    topBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    startAutoUpgrade()
+elseif autoTargetMode == "bottom" then
+    bottomBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    startAutoUpgrade()
 end
 
 topBtn.MouseButton1Click:Connect(function() setAutoMode("top", topBtn) end)
 bottomBtn.MouseButton1Click:Connect(function() setAutoMode("bottom", bottomBtn) end)
 
-local autoSkip = false
+local autoSkip = settings.autoSkip
 local skipLoop = nil
 
 local function startSkipLoop()
@@ -756,8 +618,19 @@ local function startSkipLoop()
     end)
 end
 
+if autoSkip then
+    skipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    skipBtn.Text = "Auto Skip: ON"
+    startSkipLoop()
+else
+    skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    skipBtn.Text = "Auto Skip: OFF"
+end
+
 skipBtn.MouseButton1Click:Connect(function()
     autoSkip = not autoSkip
+    settings.autoSkip = autoSkip
+    saveSettings()
     if autoSkip then
         skipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
         skipBtn.Text = "Auto Skip: ON"
@@ -768,7 +641,7 @@ skipBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-local emoteSpam = false
+local emoteSpam = settings.emoteSpam
 local emoteLoop = nil
 
 local function startEmoteSpam()
@@ -776,17 +649,26 @@ local function startEmoteSpam()
     emoteLoop = task.spawn(function()
         local emoteEvent = ReplicatedStorage:FindFirstChild("EmoteEvent")
         while emoteSpam and emoteEvent do
-            pcall(function()
-                emoteEvent:FireServer("KeyframeEvent", "Bunny Plush", "PlaySqueak")
-            end)
+            pcall(function() emoteEvent:FireServer("KeyframeEvent", "Bunny Plush", "PlaySqueak") end)
             task.wait(0.1)
         end
         emoteLoop = nil
     end)
 end
 
+if emoteSpam then
+    emoteBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    emoteBtn.Text = "Spam Emote: ON"
+    startEmoteSpam()
+else
+    emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    emoteBtn.Text = "Spam Emote: OFF"
+end
+
 emoteBtn.MouseButton1Click:Connect(function()
     emoteSpam = not emoteSpam
+    settings.emoteSpam = emoteSpam
+    saveSettings()
     if emoteSpam then
         emoteBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
         emoteBtn.Text = "Spam Emote: ON"
@@ -794,18 +676,21 @@ emoteBtn.MouseButton1Click:Connect(function()
     else
         emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
         emoteBtn.Text = "Spam Emote: OFF"
-        if emoteLoop then
-            task.cancel(emoteLoop)
-            emoteLoop = nil
-        end
+        if emoteLoop then task.cancel(emoteLoop) emoteLoop = nil end
     end
 end)
 
-local antiLagEnabled = true
+local antiLagEnabled = settings.antiLagEnabled
+if not antiLagEnabled then
+    antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    antiLagBtn.Text = "Anti Lag: OFF"
+else
+    antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    antiLagBtn.Text = "Anti Lag: ON"
+end
+
 local function trackCreation(instance)
-    if not instance:GetAttribute("_created") then
-        instance:SetAttribute("_created", tick())
-    end
+    if not instance:GetAttribute("_created") then instance:SetAttribute("_created", tick()) end
 end
 
 local function removeFolders()
@@ -816,36 +701,23 @@ local function removeFolders()
             local resources = common:FindFirstChild("Resources")
             if resources then
                 local deathEffects = resources:FindFirstChild("DeathEffects")
-                if deathEffects then
-                    deathEffects:Destroy()
-                end
+                if deathEffects then deathEffects:Destroy() end
             end
         end
     end
-
     local gameProjectiles = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Projectiles")
-    if gameProjectiles then
-        gameProjectiles:Destroy()
-    end
-
+    if gameProjectiles then gameProjectiles:Destroy() end
     if antiLagEnabled then
         local gameFolder = workspace:FindFirstChild("Game")
         if gameFolder then
             local enemies = gameFolder:FindFirstChild("Enemies")
             if enemies then
                 local enemyParts = enemies:GetChildren()
-                for _, part in ipairs(enemyParts) do
-                    trackCreation(part)
-                end
-                
+                for _, part in ipairs(enemyParts) do trackCreation(part) end
                 if #enemyParts > 100 then
                     local excess = #enemyParts - 100
-                    table.sort(enemyParts, function(a, b)
-                        return (a:GetAttribute("_created") or 0) < (b:GetAttribute("_created") or 0)
-                    end)
-                    for i = 1, excess do
-                        enemyParts[i]:Destroy()
-                    end
+                    table.sort(enemyParts, function(a,b) return (a:GetAttribute("_created") or 0) < (b:GetAttribute("_created") or 0) end)
+                    for i = 1, excess do enemyParts[i]:Destroy() end
                 end
             end
         end
@@ -854,6 +726,8 @@ end
 
 antiLagBtn.MouseButton1Click:Connect(function()
     antiLagEnabled = not antiLagEnabled
+    settings.antiLagEnabled = antiLagEnabled
+    saveSettings()
     if antiLagEnabled then
         antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
         antiLagBtn.Text = "Anti Lag: ON"
@@ -880,18 +754,14 @@ local function startCoinCollector()
         local function getRemote()
             if not remote or not remote.Parent then
                 local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-                if remotes then
-                    remote = remotes:FindFirstChild("ClientsideCoinCollectedEvent")
-                end
+                if remotes then remote = remotes:FindFirstChild("ClientsideCoinCollectedEvent") end
             end
             return remote
         end
         while true do
             local currentRemote = getRemote()
             if currentRemote then
-                for i = 1, 250 do
-                    pcall(function() currentRemote:FireServer(i) end)
-                end
+                for i = 1, 250 do pcall(function() currentRemote:FireServer(i) end) end
             end
             task.wait(2.5)
         end
@@ -900,44 +770,277 @@ end
 
 startCoinCollector()
 
-local TowersFolder = workspace.Game:FindFirstChild("Towers")
-if not TowersFolder then
-    TowersFolder = Instance.new("Folder")
-    TowersFolder.Name = "Towers"
-    workspace.Game = workspace.Game or Instance.new("Folder", workspace)
-    workspace.Game.Name = "Game"
-    TowersFolder.Parent = workspace.Game
+pcall(function()
+    local TowersFolder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Towers")
+    if not TowersFolder then return end
+
+    TowersFolder.ChildAdded:Connect(function(part)
+        if part:IsA("BasePart") then task.wait(0.01) addTower(part) end
+    end)
+    TowersFolder.ChildRemoved:Connect(function(part)
+        if part:IsA("BasePart") then removeTower(part) end
+    end)
+
+    task.spawn(function()
+        while true do cleanupDeadTowers() task.wait(0.1) end
+    end)
+    task.spawn(function()
+        while true do task.wait(5) fullResync() end
+    end)
+
+    for _, part in ipairs(TowersFolder:GetChildren()) do
+        if part:IsA("BasePart") then addTower(part) end
+    end
+end)
+
+for abilityName, isActive in pairs(activeAbilities) do
+    if isActive and abilityTargets[abilityName] then startAbilityLoop(abilityName) end
 end
 
-TowersFolder.ChildAdded:Connect(function(part)
-    if part:IsA("BasePart") then
-        task.wait(0.01)
-        addTower(part)
+teleportBtn.MouseButton1Click:Connect(function()
+    local confirmGui = Instance.new("ScreenGui")
+    confirmGui.Name = "TeleportConfirm"
+    confirmGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    local overlay = Instance.new("Frame")
+    overlay.Size = UDim2.new(1,0,1,0)
+    overlay.BackgroundColor3 = Color3.new(0,0,0)
+    overlay.BackgroundTransparency = 0.5
+    overlay.Parent = confirmGui
+    local confirmFrame = Instance.new("Frame")
+    confirmFrame.Size = UDim2.new(0, 260, 0, 120)
+    confirmFrame.Position = UDim2.new(0.5, -130, 0.5, -60)
+    confirmFrame.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    confirmFrame.Parent = overlay
+    Instance.new("UICorner", confirmFrame)
+    local text = Instance.new("TextLabel")
+    text.Size = UDim2.new(1,0,0,40)
+    text.Position = UDim2.new(0,0,0,15)
+    text.Text = "Teleport to lobby?"
+    text.TextColor3 = Color3.new(1,1,1)
+    text.BackgroundTransparency = 1
+    text.Font = Enum.Font.GothamBold
+    text.TextSize = 16
+    text.Parent = confirmFrame
+    local yesBtn = Instance.new("TextButton")
+    yesBtn.Size = UDim2.new(0, 90, 0, 32)
+    yesBtn.Position = UDim2.new(0.25, -45, 1, -40)
+    yesBtn.Text = "Yes"
+    yesBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    yesBtn.Parent = confirmFrame
+    Instance.new("UICorner", yesBtn)
+    local noBtn = Instance.new("TextButton")
+    noBtn.Size = UDim2.new(0, 90, 0, 32)
+    noBtn.Position = UDim2.new(0.75, -45, 1, -40)
+    noBtn.Text = "No"
+    noBtn.BackgroundColor3 = Color3.fromRGB(150,70,70)
+    noBtn.Parent = confirmFrame
+    Instance.new("UICorner", noBtn)
+    yesBtn.MouseButton1Click:Connect(function()
+        pcall(function() TeleportService:Teleport(9503261072) end)
+        confirmGui:Destroy()
+    end)
+    noBtn.MouseButton1Click:Connect(function()
+        confirmGui:Destroy()
+    end)
+end)
+
+local towerList = {
+    "Ranger", "Shotgunner", "Operator", "Mine Layer", "Sniper", "Cryo Blaster",
+    "Missile Trooper", "Patrol Boat", "Farm", "Barracks", "Grenadier", "EDJ",
+    "John", "Laser Gunner", "Toxicnator", "Sentry",
+    "Artillery", "Scout Helicopter", "Jet Trooper", "AA Turret", "Armored Factory",
+    "Juggernaut", "Ghost", "Mobster", "Railgunner", "Machine Gunner", "Medic",
+    "Slammer", "XWM Turret",
+    "Golden Ranger", "Golden Mine Layer", "Combat Drone", "Warship", "Helicopter",
+    "Golden Juggernaut", "Golden Mobster",
+    "Shield Tower", "Oil Derrick", "Behemoth Factory", "Commander", "Combat Medic",
+    "War Machine", "Refractor",
+    "Cryo Ranger", "Z.E.D.", "Scarecrow", "Flame Trooper", "Relic",
+    "Cryo Helicopter", "Ice Breaker", "Troll Tower", "Goo Gunner",
+    "Shock Trooper", "Cryo Mortar", "Psycho Slayer", "Chicken House",
+    "Golden Warship", "Bubble Blower"
+}
+
+local function getEquippedTowers()
+    local equipped = {}
+    local guiRoot = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("GUI")
+    if guiRoot then
+        local towersBar = guiRoot:FindFirstChild("TowersBar")
+        if towersBar then
+            for i = 1, 6 do
+                local slot = towersBar:FindFirstChild(tostring(i))
+                if slot then
+                    local mainFrame = slot:FindFirstChild("MainFrame")
+                    if mainFrame then
+                        for _, child in ipairs(mainFrame:GetChildren()) do
+                            if child:IsA("Frame") and child.Name ~= "Empty" then
+                                equipped[child.Name] = true
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return equipped
+end
+
+local selectedTowers = {}
+local towerButtons = {}
+
+local towerScroll = Instance.new("ScrollingFrame")
+towerScroll.Size = UDim2.new(1, -10, 1, -50)
+towerScroll.Position = UDim2.new(0, 5, 0, 5)
+towerScroll.BackgroundColor3 = Color3.fromRGB(40,40,40)
+towerScroll.BorderSizePixel = 0
+towerScroll.ScrollBarThickness = 6
+towerScroll.Parent = towersFrame
+Instance.new("UICorner", towerScroll)
+
+local towerLayout = Instance.new("UIListLayout", towerScroll)
+towerLayout.Padding = UDim.new(0, 6)
+towerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+towerLayout.FillDirection = Enum.FillDirection.Vertical
+towerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+local wasVisible = towersFrame.Visible
+towersFrame.Visible = true
+
+local function refreshEquippedDisplay()
+    local currentlyEquipped = getEquippedTowers()
+    for towerName, btn in pairs(towerButtons) do
+        if currentlyEquipped[towerName] then
+            btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+        elseif not selectedTowers[towerName] then
+            btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+        end
+    end
+end
+
+for _, towerName in ipairs(towerList) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 28)
+    btn.Text = towerName
+    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.TextSize = 10
+    btn.Font = Enum.Font.GothamSemibold
+    btn.Parent = towerScroll
+    Instance.new("UICorner", btn)
+    towerButtons[towerName] = btn
+    btn.MouseButton1Click:Connect(function()
+        if selectedTowers[towerName] then
+            selectedTowers[towerName] = nil
+            if not getEquippedTowers()[towerName] then
+                btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+            end
+        else
+            selectedTowers[towerName] = true
+            btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+        end
+    end)
+end
+
+local equipBtn = Instance.new("TextButton")
+equipBtn.Size = UDim2.new(1, -10, 0, 36)
+equipBtn.Position = UDim2.new(0, 5, 1, -42)
+equipBtn.Text = "Equip Selected Towers"
+equipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+equipBtn.TextColor3 = Color3.fromRGB(255,255,255)
+equipBtn.Font = Enum.Font.GothamBold
+equipBtn.TextSize = 10
+equipBtn.Parent = towersFrame
+Instance.new("UICorner", equipBtn)
+
+equipBtn.MouseButton1Click:Connect(function()
+    local currentlyEquipped = getEquippedTowers()
+    local loadout = {}
+    for towerName, _ in pairs(currentlyEquipped) do
+        table.insert(loadout, towerName)
+    end
+    local added = 0
+    for towerName, selected in pairs(selectedTowers) do
+        if selected and not currentlyEquipped[towerName] then
+            if #loadout < 6 then
+                table.insert(loadout, towerName)
+                added = added + 1
+            else
+                equipBtn.BackgroundColor3 = Color3.fromRGB(200,70,70)
+                equipBtn.Text = "Max 6 towers reached!"
+                task.delay(1.5, function()
+                    equipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+                    equipBtn.Text = "Equip Selected Towers"
+                end)
+                return
+            end
+        end
+    end
+    if added == 0 then
+        equipBtn.BackgroundColor3 = Color3.fromRGB(200,70,70)
+        equipBtn.Text = "All selected towers already equipped!"
+        task.delay(1.5, function()
+            equipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+            equipBtn.Text = "Equip Selected Towers"
+        end)
+        return
+    end
+    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    if net then
+        local eq = net:FindFirstChild("UpdateLoadout")
+        if eq then
+            eq:FireServer(loadout)
+            settings.towerLoadout = loadout
+            saveSettings()
+            equipBtn.BackgroundColor3 = Color3.fromRGB(70,200,70)
+            task.delay(1, function()
+                equipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+            end)
+            task.wait(0.5)
+            refreshEquippedDisplay()
+            for towerName, btn in pairs(towerButtons) do
+                if getEquippedTowers()[towerName] then
+                    btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+                elseif not selectedTowers[towerName] then
+                    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+                end
+            end
+        end
     end
 end)
 
-TowersFolder.ChildRemoved:Connect(function(part)
-    if part:IsA("BasePart") then
-        removeTower(part)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        cleanupDeadTowers()
+task.wait(0.2)
+local function setCanvas()
+    local contentHeight = towerLayout.AbsoluteContentSize.Y
+    if contentHeight > 0 then
+        towerScroll.CanvasSize = UDim2.new(0, 0, 0, contentHeight + 20)
+        towersFrame.Visible = wasVisible
+    else
         task.wait(0.1)
-    end
-end)
-
-task.spawn(function()
-    while true do
-        task.wait(5)
-        fullResync()
-    end
-end)
-
-for _, part in ipairs(TowersFolder:GetChildren()) do
-    if part:IsA("BasePart") then
-        addTower(part)
+        setCanvas()
     end
 end
+setCanvas()
+
+local anchorBtn = Instance.new("TextButton")
+anchorBtn.Size = UDim2.new(0, 45, 0, 45)
+anchorBtn.Position = UDim2.new(0, 10, 0, 10)
+anchorBtn.Text = "TDX"
+anchorBtn.TextColor3 = Color3.fromRGB(255,255,255)
+anchorBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+anchorBtn.TextSize = 12
+anchorBtn.Font = Enum.Font.GothamBold
+anchorBtn.Visible = false
+anchorBtn.Parent = gui
+Instance.new("UICorner", anchorBtn)
+
+local isMinimized = false
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    frame.Visible = not isMinimized
+    anchorBtn.Visible = isMinimized
+end
+minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
+anchorBtn.MouseButton1Click:Connect(toggleMinimize)
+
+queue_on_teleport('loadstring(game:HttpGet("'..RAW_SCRIPT_URL..'"))()')
