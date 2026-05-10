@@ -16,7 +16,7 @@ local Camera = Workspace.CurrentCamera
 local RemoteFunction = ReplicatedStorage:WaitForChild("RemoteFunction")
 local isUpgrading = false
 
--- Wait 1 second 
+
 task.wait(1)
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
@@ -904,11 +904,11 @@ local function createSwitcherTab()
 
     local allTowers = {
         "Farm", "DJ Booth", "Commander", "Gatling Gun", "Turret", "Cowboy", "Militant", "Freezer", "Assassin", "Shotgunner", 
-        "Pyromancer", "Ace Pilot", "Medic", "Scout", "Rocketeer", "Trapper", "Military Base", "Crook Boss", "Electroshocker", 
+        "Pyromancer", "Ace Pilot", "Slime Trooper", "Medic", "Scout", "Rocketeer", "Trapper", "Military Base", "Crook Boss", "Electroshocker", 
         "Paintballer", "Warden", "Soldier", "Sniper", "Minigunner", "Ranger", "Pursuit", "Demoman", "Hunter", "Mortar", 
         "Mercenary Base", "Brawler", "Necromancer", "Accelerator", "Engineer", "Hacker", "Tesla", "Gladiator", "Commando", "Slasher", 
         "Frost Blaster", "Archer", "Swarmer", "Toxic Gunner", "Sledger", "Executioner", "Elf Camp", "Jester", "Cryomancer", 
-        "Hallow Punk", "Biologist", "Harvester", "Snowballer", "Elementalist", "Firework Technician", "Warlock", "Spotlight Tech", "War Machine", "EvolvedJuggernaut", "Mecha Base"
+        "Hallow Punk", "Biologist", "Harvester", "Snowballer", "Elementalist", "Firework Technician", "Warlock", "Spotlight Tech", "War Machine", "Saboteur", "EvolvedJuggernaut", "Mecha Base"
     }
 
     local function populateTowers(searchText)
@@ -1549,7 +1549,7 @@ local function createAutomationTab()
 
     autoGatlingBtn.MouseButton1Click:Connect(function()
         pcall(function()
-            loadstring(game:HttpGet("https://raw.githubusercontent.com/DeadSignalFound/Library/refs/heads/main/AutoGatlin.lua"))()
+            loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
         end)
         local originalColor = autoGatlingBtn.BackgroundColor3
         autoGatlingBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
