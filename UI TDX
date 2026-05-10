@@ -156,9 +156,18 @@ teleportBtn.TextColor3 = Color3.fromRGB(255,200,100)
 teleportBtn.Parent = frame
 Instance.new("UICorner", teleportBtn)
 
+local antiLagBtn = Instance.new("TextButton")
+antiLagBtn.Size = UDim2.new(1, -20, 0, 35)
+antiLagBtn.Position = UDim2.new(0, 10, 0, 195)
+antiLagBtn.Text = "Anti Lag: ON"
+antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+antiLagBtn.TextColor3 = Color3.fromRGB(255,255,100)
+antiLagBtn.Parent = frame
+Instance.new("UICorner", antiLagBtn)
+
 local abilityLabel = Instance.new("TextLabel")
 abilityLabel.Size = UDim2.new(1, -20, 0, 20)
-abilityLabel.Position = UDim2.new(0, 10, 0, 195)
+abilityLabel.Position = UDim2.new(0, 10, 0, 245)
 abilityLabel.Text = "Abilities (click to toggle)"
 abilityLabel.TextColor3 = Color3.fromRGB(200,200,200)
 abilityLabel.TextSize = 12
@@ -168,8 +177,8 @@ abilityLabel.TextXAlignment = Enum.TextXAlignment.Left
 abilityLabel.Parent = frame
 
 local abilitiesFrame = Instance.new("ScrollingFrame")
-abilitiesFrame.Size = UDim2.new(1, -20, 0, frameHeight - 225)
-abilitiesFrame.Position = UDim2.new(0, 10, 0, 220)
+abilitiesFrame.Size = UDim2.new(1, -20, 0, frameHeight - 275)
+abilitiesFrame.Position = UDim2.new(0, 10, 0, 270)
 abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
 abilitiesFrame.BorderSizePixel = 0
 abilitiesFrame.ScrollBarThickness = 8
@@ -792,6 +801,7 @@ emoteBtn.MouseButton1Click:Connect(function()
     end
 end)
 
+local antiLagEnabled = true
 local function trackCreation(instance)
     if not instance:GetAttribute("_created") then
         instance:SetAttribute("_created", tick())
@@ -818,27 +828,40 @@ local function removeFolders()
         gameProjectiles:Destroy()
     end
 
-    local gameFolder = workspace:FindFirstChild("Game")
-    if gameFolder then
-        local enemies = gameFolder:FindFirstChild("Enemies")
-        if enemies then
-            local enemyParts = enemies:GetChildren()
-            for _, part in ipairs(enemyParts) do
-                trackCreation(part)
-            end
-            
-            if #enemyParts > 100 then
-                local excess = #enemyParts - 100
-                table.sort(enemyParts, function(a, b)
-                    return (a:GetAttribute("_created") or 0) < (b:GetAttribute("_created") or 0)
-                end)
-                for i = 1, excess do
-                    enemyParts[i]:Destroy()
+    if antiLagEnabled then
+        local gameFolder = workspace:FindFirstChild("Game")
+        if gameFolder then
+            local enemies = gameFolder:FindFirstChild("Enemies")
+            if enemies then
+                local enemyParts = enemies:GetChildren()
+                for _, part in ipairs(enemyParts) do
+                    trackCreation(part)
+                end
+                
+                if #enemyParts > 100 then
+                    local excess = #enemyParts - 100
+                    table.sort(enemyParts, function(a, b)
+                        return (a:GetAttribute("_created") or 0) < (b:GetAttribute("_created") or 0)
+                    end)
+                    for i = 1, excess do
+                        enemyParts[i]:Destroy()
+                    end
                 end
             end
         end
     end
 end
+
+antiLagBtn.MouseButton1Click:Connect(function()
+    antiLagEnabled = not antiLagEnabled
+    if antiLagEnabled then
+        antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+        antiLagBtn.Text = "Anti Lag: ON"
+    else
+        antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+        antiLagBtn.Text = "Anti Lag: OFF"
+    end
+end)
 
 task.delay(5, function()
     local lastCheck = 0
