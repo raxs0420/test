@@ -12,10 +12,10 @@ local RAW_SCRIPT_URL = "https://raw.githubusercontent.com/raxs0420/test/refs/hea
 local enemyBlocklist = {
     "Skulldrone", "Pilot", "Artemis", "Slow", "Quick", "Normal", "Buzzard", "Jumper",
     "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drone",
-    "Rusher", "X-Nader", "Chariot Turret", "Spawner", "Attack Drone", "Rocket Drone",
+    "Rusher", "Jager", "Chariot Turret", "Spawner", "Attack Drone", "Rocket Drone",
     "Multiplier 3", "Multiplier 2", "Multiplier 1", "Multiplier X", "Aerial Juggernaut",
     "Xcientist", "Shock Head", "Prisoner", "Prisoner Soul", "Contained", "Light Contained",
-    "Heavy Contained", "Resurrected Armored Ranger", "Resurrected Slow Ranger", "Resurrected Ranger"
+    "Heavy Contained", "Resurrected Armored Ranger", "XNader", "Zombie Drop Pod 3", "Zombie Drop Pod 2", "Zombie Drop Pod 1", "Resurrected Slow Ranger", "Resurrected Ranger"
 }
 
 local enemyWhitelist = {
@@ -720,6 +720,14 @@ local function removeFolders()
                     for i = 1, excess do enemyParts[i]:Destroy() end
                 end
             end
+            local pathEntities = gameFolder:FindFirstChild("PathEntities")
+            if pathEntities then
+                for _, child in ipairs(pathEntities:GetChildren()) do
+                    if not string.find(child.Name, "WarMachine") then
+                        child:Destroy()
+                    end
+                end
+            end
         end
     end
 end
@@ -737,11 +745,11 @@ antiLagBtn.MouseButton1Click:Connect(function()
     end
 end)
 
-task.delay(5, function()
+task.delay(13, function()
     local lastCheck = 0
     RunService.Heartbeat:Connect(function(deltaTime)
         lastCheck = lastCheck + deltaTime
-        if lastCheck >= 0.1 then
+        if lastCheck >= 0.5 then
             lastCheck = 0
             removeFolders()
         end
@@ -782,7 +790,7 @@ pcall(function()
     end)
 
     task.spawn(function()
-        while true do cleanupDeadTowers() task.wait(0.1) end
+        while true do cleanupDeadTowers() task.wait(0.01) end
     end)
     task.spawn(function()
         while true do task.wait(5) fullResync() end
