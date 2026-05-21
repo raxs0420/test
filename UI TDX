@@ -112,6 +112,16 @@ tabTowersBtn.TextSize = 12
 tabTowersBtn.Parent = frame
 Instance.new("UICorner", tabTowersBtn)
 
+local tabDebugBtn = Instance.new("TextButton")
+tabDebugBtn.Size = UDim2.new(0, 70, 0, 22)
+tabDebugBtn.Position = UDim2.new(0, 160, 0, 32)
+tabDebugBtn.Text = "Debug"
+tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+tabDebugBtn.TextColor3 = Color3.fromRGB(255,255,255)
+tabDebugBtn.TextSize = 12
+tabDebugBtn.Parent = frame
+Instance.new("UICorner", tabDebugBtn)
+
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(1, -20, 1, -65)
 mainFrame.Position = UDim2.new(0, 10, 0, 58)
@@ -125,19 +135,88 @@ towersFrame.BackgroundTransparency = 1
 towersFrame.Visible = false
 towersFrame.Parent = frame
 
+local debugFrame = Instance.new("Frame")
+debugFrame.Size = UDim2.new(1, -20, 1, -65)
+debugFrame.Position = UDim2.new(0, 10, 0, 58)
+debugFrame.BackgroundTransparency = 1
+debugFrame.Visible = false
+debugFrame.Parent = frame
+
+local debugLogFrame = Instance.new("ScrollingFrame")
+debugLogFrame.Size = UDim2.new(1, -10, 1, -40)
+debugLogFrame.Position = UDim2.new(0, 5, 0, 5)
+debugLogFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+debugLogFrame.BorderSizePixel = 0
+debugLogFrame.ScrollBarThickness = 6
+debugLogFrame.Parent = debugFrame
+Instance.new("UICorner", debugLogFrame)
+
+local debugLogLayout = Instance.new("UIListLayout", debugLogFrame)
+debugLogLayout.Padding = UDim.new(0, 2)
+debugLogLayout.SortOrder = Enum.SortOrder.LayoutOrder
+debugLogLayout.FillDirection = Enum.FillDirection.Vertical
+
+local clearDebugBtn = Instance.new("TextButton")
+clearDebugBtn.Size = UDim2.new(1, -10, 0, 30)
+clearDebugBtn.Position = UDim2.new(0, 5, 1, -35)
+clearDebugBtn.Text = "Clear Logs"
+clearDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+clearDebugBtn.TextColor3 = Color3.fromRGB(255,255,255)
+clearDebugBtn.TextSize = 10
+clearDebugBtn.Parent = debugFrame
+Instance.new("UICorner", clearDebugBtn)
+
+local function addDebugLog(message)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 0, 16)
+    label.Text = message
+    label.TextColor3 = Color3.fromRGB(200,200,200)
+    label.TextSize = 10
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = debugLogFrame
+    if #debugLogFrame:GetChildren() > 100 then
+        local children = debugLogFrame:GetChildren()
+        for i = 1, #children - 100 do
+            children[i]:Destroy()
+        end
+    end
+    task.wait()
+    debugLogFrame.CanvasPosition = Vector2.new(0, debugLogFrame.CanvasSize.Y.Offset)
+end
+
+clearDebugBtn.MouseButton1Click:Connect(function()
+    for _, child in ipairs(debugLogFrame:GetChildren()) do
+        if child:IsA("TextLabel") then child:Destroy() end
+    end
+end)
+
 tabMainBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = true
     towersFrame.Visible = false
+    debugFrame.Visible = false
     tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
     tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 end)
 
 tabTowersBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
     towersFrame.Visible = true
+    debugFrame.Visible = false
     tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     refreshEquippedDisplay()
+end)
+
+tabDebugBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    towersFrame.Visible = false
+    debugFrame.Visible = true
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
 end)
 
 local topBtn = Instance.new("TextButton")
@@ -261,11 +340,26 @@ for towerName, data in pairs(towerToAbilitySlot) do
     end
     table.insert(abilityTargets[abilityName].towers, towerName)
 end
+if abilityTargets["HUMVEE"] then
+    abilityTargets["HUMVEE"].slots = {1,2,3}
+end
 
 local towers = {}
 local partToId = {}
 local nextId = 1
 local freeIds = {}
+
+local function getCurrentTowerName()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return nil end
+    local interface = playerGui:FindFirstChild("Interface")
+    if not interface then return nil end
+    local towerUI = interface:FindFirstChild("TowerUI")
+    if not towerUI then return nil end
+    local nameText = towerUI:FindFirstChild("TowerNameText")
+    if not nameText then return nil end
+    return (nameText.Text or ""):upper()
+end
 
 local function getAllEnemies()
     local enemiesFolder = workspace.Game:FindFirstChild("Enemies")
@@ -333,7 +427,24 @@ local function addTower(part)
     if isTowerDead(part) then return end
     local id = allocateId()
     partToId[part] = id
-    towers[id] = { part = part, name = part.Name, topCount = 0, bottomCount = 0, placedAfterAuto = autoActive, removed = false }
+    local owned = false
+    task.wait(0.2)
+    local uiTowerName = getCurrentTowerName()
+    if uiTowerName and uiTowerName == part.Name:upper() then
+        owned = true
+    end
+    towers[id] = { 
+        part = part, 
+        name = part.Name, 
+        topCount = 0, 
+        bottomCount = 0, 
+        placedAfterAuto = autoActive, 
+        removed = false,
+        owned = owned
+    }
+    local timestamp = os.date("%H:%M:%S")
+    local ownerDisplay = owned and "YOU" or "Unknown"
+    addDebugLog(string.format("[%s] Tower: %s | Owner: %s | ID: %d", timestamp, part.Name, ownerDisplay, id))
 end
 
 local function removeTower(part)
@@ -377,7 +488,7 @@ local function fullResync()
             local newId = allocateId()
             newPartToId[part] = newId
             usedIds[newId] = true
-            newTowers[newId] = { part = part, name = part.Name, topCount = 0, bottomCount = 0, placedAfterAuto = autoActive, removed = false }
+            newTowers[newId] = { part = part, name = part.Name, topCount = 0, bottomCount = 0, placedAfterAuto = false, removed = false, owned = false }
         end
     end
     for id, _ in pairs(towers) do if not usedIds[id] then freeId(id) end end
@@ -402,7 +513,7 @@ local function runOverloadSequential(slot)
     while activeAbilities["OVERLOAD"] do
         local gmIds = {}
         for id, data in pairs(towers) do
-            if data.name == "Golden Mobster" and data.part and data.part.Parent then
+            if data.owned and data.name == "Golden Mobster" and data.part and data.part.Parent then
                 local pauseUntil = towerPauseUntil[id]
                 if not pauseUntil or tick() >= pauseUntil then table.insert(gmIds, id) end
             end
@@ -451,7 +562,7 @@ local function startAbilityLoop(abilityName)
             while activeAbilities[abilityName] do
                 local targetIds = {}
                 for id, towerData in pairs(towers) do
-                    if towerData and towerData.name then
+                    if towerData and towerData.owned and towerData.name then
                         for _, towerName in ipairs(data.towers) do
                             if towerData.name == towerName then targetIds[#targetIds + 1] = id break end
                         end
@@ -463,12 +574,21 @@ local function startAbilityLoop(abilityName)
                         local remote = ReplicatedStorage:FindFirstChild("Remotes")
                         if remote then
                             local req = remote:FindFirstChild("TowerUseAbilityRequest")
-                            if req then pcall(function() req:InvokeServer(id, data.slot) end) end
+                            if req then
+                                if data.slots then
+                                    for _, slot in ipairs(data.slots) do
+                                        if not activeAbilities[abilityName] then break end
+                                        pcall(function() req:InvokeServer(id, slot) end)
+                                    end
+                                else
+                                    pcall(function() req:InvokeServer(id, data.slot) end)
+                                end
+                            end
                         end
-                        task.wait(0.2)
+                        task.wait(0.02)
                     end
                 end
-                task.wait(0.3)
+                task.wait(0.5)
             end
         end)
         return true
@@ -543,7 +663,7 @@ end
 
 local function upgradeTower(id)
     local data = towers[id]
-    if not data or not data.placedAfterAuto then return end
+    if not data or not data.owned or not data.placedAfterAuto then return end
     local mode = autoTargetMode
     if not mode then return end
     if mode == "top" then
@@ -560,7 +680,7 @@ local function startAutoUpgrade()
     upgradeLoop = task.spawn(function()
         while autoActive do
             for id, data in pairs(towers) do
-                if data.placedAfterAuto then upgradeTower(id) end
+                if data.owned and data.placedAfterAuto then upgradeTower(id) end
                 task.wait(0.01)
             end
             task.wait(0.05)
