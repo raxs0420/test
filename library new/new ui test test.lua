@@ -743,7 +743,7 @@ local function do_place_tower(t_name, t_pos)
         end
         local randomized_pos = Vector3.new(new_x, final_y, new_z)
         local ok, res = pcall(function()
-            return remote_func:InvokeServer("Troops", "Pl\208\176ce", {
+            return remote_func:InvokeServer("Troops", "Place", {
                 Rotation = CFrame.new(),
                 Position = randomized_pos
             }, t_name)
