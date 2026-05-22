@@ -445,7 +445,7 @@ local function placeTowerAtPosition(towerName, x, y, z)
     local placeY = (y or 80) + 5
 
     local success, result = pcall(function()
-        return RemoteFunction:InvokeServer("Troops", "Pl\208\176ce", {
+        return RemoteFunction:InvokeServer("Troops", "Place", {
             Rotation = CFrame.new(),
             Position = Vector3.new(x, placeY, z)
         }, towerName)
