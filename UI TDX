@@ -561,7 +561,9 @@ local excludedMedicTowers = {
     ["Behemoth Factory"] = true,
     ["Relic"] = true,
     ["War Machine"] = true,
-    ["Z.E.D."] = true
+    ["Z.E.D."] = true,
+    ["Farm"] = true,
+    ["Oil Derrick"] = true
 }
 local function runMedicDroneSequential(slot)
     while activeAbilities["MEDIC_DRONE"] do
