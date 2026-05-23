@@ -309,7 +309,7 @@ local abilityOrder = {
     "GRENADE", "UNSTUN_HEALTH", "HUMVEE", "FLARE", "DJ_Encore", "AXE_RAGE",
     "LaserGunner", "TOXIC_BLAST", "AP_ROUNDS", "OVERCHARGE",
     "GRAND_SLAM", "GOLDEN_GRANDE", "Charge_Throw", "GLOBAL_STEALTH_REVEAL",
-    "REBOOT_SYSTEMS", "OVERLOAD"
+    "REBOOT_SYSTEMS", "OVERLOAD", "MEDIC_DRONE"
 }
 
 local towerToAbilitySlot = {
@@ -321,6 +321,7 @@ local towerToAbilitySlot = {
     Slammer = {ability = "GRAND_SLAM", slot = 1}, ["Golden Ranger"] = {ability = "GOLDEN_GRANDE", slot = 1},
     ["Golden Mine Layer"] = {ability = "Charge_Throw", slot = 1}, Warship = {ability = "GLOBAL_STEALTH_REVEAL", slot = 1},
     ["Golden Juggernaut"] = {ability = "REBOOT_SYSTEMS", slot = 1}, ["Golden Mobster"] = {ability = "OVERLOAD", slot = 1},
+    ["Combat Medic"] = {ability = "MEDIC_DRONE", slot = 1}
 }
 
 local abilityDisplayNames = {
@@ -328,7 +329,7 @@ local abilityDisplayNames = {
     DJ_Encore = "DJ Encore", AXE_RAGE = "Axe/Rage", LaserGunner = "Laser Gunner", TOXIC_BLAST = "Toxic Blast",
     AP_ROUNDS = "AP Rounds", OVERCHARGE = "Overcharge", GRAND_SLAM = "Grand Slam", GOLDEN_GRANDE = "Golden Grenade",
     Charge_Throw = "Charge Throw", GLOBAL_STEALTH_REVEAL = "Global Stealth", REBOOT_SYSTEMS = "Reboot Systems",
-    OVERLOAD = "G Mobster",
+    OVERLOAD = "G Mobster", MEDIC_DRONE = "Medic Drone"
 }
 
 local activeAbilities = settings.activeAbilities
@@ -508,6 +509,18 @@ local function sendOverloadAbility(id, slot, position)
     return nil
 end
 
+local function sendAbilityWithPosition(id, slot, position)
+    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+    if remote then
+        local req = remote:FindFirstChild("TowerUseAbilityRequest")
+        if req then
+            local success, response = pcall(function() return req:InvokeServer(id, slot, position) end)
+            if success then return response else return nil end
+        end
+    end
+    return nil
+end
+
 local overloadLoop = nil
 local function runOverloadSequential(slot)
     while activeAbilities["OVERLOAD"] do
@@ -542,6 +555,119 @@ local function runOverloadSequential(slot)
     end
 end
 
+local medicDroneLoop = nil
+local excludedMedicTowers = {
+    ["Barracks"] = true,
+    ["Behemoth Factory"] = true,
+    ["Relic"] = true,
+    ["War Machine"] = true,
+    ["Z.E.D."] = true
+}
+local function runMedicDroneSequential(slot)
+    while activeAbilities["MEDIC_DRONE"] do
+        local medicIds = {}
+        for id, data in pairs(towers) do
+            if data.owned and data.name == "Combat Medic" and data.part and data.part.Parent then
+                local pauseUntil = towerPauseUntil[id]
+                if not pauseUntil or tick() >= pauseUntil then
+                    table.insert(medicIds, id)
+                end
+            end
+        end
+        if #medicIds == 0 then
+            task.wait(1)
+            continue
+        end
+        for _, medicId in ipairs(medicIds) do
+            if not activeAbilities["MEDIC_DRONE"] then break end
+            local medicData = towers[medicId]
+            if not medicData or not medicData.part then continue end
+            
+            local towerPositions = {}
+            for id, data in pairs(towers) do
+                if data.owned and data.part and data.part.Parent then
+                    if not excludedMedicTowers[data.name] then
+                        table.insert(towerPositions, data.part.Position)
+                    end
+                end
+            end
+            if #towerPositions < 2 then
+                task.wait(0.5)
+                continue
+            end
+            
+            local bestPos = nil
+            local bestCount = 0
+            for _, pos in ipairs(towerPositions) do
+                local count = 0
+                for _, otherPos in ipairs(towerPositions) do
+                    if (pos - otherPos).Magnitude <= 12 then
+                        count = count + 1
+                    end
+                end
+                if count > bestCount then
+                    bestCount = count
+                    bestPos = pos
+                end
+            end
+            
+            if bestPos and bestCount >= 1 then
+                local response = sendAbilityWithPosition(medicId, slot, bestPos)
+                if response == true then
+                    addDebugLog("[Medic Drone] First drone placed, searching for second cluster within 20s...")
+                    local startTime = tick()
+                    local secondUsed = false
+                    while tick() - startTime < 20 and activeAbilities["MEDIC_DRONE"] do
+                        local newTowerPositions = {}
+                        for id, data in pairs(towers) do
+                            if data.owned and data.part and data.part.Parent then
+                                if not excludedMedicTowers[data.name] then
+                                    table.insert(newTowerPositions, data.part.Position)
+                                end
+                            end
+                        end
+                        if #newTowerPositions >= 2 then
+                            local secondBestPos = nil
+                            local secondBestCount = 0
+                            for _, pos in ipairs(newTowerPositions) do
+                                if bestPos and (pos - bestPos).Magnitude > 5 then
+                                    local count = 0
+                                    for _, otherPos in ipairs(newTowerPositions) do
+                                        if (pos - otherPos).Magnitude <= 12 then
+                                            count = count + 1
+                                        end
+                                    end
+                                    if count > secondBestCount then
+                                        secondBestCount = count
+                                        secondBestPos = pos
+                                    end
+                                end
+                            end
+                            if secondBestPos and secondBestCount >= 1 then
+                                local secondResponse = sendAbilityWithPosition(medicId, slot, secondBestPos)
+                                if secondResponse == true then
+                                    addDebugLog("[Medic Drone] Second drone placed successfully")
+                                    secondUsed = true
+                                    break
+                                end
+                            end
+                        end
+                        task.wait(0.5)
+                    end
+                    if not secondUsed then
+                        addDebugLog("[Medic Drone] No second cluster found within 20s, resetting")
+                    end
+                    towerPauseUntil[medicId] = tick() + 5
+                else
+                    task.wait(0.5)
+                end
+            end
+            task.wait(1)
+        end
+        task.wait(0.5)
+    end
+end
+
 local abilityLoops = {}
 
 local function startAbilityLoop(abilityName)
@@ -549,6 +675,11 @@ local function startAbilityLoop(abilityName)
         if overloadLoop then task.cancel(overloadLoop) overloadLoop = nil end
         if not activeAbilities["OVERLOAD"] then return false end
         overloadLoop = task.spawn(runOverloadSequential, abilityTargets["OVERLOAD"].slot)
+        return true
+    elseif abilityName == "MEDIC_DRONE" then
+        if medicDroneLoop then task.cancel(medicDroneLoop) medicDroneLoop = nil end
+        if not activeAbilities["MEDIC_DRONE"] then return false end
+        medicDroneLoop = task.spawn(runMedicDroneSequential, abilityTargets["MEDIC_DRONE"].slot)
         return true
     else
         if abilityLoops[abilityName] then
@@ -631,12 +762,21 @@ for _, abilityName in ipairs(abilityOrder) do
                 if abilityName == "OVERLOAD" and overloadLoop then
                     task.cancel(overloadLoop)
                     overloadLoop = nil
+                elseif abilityName == "MEDIC_DRONE" and medicDroneLoop then
+                    task.cancel(medicDroneLoop)
+                    medicDroneLoop = nil
                 end
             else
                 activeAbilities[abilityName] = true
                 btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
                 if abilityName == "OVERLOAD" then
                     for k in pairs(towerPauseUntil) do towerPauseUntil[k] = nil end
+                elseif abilityName == "MEDIC_DRONE" then
+                    for id, data in pairs(towers) do
+                        if data.name == "Combat Medic" then
+                            towerPauseUntil[id] = nil
+                        end
+                    end
                 end
                 startAbilityLoop(abilityName)
             end
