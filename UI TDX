@@ -556,17 +556,63 @@ local function runOverloadSequential(slot)
 end
 
 local medicDroneLoop = nil
-local excludedMedicTowers = {
+local medicDroneIgnoreTowers = {
     ["Barracks"] = true,
     ["Behemoth Factory"] = true,
     ["Relic"] = true,
     ["War Machine"] = true,
     ["Z.E.D."] = true,
     ["Farm"] = true,
-    ["Oil Derrick"] = true
+    ["Oil Derrick"] = true,
+    ["Scout Helicopter"] = true,
+    ["Jet Trooper"] = true,
+    ["AA Turret"] = true,
+    ["Combat Drone"] = true,
+    ["Helicopter"] = true,
+    ["Cryo Helicopter"] = true,
+    ["Warship"] = true,    
+    ["Chicken House"] = true,
+    ["Scarecrow"] = true,        
+    ["XWM Turret"] = true,    
+    ["Patrol Boat"] = true,
+    ["Troll Tower"] = true,            
 }
+
 local function runMedicDroneSequential(slot)
+    local recentDronePositions = {}  
+
+    local function isPositionAllowed(pos)
+        local now = tick()
+        for _, entry in ipairs(recentDronePositions) do
+            if now - entry.time <= 10 then
+                if (pos - entry.position).Magnitude <= 12 then
+                    return false
+                end
+            end
+        end
+        return true
+    end
+
+    local function countTowersInRadius(pos, towerPositions)
+        local count = 0
+        for _, tPos in ipairs(towerPositions) do
+            if (pos - tPos).Magnitude <= 12 then
+                count = count + 1
+            end
+        end
+        return count
+    end
+
     while activeAbilities["MEDIC_DRONE"] do
+        local now = tick()
+        local newList = {}
+        for _, entry in ipairs(recentDronePositions) do
+            if now - entry.time <= 10 then
+                table.insert(newList, entry)
+            end
+        end
+        recentDronePositions = newList
+
         local medicIds = {}
         for id, data in pairs(towers) do
             if data.owned and data.name == "Combat Medic" and data.part and data.part.Parent then
@@ -576,95 +622,118 @@ local function runMedicDroneSequential(slot)
                 end
             end
         end
+
         if #medicIds == 0 then
             task.wait(1)
             continue
         end
-        for _, medicId in ipairs(medicIds) do
-            if not activeAbilities["MEDIC_DRONE"] then break end
-            local medicData = towers[medicId]
-            if not medicData or not medicData.part then continue end
-            
-            local towerPositions = {}
-            for id, data in pairs(towers) do
-                if data.owned and data.part and data.part.Parent then
-                    if not excludedMedicTowers[data.name] then
-                        table.insert(towerPositions, data.part.Position)
-                    end
+
+        local eligibleTowerPositions = {}
+        for id, data in pairs(towers) do
+            if data.owned and data.part and data.part.Parent then
+                if not medicDroneIgnoreTowers[data.name] then
+                    table.insert(eligibleTowerPositions, data.part.Position)
                 end
             end
-            if #towerPositions < 2 then
+        end
+
+        if #eligibleTowerPositions < 2 then
+            task.wait(1)
+            continue
+        end
+
+        for _, medicId in ipairs(medicIds) do
+            if not activeAbilities["MEDIC_DRONE"] then break end
+
+            local candidates = {}
+            for _, pos in ipairs(eligibleTowerPositions) do
+                if isPositionAllowed(pos) then
+                    local count = countTowersInRadius(pos, eligibleTowerPositions)
+                    table.insert(candidates, {pos = pos, count = count})
+                end
+            end
+
+            table.sort(candidates, function(a, b) return a.count > b.count end)
+
+            if #candidates == 0 then
                 task.wait(0.5)
                 continue
             end
-            
-            local bestPos = nil
-            local bestCount = 0
-            for _, pos in ipairs(towerPositions) do
-                local count = 0
-                for _, otherPos in ipairs(towerPositions) do
-                    if (pos - otherPos).Magnitude <= 12 then
-                        count = count + 1
+
+            local best = candidates[1]
+            local firstResponse = sendAbilityWithPosition(medicId, slot, best.pos)
+            if firstResponse == true then
+                table.insert(recentDronePositions, {position = best.pos, time = tick()})
+                addDebugLog("[Medic Drone] First drone placed at " .. tostring(best.pos) .. " covering " .. best.count .. " towers")
+                local startTime = tick()
+                local secondPlaced = false
+                while tick() - startTime < 20 and activeAbilities["MEDIC_DRONE"] do
+                    local freshPositions = {}
+                    for id, data in pairs(towers) do
+                        if data.owned and data.part and data.part.Parent then
+                            if not medicDroneIgnoreTowers[data.name] then
+                                table.insert(freshPositions, data.part.Position)
+                            end
+                        end
                     end
-                end
-                if count > bestCount then
-                    bestCount = count
-                    bestPos = pos
-                end
-            end
-            
-            if bestPos and bestCount >= 1 then
-                local response = sendAbilityWithPosition(medicId, slot, bestPos)
-                if response == true then
-                    addDebugLog("[Medic Drone] First drone placed, searching for second cluster within 20s...")
-                    local startTime = tick()
-                    local secondUsed = false
-                    while tick() - startTime < 20 and activeAbilities["MEDIC_DRONE"] do
-                        local newTowerPositions = {}
-                        for id, data in pairs(towers) do
-                            if data.owned and data.part and data.part.Parent then
-                                if not excludedMedicTowers[data.name] then
-                                    table.insert(newTowerPositions, data.part.Position)
+                    if #freshPositions >= 2 then
+                        local secondBest = nil
+                        local secondBestCount = 0
+                        for _, pos in ipairs(freshPositions) do
+                            if isPositionAllowed(pos) and (pos - best.pos).Magnitude > 5 then
+                                local cnt = countTowersInRadius(pos, freshPositions)
+                                if cnt > secondBestCount then
+                                    secondBestCount = cnt
+                                    secondBest = pos
                                 end
                             end
                         end
-                        if #newTowerPositions >= 2 then
-                            local secondBestPos = nil
-                            local secondBestCount = 0
-                            for _, pos in ipairs(newTowerPositions) do
-                                if bestPos and (pos - bestPos).Magnitude > 5 then
-                                    local count = 0
-                                    for _, otherPos in ipairs(newTowerPositions) do
-                                        if (pos - otherPos).Magnitude <= 12 then
-                                            count = count + 1
-                                        end
-                                    end
-                                    if count > secondBestCount then
-                                        secondBestCount = count
-                                        secondBestPos = pos
-                                    end
-                                end
-                            end
-                            if secondBestPos and secondBestCount >= 1 then
-                                local secondResponse = sendAbilityWithPosition(medicId, slot, secondBestPos)
-                                if secondResponse == true then
-                                    addDebugLog("[Medic Drone] Second drone placed successfully")
-                                    secondUsed = true
-                                    break
-                                end
+                        if secondBest then
+                            local secondResponse = sendAbilityWithPosition(medicId, slot, secondBest)
+                            if secondResponse == true then
+                                table.insert(recentDronePositions, {position = secondBest, time = tick()})
+                                addDebugLog("[Medic Drone] Second drone placed at " .. tostring(secondBest) .. " covering " .. secondBestCount .. " towers")
+                                secondPlaced = true
+                                break
                             end
                         end
-                        task.wait(0.5)
                     end
-                    if not secondUsed then
-                        addDebugLog("[Medic Drone] No second cluster found within 20s, resetting")
-                    end
-                    towerPauseUntil[medicId] = tick() + 5
-                else
                     task.wait(0.5)
                 end
+
+                if not secondPlaced then
+                    addDebugLog("[Medic Drone] No different cluster found – placing second drone at best overall spot")
+                    local fallbackPos = nil
+                    local fallbackCount = 0
+                    local currentPositions = {}
+                    for id, data in pairs(towers) do
+                        if data.owned and data.part and data.part.Parent then
+                            if not medicDroneIgnoreTowers[data.name] then
+                                table.insert(currentPositions, data.part.Position)
+                            end
+                        end
+                    end
+                    for _, pos in ipairs(currentPositions) do
+                        if isPositionAllowed(pos) then
+                            local cnt = countTowersInRadius(pos, currentPositions)
+                            if cnt > fallbackCount then
+                                fallbackCount = cnt
+                                fallbackPos = pos
+                            end
+                        end
+                    end
+                    if fallbackPos then
+                        local fallbackResponse = sendAbilityWithPosition(medicId, slot, fallbackPos)
+                        if fallbackResponse == true then
+                            table.insert(recentDronePositions, {position = fallbackPos, time = tick()})
+                            addDebugLog("[Medic Drone] Fallback drone placed at " .. tostring(fallbackPos))
+                        end
+                    end
+                end
+                towerPauseUntil[medicId] = tick() + 10
+            else
+                task.wait(0.5)
             end
-            task.wait(1)
         end
         task.wait(0.5)
     end
