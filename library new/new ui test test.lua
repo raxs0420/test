@@ -202,21 +202,6 @@ local function SmartTeleportToLobby()
             teleport_service:Teleport(lobbyId)
         end
     end)
-    task.wait(10)
-    local function notify(title, desc)
-        if Window and Window.Notify then
-            Window:Notify({Title = title, Desc = desc, Time = 9999, Type = "error"})
-        else
-            warn(title .. ": " .. desc)
-        end
-    end
-    notify("Teleport Failed", "It looks like you're stuck! If you are using Delta, please ensure that 'Verify Teleports' is disabled in your settings.")
-    task.wait(5)
-    notify("Fixing Delta Teleport Issues", "1. Disconnect from the game\n2. Completely empty your 'autoexecute' folder\n3. Reopen Roblox and join the game\n4. Go to Delta settings and disable 'Verify Teleports'\n5. Disconnect and rejoin to confirm 'Verify Teleports' remains OFF\n6. Once verified, restore your files to 'autoexecute' and rejoin")
-end
-
-local function send_to_lobby()
-    SmartTeleportToLobby()
 end
 
 local function rejoin_match()
@@ -227,11 +212,6 @@ local function rejoin_match()
     Globals = Globals or {}
     local privateCode = Globals.PrivateCode or _G.PrivateCode
     if privateCode and privateCode ~= "" and not IsMobile then
-        if Logger and Logger.Log then
-            Logger:Log("Private server code detected. Returning to private lobby...")
-        else
-            print("Private server code detected. Returning to private lobby...")
-        end
         SmartTeleportToLobby()
         task.wait(9e9)
         return
