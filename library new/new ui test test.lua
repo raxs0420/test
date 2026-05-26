@@ -4,7 +4,6 @@ local function identify_game_state()
     local players = game:GetService("Players")
     local temp_player = players.LocalPlayer or players.PlayerAdded:Wait()
     local temp_gui = temp_player:WaitForChild("PlayerGui")
-
     while true do
         if temp_gui:FindFirstChild("ReactLobbyHud") then
             return "LOBBY"
@@ -17,12 +16,11 @@ end
 
 game_state = identify_game_state()
 
-local send_request = request or http_request or httprequest
-    or GetDevice and GetDevice().request
+local send_request = request or http_request or httprequest or GetDevice and GetDevice().request
 
-if not send_request then 
-    warn("failure: no http function") 
-    return 
+if not send_request then
+    warn("failure: no http function")
+    return
 end
 
 local teleport_service = game:GetService("TeleportService")
@@ -121,24 +119,21 @@ end
 
 local function get_all_rewards()
     local results = {
-        Coins = 0, 
-        Gems = 0, 
-        XP = 0, 
+        Coins = 0,
+        Gems = 0,
+        XP = 0,
         Wave = 0,
         Level = 0,
         Time = "00:00",
         Status = "UNKNOWN",
-        Others = {} 
+        Others = {}
     }
-
     local ui_root = player_gui:FindFirstChild("ReactGameNewRewards")
     local main_frame = ui_root and ui_root:FindFirstChild("Frame")
     local game_over = main_frame and main_frame:FindFirstChild("gameOver")
     local rewards_screen = game_over and game_over:FindFirstChild("RewardsScreen")
-
     local game_stats = rewards_screen and rewards_screen:FindFirstChild("gameStats")
     local stats_list = game_stats and game_stats:FindFirstChild("stats")
-
     if stats_list then
         for _, frame in ipairs(stats_list:GetChildren()) do
             local l1 = frame:FindFirstChild("textLabel")
@@ -149,28 +144,24 @@ local function get_all_rewards()
             end
         end
     end
-
     local top_banner = rewards_screen and rewards_screen:FindFirstChild("RewardBanner")
     if top_banner and top_banner:FindFirstChild("textLabel") then
         local txt = top_banner.textLabel.Text:upper()
         results.Status = txt:find("TRIUMPH") and "WIN" or (txt:find("LOST") and "LOSS" or "UNKNOWN")
     end
-
     local level_value = local_player.Level
     if level_value then
         results.Level = level_value.Value or 0
     end
-
     local label = player_gui:WaitForChild("ReactGameTopGameDisplay").Frame.wave.container.value
     local wave_num = label.Text:match("^(%d+)")
     if wave_num then
         results.Wave = tonumber(wave_num) or 0
     end
-
     local section_rewards = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
     if section_rewards then
         for _, item in ipairs(section_rewards:GetChildren()) do
-            if tonumber(item.Name) then 
+            if tonumber(item.Name) then
                 local icon_id = "0"
                 local img = item:FindFirstChildWhichIsA("ImageLabel", true)
                 if img then icon_id = img.Image:match("%d+") or "0" end
@@ -184,7 +175,7 @@ local function get_all_rewards()
                             results.Gems = amt
                         elseif text:find("XP") then
                             results.XP = amt
-                        elseif text:lower():find("x%d+") then 
+                        elseif text:lower():find("x%d+") then
                             local displayName = ItemNames[icon_id] or "Unknown Item (" .. icon_id .. ")"
                             table.insert(results.Others, {Amount = text:match("x%d+"), Name = displayName})
                         end
@@ -196,32 +187,77 @@ local function get_all_rewards()
     return results
 end
 
+local function SmartTeleportToLobby()
+    local lobbyId = 3260590327
+    local IsMobile = game:GetService("UserInputService").TouchEnabled
+    Globals = Globals or {}
+    local privateCode = Globals.PrivateCode or _G.PrivateCode
+    pcall(function()
+        if not IsMobile and privateCode and privateCode ~= "" then
+            game:GetService("ExperienceService"):LaunchExperience({
+                placeId = lobbyId,
+                linkCode = privateCode
+            })
+        else
+            teleport_service:Teleport(lobbyId)
+        end
+    end)
+    task.wait(10)
+    local function notify(title, desc)
+        if Window and Window.Notify then
+            Window:Notify({Title = title, Desc = desc, Time = 9999, Type = "error"})
+        else
+            warn(title .. ": " .. desc)
+        end
+    end
+    notify("Teleport Failed", "It looks like you're stuck! If you are using Delta, please ensure that 'Verify Teleports' is disabled in your settings.")
+    task.wait(5)
+    notify("Fixing Delta Teleport Issues", "1. Disconnect from the game\n2. Completely empty your 'autoexecute' folder\n3. Reopen Roblox and join the game\n4. Go to Delta settings and disable 'Verify Teleports'\n5. Disconnect and rejoin to confirm 'Verify Teleports' remains OFF\n6. Once verified, restore your files to 'autoexecute' and rejoin")
+end
+
 local function send_to_lobby()
-    task.wait(1)
-    local lobby_remote = game.ReplicatedStorage.Network.Teleport["RE:backToLobby"]
-    lobby_remote:FireServer()
+    SmartTeleportToLobby()
 end
 
 local function rejoin_match()
     local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
     local success = false
     local res
+    local IsMobile = game:GetService("UserInputService").TouchEnabled
+    Globals = Globals or {}
+    local privateCode = Globals.PrivateCode or _G.PrivateCode
+    if privateCode and privateCode ~= "" and not IsMobile then
+        if Logger and Logger.Log then
+            Logger:Log("Private server code detected. Returning to private lobby...")
+        else
+            print("Private server code detected. Returning to private lobby...")
+        end
+        SmartTeleportToLobby()
+        task.wait(9e9)
+        return
+    end
     repeat
-        local state_folder = replicated_storage:FindFirstChild("State")
-        local current_mode = state_folder and state_folder.Difficulty.Value
-        if current_mode then
+        local StateFolder = replicated_storage:FindFirstChild("State")
+        local CurrentMode = StateFolder and StateFolder.Difficulty.Value
+        if CurrentMode then
             local ok, result = pcall(function()
                 local payload
-                if current_mode == "PizzaParty" then
+                local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
+                if CurrentMode == "PizzaParty" then
                     payload = { mode = "halloween", count = 1 }
-                elseif current_mode == "Hardcore" then
+                elseif CurrentMode == "Hardcore" then
                     payload = { mode = "hardcore", count = 1 }
-                elseif current_mode == "PollutedWasteland" then
+                elseif CurrentMode == "PollutedWasteland" then
                     payload = { mode = "polluted", count = 1 }
-                elseif current_mode == "Badlands" then
+                elseif CurrentMode == "Badlands" then
                     payload = { mode = "badlands", count = 1 }
+                elseif EventMode == "DuckEvent" then
+                    payload = { difficulty = CurrentMode, mode = "ducky2025", count = 1 }
+                elseif CurrentMode == "Trial" then
+                    SmartTeleportToLobby()
+                    return true
                 else
-                    payload = { difficulty = current_mode, mode = "survival", count = 1 }
+                    payload = { difficulty = CurrentMode, mode = "survival", count = 1 }
                 end
                 return remote:InvokeServer("Multiplayer", "v2:start", payload)
             end)
@@ -229,7 +265,7 @@ local function rejoin_match()
                 success = true
                 res = result
             else
-                task.wait(0.5) 
+                task.wait(0.5)
             end
         else
             task.wait(1)
@@ -248,9 +284,9 @@ local function handle_post_match()
         local rewards_screen = gameOver and gameOver:FindFirstChild("RewardsScreen")
         ui_root = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
     until ui_root
-    if not ui_root then 
+    if not ui_root then
         if _G.sent_to_lobby then send_to_lobby() else rejoin_match() end
-        return 
+        return
     end
     if not _G.AutoRejoin then return end
     if not _G.SendWebhook then
@@ -319,7 +355,7 @@ local function log_match_start()
     }
     pcall(function()
         send_request({
-            Url = _G.Webhook,  
+            Url = _G.Webhook,
             Method = "POST",
             Headers = { ["Content-Type"] = "application/json" },
             Body = game:GetService("HttpService"):JSONEncode(start_payload)
@@ -537,16 +573,11 @@ end
 
 function TDS:SelectMapWithPriority(mapPriorityList, maxAttempts)
     maxAttempts = maxAttempts or 2
-
     repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ReactGameIntermission")
-
     task.wait(1)
-
     local selectedMap = nil
-
     for attempt = 1, maxAttempts do
         local availableMaps = self:GetAvailableMaps()
-
         for _, preferredMap in ipairs(mapPriorityList) do
             for _, availableMap in ipairs(availableMaps) do
                 if availableMap == preferredMap then
@@ -556,21 +587,17 @@ function TDS:SelectMapWithPriority(mapPriorityList, maxAttempts)
             end
             if selectedMap then break end
         end
-
         if selectedMap then break end
-
         if attempt == 1 then
             self:VetoMaps()
             task.wait(1)
         end
     end
-
     if not selectedMap then
         task.wait(1)
         game:GetService("TeleportService"):Teleport(3260590327)
         return nil
     end
-
     return selectedMap
 end
 
@@ -581,39 +608,31 @@ function TDS:RunStrategy(config)
     if not config.mapPriority then
         error("TDS:RunStrategy - mapPriority is required")
     end
-
     self:Mode(config.mode)
-
     local selectedMap = self:SelectMapWithPriority(config.mapPriority, config.maxAttempts)
-
     if not selectedMap then return false end
-
     local strategy = nil
     if config.strategies then
         strategy = config.strategies[selectedMap]
     end
-
     if not strategy and config.defaultStrategy then
         strategy = config.defaultStrategy
     end
-
     if strategy then
         self.pending_strategy = strategy
     end
-
     self:GameInfo(selectedMap, config.modifiers or {})
-
     return true
 end
 
 function TDS:GameInfo(mapName, modifiers)
     modifiers = modifiers or {}
-    if game_state ~= "GAME" then 
+    if game_state ~= "GAME" then
         warn("Not in game state for GameInfo")
-        return false 
+        return false
     end
     local vote_gui = player_gui:WaitForChild("ReactGameIntermission", 30)
-    if not (vote_gui and vote_gui.Enabled) then 
+    if not (vote_gui and vote_gui.Enabled) then
         warn("Vote GUI not found or not enabled")
         teleport_service:Teleport(3260590327, local_player)
         return false
@@ -719,7 +738,7 @@ local function get_current_wave()
     local label
     repeat
         task.wait(0.5)
-        label = player_gui:FindFirstChild("ReactGameTopGameDisplay", true) 
+        label = player_gui:FindFirstChild("ReactGameTopGameDisplay", true)
             and player_gui.ReactGameTopGameDisplay.Frame.wave.container:FindFirstChild("value")
     until label ~= nil
     local text = label.Text
@@ -737,7 +756,7 @@ local function do_place_tower(t_name, t_pos)
         for _, child in ipairs(workspace.Towers:GetChildren()) do
             local tower_pos = child:GetPivot().Position
             if math.abs(tower_pos.X - new_x) < 1 and math.abs(tower_pos.Z - new_z) < 1 then
-                final_y = t_pos.Y 
+                final_y = t_pos.Y
                 break
             end
         end
@@ -748,8 +767,8 @@ local function do_place_tower(t_name, t_pos)
                 Position = randomized_pos
             }, t_name)
         end)
-        if ok and check_res_ok(res) then 
-            return true 
+        if ok and check_res_ok(res) then
+            return true
         end
         task.wait(0.25)
     end
@@ -801,26 +820,21 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
         ab_data = nil
     end
     ab_data = type(ab_data) == "table" and ab_data or nil
-
     local positions
     if ab_data and type(ab_data.towerPosition) == "table" then
         positions = ab_data.towerPosition
     end
-
     local clone_list = {}
     if ab_data and ab_data.cloneTowerList and type(ab_data.cloneTowerList) == "table" then
         clone_list = ab_data.cloneTowerList
     elseif ab_data and ab_data.towerToClone then
         clone_list = { ab_data.towerToClone }
     end
-
     local target_idx = ab_data and ab_data.towerTarget
     local attempts_per_id = ab_data and ab_data.attemptsPerId or 3
-
     local current_index = 1
     local attempt_counter = 0
     local list_len = #clone_list
-
     local function attempt_ability(clone_id)
         local tower_to_clone = TDS.placed_towers[clone_id]
         if not tower_to_clone then
@@ -849,24 +863,19 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
         end
         return check_res_ok(res)
     end
-
     local function run_cycle()
         if list_len == 0 then
-            -- No clone list: just attempt once
             attempt_ability(nil)
             return
         end
-
         local clone_id = clone_list[current_index]
         attempt_ability(clone_id)
-
         attempt_counter = attempt_counter + 1
         if attempt_counter >= attempts_per_id then
             attempt_counter = 0
             current_index = current_index % list_len + 1
         end
     end
-
     if is_looping then
         local active = true
         task.spawn(function()
@@ -883,8 +892,8 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
 end
 
 function TDS:Mode(difficulty)
-    if game_state ~= "LOBBY" then 
-        return false 
+    if game_state ~= "LOBBY" then
+        return false
     end
     if difficulty == "Trial" then
         local Elevators = workspace:WaitForChild("Elevators")
@@ -936,7 +945,7 @@ function TDS:Mode(difficulty)
                 success = true
                 res = result
             else
-                task.wait(0.5) 
+                task.wait(0.5)
             end
         until success
     end
@@ -1035,9 +1044,7 @@ end
 function TDS:VoteSkip(start_wave, end_wave)
     task.spawn(function()
         local current_wave = get_current_wave()
-        
         self.LastVoteSkipTarget = self.LastVoteSkipTarget or 0
-        
         if not start_wave then
             if self.LastVoteSkipTarget < current_wave then
                 self.LastVoteSkipTarget = current_wave
@@ -1050,27 +1057,22 @@ function TDS:VoteSkip(start_wave, end_wave)
             end_wave = end_wave or start_wave
             self.LastVoteSkipTarget = end_wave
         end
-
         for wave = start_wave, end_wave do
             while get_current_wave() < wave do
                 task.wait(0.5)
             end
-
             local target_next_wave = wave + 1
-            
             while get_current_wave() < target_next_wave do
                 local vote_ui = player_gui:FindFirstChild("ReactOverridesVote")
-                local vote_button = vote_ui 
-                    and vote_ui:FindFirstChild("Frame") 
-                    and vote_ui.Frame:FindFirstChild("votes") 
+                local vote_button = vote_ui
+                    and vote_ui:FindFirstChild("Frame")
+                    and vote_ui.Frame:FindFirstChild("votes")
                     and vote_ui.Frame.votes:FindFirstChild("vote", true)
-
                 if vote_button and vote_button.Position == UDim2.new(0.5, 0, 0.5, 0) then
                     pcall(function()
                         RemoteFunc:InvokeServer("Voting", "Skip")
                     end)
                 end
-                
                 task.wait(0.1)
             end
         end
@@ -1091,7 +1093,7 @@ end
 
 function TDS:Ready()
     if game_state ~= "GAME" then
-        return false 
+        return false
     end
     match_ready_up()
 end
@@ -1111,7 +1113,7 @@ function TDS:Place(t_name, px, py, pz, ...)
         py = 95
     end
     if game_state ~= "GAME" then
-        return false 
+        return false
     end
     local final_y = py
     local above_existing = false
@@ -1313,8 +1315,8 @@ function TDS:AutoSkip(state)
 end
 
 local function start_claim_rewards()
-    if auto_claim_rewards or not _G.ClaimRewards or game_state ~= "LOBBY" then 
-        return 
+    if auto_claim_rewards or not _G.ClaimRewards or game_state ~= "LOBBY" then
+        return
     end
     auto_claim_rewards = true
     local player = game:GetService("Players").LocalPlayer
@@ -1356,22 +1358,18 @@ end
 local function start_anti_lag()
     if anti_lag_running then return end
     anti_lag_running = true
-
     local settings = settings().Rendering
     local original_quality = settings.QualityLevel
     settings.QualityLevel = Enum.QualityLevel.Level01
-
     task.spawn(function()
         while _G.AntiLag do
             local towers_folder = workspace:FindFirstChild("Towers")
             local client_units = workspace:FindFirstChild("ClientUnits")
-
             if towers_folder then
                 for _, tower in ipairs(towers_folder:GetChildren()) do
                     local anims = tower:FindFirstChild("Animations")
                     local weapon = tower:FindFirstChild("Weapon")
                     local projectiles = tower:FindFirstChild("Projectiles")
-
                     if anims then anims:Destroy() end
                     if projectiles then projectiles:Destroy() end
                     if weapon then weapon:Destroy() end
@@ -1382,7 +1380,6 @@ local function start_anti_lag()
                     unit:Destroy()
                 end
             end
-            
             task.wait(0.5)
         end
         anti_lag_running = false
@@ -1394,7 +1391,6 @@ local player = game.Players.LocalPlayer
 local function Jump()
     local character = player.Character
     local humanoid = character and character:FindFirstChild("Humanoid")
-
     if humanoid and humanoid.Health > 0 then
         humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
     end
@@ -1404,10 +1400,8 @@ local function RandomJumpLoop()
     while true do
         local waitTime = math.random(300, 600)
         task.wait(waitTime)
-
         local character = player.Character
         local humanoid = character and character:FindFirstChild("Humanoid")
-
         if humanoid and humanoid.Health > 0 then
             humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         end
@@ -1516,7 +1510,7 @@ local function start_auto_uber()
                     and (towers:GetAttribute("Upgrade") or 0) >= 3 then
                         local medic = towers.Parent
                         remote_func:InvokeServer("Troops", "Abilities", "Activate", { Troop = medic, Name = "Ubercharge", Data = {} })
-                        task.wait(0.5) 
+                        task.wait(0.5)
                     end
                 end
             end
@@ -1589,7 +1583,7 @@ local function start_auto_necro()
             task.wait()
         end
         auto_necro_running = false
-        necroTimers = {} 
+        necroTimers = {}
     end)
 end
 
@@ -1654,8 +1648,8 @@ local function start_smart_auto_skip()
             if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
                 local health = get_total_enemy_health()
                 local threshold = 2500
-                for w, t in pairs(HEALTH_THRESHOLDS) do 
-                    if current_wave >= w then threshold = t end 
+                for w, t in pairs(HEALTH_THRESHOLDS) do
+                    if current_wave >= w then threshold = t end
                 end
                 if health < threshold then
                     current_wave_tracking.skip_active = true
@@ -1673,7 +1667,7 @@ local function start_smart_auto_skip()
             end
             task.wait(0.2)
         end
-        auto_smart_skip_running = false  
+        auto_smart_skip_running = false
     end)
 end
 
@@ -1687,7 +1681,7 @@ if _G.AutoSmartSkip then
 end
 
 function TDS:MedicSelect(idx, val)
-    local t = self.placed_towers[idx]      
+    local t = self.placed_towers[idx]
     local target = self.placed_towers[val]
     if t and target then
         local remote_func = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
@@ -1710,10 +1704,10 @@ local function start_auto_mercenary()
                     and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
                     and (towers:GetAttribute("Upgrade") or 0) >= 5 then
                         local mercenary = towers.Parent
-                        remote_func:InvokeServer("Troops", "Abilities", "Activate", { 
-                            Troop = mercenary, 
-                            Name = "Air-Drop", 
-                            Data = { pathName = 1, directionCFrame = CFrame.new(), dist = _G.MercDistance or 195 } 
+                        remote_func:InvokeServer("Troops", "Abilities", "Activate", {
+                            Troop = mercenary,
+                            Name = "Air-Drop",
+                            Data = { pathName = 1, directionCFrame = CFrame.new(), dist = _G.MercDistance or 195 }
                         })
                         task.wait(0.5)
                     end
