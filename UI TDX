@@ -12,7 +12,7 @@ local RAW_SCRIPT_URL = "https://raw.githubusercontent.com/raxs0420/test/refs/hea
 local enemyBlocklist = {
     "Skulldrone", "Pilot", "Artemis", "Slow", "Quick", "Normal", "Buzzard", "Jumper",
     "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drone",
-    "Rusher", "Jager", "Chariot Turret", "Spawner", "Attack Drone", "Rocket Drone",
+    "Rusher", "Jager", "Chariot Turret", "Spawner", "Haste", "Attack Drone", "Rocket Drone",
     "Multiplier 3", "Multiplier 2", "Multiplier 1", "Multiplier X", "Aerial Juggernaut",
     "Xcientist", "Shock Head", "Prisoner", "Prisoner Soul", "Contained", "Light Contained",
     "Heavy Contained", "Resurrected Armored Ranger", "XNader", "Zombie Drop Pod 3", "Zombie Drop Pod 2", "Zombie Drop Pod 1", "Resurrected Slow Ranger", "Resurrected Ranger"
@@ -423,15 +423,29 @@ local function freeId(id)
     if id and id > 0 then table.insert(freeIds, id) end
 end
 
+local function updateTowerOwnership()
+    for id, data in pairs(towers) do
+        if data.part and data.part.Parent then
+            local uiName = getCurrentTowerName()
+            if uiName and uiName == data.name:upper() then
+                if not data.owned then
+                    data.owned = true
+                    local timestamp = os.date("%H:%M:%S")
+                    addDebugLog(string.format("[%s] Ownership confirmed for %s (ID: %d)", timestamp, data.name, id))
+                end
+            end
+        end
+    end
+end
+
 local function addTower(part)
     if partToId[part] then return end
     if isTowerDead(part) then return end
     local id = allocateId()
     partToId[part] = id
     local owned = false
-    task.wait(0.2)
-    local uiTowerName = getCurrentTowerName()
-    if uiTowerName and uiTowerName == part.Name:upper() then
+    local uiName = getCurrentTowerName()
+    if uiName and uiName == part.Name:upper() then
         owned = true
     end
     towers[id] = { 
@@ -446,6 +460,16 @@ local function addTower(part)
     local timestamp = os.date("%H:%M:%S")
     local ownerDisplay = owned and "YOU" or "Unknown"
     addDebugLog(string.format("[%s] Tower: %s | Owner: %s | ID: %d", timestamp, part.Name, ownerDisplay, id))
+    if not owned then
+        task.spawn(function()
+            task.wait(0.05)
+            local newUiName = getCurrentTowerName()
+            if newUiName and newUiName == part.Name:upper() then
+                towers[id].owned = true
+                addDebugLog(string.format("[%s] Ownership updated for %s (ID: %d)", os.date("%H:%M:%S"), part.Name, id))
+            end
+        end)
+    end
 end
 
 local function removeTower(part)
@@ -489,7 +513,10 @@ local function fullResync()
             local newId = allocateId()
             newPartToId[part] = newId
             usedIds[newId] = true
-            newTowers[newId] = { part = part, name = part.Name, topCount = 0, bottomCount = 0, placedAfterAuto = false, removed = false, owned = false }
+            local owned = false
+            local uiName = getCurrentTowerName()
+            if uiName and uiName == part.Name:upper() then owned = true end
+            newTowers[newId] = { part = part, name = part.Name, topCount = 0, bottomCount = 0, placedAfterAuto = false, removed = false, owned = owned }
         end
     end
     for id, _ in pairs(towers) do if not usedIds[id] then freeId(id) end end
@@ -555,7 +582,6 @@ local function runOverloadSequential(slot)
     end
 end
 
-local medicDroneLoop = nil
 local medicDroneIgnoreTowers = {
     ["Barracks"] = true,
     ["Behemoth Factory"] = true,
@@ -578,6 +604,61 @@ local medicDroneIgnoreTowers = {
     ["Troll Tower"] = true,            
 }
 
+local towerWeights = {
+    ["Refractor"] = 5,
+    ["Golden Mobster"] = 3,
+    ["Golden Juggernaut"] = 3,
+}
+
+local function getBestMedicDronePosition(towerPositions, radius)
+    local bestPos = nil
+    local bestWeightedSum = -1
+    local candidatePoints = {}
+    for _, pos in ipairs(towerPositions) do
+        table.insert(candidatePoints, pos)
+        for dx = -radius, radius, radius/2 do
+            for dz = -radius, radius, radius/2 do
+                local offset = Vector3.new(dx, 0, dz)
+                if offset.Magnitude <= radius then
+                    table.insert(candidatePoints, pos + offset)
+                end
+            end
+        end
+    end
+    for _, candidate in ipairs(candidatePoints) do
+        local weightedSum = 0
+        local includedTowers = {}
+        for _, towerPos in ipairs(towerPositions) do
+            if (candidate - towerPos).Magnitude <= radius then
+                table.insert(includedTowers, towerPos)
+                local towerName = nil
+                for id, data in pairs(towers) do
+                    if data.part and data.part.Position == towerPos then
+                        towerName = data.name
+                        break
+                    end
+                end
+                local weight = towerWeights[towerName] or 1
+                weightedSum = weightedSum + weight
+            end
+        end
+        if weightedSum > bestWeightedSum then
+            bestWeightedSum = weightedSum
+            if #includedTowers > 0 then
+                local sum = Vector3.zero
+                for _, pos in ipairs(includedTowers) do
+                    sum = sum + pos
+                end
+                bestPos = sum / #includedTowers
+            else
+                bestPos = candidate
+            end
+        end
+    end
+    return bestPos, bestWeightedSum
+end
+
+local medicDroneLoop = nil
 local function runMedicDroneSequential(slot)
     local recentDronePositions = {}  
 
@@ -591,16 +672,6 @@ local function runMedicDroneSequential(slot)
             end
         end
         return true
-    end
-
-    local function countTowersInRadius(pos, towerPositions)
-        local count = 0
-        for _, tPos in ipairs(towerPositions) do
-            if (pos - tPos).Magnitude <= 12 then
-                count = count + 1
-            end
-        end
-        return count
     end
 
     while activeAbilities["MEDIC_DRONE"] do
@@ -624,47 +695,39 @@ local function runMedicDroneSequential(slot)
         end
 
         if #medicIds == 0 then
-            task.wait(1)
+            task.wait(0.5)
             continue
         end
 
         local eligibleTowerPositions = {}
+        local posToId = {}
         for id, data in pairs(towers) do
             if data.owned and data.part and data.part.Parent then
                 if not medicDroneIgnoreTowers[data.name] then
                     table.insert(eligibleTowerPositions, data.part.Position)
+                    posToId[data.part.Position] = id
                 end
             end
         end
 
         if #eligibleTowerPositions < 2 then
-            task.wait(1)
+            task.wait(0.5)
             continue
         end
 
         for _, medicId in ipairs(medicIds) do
             if not activeAbilities["MEDIC_DRONE"] then break end
 
-            local candidates = {}
-            for _, pos in ipairs(eligibleTowerPositions) do
-                if isPositionAllowed(pos) then
-                    local count = countTowersInRadius(pos, eligibleTowerPositions)
-                    table.insert(candidates, {pos = pos, count = count})
-                end
-            end
-
-            table.sort(candidates, function(a, b) return a.count > b.count end)
-
-            if #candidates == 0 then
+            local bestPos, bestWeight = getBestMedicDronePosition(eligibleTowerPositions, 12)
+            if not bestPos or not isPositionAllowed(bestPos) then
                 task.wait(0.5)
                 continue
             end
 
-            local best = candidates[1]
-            local firstResponse = sendAbilityWithPosition(medicId, slot, best.pos)
+            local firstResponse = sendAbilityWithPosition(medicId, slot, bestPos)
             if firstResponse == true then
-                table.insert(recentDronePositions, {position = best.pos, time = tick()})
-                addDebugLog("[Medic Drone] First drone placed at " .. tostring(best.pos) .. " covering " .. best.count .. " towers")
+                table.insert(recentDronePositions, {position = bestPos, time = tick()})
+                addDebugLog(string.format("[Medic Drone] First drone placed at centroid with weight %.1f", bestWeight))
                 local startTime = tick()
                 local secondPlaced = false
                 while tick() - startTime < 20 and activeAbilities["MEDIC_DRONE"] do
@@ -677,22 +740,12 @@ local function runMedicDroneSequential(slot)
                         end
                     end
                     if #freshPositions >= 2 then
-                        local secondBest = nil
-                        local secondBestCount = 0
-                        for _, pos in ipairs(freshPositions) do
-                            if isPositionAllowed(pos) and (pos - best.pos).Magnitude > 5 then
-                                local cnt = countTowersInRadius(pos, freshPositions)
-                                if cnt > secondBestCount then
-                                    secondBestCount = cnt
-                                    secondBest = pos
-                                end
-                            end
-                        end
-                        if secondBest then
-                            local secondResponse = sendAbilityWithPosition(medicId, slot, secondBest)
+                        local secondBestPos, secondBestWeight = getBestMedicDronePosition(freshPositions, 12)
+                        if secondBestPos and isPositionAllowed(secondBestPos) and (secondBestPos - bestPos).Magnitude > 5 then
+                            local secondResponse = sendAbilityWithPosition(medicId, slot, secondBestPos)
                             if secondResponse == true then
-                                table.insert(recentDronePositions, {position = secondBest, time = tick()})
-                                addDebugLog("[Medic Drone] Second drone placed at " .. tostring(secondBest) .. " covering " .. secondBestCount .. " towers")
+                                table.insert(recentDronePositions, {position = secondBestPos, time = tick()})
+                                addDebugLog(string.format("[Medic Drone] Second drone placed at centroid with weight %.1f", secondBestWeight))
                                 secondPlaced = true
                                 break
                             end
@@ -703,30 +756,12 @@ local function runMedicDroneSequential(slot)
 
                 if not secondPlaced then
                     addDebugLog("[Medic Drone] No different cluster found – placing second drone at best overall spot")
-                    local fallbackPos = nil
-                    local fallbackCount = 0
-                    local currentPositions = {}
-                    for id, data in pairs(towers) do
-                        if data.owned and data.part and data.part.Parent then
-                            if not medicDroneIgnoreTowers[data.name] then
-                                table.insert(currentPositions, data.part.Position)
-                            end
-                        end
-                    end
-                    for _, pos in ipairs(currentPositions) do
-                        if isPositionAllowed(pos) then
-                            local cnt = countTowersInRadius(pos, currentPositions)
-                            if cnt > fallbackCount then
-                                fallbackCount = cnt
-                                fallbackPos = pos
-                            end
-                        end
-                    end
-                    if fallbackPos then
+                    local fallbackPos, fallbackWeight = getBestMedicDronePosition(eligibleTowerPositions, 12)
+                    if fallbackPos and isPositionAllowed(fallbackPos) then
                         local fallbackResponse = sendAbilityWithPosition(medicId, slot, fallbackPos)
                         if fallbackResponse == true then
                             table.insert(recentDronePositions, {position = fallbackPos, time = tick()})
-                            addDebugLog("[Medic Drone] Fallback drone placed at " .. tostring(fallbackPos))
+                            addDebugLog(string.format("[Medic Drone] Fallback drone placed at centroid with weight %.1f", fallbackWeight))
                         end
                     end
                 end
@@ -735,7 +770,7 @@ local function runMedicDroneSequential(slot)
                 task.wait(0.5)
             end
         end
-        task.wait(0.5)
+        task.wait(0.3)
     end
 end
 
@@ -1114,7 +1149,7 @@ pcall(function()
     if not TowersFolder then return end
 
     TowersFolder.ChildAdded:Connect(function(part)
-        if part:IsA("BasePart") then task.wait(0.01) addTower(part) end
+        if part:IsA("BasePart") then addTower(part) end
     end)
     TowersFolder.ChildRemoved:Connect(function(part)
         if part:IsA("BasePart") then removeTower(part) end
@@ -1124,7 +1159,10 @@ pcall(function()
         while true do cleanupDeadTowers() task.wait(0.01) end
     end)
     task.spawn(function()
-        while true do task.wait(5) fullResync() end
+        while true do task.wait(2) fullResync() end
+    end)
+    task.spawn(function()
+        while true do task.wait(1) updateTowerOwnership() end
     end)
 
     for _, part in ipairs(TowersFolder:GetChildren()) do
