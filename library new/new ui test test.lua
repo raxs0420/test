@@ -1,5 +1,31 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
+local function save_auto_rejoin_state(state)
+    pcall(function()
+        if writefile then
+            writefile("TDS_AutoRejoin.txt", tostring(state))
+        end
+    end)
+end
+
+local function load_auto_rejoin_state()
+    local saved = nil
+    pcall(function()
+        if readfile then
+            local content = readfile("TDS_AutoRejoin.txt")
+            if content == "true" then
+                saved = true
+            elseif content == "false" then
+                saved = false
+            end
+        end
+    end)
+    if saved == nil then saved = true end
+    return saved
+end
+
+_G.AutoRejoin = load_auto_rejoin_state()
+
 local function identify_game_state()
     local players = game:GetService("Players")
     local temp_player = players.LocalPlayer or players.PlayerAdded:Wait()
@@ -15,8 +41,6 @@ local function identify_game_state()
 end
 
 game_state = identify_game_state()
-
-_G.AutoRejoin = _G.AutoRejoin == nil and true or _G.AutoRejoin
 
 local send_request = request or http_request or httprequest or GetDevice and GetDevice().request
 
@@ -190,6 +214,7 @@ local function get_all_rewards()
 end
 
 local function SmartTeleportToLobby()
+    if not _G.AutoRejoin then return end
     local lobbyId = 3260590327
     local IsMobile = game:GetService("UserInputService").TouchEnabled
     Globals = Globals or {}
@@ -207,6 +232,7 @@ local function SmartTeleportToLobby()
 end
 
 local function rejoin_match()
+    if not _G.AutoRejoin then return end
     local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
     local success = false
     local res
@@ -257,6 +283,7 @@ local function rejoin_match()
 end
 
 local function handle_post_match()
+    if not _G.AutoRejoin then return end
     local ui_root
     repeat
         task.wait(1)
@@ -270,7 +297,6 @@ local function handle_post_match()
         if _G.sent_to_lobby then send_to_lobby() else rejoin_match() end
         return
     end
-    if not _G.AutoRejoin then return end
     if not _G.SendWebhook then
         if _G.sent_to_lobby then send_to_lobby() else rejoin_match() end
         return
@@ -608,6 +634,10 @@ function TDS:RunStrategy(config)
 end
 
 function TDS:GameInfo(mapName, modifiers)
+    if not _G.AutoRejoin then
+        warn("TDS:GameInfo blocked because Auto Rejoin is disabled")
+        return false
+    end
     modifiers = modifiers or {}
     if game_state ~= "GAME" then
         warn("Not in game state for GameInfo")
@@ -874,6 +904,10 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
 end
 
 function TDS:Mode(difficulty)
+    if not _G.AutoRejoin then
+        warn("TDS:Mode blocked because Auto Rejoin is disabled")
+        return false
+    end
     if game_state ~= "LOBBY" then
         return false
     end
@@ -1721,19 +1755,20 @@ if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
 
+start_back_to_lobby()
+start_rejoin_on_disconnect()
+
 local function create_auto_rejoin_button()
     local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     if playerGui:FindFirstChild("AutoRejoinButton") then return end
-
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "AutoRejoinButton"
     screenGui.Parent = playerGui
     screenGui.ResetOnSpawn = false
-
     local button = Instance.new("TextButton")
     button.Name = "ToggleButton"
     button.Size = UDim2.new(0, 130, 0, 35)
-    button.Position = UDim2.new(0, 10, 0, 10)  -- top left with small margin
+    button.Position = UDim2.new(0, 10, 0, 10)
     button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
     button.BackgroundTransparency = 0.3
     button.TextColor3 = Color3.new(1, 1, 1)
@@ -1741,7 +1776,26 @@ local function create_auto_rejoin_button()
     button.Font = Enum.Font.GothamBold
     button.Text = "Auto Rejoin: ON"
     button.Parent = screenGui
-
+    local dragging = false
+    local dragStart, startPos
+    button.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = button.Position
+        end
+    end)
+    button.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    button.InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            button.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
     local function update_button()
         if _G.AutoRejoin then
             button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
@@ -1750,13 +1804,12 @@ local function create_auto_rejoin_button()
             button.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
             button.Text = "Auto Rejoin: OFF"
         end
+        save_auto_rejoin_state(_G.AutoRejoin)
     end
-
     button.MouseButton1Click:Connect(function()
         _G.AutoRejoin = not _G.AutoRejoin
         update_button()
     end)
-
     update_button()
 end
 
@@ -1764,8 +1817,5 @@ task.spawn(function()
     game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     create_auto_rejoin_button()
 end)
-
-start_back_to_lobby()
-start_rejoin_on_disconnect()
 
 return TDS
