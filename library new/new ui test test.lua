@@ -16,6 +16,9 @@ end
 
 game_state = identify_game_state()
 
+-- Default: Auto Rejoin is ON
+_G.AutoRejoin = _G.AutoRejoin == nil and true or _G.AutoRejoin
+
 local send_request = request or http_request or httprequest or GetDevice and GetDevice().request
 
 if not send_request then
@@ -1718,6 +1721,50 @@ end)
 if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
+
+local function create_auto_rejoin_button()
+    local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    if playerGui:FindFirstChild("AutoRejoinButton") then return end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AutoRejoinButton"
+    screenGui.Parent = playerGui
+    screenGui.ResetOnSpawn = false
+
+    local button = Instance.new("TextButton")
+    button.Name = "ToggleButton"
+    button.Size = UDim2.new(0, 130, 0, 35)
+    button.Position = UDim2.new(0, 10, 0, 10)  -- top left with small margin
+    button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    button.BackgroundTransparency = 0.3
+    button.TextColor3 = Color3.new(1, 1, 1)
+    button.TextScaled = true
+    button.Font = Enum.Font.GothamBold
+    button.Text = "Auto Rejoin: ON"
+    button.Parent = screenGui
+
+    local function update_button()
+        if _G.AutoRejoin then
+            button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+            button.Text = "Auto Rejoin: ON"
+        else
+            button.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+            button.Text = "Auto Rejoin: OFF"
+        end
+    end
+
+    button.MouseButton1Click:Connect(function()
+        _G.AutoRejoin = not _G.AutoRejoin
+        update_button()
+    end)
+
+    update_button()
+end
+
+task.spawn(function()
+    game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    create_auto_rejoin_button()
+end)
 
 start_back_to_lobby()
 start_rejoin_on_disconnect()
