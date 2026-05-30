@@ -103,7 +103,8 @@ local TDS = {
     strategies = {},
     current_strategy = nil,
     current_map = nil,
-    pending_strategy = nil
+    pending_strategy = nil,
+    ReplayCallback = nil
 }
 
 local upgrade_history = {}
@@ -1758,64 +1759,113 @@ end
 start_back_to_lobby()
 start_rejoin_on_disconnect()
 
-local function create_auto_rejoin_button()
+local function create_buttons()
     local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     if playerGui:FindFirstChild("AutoRejoinButton") then return end
+
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "AutoRejoinButton"
     screenGui.Parent = playerGui
     screenGui.ResetOnSpawn = false
-    local button = Instance.new("TextButton")
-    button.Name = "ToggleButton"
-    button.Size = UDim2.new(0, 130, 0, 35)
-    button.Position = UDim2.new(0, 10, 0, 10)
-    button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-    button.BackgroundTransparency = 0.3
-    button.TextColor3 = Color3.new(1, 1, 1)
-    button.TextScaled = true
-    button.Font = Enum.Font.GothamBold
-    button.Text = "Auto Rejoin: ON"
-    button.Parent = screenGui
+
+    local rejoinButton = Instance.new("TextButton")
+    rejoinButton.Name = "ToggleButton"
+    rejoinButton.Size = UDim2.new(0, 130, 0, 35)
+    rejoinButton.Position = UDim2.new(0, 10, 0, 10)
+    rejoinButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+    rejoinButton.BackgroundTransparency = 0.3
+    rejoinButton.TextColor3 = Color3.new(1, 1, 1)
+    rejoinButton.TextScaled = true
+    rejoinButton.Font = Enum.Font.GothamBold
+    rejoinButton.Text = "Auto Rejoin: ON"
+    rejoinButton.Parent = screenGui
+
+    local startMatchButton = Instance.new("TextButton")
+    startMatchButton.Name = "StartMatchButton"
+    startMatchButton.Size = UDim2.new(0, 130, 0, 35)
+    startMatchButton.Position = UDim2.new(0, 10, 0, 50)
+    startMatchButton.BackgroundColor3 = Color3.fromRGB(0, 100, 200)
+    startMatchButton.BackgroundTransparency = 0.3
+    startMatchButton.TextColor3 = Color3.new(1, 1, 1)
+    startMatchButton.TextScaled = true
+    startMatchButton.Font = Enum.Font.GothamBold
+    startMatchButton.Text = "Start Match"
+    startMatchButton.Parent = screenGui
+
     local dragging = false
     local dragStart, startPos
-    button.InputBegan:Connect(function(input)
+    local function onDragStart(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
             dragStart = input.Position
-            startPos = button.Position
+            startPos = rejoinButton.Position
         end
-    end)
-    button.InputEnded:Connect(function(input)
+    end
+    local function onDragEnd(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
-    end)
-    button.InputChanged:Connect(function(input)
+    end
+    local function onDragMove(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = input.Position - dragStart
-            button.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            local newPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            rejoinButton.Position = newPos
+            startMatchButton.Position = UDim2.new(newPos.X.Scale, newPos.X.Offset, newPos.Y.Scale, newPos.Y.Offset + 40)
         end
-    end)
-    local function update_button()
+    end
+
+    rejoinButton.InputBegan:Connect(onDragStart)
+    rejoinButton.InputEnded:Connect(onDragEnd)
+    rejoinButton.InputChanged:Connect(onDragMove)
+
+    local function update_rejoin_button()
         if _G.AutoRejoin then
-            button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-            button.Text = "Auto Rejoin: ON"
+            rejoinButton.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+            rejoinButton.Text = "Auto Rejoin: ON"
         else
-            button.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-            button.Text = "Auto Rejoin: OFF"
+            rejoinButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+            rejoinButton.Text = "Auto Rejoin: OFF"
         end
         save_auto_rejoin_state(_G.AutoRejoin)
     end
-    button.MouseButton1Click:Connect(function()
+
+    rejoinButton.MouseButton1Click:Connect(function()
         _G.AutoRejoin = not _G.AutoRejoin
-        update_button()
+        update_rejoin_button()
     end)
-    update_button()
+
+    startMatchButton.MouseButton1Click:Connect(function()
+        if TDS.ReplayCallback then
+            TDS.ReplayCallback()
+        else
+            warn("No replay callback set. Use TDS.ReplayCallback = function() ... end")
+        end
+    end)
+
+    local function update_visibility()
+        local inLobby = playerGui:FindFirstChild("ReactLobbyHud") ~= nil
+        startMatchButton.Visible = inLobby
+    end
+
+    update_visibility()
+    playerGui.ChildAdded:Connect(function(child)
+        if child.Name == "ReactLobbyHud" then
+            update_visibility()
+        end
+    end)
+    playerGui.ChildRemoved:Connect(function(child)
+        if child.Name == "ReactLobbyHud" then
+            update_visibility()
+        end
+    end)
+
+    update_rejoin_button()
 end
 
 task.spawn(function()
     game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    create_auto_rejoin_button()
+    create_buttons()
 end)
 
 return TDS
