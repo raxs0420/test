@@ -448,7 +448,7 @@ function TDX:Upgrade(macroId, path, level, cost)
                 path = path,
                 level = level,
                 cost = cost,
-                retries = 999
+                retries = 99999
             }
         end
         
