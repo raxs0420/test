@@ -7,8 +7,6 @@ local TeleportService = game:GetService("TeleportService")
 
 if LocalPlayer.PlayerGui:FindFirstChild("TDXAuto") then return end
 
-local RAW_SCRIPT_URL = "https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/UI%20TDX"
-
 local enemyBlocklist = {
     "Skulldrone", "Pilot", "Artemis", "Slow", "Quick", "Normal", "Buzzard", "Jumper",
     "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drone",
@@ -27,7 +25,7 @@ local enemyWhitelist = {
 }
 
 local SettingsFile = "TDXAuto_Settings.json"
-local defaultSettings = { autoTargetMode = nil, autoSkip = false, emoteSpam = false, antiLagEnabled = true, activeAbilities = {}, towerLoadout = {} }
+local defaultSettings = { autoTargetMode = nil, autoSkip = false, emoteSpam = false, antiLagEnabled = true, activeAbilities = {} }
 local settings = {}
 
 local function loadSettings()
@@ -37,9 +35,8 @@ local function loadSettings()
         for k, v in pairs(defaultSettings) do if decoded[k] == nil then decoded[k] = v end end
         settings = decoded
         settings.activeAbilities = settings.activeAbilities or {}
-        settings.towerLoadout = settings.towerLoadout or {}
     else
-        settings = { autoTargetMode = nil, autoSkip = false, emoteSpam = false, antiLagEnabled = true, activeAbilities = {}, towerLoadout = {} }
+        settings = { autoTargetMode = nil, autoSkip = false, emoteSpam = false, antiLagEnabled = true, activeAbilities = {} }
     end
 end
 
@@ -51,8 +48,8 @@ end
 loadSettings()
 
 local screenSize = workspace.CurrentCamera.ViewportSize
-local frameWidth = 380
-local frameHeight = screenSize.Y * 0.55
+local frameWidth = 450
+local frameHeight = screenSize.Y * 0.75
 local frameX = (screenSize.X - frameWidth) / 2
 local frameY = (screenSize.Y - frameHeight) / 2
 
@@ -102,19 +99,9 @@ tabMainBtn.TextSize = 12
 tabMainBtn.Parent = frame
 Instance.new("UICorner", tabMainBtn)
 
-local tabTowersBtn = Instance.new("TextButton")
-tabTowersBtn.Size = UDim2.new(0, 70, 0, 22)
-tabTowersBtn.Position = UDim2.new(0, 85, 0, 32)
-tabTowersBtn.Text = "Towers"
-tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-tabTowersBtn.TextColor3 = Color3.fromRGB(255,255,255)
-tabTowersBtn.TextSize = 12
-tabTowersBtn.Parent = frame
-Instance.new("UICorner", tabTowersBtn)
-
 local tabDebugBtn = Instance.new("TextButton")
 tabDebugBtn.Size = UDim2.new(0, 70, 0, 22)
-tabDebugBtn.Position = UDim2.new(0, 160, 0, 32)
+tabDebugBtn.Position = UDim2.new(0, 85, 0, 32)
 tabDebugBtn.Text = "Debug"
 tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 tabDebugBtn.TextColor3 = Color3.fromRGB(255,255,255)
@@ -122,18 +109,21 @@ tabDebugBtn.TextSize = 12
 tabDebugBtn.Parent = frame
 Instance.new("UICorner", tabDebugBtn)
 
+local tabTowersBtn = Instance.new("TextButton")
+tabTowersBtn.Size = UDim2.new(0, 70, 0, 22)
+tabTowersBtn.Position = UDim2.new(0, 160, 0, 32)
+tabTowersBtn.Text = "Towers"
+tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+tabTowersBtn.TextColor3 = Color3.fromRGB(255,255,255)
+tabTowersBtn.TextSize = 12
+tabTowersBtn.Parent = frame
+Instance.new("UICorner", tabTowersBtn)
+
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(1, -20, 1, -65)
 mainFrame.Position = UDim2.new(0, 10, 0, 58)
 mainFrame.BackgroundTransparency = 1
 mainFrame.Parent = frame
-
-local towersFrame = Instance.new("Frame")
-towersFrame.Size = UDim2.new(1, -20, 1, -65)
-towersFrame.Position = UDim2.new(0, 10, 0, 58)
-towersFrame.BackgroundTransparency = 1
-towersFrame.Visible = false
-towersFrame.Parent = frame
 
 local debugFrame = Instance.new("Frame")
 debugFrame.Size = UDim2.new(1, -20, 1, -65)
@@ -142,8 +132,15 @@ debugFrame.BackgroundTransparency = 1
 debugFrame.Visible = false
 debugFrame.Parent = frame
 
+local towersFrame = Instance.new("Frame")
+towersFrame.Size = UDim2.new(1, -20, 1, -65)
+towersFrame.Position = UDim2.new(0, 10, 0, 58)
+towersFrame.BackgroundTransparency = 1
+towersFrame.Visible = false
+towersFrame.Parent = frame
+
 local debugLogFrame = Instance.new("ScrollingFrame")
-debugLogFrame.Size = UDim2.new(1, -10, 1, -40)
+debugLogFrame.Size = UDim2.new(1, -10, 1, -10)
 debugLogFrame.Position = UDim2.new(0, 5, 0, 5)
 debugLogFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
 debugLogFrame.BorderSizePixel = 0
@@ -166,58 +163,36 @@ clearDebugBtn.TextSize = 10
 clearDebugBtn.Parent = debugFrame
 Instance.new("UICorner", clearDebugBtn)
 
-local function addDebugLog(message)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -10, 0, 16)
-    label.Text = message
-    label.TextColor3 = Color3.fromRGB(200,200,200)
-    label.TextSize = 10
-    label.BackgroundTransparency = 1
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = debugLogFrame
-    if #debugLogFrame:GetChildren() > 100 then
-        local children = debugLogFrame:GetChildren()
-        for i = 1, #children - 100 do
-            children[i]:Destroy()
-        end
-    end
-    task.wait()
-    debugLogFrame.CanvasPosition = Vector2.new(0, debugLogFrame.CanvasSize.Y.Offset)
-end
+local towersScroll = Instance.new("ScrollingFrame")
+towersScroll.Size = UDim2.new(1, -10, 1, -10)
+towersScroll.Position = UDim2.new(0, 5, 0, 5)
+towersScroll.BackgroundColor3 = Color3.fromRGB(40,40,40)
+towersScroll.BorderSizePixel = 0
+towersScroll.ScrollBarThickness = 8
+towersScroll.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
+towersScroll.Parent = towersFrame
+Instance.new("UICorner", towersScroll)
 
-clearDebugBtn.MouseButton1Click:Connect(function()
-    for _, child in ipairs(debugLogFrame:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
-    end
-end)
+local towersLayout = Instance.new("UIListLayout", towersScroll)
+towersLayout.Padding = UDim.new(0, 4)
+towersLayout.SortOrder = Enum.SortOrder.LayoutOrder
+towersLayout.FillDirection = Enum.FillDirection.Vertical
+towersLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
-tabMainBtn.MouseButton1Click:Connect(function()
-    mainFrame.Visible = true
-    towersFrame.Visible = false
-    debugFrame.Visible = false
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-end)
+local abilitiesFrame = Instance.new("ScrollingFrame")
+abilitiesFrame.Size = UDim2.new(1, -10, 0, frameHeight - 240)
+abilitiesFrame.Position = UDim2.new(0, 5, 0, 178)
+abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+abilitiesFrame.BorderSizePixel = 0
+abilitiesFrame.ScrollBarThickness = 6
+abilitiesFrame.Parent = mainFrame
+Instance.new("UICorner", abilitiesFrame)
 
-tabTowersBtn.MouseButton1Click:Connect(function()
-    mainFrame.Visible = false
-    towersFrame.Visible = true
-    debugFrame.Visible = false
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    refreshEquippedDisplay()
-end)
-
-tabDebugBtn.MouseButton1Click:Connect(function()
-    mainFrame.Visible = false
-    towersFrame.Visible = false
-    debugFrame.Visible = true
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-end)
+local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
+abilitiesLayout.Padding = UDim.new(0, 6)
+abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
+abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local topBtn = Instance.new("TextButton")
 topBtn.Size = UDim2.new(0, 165, 0, 30)
@@ -290,76 +265,258 @@ abilityLabel.Font = Enum.Font.GothamBold
 abilityLabel.TextXAlignment = Enum.TextXAlignment.Left
 abilityLabel.Parent = mainFrame
 
-local abilitiesFrame = Instance.new("ScrollingFrame")
-abilitiesFrame.Size = UDim2.new(1, -10, 0, frameHeight - 240)
-abilitiesFrame.Position = UDim2.new(0, 5, 0, 178)
-abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
-abilitiesFrame.BorderSizePixel = 0
-abilitiesFrame.ScrollBarThickness = 6
-abilitiesFrame.Parent = mainFrame
-Instance.new("UICorner", abilitiesFrame)
+local function updateDebugCanvas()
+    task.defer(function()
+        if debugLogFrame and debugLogLayout then
+            debugLogFrame.CanvasSize = UDim2.new(0, 0, 0, debugLogLayout.AbsoluteContentSize.Y + 10)
+        end
+    end)
+end
 
-local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
-abilitiesLayout.Padding = UDim.new(0, 6)
-abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
-abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
-abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local abilityOrder = {
-    "GRENADE", "UNSTUN_HEALTH", "HUMVEE", "FLARE", "DJ_Encore", "AXE_RAGE",
-    "LaserGunner", "TOXIC_BLAST", "AP_ROUNDS", "OVERCHARGE",
-    "GRAND_SLAM", "GOLDEN_GRANDE", "Charge_Throw", "GLOBAL_STEALTH_REVEAL",
-    "REBOOT_SYSTEMS", "OVERLOAD", "MEDIC_DRONE"
-}
-
-local towerToAbilitySlot = {
-    Ranger = {ability = "GRENADE", slot = 1}, Shotgunner = {ability = "UNSTUN_HEALTH", slot = 1},
-    Operator = {ability = "HUMVEE", slot = 1}, Sniper = {ability = "FLARE", slot = 1},
-    EDJ = {ability = "DJ_Encore", slot = 1}, John = {ability = "AXE_RAGE", slot = 1},
-    ["Laser Gunner"] = {ability = "LaserGunner", slot = 1}, Toxicnator = {ability = "TOXIC_BLAST", slot = 1},
-    Mobster = {ability = "AP_ROUNDS", slot = 1}, ["Machine Gunner"] = {ability = "OVERCHARGE", slot = 2},
-    Slammer = {ability = "GRAND_SLAM", slot = 1}, ["Golden Ranger"] = {ability = "GOLDEN_GRANDE", slot = 1},
-    ["Golden Mine Layer"] = {ability = "Charge_Throw", slot = 1}, Warship = {ability = "GLOBAL_STEALTH_REVEAL", slot = 1},
-    ["Golden Juggernaut"] = {ability = "REBOOT_SYSTEMS", slot = 1}, ["Golden Mobster"] = {ability = "OVERLOAD", slot = 1},
-    ["Combat Medic"] = {ability = "MEDIC_DRONE", slot = 1}
-}
-
-local abilityDisplayNames = {
-    GRENADE = "Grenade", UNSTUN_HEALTH = "Health/UnStun", HUMVEE = "Humvee", FLARE = "Flare",
-    DJ_Encore = "DJ Encore", AXE_RAGE = "Axe/Rage", LaserGunner = "Laser Gunner", TOXIC_BLAST = "Toxic Blast",
-    AP_ROUNDS = "AP Rounds", OVERCHARGE = "Overcharge", GRAND_SLAM = "Grand Slam", GOLDEN_GRANDE = "Golden Grenade",
-    Charge_Throw = "Charge Throw", GLOBAL_STEALTH_REVEAL = "Global Stealth", REBOOT_SYSTEMS = "Reboot Systems",
-    OVERLOAD = "G Mobster", MEDIC_DRONE = "Medic Drone"
-}
-
-local activeAbilities = settings.activeAbilities
-local abilityTargets = {}
-for towerName, data in pairs(towerToAbilitySlot) do
-    local abilityName = data.ability
-    if not abilityTargets[abilityName] then
-        abilityTargets[abilityName] = {towers = {}, slot = data.slot}
+local function addDebugLog(message)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 0, 16)
+    label.Text = message
+    label.TextColor3 = Color3.fromRGB(200,200,200)
+    label.TextSize = 10
+    label.BackgroundTransparency = 1
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = debugLogFrame
+    local children = debugLogFrame:GetChildren()
+    local textChildren = {}
+    for _, c in ipairs(children) do
+        if c:IsA("TextLabel") then table.insert(textChildren, c) end
     end
-    table.insert(abilityTargets[abilityName].towers, towerName)
+    while #textChildren > 50 do
+        textChildren[1]:Destroy()
+        table.remove(textChildren, 1)
+    end
+    updateDebugCanvas()
 end
-if abilityTargets["HUMVEE"] then
-    abilityTargets["HUMVEE"].slots = {1,2,3}
-end
+
+clearDebugBtn.MouseButton1Click:Connect(function()
+    for _, child in ipairs(debugLogFrame:GetChildren()) do
+        if child:IsA("TextLabel") then child:Destroy() end
+    end
+    updateDebugCanvas()
+end)
+
+tabMainBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = true
+    debugFrame.Visible = false
+    towersFrame.Visible = false
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+end)
+
+tabDebugBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    debugFrame.Visible = true
+    towersFrame.Visible = false
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+end)
+
+tabTowersBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    debugFrame.Visible = false
+    towersFrame.Visible = true
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    updateTowersList()
+end)
 
 local towers = {}
-local partToId = {}
-local nextId = 1
-local freeIds = {}
+local globalHitBlacklist = {}
+local towerPauseUntil = {}
+local pendingHash = nil
+local pendingTop = 0
+local pendingBottom = 0
 
-local function getCurrentTowerName()
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if not playerGui then return nil end
-    local interface = playerGui:FindFirstChild("Interface")
-    if not interface then return nil end
-    local towerUI = interface:FindFirstChild("TowerUI")
-    if not towerUI then return nil end
-    local nameText = towerUI:FindFirstChild("TowerNameText")
-    if not nameText then return nil end
-    return (nameText.Text or ""):upper()
+local function updateTowersList()
+    if not towersScroll or not towersLayout then return end
+    for _, child in ipairs(towersScroll:GetChildren()) do
+        if child:IsA("TextLabel") then child:Destroy() end
+    end
+    local ownedTowers = {}
+    for part, data in pairs(towers) do
+        if data.owned and data.hash then
+            table.insert(ownedTowers, {part = part, data = data})
+        end
+    end
+    table.sort(ownedTowers, function(a,b) return a.data.name < b.data.name end)
+    for _, entry in ipairs(ownedTowers) do
+        local data = entry.data
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -10, 0, 20)
+        label.Text = string.format("%s | Hash: %d | Top: %d | Bottom: %d", data.name, data.hash, data.topCount or 0, data.bottomCount or 0)
+        label.TextColor3 = Color3.fromRGB(200,200,200)
+        label.TextSize = 11
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.BackgroundTransparency = 1
+        label.Parent = towersScroll
+    end
+    task.defer(function()
+        if towersScroll then
+            towersScroll.CanvasSize = UDim2.new(0, 0, 0, towersLayout.AbsoluteContentSize.Y + 10)
+        end
+    end)
+end
+
+local function isTowerDead(part)
+    return not part or not part.Parent or (part.Parent and part.Parent.Name ~= "Towers")
+end
+
+local function addTower(part)
+    if not part or not part.Parent then return end
+    if towers[part] then return end
+    towers[part] = {
+        name = part.Name,
+        owned = false,
+        hash = nil,
+        topCount = 0,
+        bottomCount = 0,
+        currentLevel = 0
+    }
+    addDebugLog(string.format("Tower placed: %s", part.Name))
+end
+
+local function removeTower(part)
+    if towers[part] then
+        addDebugLog(string.format("Tower removed: %s (hash %s)", towers[part].name, tostring(towers[part].hash)))
+        towers[part] = nil
+        updateTowersList()
+    end
+end
+
+local function cleanupDeadTowers()
+    local changed = false
+    for part, _ in pairs(towers) do
+        if isTowerDead(part) then
+            towers[part] = nil
+            changed = true
+        end
+    end
+    if changed then
+        updateTowersList()
+    end
+end
+
+local function getNumericLevel(part)
+    if not part then return 0 end
+    for _, child in ipairs(part:GetChildren()) do
+        local num = tonumber(child.Name)
+        if num then return num end
+        if child:IsA("Model") then
+            for _, sub in ipairs(child:GetChildren()) do
+                local subNum = tonumber(sub.Name)
+                if subNum then return subNum end
+            end
+        end
+    end
+    return 0
+end
+
+local function onNumericAdded(child, part)
+    local num = tonumber(child.Name)
+    if not num then return end
+    if not towers[part] then return end
+    local old = towers[part].currentLevel
+    if num > old then
+        towers[part].currentLevel = num
+        addDebugLog(string.format("Level increase for %s: %d -> %d", part.Name, old, num))
+        if pendingHash and not towers[part].owned then
+            towers[part].owned = true
+            towers[part].hash = pendingHash
+            towers[part].topCount = pendingTop
+            towers[part].bottomCount = pendingBottom
+            addDebugLog(string.format("Assigned hash %d to %s (level %d) top=%d bottom=%d", pendingHash, part.Name, num, pendingTop, pendingBottom))
+            updateTowersList()
+            pendingHash = nil
+            pendingTop = 0
+            pendingBottom = 0
+        end
+    end
+end
+
+local function watchTower(part)
+    local function checkExisting()
+        for _, child in ipairs(part:GetChildren()) do
+            if tonumber(child.Name) then
+                onNumericAdded(child, part)
+            end
+            if child:IsA("Model") then
+                for _, sub in ipairs(child:GetChildren()) do
+                    if tonumber(sub.Name) then onNumericAdded(sub, part) end
+                end
+                child.ChildAdded:Connect(function(sub)
+                    if tonumber(sub.Name) then onNumericAdded(sub, part) end
+                end)
+            end
+        end
+    end
+    part.ChildAdded:Connect(function(child)
+        if tonumber(child.Name) then onNumericAdded(child, part) end
+        if child:IsA("Model") then
+            child.ChildAdded:Connect(function(sub)
+                if tonumber(sub.Name) then onNumericAdded(sub, part) end
+            end)
+            for _, sub in ipairs(child:GetChildren()) do
+                if tonumber(sub.Name) then onNumericAdded(sub, part) end
+            end
+        end
+    end)
+    checkExisting()
+end
+
+local function setupUpgradeListener()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if not remotes then
+        addDebugLog("Remotes folder not found")
+        return
+    end
+    local queueRemote = remotes:FindFirstChild("TowerUpgradeQueueUpdated")
+    if not queueRemote then
+        addDebugLog("TowerUpgradeQueueUpdated not found")
+        return
+    end
+    queueRemote.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        local entries = (#data > 0) and data or {data}
+        for _, entry in ipairs(entries) do
+            local hash = entry.Hash or entry.hash or entry.Id or entry.id
+            if not hash then continue end
+            if type(hash) == "string" then hash = tonumber(hash) end
+            if not hash then continue end
+            
+            local top = 0
+            local bottom = 0
+            if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
+                top = entry.LevelReplicationData[1] or 0
+                bottom = entry.LevelReplicationData[2] or 0
+            end
+            
+            addDebugLog(string.format("Upgrade event: hash=%d top=%d bottom=%d", hash, top, bottom))
+            pendingHash = hash
+            pendingTop = top
+            pendingBottom = bottom
+            
+            for part, data in pairs(towers) do
+                if data.hash == hash then
+                    data.topCount = top
+                    data.bottomCount = bottom
+                    addDebugLog(string.format("Updated %s (hash %d) top/bottom: %d/%d", part.Name, hash, top, bottom))
+                    updateTowersList()
+                    pendingHash = nil
+                    break
+                end
+            end
+        end
+    end)
+    addDebugLog("Upgrade listener ready (waits for numeric level increase)")
 end
 
 local function getAllEnemies()
@@ -384,9 +541,8 @@ local function getClosestEnemy(position, enemies, blacklist)
             if dist <= 25 then table.insert(whitelistEnemies, enemy) end
         end
     end
-    local candidates = whitelistEnemies
+    local candidates = #whitelistEnemies > 0 and whitelistEnemies or {}
     if #candidates == 0 then
-        candidates = {}
         for _, enemy in ipairs(enemies) do
             if not blacklist[enemy] then
                 local blocked = false
@@ -405,172 +561,57 @@ local function getClosestEnemy(position, enemies, blacklist)
     return best
 end
 
-local globalHitBlacklist = {}
-local towerPauseUntil = {}
-
-local function isTowerDead(part)
-    if not part or not part.Parent then return true end
-    local towersFolder = workspace.Game:FindFirstChild("Towers")
-    if not towersFolder or part.Parent ~= towersFolder then return false end
-    return false
+local function sendAbilityWithPosition(part, slot, position)
+    local data = towers[part]
+    if not data or not data.hash then return nil end
+    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+    if remote then
+        local req = remote:FindFirstChild("TowerUseAbilityRequest")
+        if req then
+            local success, response = pcall(function() return req:InvokeServer(data.hash, slot, position) end)
+            if success then return response else return nil end
+        end
+    end
+    return nil
 end
 
-local function allocateId()
-    if #freeIds > 0 then return table.remove(freeIds) else local id = nextId nextId = nextId + 1 return id end
+local function sendAbilityNoPosition(part, slot)
+    local data = towers[part]
+    if not data or not data.hash then return nil end
+    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+    if remote then
+        local req = remote:FindFirstChild("TowerUseAbilityRequest")
+        if req then
+            local success, response = pcall(function() return req:InvokeServer(data.hash, slot) end)
+            if success then return response else return nil end
+        end
+    end
+    return nil
 end
 
-local function freeId(id)
-    if id and id > 0 then table.insert(freeIds, id) end
-end
-
-local function updateTowerOwnership()
-    for id, data in pairs(towers) do
-        if data.part and data.part.Parent then
-            local uiName = getCurrentTowerName()
-            if uiName and uiName == data.name:upper() then
-                if not data.owned then
-                    data.owned = true
-                    local timestamp = os.date("%H:%M:%S")
-                    addDebugLog(string.format("[%s] Ownership confirmed for %s (ID: %d)", timestamp, data.name, id))
+local bountyLoop = nil
+local function runBountySequential(slot)
+    while settings.activeAbilities["BOUNTY"] do
+        local gmParts = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Golden Mobster" and part.Parent and data.hash and data.bottomCount >= 3 then
+                local pauseUntil = towerPauseUntil[part]
+                if not pauseUntil or tick() >= pauseUntil then
+                    table.insert(gmParts, part)
                 end
             end
         end
-    end
-end
-
-local function addTower(part)
-    if partToId[part] then return end
-    if isTowerDead(part) then return end
-    local id = allocateId()
-    partToId[part] = id
-    local owned = false
-    local uiName = getCurrentTowerName()
-    if uiName and uiName == part.Name:upper() then
-        owned = true
-    end
-    towers[id] = { 
-        part = part, 
-        name = part.Name, 
-        topCount = 0, 
-        bottomCount = 0, 
-        placedAfterAuto = autoActive, 
-        removed = false,
-        owned = owned
-    }
-    local timestamp = os.date("%H:%M:%S")
-    local ownerDisplay = owned and "YOU" or "Unknown"
-    addDebugLog(string.format("[%s] Tower: %s | Owner: %s | ID: %d", timestamp, part.Name, ownerDisplay, id))
-    if not owned then
-        task.spawn(function()
-            task.wait(0.05)
-            local newUiName = getCurrentTowerName()
-            if newUiName and newUiName == part.Name:upper() then
-                towers[id].owned = true
-                addDebugLog(string.format("[%s] Ownership updated for %s (ID: %d)", os.date("%H:%M:%S"), part.Name, id))
-            end
-        end)
-    end
-end
-
-local function removeTower(part)
-    local id = partToId[part]
-    if not id then return end
-    partToId[part] = nil
-    towers[id] = nil
-    freeId(id)
-end
-
-local function cleanupDeadTowers()
-    for part, id in pairs(partToId) do
-        if isTowerDead(part) then
-            partToId[part] = nil
-            towers[id] = nil
-            freeId(id)
-        end
-    end
-end
-
-local function fullResync()
-    local towersFolder = workspace.Game:FindFirstChild("Towers")
-    if not towersFolder then return end
-    local liveParts = {}
-    for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") and not isTowerDead(part) then table.insert(liveParts, part) end
-    end
-    local newPartToId = {}
-    local newTowers = {}
-    local usedIds = {}
-    for _, part in ipairs(liveParts) do
-        local oldId = partToId[part]
-        if oldId and towers[oldId] and towers[oldId].part == part then
-            newPartToId[part] = oldId
-            newTowers[oldId] = towers[oldId]
-            usedIds[oldId] = true
-        end
-    end
-    for _, part in ipairs(liveParts) do
-        if not newPartToId[part] then
-            local newId = allocateId()
-            newPartToId[part] = newId
-            usedIds[newId] = true
-            local owned = false
-            local uiName = getCurrentTowerName()
-            if uiName and uiName == part.Name:upper() then owned = true end
-            newTowers[newId] = { part = part, name = part.Name, topCount = 0, bottomCount = 0, placedAfterAuto = false, removed = false, owned = owned }
-        end
-    end
-    for id, _ in pairs(towers) do if not usedIds[id] then freeId(id) end end
-    partToId = newPartToId
-    towers = newTowers
-end
-
-local function sendOverloadAbility(id, slot, position)
-    local remote = ReplicatedStorage:FindFirstChild("Remotes")
-    if remote then
-        local req = remote:FindFirstChild("TowerUseAbilityRequest")
-        if req then
-            local success, response = pcall(function() return req:InvokeServer(id, slot, position) end)
-            if success then return response else return nil end
-        end
-    end
-    return nil
-end
-
-local function sendAbilityWithPosition(id, slot, position)
-    local remote = ReplicatedStorage:FindFirstChild("Remotes")
-    if remote then
-        local req = remote:FindFirstChild("TowerUseAbilityRequest")
-        if req then
-            local success, response = pcall(function() return req:InvokeServer(id, slot, position) end)
-            if success then return response else return nil end
-        end
-    end
-    return nil
-end
-
-local overloadLoop = nil
-local function runOverloadSequential(slot)
-    while activeAbilities["OVERLOAD"] do
-        local gmIds = {}
-        for id, data in pairs(towers) do
-            if data.owned and data.name == "Golden Mobster" and data.part and data.part.Parent then
-                local pauseUntil = towerPauseUntil[id]
-                if not pauseUntil or tick() >= pauseUntil then table.insert(gmIds, id) end
-            end
-        end
-        if #gmIds == 0 then task.wait(0.5) continue end
+        if #gmParts == 0 then task.wait(0.5) continue end
         local enemies = getAllEnemies()
         if #enemies == 0 then task.wait(0.1) continue end
-        for _, id in ipairs(gmIds) do
-            if not activeAbilities["OVERLOAD"] then break end
-            local towerData = towers[id]
-            if not towerData or not towerData.part then continue end
-            local target = getClosestEnemy(towerData.part.Position, enemies, globalHitBlacklist)
+        for _, part in ipairs(gmParts) do
+            if not settings.activeAbilities["BOUNTY"] then break end
+            local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist)
             if not target then task.wait(0.1) continue end
-            local response = sendOverloadAbility(id, slot, target.Position)
+            local response = sendAbilityWithPosition(part, slot, target.Position)
             if response == true then
                 globalHitBlacklist[target] = true
-                towerPauseUntil[id] = tick() + 3
+                towerPauseUntil[part] = tick() + 3
             elseif response == false then
                 task.wait(0.15)
             elseif response == nil then
@@ -583,32 +624,14 @@ local function runOverloadSequential(slot)
 end
 
 local medicDroneIgnoreTowers = {
-    ["Barracks"] = true,
-    ["Behemoth Factory"] = true,
-    ["Relic"] = true,
-    ["War Machine"] = true,
-    ["Z.E.D."] = true,
-    ["Farm"] = true,
-    ["Oil Derrick"] = true,
-    ["Scout Helicopter"] = true,
-    ["Jet Trooper"] = true,
-    ["AA Turret"] = true,
-    ["Combat Drone"] = true,
-    ["Helicopter"] = true,
-    ["Cryo Helicopter"] = true,
-    ["Warship"] = true,    
-    ["Chicken House"] = true,
-    ["Scarecrow"] = true,        
-    ["XWM Turret"] = true,    
-    ["Patrol Boat"] = true,
-    ["Troll Tower"] = true,            
+    ["Barracks"] = true, ["Behemoth Factory"] = true, ["Relic"] = true, ["War Machine"] = true,
+    ["Z.E.D."] = true, ["Farm"] = true, ["Oil Derrick"] = true, ["Scout Helicopter"] = true,
+    ["Jet Trooper"] = true, ["AA Turret"] = true, ["Combat Drone"] = true, ["Helicopter"] = true,
+    ["Cryo Helicopter"] = true, ["Warship"] = true, ["Chicken House"] = true, ["Scarecrow"] = true,
+    ["XWM Turret"] = true, ["Patrol Boat"] = true, ["Troll Tower"] = true,
 }
 
-local towerWeights = {
-    ["Refractor"] = 5,
-    ["Golden Mobster"] = 3,
-    ["Golden Juggernaut"] = 3,
-}
+local towerWeights = { ["Refractor"] = 5, ["Golden Mobster"] = 3, ["Golden Juggernaut"] = 3 }
 
 local function getBestMedicDronePosition(towerPositions, radius)
     local bestPos = nil
@@ -619,9 +642,7 @@ local function getBestMedicDronePosition(towerPositions, radius)
         for dx = -radius, radius, radius/2 do
             for dz = -radius, radius, radius/2 do
                 local offset = Vector3.new(dx, 0, dz)
-                if offset.Magnitude <= radius then
-                    table.insert(candidatePoints, pos + offset)
-                end
+                if offset.Magnitude <= radius then table.insert(candidatePoints, pos + offset) end
             end
         end
     end
@@ -632,23 +653,17 @@ local function getBestMedicDronePosition(towerPositions, radius)
             if (candidate - towerPos).Magnitude <= radius then
                 table.insert(includedTowers, towerPos)
                 local towerName = nil
-                for id, data in pairs(towers) do
-                    if data.part and data.part.Position == towerPos then
-                        towerName = data.name
-                        break
-                    end
+                for part, data in pairs(towers) do
+                    if part and part.Position == towerPos then towerName = data.name break end
                 end
-                local weight = towerWeights[towerName] or 1
-                weightedSum = weightedSum + weight
+                weightedSum = weightedSum + (towerWeights[towerName] or 1)
             end
         end
         if weightedSum > bestWeightedSum then
             bestWeightedSum = weightedSum
             if #includedTowers > 0 then
                 local sum = Vector3.zero
-                for _, pos in ipairs(includedTowers) do
-                    sum = sum + pos
-                end
+                for _, pos in ipairs(includedTowers) do sum = sum + pos end
                 bestPos = sum / #includedTowers
             else
                 bestPos = candidate
@@ -660,112 +675,60 @@ end
 
 local medicDroneLoop = nil
 local function runMedicDroneSequential(slot)
-    local recentDronePositions = {}  
-
+    local recentDronePositions = {}
     local function isPositionAllowed(pos)
         local now = tick()
         for _, entry in ipairs(recentDronePositions) do
-            if now - entry.time <= 10 then
-                if (pos - entry.position).Magnitude <= 12 then
-                    return false
-                end
-            end
+            if now - entry.time <= 10 and (pos - entry.position).Magnitude <= 12 then return false end
         end
         return true
     end
-
-    while activeAbilities["MEDIC_DRONE"] do
-        local now = tick()
-        local newList = {}
-        for _, entry in ipairs(recentDronePositions) do
-            if now - entry.time <= 10 then
-                table.insert(newList, entry)
-            end
-        end
-        recentDronePositions = newList
-
-        local medicIds = {}
-        for id, data in pairs(towers) do
-            if data.owned and data.name == "Combat Medic" and data.part and data.part.Parent then
-                local pauseUntil = towerPauseUntil[id]
+    while settings.activeAbilities["MEDIC_DRONE"] do
+        local medicParts = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Combat Medic" and part.Parent and data.hash and data.bottomCount >= 3 then
+                local pauseUntil = towerPauseUntil[part]
                 if not pauseUntil or tick() >= pauseUntil then
-                    table.insert(medicIds, id)
+                    table.insert(medicParts, part)
                 end
             end
         end
-
-        if #medicIds == 0 then
-            task.wait(0.5)
-            continue
-        end
-
-        local eligibleTowerPositions = {}
-        local posToId = {}
-        for id, data in pairs(towers) do
-            if data.owned and data.part and data.part.Parent then
-                if not medicDroneIgnoreTowers[data.name] then
-                    table.insert(eligibleTowerPositions, data.part.Position)
-                    posToId[data.part.Position] = id
-                end
+        if #medicParts == 0 then task.wait(0.5) continue end
+        local eligiblePositions = {}
+        for part, data in pairs(towers) do
+            if data.owned and part.Parent and not medicDroneIgnoreTowers[data.name] then
+                table.insert(eligiblePositions, part.Position)
             end
         end
-
-        if #eligibleTowerPositions < 2 then
-            task.wait(0.5)
-            continue
-        end
-
-        for _, medicId in ipairs(medicIds) do
-            if not activeAbilities["MEDIC_DRONE"] then break end
-
-            local bestPos, bestWeight = getBestMedicDronePosition(eligibleTowerPositions, 12)
-            if not bestPos or not isPositionAllowed(bestPos) then
-                task.wait(0.5)
-                continue
-            end
-
-            local firstResponse = sendAbilityWithPosition(medicId, slot, bestPos)
-            if firstResponse == true then
+        if #eligiblePositions < 2 then task.wait(0.5) continue end
+        for _, part in ipairs(medicParts) do
+            if not settings.activeAbilities["MEDIC_DRONE"] then break end
+            local bestPos, bestWeight = getBestMedicDronePosition(eligiblePositions, 12)
+            if not bestPos or not isPositionAllowed(bestPos) then task.wait(0.5) continue end
+            if sendAbilityWithPosition(part, slot, bestPos) == true then
                 table.insert(recentDronePositions, {position = bestPos, time = tick()})
-                addDebugLog(string.format("[Medic Drone] First drone placed at centroid with weight %.1f", bestWeight))
+                addDebugLog(string.format("[Medic Drone] Placed at weight %.1f", bestWeight))
                 local startTime = tick()
-                local secondPlaced = false
-                while tick() - startTime < 20 and activeAbilities["MEDIC_DRONE"] do
+                while tick() - startTime < 20 and settings.activeAbilities["MEDIC_DRONE"] do
                     local freshPositions = {}
-                    for id, data in pairs(towers) do
-                        if data.owned and data.part and data.part.Parent then
-                            if not medicDroneIgnoreTowers[data.name] then
-                                table.insert(freshPositions, data.part.Position)
-                            end
+                    for p, d in pairs(towers) do
+                        if d.owned and p.Parent and not medicDroneIgnoreTowers[d.name] then
+                            table.insert(freshPositions, p.Position)
                         end
                     end
                     if #freshPositions >= 2 then
                         local secondBestPos, secondBestWeight = getBestMedicDronePosition(freshPositions, 12)
                         if secondBestPos and isPositionAllowed(secondBestPos) and (secondBestPos - bestPos).Magnitude > 5 then
-                            local secondResponse = sendAbilityWithPosition(medicId, slot, secondBestPos)
-                            if secondResponse == true then
+                            if sendAbilityWithPosition(part, slot, secondBestPos) == true then
                                 table.insert(recentDronePositions, {position = secondBestPos, time = tick()})
-                                addDebugLog(string.format("[Medic Drone] Second drone placed at centroid with weight %.1f", secondBestWeight))
-                                secondPlaced = true
+                                addDebugLog(string.format("[Medic Drone] Second drone at weight %.1f", secondBestWeight))
                                 break
                             end
                         end
                     end
                     task.wait(0.5)
                 end
-
-                if not secondPlaced then
-                    addDebugLog("[Medic Drone] No different cluster found – placing second drone at best overall spot")
-                    local fallbackPos, fallbackWeight = getBestMedicDronePosition(eligibleTowerPositions, 12)
-                    if fallbackPos and isPositionAllowed(fallbackPos) then
-                        local fallbackResponse = sendAbilityWithPosition(medicId, slot, fallbackPos)
-                        if fallbackResponse == true then
-                            table.insert(recentDronePositions, {position = fallbackPos, time = tick()})
-                            addDebugLog(string.format("[Medic Drone] Fallback drone placed at centroid with weight %.1f", fallbackWeight))
-                        end
-                    end
-                end
-                towerPauseUntil[medicId] = tick() + 10
+                towerPauseUntil[part] = tick() + 10
             else
                 task.wait(0.5)
             end
@@ -776,65 +739,68 @@ end
 
 local abilityLoops = {}
 
-local function startAbilityLoop(abilityName)
-    if abilityName == "OVERLOAD" then
-        if overloadLoop then task.cancel(overloadLoop) overloadLoop = nil end
-        if not activeAbilities["OVERLOAD"] then return false end
-        overloadLoop = task.spawn(runOverloadSequential, abilityTargets["OVERLOAD"].slot)
-        return true
-    elseif abilityName == "MEDIC_DRONE" then
-        if medicDroneLoop then task.cancel(medicDroneLoop) medicDroneLoop = nil end
-        if not activeAbilities["MEDIC_DRONE"] then return false end
-        medicDroneLoop = task.spawn(runMedicDroneSequential, abilityTargets["MEDIC_DRONE"].slot)
-        return true
-    else
-        if abilityLoops[abilityName] then
-            task.cancel(abilityLoops[abilityName])
-            abilityLoops[abilityName] = nil
-            return false
+local abilityLevelReqs = {
+    ["DJ_Encore"] = { top = 3 },
+    ["HUMVEE"] = { bottom = 3 },
+    ["OVERLOAD"] = { top = 4 },
+    ["REBOOT_SYSTEMS"] = { bottom = 5, top = 5 },
+    ["AXE_RAGE"] = { bottom = 5, top = 5 },    
+    ["UNSTUN_HEALTH"] = { bottom = 5, top = 5 },    
+}
+
+local abilityOrder = {
+    "GRENADE", "UNSTUN_HEALTH", "HUMVEE", "FLARE", "DJ_Encore", "AXE_RAGE",
+    "LaserGunner", "TOXIC_BLAST", "AP_ROUNDS", "BOUNTY", "OVERLOAD",
+    "GRAND_SLAM", "GOLDEN_GRANDE", "Charge_Throw", "GLOBAL_STEALTH_REVEAL",
+    "REBOOT_SYSTEMS", "MEDIC_DRONE"
+}
+
+local towerAbilities = {
+    Ranger = {{ability = "GRENADE", slot = 1}},
+    Shotgunner = {{ability = "UNSTUN_HEALTH", slot = 1}},
+    Operator = {{ability = "HUMVEE", slot = 1}},
+    Sniper = {{ability = "FLARE", slot = 1}},
+    EDJ = {{ability = "DJ_Encore", slot = 1}},
+    John = {{ability = "AXE_RAGE", slot = 1}},
+    ["Laser Gunner"] = {{ability = "LaserGunner", slot = 1}},
+    Toxicnator = {{ability = "TOXIC_BLAST", slot = 1}},
+    Mobster = {{ability = "AP_ROUNDS", slot = 1}},
+    ["Golden Mobster"] = {{ability = "BOUNTY", slot = 1}, {ability = "OVERLOAD", slot = 1}},
+    Slammer = {{ability = "GRAND_SLAM", slot = 1}},
+    ["Golden Ranger"] = {{ability = "GOLDEN_GRANDE", slot = 1}},
+    ["Golden Mine Layer"] = {{ability = "Charge_Throw", slot = 1}},
+    Warship = {{ability = "GLOBAL_STEALTH_REVEAL", slot = 1}},
+    ["Golden Juggernaut"] = {{ability = "REBOOT_SYSTEMS", slot = 1}},
+    ["Combat Medic"] = {{ability = "MEDIC_DRONE", slot = 1}}
+}
+
+local abilityDisplayNames = {
+    GRENADE = "Grenade", UNSTUN_HEALTH = "Health/UnStun", HUMVEE = "Humvee", FLARE = "Flare",
+    DJ_Encore = "DJ Encore", AXE_RAGE = "Axe/Rage", LaserGunner = "Laser Gunner", TOXIC_BLAST = "Toxic Blast",
+    AP_ROUNDS = "AP Rounds", BOUNTY = "Bounty", OVERLOAD = "Overload",
+    GRAND_SLAM = "Grand Slam", GOLDEN_GRANDE = "Golden Grenade", Charge_Throw = "Charge Throw",
+    GLOBAL_STEALTH_REVEAL = "Global Stealth", REBOOT_SYSTEMS = "Reboot Systems", MEDIC_DRONE = "Medic Drone"
+}
+
+local activeAbilities = settings.activeAbilities
+local abilityTargets = {}
+
+for towerName, abilityList in pairs(towerAbilities) do
+    for _, ab in ipairs(abilityList) do
+        local abilityName = ab.ability
+        if not abilityTargets[abilityName] then
+            abilityTargets[abilityName] = {towers = {}, slot = ab.slot}
         end
-        local data = abilityTargets[abilityName]
-        if not data then return false end
-        abilityLoops[abilityName] = task.spawn(function()
-            while activeAbilities[abilityName] do
-                local targetIds = {}
-                for id, towerData in pairs(towers) do
-                    if towerData and towerData.owned and towerData.name then
-                        for _, towerName in ipairs(data.towers) do
-                            if towerData.name == towerName then targetIds[#targetIds + 1] = id break end
-                        end
-                    end
-                end
-                if #targetIds > 0 then
-                    for _, id in ipairs(targetIds) do
-                        if not activeAbilities[abilityName] then break end
-                        local remote = ReplicatedStorage:FindFirstChild("Remotes")
-                        if remote then
-                            local req = remote:FindFirstChild("TowerUseAbilityRequest")
-                            if req then
-                                if data.slots then
-                                    for _, slot in ipairs(data.slots) do
-                                        if not activeAbilities[abilityName] then break end
-                                        pcall(function() req:InvokeServer(id, slot) end)
-                                    end
-                                else
-                                    pcall(function() req:InvokeServer(id, data.slot) end)
-                                end
-                            end
-                        end
-                        task.wait(0.02)
-                    end
-                end
-                task.wait(0.5)
-            end
-        end)
-        return true
+        table.insert(abilityTargets[abilityName].towers, towerName)
     end
+end
+
+if abilityTargets["HUMVEE"] then
+    abilityTargets["HUMVEE"].slots = {1,2,3}
 end
 
 local rowFrame = nil
 local buttonsInRow = 0
-
 for _, abilityName in ipairs(abilityOrder) do
     if abilityTargets[abilityName] then
         if buttonsInRow == 0 then
@@ -865,110 +831,99 @@ for _, abilityName in ipairs(abilityOrder) do
             if activeAbilities[abilityName] then
                 activeAbilities[abilityName] = false
                 btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-                if abilityName == "OVERLOAD" and overloadLoop then
-                    task.cancel(overloadLoop)
-                    overloadLoop = nil
-                elseif abilityName == "MEDIC_DRONE" and medicDroneLoop then
-                    task.cancel(medicDroneLoop)
-                    medicDroneLoop = nil
-                end
+                if abilityName == "BOUNTY" and bountyLoop then task.cancel(bountyLoop) bountyLoop = nil end
+                if abilityName == "MEDIC_DRONE" and medicDroneLoop then task.cancel(medicDroneLoop) medicDroneLoop = nil end
             else
                 activeAbilities[abilityName] = true
                 btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-                if abilityName == "OVERLOAD" then
+                if abilityName == "BOUNTY" then
                     for k in pairs(towerPauseUntil) do towerPauseUntil[k] = nil end
+                    if bountyLoop then task.cancel(bountyLoop) end
+                    bountyLoop = task.spawn(runBountySequential, abilityTargets["BOUNTY"].slot)
                 elseif abilityName == "MEDIC_DRONE" then
-                    for id, data in pairs(towers) do
-                        if data.name == "Combat Medic" then
-                            towerPauseUntil[id] = nil
-                        end
-                    end
+                    for part, data in pairs(towers) do if data.name == "Combat Medic" then towerPauseUntil[part] = nil end end
+                    if medicDroneLoop then task.cancel(medicDroneLoop) end
+                    medicDroneLoop = task.spawn(runMedicDroneSequential, abilityTargets["MEDIC_DRONE"].slot)
+                else
+                    startAbilityLoop(abilityName)
                 end
-                startAbilityLoop(abilityName)
             end
             saveSettings()
         end)
     end
 end
+abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 40 + 10)
 
-task.wait(0.1)
-local totalRows = math.ceil(#abilityOrder / 2)
-abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, totalRows * 40 + 10)
-
-local autoTargetMode = settings.autoTargetMode
-local autoActive = (autoTargetMode ~= nil)
-local upgradeLoop = nil
-
-local function sendUpgrade(id, path, level)
-    local remote = ReplicatedStorage:FindFirstChild("Remotes")
-    if remote then
-        local req = remote:FindFirstChild("TowerUpgradeRequest")
-        if req then pcall(function() req:FireServer(id, path, level) end) end
-    end
-end
-
-local function upgradeTower(id)
-    local data = towers[id]
-    if not data or not data.owned or not data.placedAfterAuto then return end
-    local mode = autoTargetMode
-    if not mode then return end
-    if mode == "top" then
-        if data.topCount < 5 then sendUpgrade(id, 1, 5) data.topCount = 5 task.wait(0.01) end
-        if data.bottomCount < 2 then sendUpgrade(id, 2, 2) data.bottomCount = 2 task.wait(0.01) end
+local function startAbilityLoop(abilityName)
+    if abilityName == "BOUNTY" then
+        if bountyLoop then task.cancel(bountyLoop) bountyLoop = nil end
+        if not activeAbilities["BOUNTY"] then return false end
+        bountyLoop = task.spawn(runBountySequential, abilityTargets["BOUNTY"].slot)
+        return true
+    elseif abilityName == "MEDIC_DRONE" then
+        if medicDroneLoop then task.cancel(medicDroneLoop) medicDroneLoop = nil end
+        if not activeAbilities["MEDIC_DRONE"] then return false end
+        medicDroneLoop = task.spawn(runMedicDroneSequential, abilityTargets["MEDIC_DRONE"].slot)
+        return true
     else
-        if data.bottomCount < 5 then sendUpgrade(id, 2, 5) data.bottomCount = 5 task.wait(0.01) end
-        if data.topCount < 2 then sendUpgrade(id, 1, 2) data.topCount = 2 task.wait(0.01) end
-    end
-end
-
-local function startAutoUpgrade()
-    if upgradeLoop then task.cancel(upgradeLoop) end
-    upgradeLoop = task.spawn(function()
-        while autoActive do
-            for id, data in pairs(towers) do
-                if data.owned and data.placedAfterAuto then upgradeTower(id) end
-                task.wait(0.01)
+        if abilityLoops[abilityName] then
+            task.cancel(abilityLoops[abilityName])
+            abilityLoops[abilityName] = nil
+            return false
+        end
+        local data = abilityTargets[abilityName]
+        if not data then return false end
+        abilityLoops[abilityName] = task.spawn(function()
+            while activeAbilities[abilityName] do
+                local targetParts = {}
+                for part, towerData in pairs(towers) do
+                    if towerData.owned and towerData.hash then
+                        for _, towerName in ipairs(data.towers) do
+                            if towerData.name == towerName then
+                                local req = abilityLevelReqs[abilityName]
+                                local qualifies = true
+                                if req then
+                                    local topOk = (not req.top) or (towerData.topCount >= req.top)
+                                    local bottomOk = (not req.bottom) or (towerData.bottomCount >= req.bottom)
+                                    qualifies = topOk or bottomOk
+                                end
+                                if qualifies then
+                                    table.insert(targetParts, part)
+                                end
+                                break 
+                            end
+                        end
+                    end
+                end
+                if #targetParts > 0 then
+                    for _, part in ipairs(targetParts) do
+                        if not activeAbilities[abilityName] then break end
+                        local remote = ReplicatedStorage:FindFirstChild("Remotes")
+                        if remote then
+                            local req = remote:FindFirstChild("TowerUseAbilityRequest")
+                            if req then
+                                if data.slots then
+                                    for _, slot in ipairs(data.slots) do
+                                        if not activeAbilities[abilityName] then break end
+                                        pcall(function() req:InvokeServer(towers[part].hash, slot) end)
+                                    end
+                                else
+                                    pcall(function() req:InvokeServer(towers[part].hash, data.slot) end)
+                                end
+                            end
+                        end
+                        task.wait(0.02)
+                    end
+                end
+                task.wait(0.5)
             end
-            task.wait(0.05)
-        end
-        upgradeLoop = nil
-    end)
-end
-
-local function setAutoMode(mode, btn)
-    if autoActive and autoTargetMode == mode then
-        autoActive = false
-        autoTargetMode = nil
-        btn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    else
-        if autoActive then
-            if autoTargetMode == "top" then topBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-            else bottomBtn.BackgroundColor3 = Color3.fromRGB(70,70,70) end
-        end
-        autoActive = true
-        autoTargetMode = mode
-        btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-        for id, data in pairs(towers) do data.placedAfterAuto = false end
-        startAutoUpgrade()
+        end)
+        return true
     end
-    settings.autoTargetMode = autoTargetMode
-    saveSettings()
 end
-
-if autoTargetMode == "top" then
-    topBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    startAutoUpgrade()
-elseif autoTargetMode == "bottom" then
-    bottomBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    startAutoUpgrade()
-end
-
-topBtn.MouseButton1Click:Connect(function() setAutoMode("top", topBtn) end)
-bottomBtn.MouseButton1Click:Connect(function() setAutoMode("bottom", bottomBtn) end)
 
 local autoSkip = settings.autoSkip
 local skipLoop = nil
-
 local function startSkipLoop()
     if skipLoop then task.cancel(skipLoop) end
     skipLoop = task.spawn(function()
@@ -983,16 +938,11 @@ local function startSkipLoop()
         skipLoop = nil
     end)
 end
-
 if autoSkip then
     skipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
     skipBtn.Text = "Auto Skip: ON"
     startSkipLoop()
-else
-    skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    skipBtn.Text = "Auto Skip: OFF"
 end
-
 skipBtn.MouseButton1Click:Connect(function()
     autoSkip = not autoSkip
     settings.autoSkip = autoSkip
@@ -1004,12 +954,12 @@ skipBtn.MouseButton1Click:Connect(function()
     else
         skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
         skipBtn.Text = "Auto Skip: OFF"
+        if skipLoop then task.cancel(skipLoop) skipLoop = nil end
     end
 end)
 
 local emoteSpam = settings.emoteSpam
 local emoteLoop = nil
-
 local function startEmoteSpam()
     if emoteLoop then task.cancel(emoteLoop) end
     emoteLoop = task.spawn(function()
@@ -1021,16 +971,11 @@ local function startEmoteSpam()
         emoteLoop = nil
     end)
 end
-
 if emoteSpam then
     emoteBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
     emoteBtn.Text = "Spam Emote: ON"
     startEmoteSpam()
-else
-    emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    emoteBtn.Text = "Spam Emote: OFF"
 end
-
 emoteBtn.MouseButton1Click:Connect(function()
     emoteSpam = not emoteSpam
     settings.emoteSpam = emoteSpam
@@ -1050,15 +995,10 @@ local antiLagEnabled = settings.antiLagEnabled
 if not antiLagEnabled then
     antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     antiLagBtn.Text = "Anti Lag: OFF"
-else
-    antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    antiLagBtn.Text = "Anti Lag: ON"
 end
-
 local function trackCreation(instance)
     if not instance:GetAttribute("_created") then instance:SetAttribute("_created", tick()) end
 end
-
 local function removeFolders()
     local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
     if tdxShared then
@@ -1097,7 +1037,6 @@ local function removeFolders()
         end
     end
 end
-
 antiLagBtn.MouseButton1Click:Connect(function()
     antiLagEnabled = not antiLagEnabled
     settings.antiLagEnabled = antiLagEnabled
@@ -1110,7 +1049,6 @@ antiLagBtn.MouseButton1Click:Connect(function()
         antiLagBtn.Text = "Anti Lag: OFF"
     end
 end)
-
 task.delay(13, function()
     local lastCheck = 0
     RunService.Heartbeat:Connect(function(deltaTime)
@@ -1141,37 +1079,34 @@ local function startCoinCollector()
         end
     end)
 end
-
 startCoinCollector()
 
 pcall(function()
     local TowersFolder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Towers")
     if not TowersFolder then return end
-
-    TowersFolder.ChildAdded:Connect(function(part)
-        if part:IsA("BasePart") then addTower(part) end
-    end)
-    TowersFolder.ChildRemoved:Connect(function(part)
-        if part:IsA("BasePart") then removeTower(part) end
-    end)
-
-    task.spawn(function()
-        while true do cleanupDeadTowers() task.wait(0.01) end
-    end)
-    task.spawn(function()
-        while true do task.wait(2) fullResync() end
-    end)
-    task.spawn(function()
-        while true do task.wait(1) updateTowerOwnership() end
-    end)
-
+    TowersFolder.ChildAdded:Connect(function(part) if part:IsA("BasePart") then addTower(part) watchTower(part) end end)
+    TowersFolder.ChildRemoved:Connect(function(part) if part:IsA("BasePart") then removeTower(part) end end)
+    task.spawn(function() while true do cleanupDeadTowers() task.wait(0.5) end end)
     for _, part in ipairs(TowersFolder:GetChildren()) do
-        if part:IsA("BasePart") then addTower(part) end
+        if part:IsA("BasePart") then
+            addTower(part)
+            watchTower(part)
+        end
     end
 end)
 
 for abilityName, isActive in pairs(activeAbilities) do
-    if isActive and abilityTargets[abilityName] then startAbilityLoop(abilityName) end
+    if isActive and abilityTargets[abilityName] then
+        if abilityName == "BOUNTY" then
+            if bountyLoop then task.cancel(bountyLoop) end
+            bountyLoop = task.spawn(runBountySequential, abilityTargets["BOUNTY"].slot)
+        elseif abilityName == "MEDIC_DRONE" then
+            if medicDroneLoop then task.cancel(medicDroneLoop) end
+            medicDroneLoop = task.spawn(runMedicDroneSequential, abilityTargets["MEDIC_DRONE"].slot)
+        else
+            startAbilityLoop(abilityName)
+        end
+    end
 end
 
 teleportBtn.MouseButton1Click:Connect(function()
@@ -1221,184 +1156,6 @@ teleportBtn.MouseButton1Click:Connect(function()
     end)
 end)
 
-local towerList = {
-    "Ranger", "Shotgunner", "Operator", "Mine Layer", "Sniper", "Cryo Blaster",
-    "Missile Trooper", "Patrol Boat", "Farm", "Barracks", "Grenadier", "EDJ",
-    "John", "Laser Gunner", "Toxicnator", "Sentry",
-    "Artillery", "Scout Helicopter", "Jet Trooper", "AA Turret", "Armored Factory",
-    "Juggernaut", "Ghost", "Mobster", "Railgunner", "Machine Gunner", "Medic",
-    "Slammer", "XWM Turret",
-    "Golden Ranger", "Golden Mine Layer", "Combat Drone", "Warship", "Helicopter",
-    "Golden Juggernaut", "Golden Mobster",
-    "Shield Tower", "Oil Derrick", "Behemoth Factory", "Commander", "Combat Medic",
-    "War Machine", "Refractor",
-    "Cryo Ranger", "Z.E.D.", "Scarecrow", "Flame Trooper", "Relic",
-    "Cryo Helicopter", "Ice Breaker", "Troll Tower", "Goo Gunner",
-    "Shock Trooper", "Cryo Mortar", "Psycho Slayer", "Chicken House",
-    "Golden Warship", "Bubble Blower"
-}
-
-local function getEquippedTowers()
-    local equipped = {}
-    local guiRoot = LocalPlayer:WaitForChild("PlayerGui"):FindFirstChild("GUI")
-    if guiRoot then
-        local towersBar = guiRoot:FindFirstChild("TowersBar")
-        if towersBar then
-            for i = 1, 6 do
-                local slot = towersBar:FindFirstChild(tostring(i))
-                if slot then
-                    local mainFrame = slot:FindFirstChild("MainFrame")
-                    if mainFrame then
-                        for _, child in ipairs(mainFrame:GetChildren()) do
-                            if child:IsA("Frame") and child.Name ~= "Empty" then
-                                equipped[child.Name] = true
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return equipped
-end
-
-local selectedTowers = {}
-local towerButtons = {}
-
-local towerScroll = Instance.new("ScrollingFrame")
-towerScroll.Size = UDim2.new(1, -10, 1, -50)
-towerScroll.Position = UDim2.new(0, 5, 0, 5)
-towerScroll.BackgroundColor3 = Color3.fromRGB(40,40,40)
-towerScroll.BorderSizePixel = 0
-towerScroll.ScrollBarThickness = 6
-towerScroll.Parent = towersFrame
-Instance.new("UICorner", towerScroll)
-
-local towerLayout = Instance.new("UIListLayout", towerScroll)
-towerLayout.Padding = UDim.new(0, 6)
-towerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-towerLayout.FillDirection = Enum.FillDirection.Vertical
-towerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-local wasVisible = towersFrame.Visible
-towersFrame.Visible = true
-
-local function refreshEquippedDisplay()
-    local currentlyEquipped = getEquippedTowers()
-    for towerName, btn in pairs(towerButtons) do
-        if currentlyEquipped[towerName] then
-            btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-        elseif not selectedTowers[towerName] then
-            btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-        end
-    end
-end
-
-for _, towerName in ipairs(towerList) do
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, -10, 0, 28)
-    btn.Text = towerName
-    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-    btn.TextColor3 = Color3.fromRGB(255,255,255)
-    btn.TextSize = 10
-    btn.Font = Enum.Font.GothamSemibold
-    btn.Parent = towerScroll
-    Instance.new("UICorner", btn)
-    towerButtons[towerName] = btn
-    btn.MouseButton1Click:Connect(function()
-        if selectedTowers[towerName] then
-            selectedTowers[towerName] = nil
-            if not getEquippedTowers()[towerName] then
-                btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-            end
-        else
-            selectedTowers[towerName] = true
-            btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-        end
-    end)
-end
-
-local equipBtn = Instance.new("TextButton")
-equipBtn.Size = UDim2.new(1, -10, 0, 36)
-equipBtn.Position = UDim2.new(0, 5, 1, -42)
-equipBtn.Text = "Equip Selected Towers"
-equipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-equipBtn.TextColor3 = Color3.fromRGB(255,255,255)
-equipBtn.Font = Enum.Font.GothamBold
-equipBtn.TextSize = 10
-equipBtn.Parent = towersFrame
-Instance.new("UICorner", equipBtn)
-
-equipBtn.MouseButton1Click:Connect(function()
-    local currentlyEquipped = getEquippedTowers()
-    local loadout = {}
-    for towerName, _ in pairs(currentlyEquipped) do
-        table.insert(loadout, towerName)
-    end
-    local added = 0
-    for towerName, selected in pairs(selectedTowers) do
-        if selected and not currentlyEquipped[towerName] then
-            if #loadout < 6 then
-                table.insert(loadout, towerName)
-                added = added + 1
-            else
-                equipBtn.BackgroundColor3 = Color3.fromRGB(200,70,70)
-                equipBtn.Text = "Max 6 towers reached!"
-                task.delay(1.5, function()
-                    equipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-                    equipBtn.Text = "Equip Selected Towers"
-                end)
-                return
-            end
-        end
-    end
-    if added == 0 then
-        equipBtn.BackgroundColor3 = Color3.fromRGB(200,70,70)
-        equipBtn.Text = "All selected towers already equipped!"
-        task.delay(1.5, function()
-            equipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-            equipBtn.Text = "Equip Selected Towers"
-        end)
-        return
-    end
-    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
-    if net then
-        local eq = net:FindFirstChild("UpdateLoadout")
-        if eq then
-            eq:FireServer(loadout)
-            settings.towerLoadout = loadout
-            saveSettings()
-            equipBtn.BackgroundColor3 = Color3.fromRGB(70,200,70)
-            task.delay(1, function()
-                equipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-            end)
-            task.wait(0.5)
-            refreshEquippedDisplay()
-            for towerName, btn in pairs(towerButtons) do
-                if getEquippedTowers()[towerName] then
-                    btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-                elseif not selectedTowers[towerName] then
-                    btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-                end
-            end
-        end
-    end
-end)
-
-task.wait(0.2)
-local function setCanvas()
-    local contentHeight = towerLayout.AbsoluteContentSize.Y
-    if contentHeight > 0 then
-        towerScroll.CanvasSize = UDim2.new(0, 0, 0, contentHeight + 20)
-        towersFrame.Visible = wasVisible
-    else
-        task.wait(0.1)
-        setCanvas()
-    end
-end
-setCanvas()
-
 local anchorBtn = Instance.new("TextButton")
 anchorBtn.Size = UDim2.new(0, 45, 0, 45)
 anchorBtn.Position = UDim2.new(0, 10, 0, 10)
@@ -1410,7 +1167,6 @@ anchorBtn.Font = Enum.Font.GothamBold
 anchorBtn.Visible = false
 anchorBtn.Parent = gui
 Instance.new("UICorner", anchorBtn)
-
 local isMinimized = false
 local function toggleMinimize()
     isMinimized = not isMinimized
@@ -1420,4 +1176,4 @@ end
 minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
 anchorBtn.MouseButton1Click:Connect(toggleMinimize)
 
-queue_on_teleport('loadstring(game:HttpGet("'..RAW_SCRIPT_URL..'"))()')
+setupUpgradeListener()
