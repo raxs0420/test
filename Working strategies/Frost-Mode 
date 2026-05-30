@@ -2,85 +2,84 @@
 _G.AutoPickups = true
 _G.AntiLag = true
 _G.ClaimRewards = true
-_G.AutoRejoin = true
 _G.AutoSmartSkip = true 
 _G.AutoDJ = true
 _G.PrivateCode = "534f0b086a025749bde1b7560862c84e"
 
 -- [[ WEBHOOK SETTINGS ]]
-_G.SendWebhook = false -- Set to true to enable notifications
+_G.SendWebhook = false
 _G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
 
--- [[ INITIALIZE LIBRARY ]]
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+-- [[ INITIALIZE LIBRARY (use the modified version with buttons & replay callback) ]]
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/TDS_library_with_buttons.lua"))()
 
-TDS:Loadout("DJ Booth", "Gatling Gun", "Hacker", "Scout", "Accelerator")
-TDS:Mode("Frost")
+local function startMatch()
+    TDS:Loadout("DJ Booth", "Gatling Gun", "Hacker", "Scout", "Accelerator")
+    TDS:Mode("Frost")
 
-loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
 
-local function honeyValleyStrategy()
+    local function honeyValleyStrategy()
+        TDS:UnlockTimeScale()
+        TDS:TimeScale(2)
 
-    TDS:UnlockTimeScale()
-    TDS:TimeScale(2)
+        for i = 1, 16 do
+            TDS:Place("Scout", 0.273, 60, 14.569)
+        end
 
-    for i = 1, 16 do
-        TDS:Place("Scout", 0.273, 60, 14.569)
+        for i = 1, 16 do
+            TDS:Upgrade(i)
+            TDS:Upgrade(i)
+        end
+
+        TDS:Place("Hacker", -7.907, 60, 16.988)
+        TDS:Place("Gatling Gun", 2.884, 60, 1.988)
+        TDS:Place("DJ Booth", -0.043, 60, 1.320)
+
+        TDS:SetOption(19, "Track", "Green")
+        for i = 1, 3 do TDS:Upgrade(19) end
+        for i = 1, 2 do TDS:Upgrade(17) end
+        for i = 1, 2 do TDS:Upgrade(18) end
+
+        for i = 1, 16 do
+            TDS:Upgrade(i)
+            TDS:Upgrade(i)
+        end
+
+        for i = 1, 2 do TDS:Upgrade(19) end
+        for i = 1, 4 do TDS:Upgrade(18) end
+        for i = 1, 2 do TDS:Upgrade(17) end
+        TDS:Upgrade(17, 2)
+        TDS:SetOption(19, "Track", "Red")
+
+        for i = 1, 5 do
+            TDS:Place("Accelerator", 6.750, 60, 3.329)
+        end
+
+        for i = 20, 24 do
+            TDS:Upgrade(i) 
+            TDS:Upgrade(i)
+            TDS:Upgrade(i)
+            TDS:Upgrade(i)
+            TDS:Upgrade(i)
+        end
+
+        TDS:Ability(17, "Hologram Tower", { 
+            towerToClone = 18, 
+            towerPosition = Vector3.new(3.861, 60, -2.573) 
+        }, true)
     end
 
-    for i = 1, 16 do
-        TDS:Upgrade(i)
-        TDS:Upgrade(i)
-    end
+    TDS.pending_strategy = honeyValleyStrategy
 
-    TDS:Place("Hacker", -7.907, 60, 16.988)
-    TDS:Place("Gatling Gun", 2.884, 60, 1.988)
-    TDS:Place("DJ Booth", -0.043, 60, 1.320)
-
-    TDS:SetOption(19, "Track", "Green")
-    for i = 1, 3 do TDS:Upgrade(19) end
-    for i = 1, 2 do TDS:Upgrade(17) end
-    for i = 1, 2 do TDS:Upgrade(18) end
-
-    for i = 1, 16 do
-        TDS:Upgrade(i)
-        TDS:Upgrade(i)
-    end
-
-    for i = 1, 2 do TDS:Upgrade(19) end
-
-    for i = 1, 4 do TDS:Upgrade(18) end
-
-    for i = 1, 2 do TDS:Upgrade(17) end
-    
-    TDS:Upgrade(17, 2)
-
-    TDS:SetOption(19, "Track", "Red")
-
-    for i = 1, 5 do
-        TDS:Place("Accelerator", 6.750, 60, 3.329)
-    end
-
-    for i = 20, 24 do
-        TDS:Upgrade(i) 
-        TDS:Upgrade(i)
-        TDS:Upgrade(i)
-        TDS:Upgrade(i)
-        TDS:Upgrade(i)
-    end
-
-    TDS:Ability(17, "Hologram Tower", { 
-        towerToClone = 18, 
-        towerPosition = Vector3.new(3.861, 60, -2.573) 
-    }, true)
+    TDS:GameInfo("Honey Valley", {
+        Quarantine = true,
+        Glass = true,
+        ExplodingEnemies = true,
+        HiddenEnemies = true,
+        Committed = true
+    })
 end
 
-TDS.pending_strategy = honeyValleyStrategy
-
-TDS:GameInfo("Honey Valley", {
-    Quarantine = true,
-    Glass = true,
-    ExplodingEnemies = true,
-    HiddenEnemies = true,
-    Committed = true
-})
+TDS.ReplayCallback = startMatch
+startMatch()
