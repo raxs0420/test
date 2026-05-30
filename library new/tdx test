@@ -25,11 +25,11 @@ local gameOverTriggered = false
 local player = Players.LocalPlayer
 local towersFolder = nil
 
-local towerLevels = {} -- macroId -> {top, bottom}
+local towerLevels = {}
 local pendingHash = nil
 local pendingTop = 0
 local pendingBottom = 0
-local hashToMacroId = {} -- hash -> macroId
+local hashToMacroId = {} 
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -423,37 +423,46 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             }
         end
         print(string.format("[TDX] + %s (ID:%s)", name, expectedId or "auto"))
-        task.wait(0.1)
+        task.wait(0.15)
         return true
     end
     return false
 end
 
 function TDX:Upgrade(macroId, path, level, cost)
-    local actualId = expectedIdToActualId[macroId]
-    if actualId then
-        local data = towers[actualId]
-        if data and data.part and isPartAlive(data.part) then
-            local remote = getRemote("TowerUpgradeRequest")
-            if remote then
-                pcall(function()
-                    remote:FireServer(actualId, path, level)
-                end)
-                print(string.format("[TDX] ↑ Macro %d Lv%d", macroId, level))
-                task.wait(0.1)
+    while true do
+        local actualId = expectedIdToActualId[macroId]
+        if actualId then
+            local data = towers[actualId]
+            if data and data.part and isPartAlive(data.part) then
+                local remote = getRemote("TowerUpgradeRequest")
+                if remote then
+                    pcall(function()
+                        remote:FireServer(actualId, path, level)
+                    end)
+                    print(string.format("[TDX] ↑ Macro %d Lv%d sent", macroId, level))
+                end
+            end
+        elseif not upgradeRetryQueue[macroId] then
+            upgradeRetryQueue[macroId] = {
+                path = path,
+                level = level,
+                cost = cost,
+                retries = 999
+            }
+        end
+        
+        local lvl = towerLevels[macroId]
+        if lvl then
+            if (path == 1 and lvl.top >= level) or (path == 2 and lvl.bottom >= level) then
+                print(string.format("[TDX] ✓ Macro %d Lv%d confirmed", macroId, level))
+                task.wait(0.15)
                 return true
             end
         end
+        
+        task.wait(0.15)
     end
-    if not upgradeRetryQueue[macroId] then
-        upgradeRetryQueue[macroId] = {
-            path = path,
-            level = level,
-            cost = cost,
-            retries = 10
-        }
-    end
-    return false
 end
 
 function TDX:Sell(macroId)
