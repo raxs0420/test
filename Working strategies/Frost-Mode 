@@ -10,8 +10,8 @@ _G.PrivateCode = "534f0b086a025749bde1b7560862c84e"
 _G.SendWebhook = false
 _G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
 
--- [[ INITIALIZE LIBRARY (use the modified version with buttons & replay callback) ]]
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/TDS_library_with_buttons.lua"))()
+-- [[ INITIALIZE LIBRARY ]]
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()  -- use the modified library
 
 local function startMatch()
     TDS:Loadout("DJ Booth", "Gatling Gun", "Hacker", "Scout", "Accelerator")
