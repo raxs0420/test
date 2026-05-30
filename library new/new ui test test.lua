@@ -1862,27 +1862,18 @@ local function create_buttons()
 
     update_rejoin_button()
 
-    local mainTdsUi = playerGui:FindFirstChild("TDS_UI")
-    if mainTdsUi then
-        screenGui.Enabled = false
-        task.spawn(function()
-            while screenGui and screenGui.Parent do
-                local mainWindowVisible = false
-                local mainWindow = mainTdsUi:FindFirstChild("TDS CONTROLS")
-                if mainWindow and mainWindow:IsA("Frame") then
-                    mainWindowVisible = mainWindow.Visible
-                end
-                if mainWindowVisible then
-                    screenGui.Enabled = false
-                else
-                    screenGui.Enabled = true
-                end
-                task.wait(0.3)
+    task.spawn(function()
+        for _ = 1, 15 do
+            local tdsUI = playerGui:FindFirstChild("TDS_UI")
+            if tdsUI and tdsUI:IsA("ScreenGui") and tdsUI.Enabled then
+                _G.AutoRejoin = false
+                update_rejoin_button()
+                screenGui.Enabled = false
+                break
             end
-        end)
-    else
-        screenGui.Enabled = true
-    end
+            task.wait(1)
+        end
+    end)
 end
 
 task.spawn(function()
