@@ -16,7 +16,6 @@ end
 
 game_state = identify_game_state()
 
--- Default: Auto Rejoin is ON
 _G.AutoRejoin = _G.AutoRejoin == nil and true or _G.AutoRejoin
 
 local send_request = request or http_request or httprequest or GetDevice and GetDevice().request
