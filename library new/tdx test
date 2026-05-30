@@ -1,4 +1,3 @@
-
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
@@ -25,12 +24,6 @@ local gameOverTriggered = false
 
 local player = Players.LocalPlayer
 local towersFolder = nil
-
-local towerLevels = {}
-local pendingHash = nil
-local pendingTop = 0
-local pendingBottom = 0
-local hashToMacroId = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -70,21 +63,6 @@ local function isPartAlive(part)
     return false
 end
 
-local function getNumericLevel(part)
-    if not part then return 0 end
-    for _, child in ipairs(part:GetChildren()) do
-        local num = tonumber(child.Name)
-        if num then return num end
-        if child:IsA("Model") then
-            for _, sub in ipairs(child:GetChildren()) do
-                local subNum = tonumber(sub.Name)
-                if subNum then return subNum end
-            end
-        end
-    end
-    return 0
-end
-
 local function allocateId()
     if #freeIds > 0 then
         return table.remove(freeIds, #freeIds)
@@ -106,10 +84,6 @@ local function freeId(id)
     if macroId then
         expectedIdToActualId[macroId] = nil
         actualIdToMacroId[id] = nil
-        towerLevels[macroId] = nil
-        for h, m in pairs(hashToMacroId) do
-            if m == macroId then hashToMacroId[h] = nil end
-        end
     end
     towers[id] = nil
 end
@@ -154,8 +128,7 @@ local function addTower(part, expectedMacroId)
         part = part,
         name = part.Name,
         position = part.Position,
-        macroId = expectedMacroId,
-        currentLevel = getNumericLevel(part)
+        macroId = expectedMacroId
     }
 
     if expectedMacroId then
@@ -196,10 +169,11 @@ local function processUpgradeRetries()
             local actualId = expectedIdToActualId[macroId]
             if actualId and towers[actualId] and isPartAlive(towers[actualId].part) then
                 local remote = getRemote("TowerUpgradeRequest")
-                if remote then
+                if remote and getCash() >= data.cost then
                     pcall(function()
                         remote:FireServer(actualId, data.path, data.level)
                     end)
+                    print(string.format("[TDX] ↑ Macro %d | Lv %d (retry)", macroId, data.level))
                     upgradeRetryQueue[macroId] = nil
                 else
                     data.retries = data.retries - 1
@@ -211,121 +185,6 @@ local function processUpgradeRetries()
             upgradeRetryQueue[macroId] = nil
         end
     end
-end
-
-local function onNumericLevelIncrease(part, newLevel, oldLevel)
-    local actualId = partToId[part]
-    if not actualId then return end
-    local macroId = actualIdToMacroId[actualId]
-    if not macroId then
-        macroId = allocateId()
-        actualIdToMacroId[actualId] = macroId
-        expectedIdToActualId[macroId] = actualId
-        print(string.format("[TDX] Auto-assigned Macro %d to %s", macroId, part.Name))
-    end
-    if pendingHash and not towerLevels[macroId] then
-        hashToMacroId[pendingHash] = macroId
-        towerLevels[macroId] = {top = pendingTop, bottom = pendingBottom}
-        pendingHash = nil
-        pendingTop = 0
-        pendingBottom = 0
-    end
-    if towers[actualId] then
-        towers[actualId].currentLevel = newLevel
-    end
-end
-
-local function watchTowerLevels(part)
-    local function checkExisting()
-        for _, child in ipairs(part:GetChildren()) do
-            local num = tonumber(child.Name)
-            if num then
-                local old = towers[partToId[part]] and towers[partToId[part]].currentLevel or 0
-                if num > old then
-                    onNumericLevelIncrease(part, num, old)
-                end
-            end
-            if child:IsA("Model") then
-                for _, sub in ipairs(child:GetChildren()) do
-                    local subNum = tonumber(sub.Name)
-                    if subNum then
-                        local old = towers[partToId[part]] and towers[partToId[part]].currentLevel or 0
-                        if subNum > old then
-                            onNumericLevelIncrease(part, subNum, old)
-                        end
-                    end
-                end
-                child.ChildAdded:Connect(function(sub)
-                    local subNum = tonumber(sub.Name)
-                    if subNum then
-                        local old = towers[partToId[part]] and towers[partToId[part]].currentLevel or 0
-                        if subNum > old then
-                            onNumericLevelIncrease(part, subNum, old)
-                        end
-                    end
-                end)
-            end
-        end
-    end
-    part.ChildAdded:Connect(function(child)
-        local num = tonumber(child.Name)
-        if num then
-            local old = towers[partToId[part]] and towers[partToId[part]].currentLevel or 0
-            if num > old then
-                onNumericLevelIncrease(part, num, old)
-            end
-        end
-        if child:IsA("Model") then
-            child.ChildAdded:Connect(function(sub)
-                local subNum = tonumber(sub.Name)
-                if subNum then
-                    local old = towers[partToId[part]] and towers[partToId[part]].currentLevel or 0
-                    if subNum > old then
-                        onNumericLevelIncrease(part, subNum, old)
-                    end
-                end
-            end)
-            for _, sub in ipairs(child:GetChildren()) do
-                local subNum = tonumber(sub.Name)
-                if subNum then
-                    local old = towers[partToId[part]] and towers[partToId[part]].currentLevel or 0
-                    if subNum > old then
-                        onNumericLevelIncrease(part, subNum, old)
-                    end
-                end
-            end
-        end
-    end)
-    checkExisting()
-end
-
-local function setupUpgradeListener()
-    local upgradeRemote = getRemote("TowerUpgradeQueueUpdated")
-    if not upgradeRemote then return end
-    upgradeRemote.OnClientEvent:Connect(function(data)
-        if type(data) ~= "table" then return end
-        local entries = (#data > 0) and data or {data}
-        for _, entry in ipairs(entries) do
-            local hash = entry.Hash or entry.hash or entry.Id or entry.id
-            if not hash then continue end
-            if type(hash) == "string" then hash = tonumber(hash) end
-            if not hash then continue end
-            local top = 0
-            local bottom = 0
-            if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
-                top = entry.LevelReplicationData[1] or 0
-                bottom = entry.LevelReplicationData[2] or 0
-            end
-            if hashToMacroId[hash] then
-                local macroId = hashToMacroId[hash]
-                towerLevels[macroId] = {top = top, bottom = bottom}
-            else
-                pendingHash = hash
-                pendingTop = top
-                pendingBottom = bottom
-            end
-        end
-    end)
 end
 
 local function syncAllTowers()
@@ -355,10 +214,7 @@ local function syncAllTowers()
             if expectedId then
                 pendingPlacements[expectedId] = nil
                 addTower(part, expectedId)
-            else
-                addTower(part, nil)
             end
-            watchTowerLevels(part)
         end
     end
 
@@ -370,18 +226,23 @@ RunService.Stepped:Connect(syncAllTowers)
 
 local function checkGameOver()
     if gameOverTriggered then return end
+
     local playerGui = player:FindFirstChild("PlayerGui")
     if not playerGui then return end
+
     local interface = playerGui:FindFirstChild("Interface")
     if not interface then return end
+
     local gameOverScreen = interface:FindFirstChild("GameOverScreen")
+
     if not gameOverScreen then
         task.spawn(function()
             task.wait(10)
-            checkGameOver()
+            checkGameOver() -- re-check after delay
         end)
         return
     end
+
     task.spawn(function()
         while not gameOverTriggered do
             if gameOverScreen.Visible then
@@ -402,6 +263,7 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
     local pos = Vector3.new(x, y, z)
+    while getCash() < cost do task.wait() end
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
@@ -414,44 +276,38 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
             }
         end
         print(string.format("[TDX] + %s (ID:%s)", name, expectedId or "auto"))
-        task.wait(0.15)
+        task.wait(0.25)
         return true
     end
     return false
 end
 
 function TDX:Upgrade(macroId, path, level, cost)
-    while true do
-        local actualId = expectedIdToActualId[macroId]
-        if actualId then
-            local data = towers[actualId]
-            if data and data.part and isPartAlive(data.part) then
-                local remote = getRemote("TowerUpgradeRequest")
-                if remote then
-                    pcall(function()
-                        remote:FireServer(actualId, path, level)
-                    end)
-                end
-            end
-        elseif not upgradeRetryQueue[macroId] then
-            upgradeRetryQueue[macroId] = {
-                path = path,
-                level = level,
-                cost = cost,
-                retries = 99999
-            }
-        end
-
-        local lvl = towerLevels[macroId]
-        if lvl then
-            if (path == 1 and lvl.top >= level) or (path == 2 and lvl.bottom >= level) then
-                task.wait(0.15)
+    local actualId = expectedIdToActualId[macroId]
+    if actualId then
+        local data = towers[actualId]
+        if data and data.part and isPartAlive(data.part) then
+            local remote = getRemote("TowerUpgradeRequest")
+            if remote then
+                while getCash() < cost do task.wait() end
+                pcall(function()
+                    remote:FireServer(actualId, path, level)
+                end)
+                print(string.format("[TDX] ↑ Macro %d Lv%d", macroId, level))
+                task.wait(0.35)
                 return true
             end
         end
-
-        task.wait(0.15)
     end
+    if not upgradeRetryQueue[macroId] then
+        upgradeRetryQueue[macroId] = {
+            path = path,
+            level = level,
+            cost = cost,
+            retries = 10
+        }
+    end
+    return false
 end
 
 function TDX:Sell(macroId)
@@ -461,7 +317,7 @@ function TDX:Sell(macroId)
     if not data or not data.part or not isPartAlive(data.part) then return false end
     local remote = getRemote("SellTower")
     if remote then
-        task.wait(0.1)
+        task.wait(0.3)
         pcall(function() remote:FireServer(actualId) end)
         print(string.format("[TDX] 💰 Sold Macro %d", macroId))
     end
@@ -473,7 +329,7 @@ function TDX:Ability(macroId, slot, loop)
         task.spawn(function()
             while true do
                 TDX:Ability(macroId, slot, false)
-                task.wait(0.05)
+                task.wait(0.1)
             end
         end)
         return
@@ -491,40 +347,40 @@ function TDX:Ability(macroId, slot, loop)
     end
 end
 
-function TDX:GetTowerLevel(macroId)
-    return towerLevels[macroId]
-end
-
-function TDX:GetMacroIdFromHash(hash)
-    return hashToMacroId[hash]
-end
-
 local upgradeQueue = {}
 local isProcessing = false
 
 function TDX:TowerUpgrade(TowerName, Skill)
+
     table.insert(upgradeQueue, {TowerName = TowerName, Skill = Skill})
+
     if not isProcessing then
-        task.spawn(function()
-            isProcessing = true
-            while #upgradeQueue > 0 do
-                local upgrade = table.remove(upgradeQueue, 1)
-                local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
-                local upgraded = false
-                while not upgraded do
-                    local success, result = pcall(function()
-                        return remote:InvokeServer(upgrade.TowerName, upgrade.Skill)
-                    end)
-                    if success and result == true then
-                        upgraded = true
-                    else
-                        task.wait(0.5)
-                    end
-                end
-                task.wait(0.1)
-            end
-            isProcessing = false
-        end)
+    task.spawn(function()
+    isProcessing = true
+
+    while #upgradeQueue > 0 do
+    local upgrade = table.remove(upgradeQueue, 1)
+    local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
+
+        local upgraded = false
+        while not upgraded do
+        local success, result = pcall(function()
+        return remote:InvokeServer(upgrade.TowerName, upgrade.Skill)
+    end)
+
+        if success and result == true then
+        upgraded = true
+        print(string.format("[TDX] Upgraded %s: %s", upgrade.TowerName, upgrade.Skill))
+        else
+        task.wait(1)
+        end
+    end
+
+        task.wait(0.5) 
+    end
+
+        isProcessing = false
+    end)
     end
 end
 
@@ -550,9 +406,15 @@ function TDX:AutoSkip(enabled)
     task.spawn(function()
         while enabled do
             local skip = getRemote("SkipWaveVoteCast")
-            if skip then pcall(function() skip:FireServer(true) end) end
+            if skip then
+                pcall(function() skip:FireServer(true) end)
+            end
+
             local cutscene = getRemote("CutsceneVoteCast")
-            if cutscene then pcall(function() cutscene:FireServer(true) end) end
+            if cutscene then
+                pcall(function() cutscene:FireServer(true) end)
+            end
+
             task.wait(0.1)
         end
     end)
@@ -578,7 +440,9 @@ function TDX:StartMatchmaking()
     local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if net then
         local start = net:FindFirstChild("ClientStartGameRequest")
-        if start then start:FireServer() end
+        if start then
+            start:FireServer()
+        end
     end
     task.wait(0.5)
 end
@@ -586,17 +450,23 @@ end
 function TDX:Loadout(id)
     task.wait(2)
     local load = getRemote("LoadoutSelectionChanged")
-    if load then load:FireServer(id) end
+    if load then
+        load:FireServer(id)
+    end
     task.wait(0.5)
 end
 
 function TDX:VoteDifficulty(diff)
     task.wait(5.5)
     local vote = getRemote("DifficultyVoteCast")
-    if vote then vote:FireServer(diff) end
+    if vote then
+        vote:FireServer(diff)
+    end
     task.wait(0.5)
     local ready = getRemote("DifficultyVoteReady")
-    if ready then ready:FireServer(diff) end
+    if ready then
+        ready:FireServer(diff)
+    end
     task.wait(1)
 end
 
@@ -611,7 +481,9 @@ function TDX:VoteMap(map, attempts)
             return true
         end
         local change = getRemote("MapChangeVoteCast")
-        if change then change:FireServer(true) end
+        if change then
+            change:FireServer(true)
+        end
         task.wait(1)
     end
     return false
@@ -619,7 +491,9 @@ end
 
 function TDX:Ready()
     local ready = getRemote("MapVoteReady")
-    if ready then ready:FireServer() end
+    if ready then
+        ready:FireServer()
+    end
     task.wait(0.3)
 end
 
@@ -627,7 +501,9 @@ function TDX:Equip(items)
     local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if net then
         local eq = net:FindFirstChild("UpdateLoadout")
-        if eq then eq:FireServer(items) end
+        if eq then
+            eq:FireServer(items)
+        end
     end
     task.wait(0.5)
 end
@@ -640,16 +516,13 @@ function TDX:ResetMappings()
     actualIdToMacroId = {}
     pendingPlacements = {}
     upgradeRetryQueue = {}
-    towerLevels = {}
-    hashToMacroId = {}
-    pendingHash = nil
-    pendingTop = 0
-    pendingBottom = 0
-    for id in pairs(towers) do towers[id] = nil end
+    for id in pairs(towers) do
+        towers[id] = nil
+    end
 end
 
 function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop, cycleDelay)
-    cycleDelay = cycleDelay or 0.5
+    cycleDelay = cycleDelay or 1
     if loop then
         local active = true
         task.spawn(function()
@@ -689,10 +562,21 @@ function TDX:AbilitySpamList(macroIds, slot, loop)
     end
 end
 
-local typeMap = {Elite=0, First=1, Last=2, Strong=3, Weak=4, Random=5}
+local typeMap = {
+    Elite = 0,
+    First = 1,
+    Last = 2,
+    Strong = 3,
+    Weak = 4,
+    Random = 5
+}
+
 local function getTypeValue(t)
-    if type(t)=="number" then return math.clamp(t,0,5)
-    elseif type(t)=="string" then return typeMap[t] end
+    if type(t) == "number" then
+        return math.clamp(t, 0, 5)
+    elseif type(t) == "string" then
+        return typeMap[t]
+    end
     return nil
 end
 
@@ -700,20 +584,20 @@ function TDX:SetTarget(towerID, targetType)
     local remote = getRemote("ChangeQueryType")
     if not remote then return false end
     local tv = getTypeValue(targetType)
-    if tv==nil then return false end
+    if tv == nil then return false end
     pcall(function() remote:FireServer(towerID, tv) end)
     return true
 end
 
 function TDX:TargetRange(startID, endID, targetType, interval)
-    interval = interval or 0.5
+    interval = interval or 1
     local remote = getRemote("ChangeQueryType")
     if not remote then return false end
     local tv = getTypeValue(targetType)
-    if tv==nil then return false end
+    if tv == nil then return false end
     task.spawn(function()
         while true do
-            for id=startID,endID do
+            for id = startID, endID do
                 pcall(function() remote:FireServer(id, tv) end)
             end
             task.wait(interval)
@@ -723,45 +607,67 @@ function TDX:TargetRange(startID, endID, targetType, interval)
 end
 
 function TDX:JoinMapViaAPC(mapName)
-    local level = player.leaderstats and player.leaderstats:FindFirstChild("Level")
-    local lvl = level and level.Value or 0
+    local player = Players.LocalPlayer
+    local level = 0
+    local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
+    if lvl then level = lvl.Value end
+
     local startTime = tick()
+    local apcsFolder = nil
+
     while true do
-        local apcsFolder = Workspace:FindFirstChild("APCs")
-        if apcsFolder then
-            for _, slot in ipairs(apcsFolder:GetChildren()) do
-                if (slot:GetAttribute("MapName") or "") == mapName then
-                    local detector = slot:FindFirstChild("Detector")
-                    if not detector and slot:FindFirstChild("APC") then
-                        detector = slot.APC:FindFirstChild("Detector")
-                    end
-                    if detector and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                        player.Character.HumanoidRootPart.CFrame = detector.CFrame
+        apcsFolder = Workspace:FindFirstChild("APCs")
+
+        if not apcsFolder then
+            if tick() - startTime >= 3 then
+                return false
+            end
+            task.wait()
+            continue
+        end
+
+        for _, slot in ipairs(apcsFolder:GetChildren()) do
+            local attr = slot:GetAttribute("MapName") or ""
+            if attr == mapName then
+                local detector = slot:FindFirstChild("Detector")
+                if not detector and slot:FindFirstChild("APC") then
+                    detector = slot.APC:FindFirstChild("Detector")
+                end
+                if detector then
+                    local char = player.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        char.HumanoidRootPart.CFrame = detector.CFrame
                         task.wait(2)
                         return true
                     end
                 end
             end
         end
-        if lvl >= 31 then
+
+        if level >= 31 then
             local apcs2Folder = Workspace:FindFirstChild("APCs2")
             if apcs2Folder then
                 for _, slot in ipairs(apcs2Folder:GetChildren()) do
-                    if (slot:GetAttribute("MapName") or "") == mapName then
+                    local attr = slot:GetAttribute("MapName") or ""
+                    if attr == mapName then
                         local detector = slot:FindFirstChild("Detector")
                         if not detector and slot:FindFirstChild("APC") then
                             detector = slot.APC:FindFirstChild("Detector")
                         end
-                        if detector and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                            player.Character.HumanoidRootPart.CFrame = detector.CFrame
-                            task.wait(2)
-                            return true
+                        if detector then
+                            local char = player.Character
+                            if char and char:FindFirstChild("HumanoidRootPart") then
+                                char.HumanoidRootPart.CFrame = detector.CFrame
+                                task.wait(2)
+                                return true
+                            end
                         end
                     end
                 end
             end
         end
-        if tick()-startTime >= 3 then return false end
+
+        startTime = tick()
         task.wait()
     end
 end
@@ -769,17 +675,25 @@ end
 local function startCoinCollector()
     task.spawn(function()
         local remote = nil
+
         local function getRemote()
             if not remote or not remote.Parent then
                 local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-                if remotes then remote = remotes:FindFirstChild("ClientsideCoinCollectedEvent") end
+                if remotes then
+                    remote = remotes:FindFirstChild("ClientsideCoinCollectedEvent")
+                end
             end
             return remote
         end
+
         while true do
             local currentRemote = getRemote()
             if currentRemote then
-                for i=1,100 do pcall(function() currentRemote:FireServer(i) end) end
+                for i = 1, 100 do
+                    pcall(function() 
+                        currentRemote:FireServer(i) 
+                    end)
+                end
             end
             task.wait(1)
         end
@@ -788,16 +702,23 @@ end
 
 local function removeFolders()
     local gameFolder = workspace:FindFirstChild("Game")
-    if gameFolder and gameFolder:FindFirstChild("Enemies") then
-        gameFolder.Enemies:Destroy()
+    if gameFolder then
+        local enemies = gameFolder:FindFirstChild("Enemies")
+        if enemies then
+            enemies:Destroy()
+        end
     end
+
     local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
-    if tdxShared and tdxShared:FindFirstChild("Common") then
-        local common = tdxShared.Common
-        if common and common:FindFirstChild("Resources") then
-            local resources = common.Resources
-            if resources and resources:FindFirstChild("DeathEffects") then
-                resources.DeathEffects:Destroy()
+    if tdxShared then
+        local common = tdxShared:FindFirstChild("Common")
+        if common then
+            local resources = common:FindFirstChild("Resources")
+            if resources then
+                local deathEffects = resources:FindFirstChild("DeathEffects")
+                if deathEffects then
+                    deathEffects:Destroy()
+                end
             end
         end
     end
@@ -816,6 +737,5 @@ end)
 
 checkGameOver()
 startCoinCollector()
-setupUpgradeListener()
 
 return TDX
