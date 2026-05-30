@@ -11,7 +11,7 @@ _G.SendWebhook = false
 _G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
 
 -- [[ INITIALIZE LIBRARY ]]
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()  -- use the modified library
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
 local function startMatch()
     TDS:Loadout("DJ Booth", "Gatling Gun", "Hacker", "Scout", "Accelerator")
