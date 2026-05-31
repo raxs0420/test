@@ -1,6 +1,5 @@
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
@@ -115,7 +114,7 @@ function TDX:SetupUpgradeListener()
         end
     end)
     
-    print("[TDX] Upgrade listener ready - waiting for tower placements")
+    print("[TDX] SetupUpgradeListener ready - waiting for tower placements")
 end
 
 return TDX
