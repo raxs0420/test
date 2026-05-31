@@ -1437,52 +1437,14 @@ local function start_rejoin_on_disconnect()
     end)
 end
 
-local function start_auto_chain()
-    if auto_chain_running or not _G.AutoChain then return end
-    auto_chain_running = true
-    task.spawn(function()
-        local idx = 1
-        while _G.AutoChain do
-            local commander = {}
-            local towers_folder = workspace:FindFirstChild("Towers")
-            if towers_folder then
-                for _, towers in ipairs(towers_folder:GetDescendants()) do
-                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
-                    and towers:GetAttribute("Name") == "Commander"
-                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
-                    and (towers:GetAttribute("Upgrade") or 0) >= 2 then
-                        commander[#commander + 1] = towers.Parent
-                    end
-                end
-            end
-            if #commander >= 3 then
-                if idx > #commander then idx = 1 end
-                remote_func:InvokeServer("Troops", "Abilities", "Activate", { Troop = commander[idx], Name = "Call Of Arms", Data = {} })
-                idx = idx + 1
-                local hotbar = player_gui.ReactUniversalHotbar.Frame
-                local timescale = hotbar and hotbar:FindFirstChild("timescale")
-                if timescale then
-                    if timescale:FindFirstChild("Lock") then
-                        task.wait(11)
-                    else
-                        task.wait(5.5)
-                    end
-                else
-                    task.wait(11)
-                end
-            end
-            task.wait(1)
-        end
-        auto_chain_running = false
-    end)
-end
-
 local function start_auto_dj_booth()
     if auto_dj_running or not _G.AutoDJ then return end
     auto_dj_running = true
+
     task.spawn(function()
         while _G.AutoDJ do
             local towers_folder = workspace:FindFirstChild("Towers")
+
             if towers_folder then
                 for _, towers in ipairs(towers_folder:GetDescendants()) do
                     if towers:IsA("Folder") and towers.Name == "TowerReplicator"
@@ -1493,22 +1455,19 @@ local function start_auto_dj_booth()
                     end
                 end
             end
+
             if DJ then
-                remote_func:InvokeServer("Troops", "Abilities", "Activate", { Troop = DJ, Name = "Drop The Beat", Data = {} })
-                local hotbar = player_gui.ReactUniversalHotbar.Frame
-                local timescale = hotbar and hotbar:FindFirstChild("timescale")
-                if timescale then
-                    if timescale:FindFirstChild("Lock") then
-                        task.wait(30.5)
-                    else
-                        task.wait(15.5)
-                    end
-                else
-                    task.wait(30.5)
-                end
+                remote_func:InvokeServer(
+                    "Troops",
+                    "Abilities",
+                    "Activate",
+                    { Troop = DJ, Name = "Drop The Beat", Data = {} }
+                )
             end
-            task.wait(0.2)
+
+            task.wait(1)
         end
+
         auto_dj_running = false
     end)
 end
@@ -1537,12 +1496,87 @@ local function start_auto_uber()
     end)
 end
 
+local function start_auto_chain()
+    if auto_chain_running or not _G.AutoChain then return end
+    auto_chain_running = true
+
+    task.spawn(function()
+        local idx = 1
+
+        while _G.AutoChain do
+            local commander = {}
+            local towers_folder = workspace:FindFirstChild("Towers")
+
+            if towers_folder then
+                for _, towers in ipairs(towers_folder:GetDescendants()) do
+                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
+                    and towers:GetAttribute("Name") == "Commander"
+                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                    and (towers:GetAttribute("Upgrade") or 0) >= 2 then
+                        commander[#commander + 1] = towers.Parent
+                    end
+                end
+            end
+
+            if #commander >= 3 then
+                if idx > #commander then idx = 1 end
+
+                local current_commander = commander[idx]
+                local replicator = current_commander:FindFirstChild("TowerReplicator")
+                local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
+
+                if upgrade_level >= 4 and _G.SupportCaravan then
+                    remote_func:InvokeServer(
+                        "Troops",
+                        "Abilities",
+                        "Activate",
+                        { Troop = current_commander, Name = "Support Caravan", Data = {} }
+                    )
+                    task.wait(0.1)
+                end
+
+                local response = remote_func:InvokeServer(
+                    "Troops",
+                    "Abilities",
+                    "Activate",
+                    { Troop = current_commander, Name = "Call Of Arms", Data = {} }
+                )
+
+                if response then
+                    idx = idx + 1
+
+                    local hotbar = player_gui.ReactUniversalHotbar.Frame
+                    local timescale = hotbar and hotbar:FindFirstChild("timescale")
+
+                    if timescale and timescale.Visible then
+                        if timescale:FindFirstChild("Lock") then
+                            task.wait(10.3)
+                        else
+                            task.wait(5.25)
+                        end
+                    else
+                        task.wait(10.3)
+                    end
+                else
+                    task.wait(0.5)
+                end
+            else
+                task.wait(1)
+            end
+        end
+
+        auto_chain_running = false
+    end)
+end
+
 local function start_auto_support()
     if auto_support_running or not _G.AutoSupport then return end
     auto_support_running = true
+
     task.spawn(function()
         while _G.AutoSupport do
             local towers_folder = workspace:FindFirstChild("Towers")
+
             if towers_folder then
                 for _, towers in ipairs(towers_folder:GetDescendants()) do
                     if towers:IsA("Folder") and towers.Name == "TowerReplicator"
@@ -1550,13 +1584,20 @@ local function start_auto_support()
                     and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
                     and (towers:GetAttribute("Upgrade") or 0) >= 4 then
                         local commander = towers.Parent
-                        remote_func:InvokeServer("Troops", "Abilities", "Activate", { Troop = commander, Name = "Support Caravan", Data = {} })
+                        remote_func:InvokeServer(
+                            "Troops",
+                            "Abilities",
+                            "Activate",
+                            { Troop = commander, Name = "Support Caravan", Data = {} }
+                        )
                         task.wait(0.5)
                     end
                 end
             end
+
             task.wait(0.2)
         end
+
         auto_support_running = false
     end)
 end
