@@ -94,11 +94,11 @@ function TDX:SetupUpgradeListener()
     end
 
     queueRemote.OnClientEvent:Connect(function(data)
-        if data and data[1] and data[1][1] and data[1][1].Data and data[1][1].Data[1] then
-            local towerInfo = data[1][1].Data[1]
-            local realId = towerInfo[1]
-            local towerName = towerInfo[2]
-            local owner = towerInfo[7]
+        -- The data IS the tower info table directly
+        if data and data[1] and data[2] and data[7] then
+            local realId = data[1]
+            local towerName = data[2]
+            local owner = data[7]
             
             if tostring(owner) == player.Name then
                 local macroId = nextMacroId
@@ -117,6 +117,34 @@ function TDX:SetupUpgradeListener()
                     task.wait(0.1)
                     TDX:Sell(pendingSell)
                     pendingSell = nil
+                end
+            end
+        else
+            -- Fallback: maybe wrapped one level
+            local wrapped = data[1]
+            if wrapped and wrapped[1] and wrapped[2] and wrapped[7] then
+                local realId = wrapped[1]
+                local towerName = wrapped[2]
+                local owner = wrapped[7]
+                
+                if tostring(owner) == player.Name then
+                    local macroId = nextMacroId
+                    nextMacroId = nextMacroId + 1
+                    
+                    macroToTowerId[macroId] = realId
+                    print(string.format("[TDX] ✓ Tower placed (wrapped): %s → Macro %d = Real ID %d", towerName, macroId, realId))
+                    
+                    if pendingUpgrade and pendingUpgrade.macroId == macroId then
+                        task.wait(0.1)
+                        TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
+                        pendingUpgrade = nil
+                    end
+                    
+                    if pendingSell == macroId then
+                        task.wait(0.1)
+                        TDX:Sell(pendingSell)
+                        pendingSell = nil
+                    end
                 end
             end
         end
