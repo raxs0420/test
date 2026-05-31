@@ -36,17 +36,6 @@ local function extractTowerNumberFromPart(part)
             end
         end
     end
-    
-    local towerNumber = part:GetAttribute("TowerNumber")
-    if towerNumber then
-        return towerNumber
-    end
-    
-    local nameMatch = part.Name:match("Tower_(%d+)")
-    if nameMatch then
-        return tonumber(nameMatch)
-    end
-    
     return nil
 end
 
@@ -113,7 +102,7 @@ local function addTower(part, expectedMacroId, towerNumber)
     local actualTowerNumber = towerNumber or extractTowerNumberFromPart(part)
     
     if not actualTowerNumber then
-        actualTowerNumber = part:GetHashCode()
+        return
     end
     
     partToTowerNumber[part] = actualTowerNumber
@@ -181,12 +170,14 @@ local function syncAllTowers()
     for part in pairs(currentParts) do
         if not partToTowerNumber[part] then
             local extractedNumber = extractTowerNumberFromPart(part)
-            local expectedMacroId = matchPendingPlacement(part.Name, part.Position, extractedNumber)
-            if expectedMacroId then
-                pendingPlacements[expectedMacroId] = nil
-                addTower(part, expectedMacroId, extractedNumber)
-            elseif extractedNumber then
-                addTower(part, nil, extractedNumber)
+            if extractedNumber then
+                local expectedMacroId = matchPendingPlacement(part.Name, part.Position, extractedNumber)
+                if expectedMacroId then
+                    pendingPlacements[expectedMacroId] = nil
+                    addTower(part, expectedMacroId, extractedNumber)
+                else
+                    addTower(part, nil, extractedNumber)
+                end
             end
         end
     end
