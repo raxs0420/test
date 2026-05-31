@@ -40,17 +40,7 @@ function TDX:GetCash()
 end
 
 local function isPartAlive(part)
-    if not part or not part.Parent then return false end
-    local ring = part:FindFirstChild("Ring")
-    if not ring then return false end
-    local beam = ring:FindFirstChildWhichIsA("Beam")
-    if not beam then return false end
-    local seq = beam.Color
-    if seq and seq.Keypoints and #seq.Keypoints > 0 then
-        local color = seq.Keypoints[1].Value
-        return not (color.R < 0.1 and color.G < 0.1 and color.B < 0.1)
-    end
-    return false
+    return part and part.Parent == towersFolder
 end
 
 local function cleanupDeadTowers()
@@ -68,7 +58,7 @@ local function syncTowers()
         if not towersFolder then return end
     end
     for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") and isPartAlive(part) then
+        if part:IsA("BasePart") then
             if not partToHash[part] then
                 local hash = part:GetAttribute("Hash") or (part:FindFirstChild("Hash") and part.Hash.Value)
                 if hash then
@@ -103,7 +93,7 @@ function TDX:ListenForHashes()
             if hash and type(hash) == "number" then
                 if not hashToPart[hash] then
                     for _, part in ipairs(towersFolder:GetChildren()) do
-                        if part:IsA("BasePart") and isPartAlive(part) and not partToHash[part] then
+                        if part:IsA("BasePart") and not partToHash[part] then
                             local partHash = part:GetAttribute("Hash") or (part:FindFirstChild("Hash") and part.Hash.Value)
                             if partHash == hash then
                                 hashToPart[hash] = part
@@ -180,7 +170,8 @@ function TDX:Upgrade(macroIdOrHash, path, level, cost)
 end
 
 function TDX:HashExists(hash)
-    return hashToPart[hash] ~= nil and isPartAlive(hashToPart[hash])
+    local part = hashToPart[hash]
+    return part and isPartAlive(part)
 end
 
 function TDX:Sell(hash)
