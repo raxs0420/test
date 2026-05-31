@@ -1793,12 +1793,9 @@ task.spawn(function()
     end
 end)
 
-if _G.ClaimRewards and not auto_claim_rewards then
-    start_claim_rewards()
-end
-
 start_back_to_lobby()
 start_rejoin_on_disconnect()
+start_claim_rewards()
 
 local function create_buttons()
     local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
