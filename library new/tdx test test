@@ -85,53 +85,45 @@ function TDX:SetupUpgradeListener()
         print("[TDX] TowerFactoryQueueUpdated not found")
         return
     end
-    
-    print("[TDX] TowerFactoryQueueUpdated found, connecting...")
 
     queueRemote.OnClientEvent:Connect(function(data)
-        print("[TDX] Event FIRED!")
+        print("[TDX] Event received!")
         
-        -- Try to parse the data structure
-        local towerData = data[1]
-        if towerData and towerData[1] then
-            towerData = towerData[1]
-        end
-        
-        if towerData and towerData.Data then
-            local info = towerData.Data[1]
-            if info then
-                local towerId = info[1]
-                local towerName = info[2]
-                local ownerId = info[7]
-                local pos = info[4]
+        -- EXACT same logic as your working script
+        if data[1] and data[1][1] then
+            local towerData = data[1][1]
+            if towerData.Data and towerData.Data[1] then
+                local id = towerData.Data[1][1]
+                local name = towerData.Data[1][2]
+                local owner = towerData.Data[1][7]
+                local pos = towerData.Data[1][4]
                 
-                print(string.format("[TDX] Tower: %s, ID: %s, Owner: %s", towerName, towerId, ownerId))
+                print(string.format("[TDX] Extracted: ID=%s, Name=%s, Owner=%s", id, name, owner))
                 
-                if tostring(ownerId) == player.Name then
+                if tostring(owner) == player.Name then
                     for macroId, pending in pairs(pendingPlacements) do
-                        if pending.name == towerName then
+                        if pending.name == name then
                             local dist = (pending.pos - pos).Magnitude
-                            print(string.format("[TDX] Distance to Macro %d: %.2f", macroId, dist))
                             if dist < 5 then
-                                macroToTowerId[macroId] = towerId
-                                print(string.format("[TDX] ✓ Macro %d → ID: %s (%s)", macroId, towerId, towerName))
+                                macroToTowerId[macroId] = id
+                                print(string.format("[TDX] ✓ Macro %d → ID: %s", macroId, id))
                                 pendingPlacements[macroId] = nil
                                 break
                             end
                         end
                     end
                 end
-            end
-        else
-            print("[TDX] Could not parse data structure")
-            -- Print what we actually have
-            if towerData then
+            else
+                print("[TDX] towerData.Data or Data[1] is nil")
                 print("[TDX] towerData keys:", GetKeys(towerData))
             end
+        else
+            print("[TDX] data[1] or data[1][1] is nil")
+            print("[TDX] data keys:", GetKeys(data))
         end
     end)
     
-    print("[TDX] SetupUpgradeListener ready - waiting for tower placements")
+    print("[TDX] SetupUpgradeListener ready")
 end
 
 function GetKeys(t)
