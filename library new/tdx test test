@@ -3,27 +3,68 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 local player = Players.LocalPlayer
+
+-- Pending placements: key = macroId, value = {towerName, position}
+local pendingPlacements = {}
+-- Mapping from macroId -> real tower ID
 local macroToTowerId = {}
-local nextMacroId = 1
-local pendingUpgrade = nil
-local pendingSell = nil
+-- Queued actions (upgrades/sells) waiting for mapping
+local pendingUpgrade = nil   -- {macroId, path, level}
+local pendingSell = nil      -- macroId
 
 local function getRemote(name)
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     return remotes and remotes:FindFirstChild(name)
 end
 
+-- Convert a comma-separated string like "x,y,z" to a Vector3
+local function parsePositionString(str)
+    if type(str) ~= "string" then return nil end
+    local parts = {}
+    for part in string.gmatch(str, "[^,]+") do
+        table.insert(parts, tonumber(part))
+    end
+    if #parts == 3 then
+        return Vector3.new(parts[1], parts[2], parts[3])
+    end
+    return nil
+end
+
+-- Find a pending macroId that matches the given tower name and position
+local function findMatchingMacroId(towerName, towerPos)
+    local bestMatch = nil
+    local bestDist = 0.5  -- tolerance in studs
+    for macroId, data in pairs(pendingPlacements) do
+        if data.towerName == towerName then
+            local dist = (data.position - towerPos).Magnitude
+            if dist < bestDist then
+                bestDist = dist
+                bestMatch = macroId
+            end
+        end
+    end
+    if bestMatch then
+        pendingPlacements[bestMatch] = nil
+    end
+    return bestMatch
+end
+
 function TDX:Place(towerName, x, y, z, macroId)
     local remote = getRemote("PlaceTower")
-    if not remote then 
+    if not remote then
         print("[TDX] PlaceTower remote not found")
-        return false 
+        return false
     end
 
     local pos = Vector3.new(x, y, z)
+    -- Store pending placement before sending request
+    pendingPlacements[macroId] = {
+        towerName = towerName,
+        position = pos
+    }
 
     task.wait(0.1)
-    
+
     local success, result = pcall(function()
         return remote:InvokeServer(0, towerName, pos, 0)
     end)
@@ -32,15 +73,17 @@ function TDX:Place(towerName, x, y, z, macroId)
         print(string.format("[TDX] Place sent for Macro %d (%s)", macroId, towerName))
         task.wait(0.2)
         return true
+    else
+        -- Remove pending if placement failed
+        pendingPlacements[macroId] = nil
+        return false
     end
-
-    return false
 end
 
 function TDX:Upgrade(macroId, path, level)
     local towerId = macroToTowerId[macroId]
     if not towerId then
-        print(string.format("[TDX] Macro %d not mapped yet, will upgrade when ID is received", macroId))
+        print(string.format("[TDX] Macro %d not mapped yet, queuing upgrade", macroId))
         pendingUpgrade = {macroId = macroId, path = path, level = level}
         return false
     end
@@ -52,7 +95,6 @@ function TDX:Upgrade(macroId, path, level)
     end
 
     task.wait(0.1)
-    
     pcall(function()
         remote:FireServer(towerId, path, level)
     end)
@@ -64,7 +106,7 @@ end
 function TDX:Sell(macroId)
     local towerId = macroToTowerId[macroId]
     if not towerId then
-        print(string.format("[TDX] Macro %d not mapped yet, will sell when ID is received", macroId))
+        print(string.format("[TDX] Macro %d not mapped yet, queuing sell", macroId))
         pendingSell = macroId
         return false
     end
@@ -76,7 +118,6 @@ function TDX:Sell(macroId)
     end
 
     task.wait(0.1)
-    
     pcall(function()
         remote:FireServer(towerId)
     end)
@@ -89,68 +130,43 @@ end
 function TDX:SetupUpgradeListener()
     local queueRemote = getRemote("TowerFactoryQueueUpdated")
     if not queueRemote then
-        print("[TDX] TowerFactoryQueueUpdated not found")
+        print("[TDX] TowerFactoryQueueUpdated remote not found")
         return
     end
 
     queueRemote.OnClientEvent:Connect(function(data)
-        -- The data IS the tower info table directly
-        if data and data[1] and data[2] and data[7] then
-            local realId = data[1]
-            local towerName = data[2]
-            local owner = data[7]
-            
-            if tostring(owner) == player.Name then
-                local macroId = nextMacroId
-                nextMacroId = nextMacroId + 1
-                
+        -- The data table uses numeric keys: 1=towerId, 2=towerName, 7=owner, 4=positionString
+        local realId = data[1]
+        local towerName = data[2]
+        local owner = data[7]
+        local posString = data[4]
+        local towerPos = parsePositionString(posString)
+
+        if tostring(owner) == player.Name and towerPos then
+            local macroId = findMatchingMacroId(towerName, towerPos)
+            if macroId then
                 macroToTowerId[macroId] = realId
-                print(string.format("[TDX] ✓ Tower placed: %s → Macro %d = Real ID %d", towerName, macroId, realId))
-                
+                print(string.format("[TDX] ✓ Mapped Macro %d → Tower ID %d (%s)", macroId, realId, towerName))
+
+                -- Process queued upgrade/sell for this macroId
                 if pendingUpgrade and pendingUpgrade.macroId == macroId then
                     task.wait(0.1)
                     TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
                     pendingUpgrade = nil
                 end
-                
                 if pendingSell == macroId then
                     task.wait(0.1)
                     TDX:Sell(pendingSell)
                     pendingSell = nil
                 end
-            end
-        else
-            -- Fallback: maybe wrapped one level
-            local wrapped = data[1]
-            if wrapped and wrapped[1] and wrapped[2] and wrapped[7] then
-                local realId = wrapped[1]
-                local towerName = wrapped[2]
-                local owner = wrapped[7]
-                
-                if tostring(owner) == player.Name then
-                    local macroId = nextMacroId
-                    nextMacroId = nextMacroId + 1
-                    
-                    macroToTowerId[macroId] = realId
-                    print(string.format("[TDX] ✓ Tower placed (wrapped): %s → Macro %d = Real ID %d", towerName, macroId, realId))
-                    
-                    if pendingUpgrade and pendingUpgrade.macroId == macroId then
-                        task.wait(0.1)
-                        TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
-                        pendingUpgrade = nil
-                    end
-                    
-                    if pendingSell == macroId then
-                        task.wait(0.1)
-                        TDX:Sell(pendingSell)
-                        pendingSell = nil
-                    end
-                end
+            else
+                -- No matching pending placement – could be a tower placed by other means
+                print(string.format("[TDX] No pending macro for tower '%s' at %s", towerName, posString))
             end
         end
     end)
-    
-    print("[TDX] SetupUpgradeListener ready - Macro IDs assigned automatically")
+
+    print("[TDX] SetupUpgradeListener ready – tower placements will be mapped by name+position")
 end
 
 return TDX
