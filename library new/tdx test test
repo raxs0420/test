@@ -18,7 +18,10 @@ local function parsePositionString(str)
     if type(str) ~= "string" then return nil end
     local parts = {}
     for part in string.gmatch(str, "[^,]+") do
-        table.insert(parts, tonumber(part))
+        local trimmed = part:match("^%s*(.-)%s*$")  -- remove leading/trailing spaces
+        local num = tonumber(trimmed)
+        if not num then return nil end
+        table.insert(parts, num)
     end
     if #parts == 3 then
         return Vector3.new(parts[1], parts[2], parts[3])
@@ -30,11 +33,9 @@ local function deepFindFlatTable(t, depth)
     depth = depth or 0
     if depth > 5 then return nil end
     if type(t) ~= "table" then return nil end
-    -- Check if this table has numeric keys 1,2,3...
     if t[1] ~= nil and type(t[1]) ~= "table" and t[2] ~= nil then
         return t
     end
-    -- Otherwise search inside each value
     for _, v in pairs(t) do
         if type(v) == "table" then
             local found = deepFindFlatTable(v, depth+1)
@@ -122,11 +123,9 @@ function TDX:SetupUpgradeListener()
     end
 
     queueRemote.OnClientEvent:Connect(function(data)
-        print("\n[TDX] === EVENT RECEIVED ===")
-        -- Automatically find the flat table (with numeric keys 1,2,3...)
         local flat = deepFindFlatTable(data)
         if not flat then
-            print("[TDX] Could not find flat table structure in event data")
+            print("[TDX] Could not find flat table in event")
             return
         end
 
@@ -135,11 +134,9 @@ function TDX:SetupUpgradeListener()
         local owner = flat[7]
         local posString = flat[4]
 
-        print("[TDX] Unwrapped -> ID:", realId, "Name:", towerName, "Owner:", owner, "PosStr:", posString)
-
         local towerPos = parsePositionString(posString)
         if not towerPos then
-            print("[TDX] Failed to parse position")
+            print("[TDX] Failed to parse position:", posString)
             return
         end
 
@@ -160,15 +157,12 @@ function TDX:SetupUpgradeListener()
                     pendingSell = nil
                 end
             else
-                print("[TDX] No matching pending placement for", towerName)
+                print("[TDX] No pending macro for", towerName, "at", towerPos)
             end
-        else
-            print("[TDX] Tower owned by", owner, "- ignoring")
         end
-        print("[TDX] ===================\n")
     end)
 
-    print("[TDX] Listener ready - will auto-detect nested event data")
+    print("[TDX] Listener ready - position spaces fixed")
 end
 
 return TDX
