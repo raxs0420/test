@@ -1790,6 +1790,7 @@ task.spawn(function()
         if _G.AutoUber and not auto_uber_running then start_auto_uber() end
         if _G.AutoSupport and not auto_support_running then start_auto_support() end
         task.wait(1)
+        if _G.AutoClaimRewards and not auto_claim_rewards then start_claim_rewards() end
     end
 end)
 
