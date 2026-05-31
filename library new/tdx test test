@@ -38,8 +38,8 @@ function TDX:Place(towerName, x, y, z, macroId)
 end
 
 function TDX:Upgrade(macroId, path, level)
-    -- Wait a bit for the event to register the tower
-    for i = 1, 30 do
+    -- Wait up to 5 seconds for the tower ID to be mapped
+    for i = 1, 50 do
         local towerId = macroToTowerId[macroId]
         if towerId then
             local remote = getRemote("TowerUpgradeRequest")
@@ -54,7 +54,7 @@ function TDX:Upgrade(macroId, path, level)
         task.wait(0.1)
     end
     
-    print(string.format("[TDX] Macro %d not found after 3 seconds, cannot upgrade", macroId))
+    print(string.format("[TDX] Macro %d not found after 5 seconds, cannot upgrade", macroId))
     return false
 end
 
@@ -76,6 +76,7 @@ function TDX:Sell(macroId)
     end)
 
     print(string.format("[TDX] Sell sent for Macro %d (ID: %d)", macroId, towerId))
+    macroToTowerId[macroId] = nil
     return true
 end
 
@@ -105,19 +106,27 @@ function TDX:SetupUpgradeListener()
             local ownerId = towerData[7]
             local pos = towerData[4]
             
-            print(string.format("[TDX] Detected: %s (ID: %s) owned by %s", towerName, towerId, ownerId))
+            print(string.format("[TDX] Event: %s (ID: %s) owned by %s", towerName, towerId, ownerId))
             
             if tostring(ownerId) == player.Name then
+                -- Check pending placements
+                local matched = false
                 for macroId, pending in pairs(pendingPlacements) do
                     if pending.name == towerName then
                         local dist = (pending.pos - pos).Magnitude
-                        if dist < 5 then
+                        print(string.format("[TDX] Checking Macro %d - Distance: %.2f", macroId, dist))
+                        if dist < 3 then
                             macroToTowerId[macroId] = towerId
-                            print(string.format("[TDX] ✓ Macro %d → ID: %s (%s)", macroId, towerId, towerName))
+                            print(string.format("[TDX] ✓ Macro %d → ID: %s", macroId, towerId))
                             pendingPlacements[macroId] = nil
+                            matched = true
                             break
                         end
                     end
+                end
+                
+                if not matched then
+                    print(string.format("[TDX] No matching pending placement for ID %s", towerId))
                 end
             end
         end
