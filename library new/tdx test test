@@ -13,18 +13,21 @@ local function getRemote(name)
 end
 
 local function extractTowerId(part)
-    local dataModel = part:FindFirstChild("DataModel")
-    if dataModel then
-        local data = dataModel:FindFirstChild("Data")
-        if data then
-            local dataValue = data:FindFirstChild("Data")
-            if dataValue and dataValue.Value and type(dataValue.Value) == "table" then
-                local valueTable = dataValue.Value
-                if valueTable[1] and valueTable[1][1] then
-                    return valueTable[1][1]
+    for i = 1, 10 do
+        local dataModel = part:FindFirstChild("DataModel")
+        if dataModel then
+            local data = dataModel:FindFirstChild("Data")
+            if data then
+                local dataValue = data:FindFirstChild("Data")
+                if dataValue and dataValue.Value and type(dataValue.Value) == "table" then
+                    local valueTable = dataValue.Value
+                    if valueTable[1] and valueTable[1][1] then
+                        return valueTable[1][1]
+                    end
                 end
             end
         end
+        task.wait(0.1)
     end
     return nil
 end
@@ -35,13 +38,13 @@ function TDX:Place(towerName, x, y, z, macroId)
         print("[TDX] PlaceTower remote not found")
         return false 
     end
-    
+
     local pos = Vector3.new(x, y, z)
-    
+
     local success, result = pcall(function()
         return remote:InvokeServer(0, towerName, pos, 0)
     end)
-    
+
     if success and result == true then
         pendingPlacements[macroId] = {
             name = towerName,
@@ -49,10 +52,9 @@ function TDX:Place(towerName, x, y, z, macroId)
             time = tick()
         }
         print(string.format("[TDX] Place command sent for Macro %d (%s)", macroId, towerName))
-        task.wait(0.2)
         return true
     end
-    
+
     return false
 end
 
@@ -62,19 +64,18 @@ function TDX:Upgrade(macroId, path, level)
         print(string.format("[TDX] Macro %d not found, cannot upgrade", macroId))
         return false
     end
-    
+
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then
         print("[TDX] TowerUpgradeRequest remote not found")
         return false
     end
-    
+
     pcall(function()
         remote:FireServer(towerId, path, level)
     end)
-    
-    print(string.format("[TDX] Upgrade sent for Macro %d (Tower ID %d) - %s Lv%d", macroId, towerId, path, level))
-    task.wait(0.2)
+
+    print(string.format("[TDX] Upgrade sent for Macro %d (Real ID: %d) - %s Lv%d", macroId, towerId, path, level))
     return true
 end
 
@@ -84,19 +85,18 @@ function TDX:Sell(macroId)
         print(string.format("[TDX] Macro %d not found, cannot sell", macroId))
         return false
     end
-    
+
     local remote = getRemote("SellTower")
     if not remote then
         print("[TDX] SellTower remote not found")
         return false
     end
-    
+
     pcall(function()
         remote:FireServer(towerId)
     end)
-    
-    print(string.format("[TDX] Sell sent for Macro %d (Tower ID %d)", macroId, towerId))
-    task.wait(0.2)
+
+    print(string.format("[TDX] Sell sent for Macro %d (Real ID: %d)", macroId, towerId))
     return true
 end
 
@@ -105,22 +105,30 @@ local function setupListeners()
     if not towersFolder then
         task.wait(1)
         towersFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Towers")
-        if not towersFolder then return end
+        if not towersFolder then 
+            print("[TDX] Towers folder not found")
+            return 
+        end
     end
-    
+
     towersFolder.ChildAdded:Connect(function(part)
         if part:IsA("BasePart") then
-            task.wait(0.15)
+            task.wait(0.3)
             
             local towerId = extractTowerId(part)
-            if not towerId then return end
-            
+            if not towerId then
+                print(string.format("[TDX] Could not extract ID for %s", part.Name))
+                return
+            end
+
+            print(string.format("[TDX] Tower placed: %s | Real ID: %d", part.Name, towerId))
+
             for macroId, data in pairs(pendingPlacements) do
                 if data.name == part.Name then
                     local dist = (part.Position - data.pos).Magnitude
-                    if dist < 0.5 then
+                    if dist < 1 then
                         macroToTowerId[macroId] = towerId
-                        print(string.format("[TDX] ✓ Macro %d → Tower ID %d (%s)", macroId, towerId, part.Name))
+                        print(string.format("[TDX] ✓ Macro %d → Real ID: %d (%s)", macroId, towerId, part.Name))
                         pendingPlacements[macroId] = nil
                         break
                     end
@@ -128,18 +136,24 @@ local function setupListeners()
             end
         end
     end)
-    
+
     towersFolder.ChildRemoved:Connect(function(part)
         if part:IsA("BasePart") then
             task.wait(0.1)
-            local towerId = extractTowerId(part)
-            if towerId then
-                for macroId, id in pairs(macroToTowerId) do
-                    if id == towerId then
-                        macroToTowerId[macroId] = nil
-                        print(string.format("[TDX] ✗ Macro %d (Tower ID %d) removed", macroId, towerId))
-                        break
+            for macroId, id in pairs(macroToTowerId) do
+                local found = false
+                for _, p in ipairs(towersFolder:GetChildren()) do
+                    if p:IsA("BasePart") then
+                        local pid = extractTowerId(p)
+                        if pid == id then
+                            found = true
+                            break
+                        end
                     end
+                end
+                if not found then
+                    print(string.format("[TDX] ✗ Macro %d (Real ID: %d) removed", macroId, id))
+                    macroToTowerId[macroId] = nil
                 end
             end
         end
@@ -149,25 +163,25 @@ end
 local upgradeListenerSetup = false
 function TDX:SetupUpgradeListener()
     if upgradeListenerSetup then return end
-    
+
     local queueRemote = getRemote("TowerUpgradeQueueUpdated")
     if not queueRemote then
         print("[TDX] TowerUpgradeQueueUpdated not found")
         return
     end
-    
+
     queueRemote.OnClientEvent:Connect(function(data)
         if type(data) ~= "table" then return end
-        
+
         local entries = (#data > 0) and data or {data}
-        
+
         for _, entry in ipairs(entries) do
             local towerId = entry.Hash or entry.hash or entry.Id or entry.id
             if towerId then
                 if type(towerId) == "string" then
                     towerId = tonumber(towerId)
                 end
-                
+
                 if towerId then
                     local macroId = nil
                     for mId, tId in pairs(macroToTowerId) do
@@ -176,17 +190,17 @@ function TDX:SetupUpgradeListener()
                             break
                         end
                     end
-                    
+
                     if macroId then
-                        print(string.format("[TDX] ✓ Upgrade confirmed for Macro %d (Tower ID %d)", macroId, towerId))
+                        print(string.format("[TDX] ✓ Upgrade confirmed for Macro %d (Real ID: %d)", macroId, towerId))
                     else
-                        print(string.format("[TDX] Upgrade confirmed for Tower ID %d", towerId))
+                        print(string.format("[TDX] Upgrade confirmed for Real ID: %d", towerId))
                     end
                 end
             end
         end
     end)
-    
+
     upgradeListenerSetup = true
     print("[TDX] Upgrade listener ready")
 end
