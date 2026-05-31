@@ -86,52 +86,50 @@ function TDX:SetupUpgradeListener()
         return
     end
 
-    queueRemote.OnClientEvent:Connect(function(data)
-        print("[TDX] Event received!")
+    queueRemote.OnClientEvent:Connect(function(...)
+        local args = {...}
         
-        -- EXACT same logic as your working script
-        if data[1] and data[1][1] then
-            local towerData = data[1][1]
-            if towerData.Data and towerData.Data[1] then
-                local id = towerData.Data[1][1]
-                local name = towerData.Data[1][2]
-                local owner = towerData.Data[1][7]
-                local pos = towerData.Data[1][4]
-                
-                print(string.format("[TDX] Extracted: ID=%s, Name=%s, Owner=%s", id, name, owner))
-                
-                if tostring(owner) == player.Name then
-                    for macroId, pending in pairs(pendingPlacements) do
-                        if pending.name == name then
-                            local dist = (pending.pos - pos).Magnitude
-                            if dist < 5 then
-                                macroToTowerId[macroId] = id
-                                print(string.format("[TDX] ✓ Macro %d → ID: %s", macroId, id))
-                                pendingPlacements[macroId] = nil
-                                break
-                            end
+        -- Try different possible structures
+        local towerData = nil
+        
+        -- Structure 1: args[1][1].Data[1]
+        if args[1] and args[1][1] and args[1][1].Data and args[1][1].Data[1] then
+            towerData = args[1][1].Data[1]
+        -- Structure 2: args[1].Data[1] (if unpacked differently)
+        elseif args[1] and args[1].Data and args[1].Data[1] then
+            towerData = args[1].Data[1]
+        -- Structure 3: direct
+        elseif args[1] and args[1][1] and args[1][1][1] then
+            towerData = args[1][1][1]
+        end
+        
+        if towerData then
+            local towerId = towerData[1]
+            local towerName = towerData[2]
+            local ownerId = towerData[7]
+            local pos = towerData[4]
+            
+            print(string.format("[TDX] Detected: %s (ID: %s) owned by %s", towerName, towerId, ownerId))
+            
+            if tostring(ownerId) == player.Name then
+                for macroId, pending in pairs(pendingPlacements) do
+                    if pending.name == towerName then
+                        local dist = (pending.pos - pos).Magnitude
+                        if dist < 5 then
+                            macroToTowerId[macroId] = towerId
+                            print(string.format("[TDX] ✓ Macro %d → ID: %s (%s)", macroId, towerId, towerName))
+                            pendingPlacements[macroId] = nil
+                            break
                         end
                     end
                 end
-            else
-                print("[TDX] towerData.Data or Data[1] is nil")
-                print("[TDX] towerData keys:", GetKeys(towerData))
             end
         else
-            print("[TDX] data[1] or data[1][1] is nil")
-            print("[TDX] data keys:", GetKeys(data))
+            print("[TDX] Could not parse tower data from event")
         end
     end)
     
     print("[TDX] SetupUpgradeListener ready")
-end
-
-function GetKeys(t)
-    local keys = {}
-    for k in pairs(t) do
-        table.insert(keys, k)
-    end
-    return table.concat(keys, ", ")
 end
 
 return TDX
