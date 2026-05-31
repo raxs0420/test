@@ -14,6 +14,7 @@ local gameOverTriggered = false
 local hashToPart = {}
 local partToHash = {}
 local macroIdToHash = {}
+local bruteForceInProgress = {}
 
 local function ensureRemotes()
     if Remotes then return Remotes end
@@ -78,37 +79,6 @@ end
 
 RunService.Stepped:Connect(syncTowers)
 
-local upgradeListener = nil
-function TDX:ListenForHashes()
-    if upgradeListener then return end
-    local queueRemote = getRemote("TowerUpgradeQueueUpdated")
-    if not queueRemote then
-        task.delay(1, function() TDX:ListenForHashes() end)
-        return
-    end
-    upgradeListener = queueRemote.OnClientEvent:Connect(function(data)
-        local entries = (#data > 0) and data or {data}
-        for _, entry in ipairs(entries) do
-            local hash = entry.Hash or entry.hash
-            if hash and type(hash) == "number" then
-                if not hashToPart[hash] then
-                    for _, part in ipairs(towersFolder:GetChildren()) do
-                        if part:IsA("BasePart") and not partToHash[part] then
-                            local partHash = part:GetAttribute("Hash") or (part:FindFirstChild("Hash") and part.Hash.Value)
-                            if partHash == hash then
-                                hashToPart[hash] = part
-                                partToHash[part] = hash
-                                break
-                            end
-                        end
-                    end
-                end
-                print(string.format("[TDX] Hash detected: %d", hash))
-            end
-        end
-    end)
-end
-
 function TDX:Place(name, x, y, z, rot, cost, macroId)
     local remote = getRemote("PlaceTower")
     if not remote then return false end
@@ -119,26 +89,34 @@ function TDX:Place(name, x, y, z, rot, cost, macroId)
     end)
     if ok and res == true then
         print(string.format("[TDX] Placed %s at (%.1f, %.1f, %.1f)", name, x, y, z))
-        if macroId then
+        task.wait(0.3)
+        if macroId and not macroIdToHash[macroId] then
+            bruteForceInProgress[macroId] = true
             task.spawn(function()
-                for _ = 1, 30 do
-                    local foundHash = nil
-                    for h, p in pairs(hashToPart) do
-                        if (p.Position - pos).Magnitude < 0.5 then
-                            foundHash = h
-                            break
-                        end
+                local upgradeRemote = getRemote("TowerUpgradeRequest")
+                if not upgradeRemote then return end
+                for tryHash = 1, 140 do
+                    if not bruteForceInProgress[macroId] then break end
+                    if TDX:GetCash() < 2300 then
+                        task.wait(0.5)
                     end
-                    if foundHash then
-                        macroIdToHash[macroId] = foundHash
-                        print(string.format("[TDX] Macro %d → hash %d", macroId, foundHash))
+                    local success = pcall(function()
+                        upgradeRemote:FireServer(tryHash, 1, 1)
+                    end)
+                    if success then
+                        macroIdToHash[macroId] = tryHash
+                        bruteForceInProgress[macroId] = nil
+                        print(string.format("[TDX] Macro %d → hash %d (brute force)", macroId, tryHash))
                         break
                     end
-                    task.wait(0.1)
+                    task.wait(0.05)
+                end
+                if not macroIdToHash[macroId] then
+                    print(string.format("[TDX] Brute force failed for macro %d", macroId))
+                    bruteForceInProgress[macroId] = nil
                 end
             end)
         end
-        task.wait(0.5)
         return true
     end
     return false
@@ -147,11 +125,19 @@ end
 function TDX:Upgrade(macroIdOrHash, path, level, cost)
     local actualHash = macroIdOrHash
     if type(macroIdOrHash) == "number" and macroIdOrHash < 10000 then
-        actualHash = macroIdToHash[macroIdOrHash]
-        if not actualHash then
-            warn(string.format("[TDX] No hash for macro ID %d", macroIdOrHash))
-            return false
+        if not macroIdToHash[macroIdOrHash] then
+            if bruteForceInProgress[macroIdOrHash] then
+                local start = tick()
+                while not macroIdToHash[macroIdOrHash] and tick() - start < 5 do
+                    task.wait(0.05)
+                end
+            end
+            if not macroIdToHash[macroIdOrHash] then
+                warn(string.format("[TDX] No hash for macro ID %d", macroIdOrHash))
+                return false
+            end
         end
+        actualHash = macroIdToHash[macroIdOrHash]
     end
     local part = hashToPart[actualHash]
     if not part or not isPartAlive(part) then
@@ -489,6 +475,7 @@ function TDX:ResetMappings()
     hashToPart={}
     partToHash={}
     macroIdToHash={}
+    bruteForceInProgress={}
 end
 
 local function checkGameOver()
@@ -560,7 +547,6 @@ local function startCoinCollector()
     end)
 end
 
-TDX:ListenForHashes()
 checkGameOver()
 startCoinCollector()
 
