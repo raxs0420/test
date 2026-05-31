@@ -16,7 +16,6 @@ local Camera = Workspace.CurrentCamera
 local RemoteFunction = ReplicatedStorage:WaitForChild("RemoteFunction")
 local isUpgrading = false
 
-
 task.wait(1)
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
@@ -69,6 +68,14 @@ local autoTab = Library:CreateButton(
     "AUTOMATION",
     UDim2.new(1, -Library:ScaleX(1), 0, tabHeight),
     UDim2.new(0, Library:ScaleX(0.5), 0, startY + (tabHeight + tabSpacing) * 2),
+    Library.Colors.BackgroundLight
+)
+
+local mapsTab = Library:CreateButton(
+    leftPanel,
+    "MAPS",
+    UDim2.new(1, -Library:ScaleX(1), 0, tabHeight),
+    UDim2.new(0, Library:ScaleX(0.5), 0, startY + (tabHeight + tabSpacing) * 3),
     Library.Colors.BackgroundLight
 )
 
@@ -815,7 +822,7 @@ end
 local function startPeriodicRefresh()
     task.spawn(function()
         while periodicRefreshEnabled do
-            task.wait(0.7)
+            task.wait(10)
 
             if contentFrames["MANAGER"] and contentFrames["MANAGER"].Visible and currentManagerScrollFrame then
                 updateTowerButtons(currentManagerScrollFrame)
@@ -877,6 +884,116 @@ local function flashButton(button, color, text)
             button.Text = originalText
         end
     end
+end
+
+local settingsFilePath = "TDS_Auto_Settings.json"
+local function loadSettings()
+    local defaultSettings = {
+        AutoSkip = false,
+        AutoSmartSkip = false,
+        AutoNecro = false,
+        AutoUber = false,
+        AutoDJ = false,
+        AutoSupport = false,
+        AutoChain = false,
+        AutoPickups = false,
+        AutoMercenary = false,
+        SellFarms = false,
+        MercDistance = 167,
+        WaveFS = 40
+    }
+    if writefile and readfile then
+        local success, data = pcall(readfile, settingsFilePath)
+        if success and data then
+            local decoded = HttpService:JSONDecode(data)
+            for k, v in pairs(decoded) do
+                defaultSettings[k] = v
+            end
+        end
+    end
+    for k, v in pairs(defaultSettings) do
+        _G[k] = v
+    end
+end
+
+local function saveSettings()
+    if not (writefile and readfile) then return end
+    local settings = {
+        AutoSkip = _G.AutoSkip,
+        AutoSmartSkip = _G.AutoSmartSkip,
+        AutoNecro = _G.AutoNecro,
+        AutoUber = _G.AutoUber,
+        AutoDJ = _G.AutoDJ,
+        AutoSupport = _G.AutoSupport,
+        AutoChain = _G.AutoChain,
+        AutoPickups = _G.AutoPickups,
+        AutoMercenary = _G.AutoMercenary,
+        SellFarms = _G.SellFarms,
+        WaveFS = _G.WaveFS
+    }
+    local json = HttpService:JSONEncode(settings)
+    pcall(writefile, settingsFilePath, json)
+end
+loadSettings()
+
+local function FindPath()
+    local MapFolder = workspace:FindFirstChild("Map")
+    if not MapFolder then return nil end
+    local PathsFolder = MapFolder:FindFirstChild("Paths")
+    if not PathsFolder then return nil end
+    local PathFolder = PathsFolder:GetChildren()[1]
+    if not PathFolder then return nil end
+
+    local PathNodes = {}
+    for _, node in ipairs(PathFolder:GetChildren()) do
+        if node:IsA("BasePart") then
+            table.insert(PathNodes, node)
+        end
+    end
+
+    table.sort(PathNodes, function(a, b)
+        local NumA = tonumber(a.Name:match("%d+"))
+        local NumB = tonumber(b.Name:match("%d+"))
+        if NumA and NumB then return NumA < NumB end
+        return a.Name < b.Name
+    end)
+
+    return PathNodes
+end
+
+local function TotalLength(PathNodes)
+    local TotalLength = 0
+    for i = 1, #PathNodes - 1 do
+        TotalLength = TotalLength + (PathNodes[i + 1].Position - PathNodes[i].Position).Magnitude
+    end
+    return TotalLength
+end
+
+local function GetPointAtDistance(PathNodes, distance)
+    if not PathNodes or #PathNodes < 2 then return nil end
+
+    local CurrentDist = 0
+    for i = 1, #PathNodes - 1 do
+        local StartPos = PathNodes[i].Position
+        local EndPos = PathNodes[i+1].Position
+        local SegmentLen = (EndPos - StartPos).Magnitude
+
+        if CurrentDist + SegmentLen >= distance then
+            local remaining = distance - CurrentDist
+            local direction = (EndPos - StartPos).Unit
+            return StartPos + (direction * remaining)
+        end
+        CurrentDist = CurrentDist + SegmentLen
+    end
+    return PathNodes[#PathNodes].Position
+end
+
+local function GetPathMaxDistance()
+    local PathNodes = FindPath()
+    if PathNodes and #PathNodes > 0 then
+        return TotalLength(PathNodes)
+    end
+    return 250
 end
 
 local function createSwitcherTab()
@@ -986,17 +1103,19 @@ local function createManagerTab()
     )
 
     local towerScrollFrame = Library:CreateScrollingFrame(
-        contentFrame,
-        UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(12)),
-        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1)),
-        Library.Colors.BackgroundDarker
+    contentFrame,
+    UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(12)),
+    UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1)),
+    Library.Colors.BackgroundDarker
     )
     towerScrollFrame.ScrollBarThickness = 8
     towerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     Library:AddCorner(towerScrollFrame, 6)
     Library:AddStroke(towerScrollFrame, 1, Library.Colors.Border)
-
+    
     currentManagerScrollFrame = towerScrollFrame
+    
+    setupTowerUpdates(towerScrollFrame)
 
     local buttonContainer = Library:CreateFrame(
         contentFrame,
@@ -1211,7 +1330,7 @@ local function createManagerTab()
             if upgradedCount > 0 then
                 upgradeBtn.BackgroundColor3 = Library.Colors.Success
                 upgradeBtn.Text = "UP " .. upgradedCount
-                task.wait(0.2)
+                task.wait(0.05)
             end
         end
         
@@ -1247,8 +1366,8 @@ local function createAutomationTab()
     local autoSkipBtn = Instance.new("TextButton")
     autoSkipBtn.Size = UDim2.new(0, halfWidth, 0, buttonHeight)
     autoSkipBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
-    autoSkipBtn.BackgroundColor3 = Library.Colors.Accent
-    autoSkipBtn.Text = "Auto Skip: OFF"
+    autoSkipBtn.BackgroundColor3 = _G.AutoSkip and Library.Colors.Success or Library.Colors.Accent
+    autoSkipBtn.Text = _G.AutoSkip and "Auto Skip: ON" or "Auto Skip: OFF"
     autoSkipBtn.TextColor3 = Library.Colors.Text
     autoSkipBtn.Font = Library.Fonts.Bold
     autoSkipBtn.TextSize = Library:ScaleY(1.3)
@@ -1259,8 +1378,8 @@ local function createAutomationTab()
     local autoSmartSkipBtn = Instance.new("TextButton")
     autoSmartSkipBtn.Size = UDim2.new(0, halfWidth, 0, buttonHeight)
     autoSmartSkipBtn.Position = UDim2.new(0, Library:ScaleX(2) + halfWidth + Library:ScaleX(1), 0, yPos)
-    autoSmartSkipBtn.BackgroundColor3 = Library.Colors.Accent
-    autoSmartSkipBtn.Text = "Smart Skip: OFF"
+    autoSmartSkipBtn.BackgroundColor3 = _G.AutoSmartSkip and Library.Colors.Success or Library.Colors.Accent
+    autoSmartSkipBtn.Text = _G.AutoSmartSkip and "Smart Skip: ON" or "Smart Skip: OFF"
     autoSmartSkipBtn.TextColor3 = Library.Colors.Text
     autoSmartSkipBtn.Font = Library.Fonts.Bold
     autoSmartSkipBtn.TextSize = Library:ScaleY(1.3)
@@ -1271,8 +1390,8 @@ local function createAutomationTab()
     local autoNecroBtn = Instance.new("TextButton")
     autoNecroBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
     autoNecroBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + buttonHeight + buttonSpacing)
-    autoNecroBtn.BackgroundColor3 = Library.Colors.Accent
-    autoNecroBtn.Text = "Auto Necromancer: OFF"
+    autoNecroBtn.BackgroundColor3 = _G.AutoNecro and Library.Colors.Success or Library.Colors.Accent
+    autoNecroBtn.Text = _G.AutoNecro and "Auto Necromancer: ON" or "Auto Necromancer: OFF"
     autoNecroBtn.TextColor3 = Library.Colors.Text
     autoNecroBtn.Font = Library.Fonts.Bold
     autoNecroBtn.TextSize = Library:ScaleY(1.3)
@@ -1283,8 +1402,8 @@ local function createAutomationTab()
     local autoUberBtn = Instance.new("TextButton")
     autoUberBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
     autoUberBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 2)
-    autoUberBtn.BackgroundColor3 = Library.Colors.Accent
-    autoUberBtn.Text = "Auto Uber: OFF"
+    autoUberBtn.BackgroundColor3 = _G.AutoUber and Library.Colors.Success or Library.Colors.Accent
+    autoUberBtn.Text = _G.AutoUber and "Auto Uber: ON" or "Auto Uber: OFF"
     autoUberBtn.TextColor3 = Library.Colors.Text
     autoUberBtn.Font = Library.Fonts.Bold
     autoUberBtn.TextSize = Library:ScaleY(1.3)
@@ -1295,8 +1414,8 @@ local function createAutomationTab()
     local autoDJBtn = Instance.new("TextButton")
     autoDJBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
     autoDJBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 3)
-    autoDJBtn.BackgroundColor3 = Library.Colors.Accent
-    autoDJBtn.Text = "Auto DJ Booth: OFF"
+    autoDJBtn.BackgroundColor3 = _G.AutoDJ and Library.Colors.Success or Library.Colors.Accent
+    autoDJBtn.Text = _G.AutoDJ and "Auto DJ Booth: ON" or "Auto DJ Booth: OFF"
     autoDJBtn.TextColor3 = Library.Colors.Text
     autoDJBtn.Font = Library.Fonts.Bold
     autoDJBtn.TextSize = Library:ScaleY(1.3)
@@ -1307,8 +1426,8 @@ local function createAutomationTab()
     local autoSupportBtn = Instance.new("TextButton")
     autoSupportBtn.Size = UDim2.new(0, halfWidth, 0, buttonHeight)
     autoSupportBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 4)
-    autoSupportBtn.BackgroundColor3 = Library.Colors.Accent
-    autoSupportBtn.Text = "Auto Support: OFF"
+    autoSupportBtn.BackgroundColor3 = _G.AutoSupport and Library.Colors.Success or Library.Colors.Accent
+    autoSupportBtn.Text = _G.AutoSupport and "Auto Support: ON" or "Auto Support: OFF"
     autoSupportBtn.TextColor3 = Library.Colors.Text
     autoSupportBtn.Font = Library.Fonts.Bold
     autoSupportBtn.TextSize = Library:ScaleY(1.3)
@@ -1319,8 +1438,8 @@ local function createAutomationTab()
     local autoChainBtn = Instance.new("TextButton")
     autoChainBtn.Size = UDim2.new(0, halfWidth, 0, buttonHeight)
     autoChainBtn.Position = UDim2.new(0, Library:ScaleX(2) + halfWidth + Library:ScaleX(1), 0, yPos + (buttonHeight + buttonSpacing) * 4)
-    autoChainBtn.BackgroundColor3 = Library.Colors.Accent
-    autoChainBtn.Text = "Auto Chain: OFF"
+    autoChainBtn.BackgroundColor3 = _G.AutoChain and Library.Colors.Success or Library.Colors.Accent
+    autoChainBtn.Text = _G.AutoChain and "Auto Chain: ON" or "Auto Chain: OFF"
     autoChainBtn.TextColor3 = Library.Colors.Text
     autoChainBtn.Font = Library.Fonts.Bold
     autoChainBtn.TextSize = Library:ScaleY(1.3)
@@ -1331,8 +1450,8 @@ local function createAutomationTab()
     local autoPickupsBtn = Instance.new("TextButton")
     autoPickupsBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
     autoPickupsBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 5)
-    autoPickupsBtn.BackgroundColor3 = Library.Colors.Accent
-    autoPickupsBtn.Text = "Auto Pickups: OFF"
+    autoPickupsBtn.BackgroundColor3 = _G.AutoPickups and Library.Colors.Success or Library.Colors.Accent
+    autoPickupsBtn.Text = _G.AutoPickups and "Auto Pickups: ON" or "Auto Pickups: OFF"
     autoPickupsBtn.TextColor3 = Library.Colors.Text
     autoPickupsBtn.Font = Library.Fonts.Bold
     autoPickupsBtn.TextSize = Library:ScaleY(1.3)
@@ -1340,24 +1459,145 @@ local function createAutomationTab()
     autoPickupsBtn.AutoButtonColor = false
     Library:AddCorner(autoPickupsBtn, 4)
     Library:AddStroke(autoPickupsBtn, 1, Library.Colors.Border)
+
     local mercenaryContainer = Instance.new("Frame")
-    mercenaryContainer.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight + Library:ScaleY(4))
+    mercenaryContainer.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight + Library:ScaleY(6))
     mercenaryContainer.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 6)
     mercenaryContainer.BackgroundTransparency = 1
     mercenaryContainer.Parent = scrollFrame
-    local distanceBox = Library:CreateTextBox(
-        mercenaryContainer,
-        "Mercenary Distance (1-250)",
-        UDim2.new(1, 0, 0, Library:ScaleY(3.5)),
-        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
-    )
-    distanceBox.Text = "195"
-    distanceBox.Position = UDim2.new(0, 0, 0, 0)
+
+    local sliderLabel = Instance.new("TextLabel")
+    sliderLabel.Size = UDim2.new(1, 0, 0, Library:ScaleY(3))
+    sliderLabel.Position = UDim2.new(0, 0, 0, 0)
+    sliderLabel.BackgroundTransparency = 1
+    sliderLabel.TextColor3 = Library.Colors.Text
+    sliderLabel.TextSize = Library:ScaleY(1.1)
+    sliderLabel.Font = Library.Fonts.Bold
+    sliderLabel.Text = "Mercenary Distance: " .. tostring(_G.MercDistance) .. " studs"
+    sliderLabel.Parent = mercenaryContainer
+
+    local sliderFrame = Instance.new("Frame")
+    sliderFrame.Size = UDim2.new(1, 0, 0, Library:ScaleY(2))
+    sliderFrame.Position = UDim2.new(0, 0, 0, Library:ScaleY(3.5))
+    sliderFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    sliderFrame.BorderSizePixel = 0
+    sliderFrame.Parent = mercenaryContainer
+    Library:AddCorner(sliderFrame, 4)
+
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Size = UDim2.new(0, 0, 1, 0)
+    sliderFill.BackgroundColor3 = Library.Colors.Accent
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Parent = sliderFrame
+    Library:AddCorner(sliderFill, 4)
+
+    local sliderButton = Instance.new("TextButton")
+    sliderButton.Size = UDim2.new(0, Library:ScaleX(2), 0, Library:ScaleY(3.5))
+    sliderButton.Position = UDim2.new(0, -Library:ScaleX(1), 0.5, -Library:ScaleY(1.75))
+    sliderButton.BackgroundColor3 = Library.Colors.Text
+    sliderButton.Text = ""
+    sliderButton.AutoButtonColor = false
+    sliderButton.Parent = sliderFrame
+    Library:AddCorner(sliderButton, 10)
+
+    local minusBtn = Instance.new("TextButton")
+    minusBtn.Size = UDim2.new(0, Library:ScaleX(3), 0, Library:ScaleY(3.5))
+    minusBtn.Position = UDim2.new(0, 0, 0, Library:ScaleY(7))
+    minusBtn.BackgroundColor3 = Library.Colors.BackgroundLight
+    minusBtn.Text = "-5"
+    minusBtn.TextColor3 = Library.Colors.Text
+    minusBtn.Font = Library.Fonts.Bold
+    minusBtn.TextSize = Library:ScaleY(1.2)
+    minusBtn.Parent = mercenaryContainer
+    Library:AddCorner(minusBtn, 4)
+    Library:AddStroke(minusBtn, 1, Library.Colors.Border)
+
+    local plusBtn = Instance.new("TextButton")
+    plusBtn.Size = UDim2.new(0, Library:ScaleX(3), 0, Library:ScaleY(3.5))
+    plusBtn.Position = UDim2.new(1, -Library:ScaleX(3), 0, Library:ScaleY(7))
+    plusBtn.BackgroundColor3 = Library.Colors.BackgroundLight
+    plusBtn.Text = "+5"
+    plusBtn.TextColor3 = Library.Colors.Text
+    plusBtn.Font = Library.Fonts.Bold
+    plusBtn.TextSize = Library:ScaleY(1.2)
+    plusBtn.Parent = mercenaryContainer
+    Library:AddCorner(plusBtn, 4)
+    Library:AddStroke(plusBtn, 1, Library.Colors.Border)
+
+    local currentMaxDistance = GetPathMaxDistance()
+    local function updateSliderMax()
+        currentMaxDistance = GetPathMaxDistance()
+        if currentMaxDistance < 1 then currentMaxDistance = 250 end
+        if _G.MercDistance > currentMaxDistance then
+            _G.MercDistance = currentMaxDistance
+        end
+        sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(_G.MercDistance)) .. " / " .. math.floor(currentMaxDistance) .. " studs"
+        local percent = math.clamp(_G.MercDistance / currentMaxDistance, 0, 1)
+        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+        local buttonPosX = math.clamp(percent * sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X/2, 0, sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X)
+        sliderButton.Position = UDim2.new(0, buttonPosX, 0.5, -sliderButton.AbsoluteSize.Y/2)
+        saveSettings()
+    end
+
+    local dragging = false
+    local function startDrag() dragging = true end
+    local function stopDrag() dragging = false end
+
+    sliderButton.MouseButton1Down:Connect(startDrag)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    local function updateSliderFromInput()
+        if not dragging then return end
+        local mousePos = UIS:GetMouseLocation()
+        if mousePos.X == 0 and mousePos.Y == 0 then
+            local touches = UIS:GetTouchPositions()
+            if #touches > 0 then
+                mousePos = touches[1]
+            else
+                return
+            end
+        end
+        local framePos = sliderFrame.AbsolutePosition.X
+        local relativeX = math.clamp(mousePos.X - framePos, 0, sliderFrame.AbsoluteSize.X)
+        local percent = relativeX / sliderFrame.AbsoluteSize.X
+        local newDist = percent * currentMaxDistance
+        newDist = math.clamp(newDist, 1, currentMaxDistance)
+        if math.abs(_G.MercDistance - newDist) > 0.5 then
+            _G.MercDistance = newDist
+            sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(_G.MercDistance)) .. " / " .. math.floor(currentMaxDistance) .. " studs"
+            sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+            local buttonPosX = math.clamp(percent * sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X/2, 0, sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X)
+            sliderButton.Position = UDim2.new(0, buttonPosX, 0.5, -sliderButton.AbsoluteSize.Y/2)
+            saveSettings()
+        end
+    end
+
+    RunService.RenderStepped:Connect(updateSliderFromInput)
+
+    minusBtn.MouseButton1Click:Connect(function()
+        local newDist = _G.MercDistance - 5
+        if newDist < 1 then newDist = 1 end
+        _G.MercDistance = newDist
+        if _G.MercDistance > currentMaxDistance then _G.MercDistance = currentMaxDistance end
+        updateSliderMax()
+    end)
+
+    plusBtn.MouseButton1Click:Connect(function()
+        local newDist = _G.MercDistance + 5
+        if newDist > currentMaxDistance then newDist = currentMaxDistance end
+        _G.MercDistance = newDist
+        updateSliderMax()
+    end)
+
     local autoMercenaryBtn = Instance.new("TextButton")
     autoMercenaryBtn.Size = UDim2.new(1, 0, 0, buttonHeight)
-    autoMercenaryBtn.Position = UDim2.new(0, 0, 0, Library:ScaleY(4))
-    autoMercenaryBtn.BackgroundColor3 = Library.Colors.Accent
-    autoMercenaryBtn.Text = "Auto Mercenary: OFF"
+    autoMercenaryBtn.Position = UDim2.new(0, 0, 0, Library:ScaleY(12))
+    autoMercenaryBtn.BackgroundColor3 = _G.AutoMercenary and Library.Colors.Success or Library.Colors.Accent
+    autoMercenaryBtn.Text = _G.AutoMercenary and "Auto Mercenary: ON" or "Auto Mercenary: OFF"
     autoMercenaryBtn.TextColor3 = Library.Colors.Text
     autoMercenaryBtn.Font = Library.Fonts.Bold
     autoMercenaryBtn.TextSize = Library:ScaleY(1.3)
@@ -1365,9 +1605,34 @@ local function createAutomationTab()
     autoMercenaryBtn.AutoButtonColor = false
     Library:AddCorner(autoMercenaryBtn, 4)
     Library:AddStroke(autoMercenaryBtn, 1, Library.Colors.Border)
+
+    autoMercenaryBtn.MouseButton1Click:Connect(function()
+        _G.AutoMercenary = not _G.AutoMercenary
+        if _G.AutoMercenary then
+            autoMercenaryBtn.BackgroundColor3 = Library.Colors.Success
+            autoMercenaryBtn.Text = "Auto Mercenary: ON"
+        else
+            autoMercenaryBtn.BackgroundColor3 = Library.Colors.Accent
+            autoMercenaryBtn.Text = "Auto Mercenary: OFF"
+        end
+        saveSettings()
+    end)
+
+    local function periodicUpdateMax()
+        while true do
+            task.wait(5)
+            local newMax = GetPathMaxDistance()
+            if newMax ~= currentMaxDistance then
+                updateSliderMax()
+            end
+        end
+    end
+    task.spawn(periodicUpdateMax)
+    updateSliderMax()
+
     local sellFarmsContainer = Instance.new("Frame")
     sellFarmsContainer.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight + Library:ScaleY(4))
-    sellFarmsContainer.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 7 + Library:ScaleY(4))
+    sellFarmsContainer.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 7 + Library:ScaleY(10))
     sellFarmsContainer.BackgroundTransparency = 1
     sellFarmsContainer.Parent = scrollFrame
     local waveBox = Library:CreateTextBox(
@@ -1376,13 +1641,13 @@ local function createAutomationTab()
         UDim2.new(1, 0, 0, Library:ScaleY(3.5)),
         UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
     )
-    waveBox.Text = "40"
+    waveBox.Text = tostring(_G.WaveFS or 40)
     waveBox.Position = UDim2.new(0, 0, 0, 0)
     local autoSellFarmsBtn = Instance.new("TextButton")
     autoSellFarmsBtn.Size = UDim2.new(1, 0, 0, buttonHeight)
     autoSellFarmsBtn.Position = UDim2.new(0, 0, 0, Library:ScaleY(4))
-    autoSellFarmsBtn.BackgroundColor3 = Library.Colors.Accent
-    autoSellFarmsBtn.Text = "Auto Sell Farms: OFF"
+    autoSellFarmsBtn.BackgroundColor3 = _G.SellFarms and Library.Colors.Success or Library.Colors.Accent
+    autoSellFarmsBtn.Text = _G.SellFarms and "Auto Sell Farms: ON" or "Auto Sell Farms: OFF"
     autoSellFarmsBtn.TextColor3 = Library.Colors.Text
     autoSellFarmsBtn.Font = Library.Fonts.Bold
     autoSellFarmsBtn.TextSize = Library:ScaleY(1.3)
@@ -1392,7 +1657,7 @@ local function createAutomationTab()
     Library:AddStroke(autoSellFarmsBtn, 1, Library.Colors.Border)
     local autoGatlingBtn = Instance.new("TextButton")
     autoGatlingBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
-    autoGatlingBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 8 + Library:ScaleY(8))
+    autoGatlingBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 8 + Library:ScaleY(14))
     autoGatlingBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
     autoGatlingBtn.Text = "Auto Gatling Gun"
     autoGatlingBtn.TextColor3 = Library.Colors.Text
@@ -1402,6 +1667,7 @@ local function createAutomationTab()
     autoGatlingBtn.AutoButtonColor = false
     Library:AddCorner(autoGatlingBtn, 4)
     Library:AddStroke(autoGatlingBtn, 1, Library.Colors.Border)
+
     local SellFarmsRunning = false
     local function get_current_wave()
         local success, result = pcall(function()
@@ -1420,16 +1686,11 @@ local function createAutomationTab()
     local function StartSellFarm()
         if SellFarmsRunning or not _G.SellFarms then return end
         SellFarmsRunning = true
-
-        print("Auto Sell Farms started, selling at wave:", _G.WaveFS)
-
         task.spawn(function()
             while _G.SellFarms do
                 local success, CurrentWave = pcall(get_current_wave)
                 if not success then CurrentWave = 0 end
-
                 local sellAtWave = _G.WaveFS or 40
-
                 if CurrentWave >= sellAtWave and CurrentWave > 0 then
                     local TowersFolder = workspace:FindFirstChild("Towers")
                     if TowersFolder then
@@ -1437,7 +1698,6 @@ local function createAutomationTab()
                             if replicator:IsA("Folder") and replicator.Name == "TowerReplicator" then
                                 local IsFarm = replicator:GetAttribute("Name") == "Farm"
                                 local IsMine = replicator:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
-
                                 if IsFarm and IsMine then
                                     local TowerModel = replicator.Parent
                                     pcall(function()
@@ -1452,7 +1712,6 @@ local function createAutomationTab()
                 task.wait(1)
             end
             SellFarmsRunning = false
-            print("Auto Sell Farms stopped")
         end)
     end
 
@@ -1460,61 +1719,56 @@ local function createAutomationTab()
         _G.AutoSkip = not _G.AutoSkip
         autoSkipBtn.BackgroundColor3 = _G.AutoSkip and Library.Colors.Success or Library.Colors.Accent
         autoSkipBtn.Text = _G.AutoSkip and "Auto Skip: ON" or "Auto Skip: OFF"
+        saveSettings()
     end)
 
     autoSmartSkipBtn.MouseButton1Click:Connect(function()
         _G.AutoSmartSkip = not _G.AutoSmartSkip
         autoSmartSkipBtn.BackgroundColor3 = _G.AutoSmartSkip and Library.Colors.Success or Library.Colors.Accent
         autoSmartSkipBtn.Text = _G.AutoSmartSkip and "Smart Skip: ON" or "Smart Skip: OFF"
+        saveSettings()
     end)
 
     autoNecroBtn.MouseButton1Click:Connect(function()
         _G.AutoNecro = not _G.AutoNecro
         autoNecroBtn.BackgroundColor3 = _G.AutoNecro and Library.Colors.Success or Library.Colors.Accent
         autoNecroBtn.Text = _G.AutoNecro and "Auto Necromancer: ON" or "Auto Necromancer: OFF"
+        saveSettings()
     end)
 
     autoUberBtn.MouseButton1Click:Connect(function()
         _G.AutoUber = not _G.AutoUber
         autoUberBtn.BackgroundColor3 = _G.AutoUber and Library.Colors.Success or Library.Colors.Accent
         autoUberBtn.Text = _G.AutoUber and "Auto Uber: ON" or "Auto Uber: OFF"
+        saveSettings()
     end)
 
     autoDJBtn.MouseButton1Click:Connect(function()
         _G.AutoDJ = not _G.AutoDJ
         autoDJBtn.BackgroundColor3 = _G.AutoDJ and Library.Colors.Success or Library.Colors.Accent
         autoDJBtn.Text = _G.AutoDJ and "Auto DJ Booth: ON" or "Auto DJ Booth: OFF"
+        saveSettings()
     end)
 
     autoSupportBtn.MouseButton1Click:Connect(function()
         _G.AutoSupport = not _G.AutoSupport
         autoSupportBtn.BackgroundColor3 = _G.AutoSupport and Library.Colors.Success or Library.Colors.Accent
         autoSupportBtn.Text = _G.AutoSupport and "Auto Support: ON" or "Auto Support: OFF"
+        saveSettings()
     end)
 
     autoChainBtn.MouseButton1Click:Connect(function()
         _G.AutoChain = not _G.AutoChain
         autoChainBtn.BackgroundColor3 = _G.AutoChain and Library.Colors.Success or Library.Colors.Accent
         autoChainBtn.Text = _G.AutoChain and "Auto Chain: ON" or "Auto Chain: OFF"
+        saveSettings()
     end)
 
     autoPickupsBtn.MouseButton1Click:Connect(function()
         _G.AutoPickups = not _G.AutoPickups
         autoPickupsBtn.BackgroundColor3 = _G.AutoPickups and Library.Colors.Success or Library.Colors.Accent
         autoPickupsBtn.Text = _G.AutoPickups and "Auto Pickups: ON" or "Auto Pickups: OFF"
-    end)
-
-    autoMercenaryBtn.MouseButton1Click:Connect(function()
-        _G.AutoMercenary = not _G.AutoMercenary
-        if _G.AutoMercenary then
-            autoMercenaryBtn.BackgroundColor3 = Library.Colors.Success
-            autoMercenaryBtn.Text = "Auto Mercenary: ON"
-            local distance = tonumber(string.match(tostring(distanceBox.Text), "%d+")) or 195
-            _G.MercDistance = math.clamp(distance, 1, 250)
-        else
-            autoMercenaryBtn.BackgroundColor3 = Library.Colors.Accent
-            autoMercenaryBtn.Text = "Auto Mercenary: OFF"
-        end
+        saveSettings()
     end)
 
     autoSellFarmsBtn.MouseButton1Click:Connect(function()
@@ -1529,13 +1783,7 @@ local function createAutomationTab()
             autoSellFarmsBtn.BackgroundColor3 = Library.Colors.Accent
             autoSellFarmsBtn.Text = "Auto Sell Farms: OFF"
         end
-    end)
-
-    distanceBox:GetPropertyChangedSignal("Text"):Connect(function()
-        local distance = tonumber(string.match(tostring(distanceBox.Text), "%d+")) or 195
-        distance = math.clamp(distance, 1, 250)
-        _G.MercDistance = distance
-        distanceBox.Text = tostring(distance)
+        saveSettings()
     end)
 
     waveBox:GetPropertyChangedSignal("Text"):Connect(function()
@@ -1544,6 +1792,7 @@ local function createAutomationTab()
             wave = math.clamp(wave, 1, 50)
             _G.WaveFS = wave
             waveBox.Text = tostring(wave)
+            saveSettings()
         end
     end)
 
@@ -1559,8 +1808,275 @@ local function createAutomationTab()
         autoGatlingBtn.Text = "Auto Gatling Gun"
     end)
 
-    local totalHeight = yPos + (buttonHeight + buttonSpacing) * 9 + Library:ScaleY(12)
+    local totalHeight = yPos + (buttonHeight + buttonSpacing) * 9 + Library:ScaleY(28)
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
+
+    if _G.SellFarms then
+        StartSellFarm()
+    end
+
+    return contentFrame
+end
+
+local function createMapsTab()
+    local contentFrame = Library:CreateFrame(
+        rightPanel,
+        UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(2)),
+        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1)),
+        false,
+        Library.Colors.BackgroundDarker
+    )
+
+    local mapsContainer = Library:CreateFrame(
+        contentFrame,
+        UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(12)),
+        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1)),
+        false,
+        Library.Colors.BackgroundDark
+    )
+    Library:AddCorner(mapsContainer, 6)
+
+    local mapListFrame = Library:CreateScrollingFrame(
+        mapsContainer,
+        UDim2.new(1, -Library:ScaleX(1), 1, -Library:ScaleY(2)),
+        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1)),
+        Library.Colors.BackgroundDarker
+    )
+    mapListFrame.ScrollBarThickness = 8
+    Library:AddCorner(mapListFrame, 4)
+    Library:AddStroke(mapListFrame, 1, Library.Colors.Border)
+
+    local loadingLabel = Instance.new("TextLabel")
+    loadingLabel.Size = UDim2.new(1, -Library:ScaleX(2), 0, Library:ScaleY(4))
+    loadingLabel.Position = UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
+    loadingLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    loadingLabel.TextColor3 = Library.Colors.TextDim
+    loadingLabel.TextSize = Library:ScaleY(1.2)
+    loadingLabel.Font = Library.Fonts.Bold
+    loadingLabel.Text = "Loading maps..."
+    loadingLabel.Parent = mapListFrame
+    loadingLabel.ZIndex = 10
+
+    local chooseBtn = Instance.new("TextButton")
+    chooseBtn.Size = UDim2.new(0, Library:ScaleX(10), 0, Library:ScaleY(5))
+    chooseBtn.Position = UDim2.new(0.5, -Library:ScaleX(5), 1, -Library:ScaleY(8.5)) 
+    chooseBtn.BackgroundColor3 = Library.Colors.Accent
+    chooseBtn.Text = "CHOOSE"
+    chooseBtn.TextColor3 = Library.Colors.Text
+    chooseBtn.Font = Library.Fonts.Bold
+    chooseBtn.TextSize = Library:ScaleY(1.3)
+    chooseBtn.Parent = contentFrame
+    chooseBtn.AutoButtonColor = false
+    Library:AddCorner(chooseBtn, 4)
+    Library:AddStroke(chooseBtn, 1, Library.Colors.Border)
+
+    local selectedMapName = nil
+    local selectedMapButton = nil
+    local mapButtons = {}
+
+    local EnumModule = ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("Modules") and ReplicatedStorage.Shared.Modules:FindFirstChild("Enum")
+    local CommunityEnumValue = nil
+    if EnumModule then
+        local success, enum = pcall(require, EnumModule)
+        if success and enum and enum.MapType then
+            CommunityEnumValue = enum.MapType.Community
+        end
+    end
+
+    local function safeRequire(module, timeout)
+        local finished = false
+        local result = nil
+        local co = coroutine.create(function()
+            local success, res = pcall(require, module)
+            if success then
+                result = res
+            end
+            finished = true
+        end)
+        coroutine.resume(co)
+        local start = tick()
+        while not finished and tick() - start < timeout do
+            task.wait(0.05)
+        end
+        return result
+    end
+    
+    local debugging = false
+
+    local function populateMaps()
+        for _, btn in pairs(mapButtons) do
+            pcall(function() btn:Destroy() end)
+        end
+        mapButtons = {}
+        selectedMapButton = nil
+        selectedMapName = nil
+        loadingLabel.Visible = true
+        loadingLabel.Text = "Loading maps..."
+
+        local mapsFolder = ReplicatedStorage:FindFirstChild("Content") and ReplicatedStorage.Content:FindFirstChild("Maps")
+        if not mapsFolder then
+            loadingLabel.Text = "No Maps folder"
+            return
+        end
+
+        local allModules = {}
+        local descendants = mapsFolder:GetDescendants()
+        for _, obj in ipairs(descendants) do
+            if obj:IsA("ModuleScript") then
+                table.insert(allModules, obj)
+            end
+        end
+
+        local mapDataTable = {}
+        for _, module in ipairs(allModules) do
+            local mapName = nil
+            local parent = module.Parent
+            
+            if parent and parent.Name == "Data" then
+                local grandParent = parent.Parent
+                if grandParent and grandParent ~= mapsFolder then
+                    mapName = grandParent.Name
+                end
+            end
+            if not mapName and parent and parent ~= mapsFolder then
+                mapName = parent.Name
+            end
+            if not mapName or mapName == "" then
+                mapName = module.Name
+            end
+            
+            local mapData = safeRequire(module, 1.5)
+            local isCommunity = false
+            if mapData and type(mapData) == "table" and CommunityEnumValue then
+                if mapData.MapType == CommunityEnumValue then
+                    isCommunity = true
+                end
+            end
+            
+            if mapDataTable[mapName] == nil then
+                mapDataTable[mapName] = isCommunity
+            elseif isCommunity then
+                mapDataTable[mapName] = true
+            end
+        end
+        
+        local validMaps = {}
+        for mapName, isCommunity in pairs(mapDataTable) do
+            if debugging then
+                table.insert(validMaps, mapName)
+            else
+                if isCommunity then
+                    table.insert(validMaps, mapName)
+                end
+            end
+        end
+        table.sort(validMaps)
+        
+        loadingLabel.Visible = false
+        
+        local yPos = Library:ScaleY(1)
+        local btnHeight = Library:ScaleY(4)
+        for i, mapName in ipairs(validMaps) do
+            local mapBtn = Instance.new("TextButton")
+            mapBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeight)
+            mapBtn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPos)
+            local defaultColor = (i % 2 == 0) and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
+            mapBtn.BackgroundColor3 = defaultColor
+            mapBtn.Text = mapName
+            mapBtn.TextColor3 = Library.Colors.Text
+            mapBtn.TextSize = Library:ScaleY(1.1)
+            mapBtn.Font = Library.Fonts.Normal
+            mapBtn.Parent = mapListFrame
+            mapBtn.AutoButtonColor = false
+            mapBtn:SetAttribute("OriginalColor", defaultColor)
+            Library:AddCorner(mapBtn, 3)
+            Library:AddStroke(mapBtn, 1, Library.Colors.Border)
+
+            mapBtn.MouseButton1Click:Connect(function()
+                if selectedMapButton == mapBtn then
+                    selectedMapButton.BackgroundColor3 = selectedMapButton:GetAttribute("OriginalColor")
+                    selectedMapButton = nil
+                    selectedMapName = nil
+                else
+                    if selectedMapButton then
+                        selectedMapButton.BackgroundColor3 = selectedMapButton:GetAttribute("OriginalColor")
+                    end
+                    selectedMapButton = mapBtn
+                    selectedMapName = mapName
+                    mapBtn.BackgroundColor3 = Library.Colors.Success
+                end
+            end)
+
+            mapBtn.MouseEnter:Connect(function()
+                if mapBtn ~= selectedMapButton then
+                    mapBtn.BackgroundColor3 = Library.Colors.BackgroundLight
+                end
+            end)
+            mapBtn.MouseLeave:Connect(function()
+                if mapBtn ~= selectedMapButton then
+                    mapBtn.BackgroundColor3 = mapBtn:GetAttribute("OriginalColor")
+                end
+            end)
+
+            table.insert(mapButtons, mapBtn)
+            yPos = yPos + btnHeight + Library:ScaleY(0.5)
+        end
+
+        if #validMaps == 0 then
+            local noMapsBtn = Instance.new("TextButton")
+            noMapsBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeight)
+            noMapsBtn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPos)
+            noMapsBtn.BackgroundColor3 = Library.Colors.BackgroundLight
+            noMapsBtn.Text = "No Community maps available"
+            noMapsBtn.TextColor3 = Library.Colors.TextDim
+            noMapsBtn.TextSize = Library:ScaleY(1.2)
+            noMapsBtn.Font = Library.Fonts.Normal
+            noMapsBtn.Parent = mapListFrame
+            noMapsBtn.AutoButtonColor = false
+            Library:AddCorner(noMapsBtn, 4)
+            yPos = yPos + btnHeight + Library:ScaleY(0.5)
+        end
+
+        mapListFrame.CanvasSize = UDim2.new(0, 0, 0, yPos + Library:ScaleY(1))
+    end
+
+    task.spawn(populateMaps)
+
+    local function selectMapOverride(mapName)
+        pcall(function()
+            RemoteFunction:InvokeServer("LobbyVoting", "Override", mapName)
+        end)
+    end
+
+    local function switchSandboxMap(mapName)
+        local sandboxRemote = ReplicatedStorage:FindFirstChild("Network")
+        if sandboxRemote then
+            sandboxRemote = sandboxRemote:FindFirstChild("Sandbox")
+            if sandboxRemote then
+                sandboxRemote = sandboxRemote:FindFirstChild("RE:SwitchMap")
+                if sandboxRemote then
+                    pcall(function() sandboxRemote:FireServer(mapName) end)
+                end
+            end
+        end
+    end
+
+    chooseBtn.MouseButton1Click:Connect(function()
+        if selectedMapName then
+            local originalColor = chooseBtn.BackgroundColor3
+            chooseBtn.BackgroundColor3 = Library.Colors.Success
+            chooseBtn.Text = "SELECTING..."
+            selectMapOverride(selectedMapName)
+            task.wait(0.2)
+            switchSandboxMap(selectedMapName)
+            task.wait(0.3)
+            chooseBtn.BackgroundColor3 = originalColor
+            chooseBtn.Text = "CHOOSE"
+            flashButton(chooseBtn, Library.Colors.Success, "✓")
+        else
+            flashButton(chooseBtn, Library.Colors.Danger, "NO MAP")
+        end
+    end)
 
     return contentFrame
 end
@@ -1568,12 +2084,14 @@ end
 contentFrames["SWITCHER"] = createSwitcherTab()
 contentFrames["MANAGER"] = createManagerTab()
 contentFrames["AUTOMATION"] = createAutomationTab()
+contentFrames["MAPS"] = createMapsTab()
 
 startPeriodicRefresh()
 
 contentFrames["SWITCHER"].Visible = true
 contentFrames["MANAGER"].Visible = false
 contentFrames["AUTOMATION"].Visible = false
+contentFrames["MAPS"].Visible = false
 
 switcherTab.MouseButton1Click:Connect(function()
     for _, frame in pairs(contentFrames) do
@@ -1583,6 +2101,7 @@ switcherTab.MouseButton1Click:Connect(function()
     switcherTab.BackgroundColor3 = Library.Colors.Accent
     managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
     autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
 end)
 
 managerTab.MouseButton1Click:Connect(function()
@@ -1593,6 +2112,7 @@ managerTab.MouseButton1Click:Connect(function()
     switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
     managerTab.BackgroundColor3 = Library.Colors.Accent
     autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
 
     if contentFrames["MANAGER"] then
         local scrollFrame = contentFrames["MANAGER"]:FindFirstChildOfClass("ScrollingFrame")
@@ -1610,4 +2130,18 @@ autoTab.MouseButton1Click:Connect(function()
     switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
     managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
     autoTab.BackgroundColor3 = Library.Colors.Accent
+    mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
 end)
+
+mapsTab.MouseButton1Click:Connect(function()
+    for _, frame in pairs(contentFrames) do
+        frame.Visible = false
+    end
+    contentFrames["MAPS"].Visible = true
+    switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    mapsTab.BackgroundColor3 = Library.Colors.Accent
+end)
+
+_G.ClaimRewards = true
