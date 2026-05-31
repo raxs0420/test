@@ -1331,7 +1331,7 @@ function TDS:AutoSkip(state)
     start_auto_skip()
 end
 
-local function start_claim_rewards()
+function start_claim_rewards()
     if auto_claim_rewards or not _G.ClaimRewards or game_state ~= "LOBBY" then
         return
     end
@@ -1357,8 +1357,6 @@ local function start_claim_rewards()
     end
     auto_claim_rewards = false
 end
-
-start_claim_rewards()
 
 local function start_back_to_lobby()
     if back_to_lobby_running then return end
@@ -1916,5 +1914,7 @@ task.spawn(function()
     game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     create_buttons()
 end)
+
+start_claim_rewards()
 
 return TDS
