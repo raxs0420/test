@@ -1358,6 +1358,8 @@ local function start_claim_rewards()
     auto_claim_rewards = false
 end
 
+start_claim_rewards()
+
 local function start_back_to_lobby()
     if back_to_lobby_running then return end
     back_to_lobby_running = true
@@ -1792,10 +1794,6 @@ task.spawn(function()
         task.wait(1)
     end
 end)
-
-start_back_to_lobby()
-start_rejoin_on_disconnect()
-start_claim_rewards()
 
 local function create_buttons()
     local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
