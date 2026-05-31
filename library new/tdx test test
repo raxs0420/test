@@ -22,10 +22,12 @@ function TDX:Place(towerName, x, y, z, macroId)
 
     local pos = Vector3.new(x, y, z)
 
+    task.wait(0.1)
+    
     local success, result = pcall(function()
         return remote:InvokeServer(0, towerName, pos, 0)
     end)
-    task.wait(0.1)
+
     if success and result == true then
         print(string.format("[TDX] Place sent for Macro %d (%s)", macroId, towerName))
         task.wait(0.2)
@@ -49,6 +51,8 @@ function TDX:Upgrade(macroId, path, level)
         return false
     end
 
+    task.wait(0.1)
+    
     pcall(function()
         remote:FireServer(towerId, path, level)
     end)
@@ -71,6 +75,8 @@ function TDX:Sell(macroId)
         return false
     end
 
+    task.wait(0.1)
+    
     pcall(function()
         remote:FireServer(towerId)
     end)
@@ -80,7 +86,7 @@ function TDX:Sell(macroId)
     return true
 end
 
-function TDX:SetupListener()
+function TDX:SetupUpgradeListener()
     local queueRemote = getRemote("TowerFactoryQueueUpdated")
     if not queueRemote then
         print("[TDX] TowerFactoryQueueUpdated not found")
@@ -116,7 +122,7 @@ function TDX:SetupListener()
         end
     end)
     
-    print("[TDX] Listener ready - Macro IDs assigned automatically")
+    print("[TDX] SetupUpgradeListener ready - Macro IDs assigned automatically")
 end
 
 return TDX
