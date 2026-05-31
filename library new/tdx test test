@@ -38,24 +38,24 @@ function TDX:Place(towerName, x, y, z, macroId)
 end
 
 function TDX:Upgrade(macroId, path, level)
-    local towerId = macroToTowerId[macroId]
-    if not towerId then
-        print(string.format("[TDX] Macro %d not found, cannot upgrade", macroId))
-        return false
+    -- Wait a bit for the event to register the tower
+    for i = 1, 30 do
+        local towerId = macroToTowerId[macroId]
+        if towerId then
+            local remote = getRemote("TowerUpgradeRequest")
+            if remote then
+                pcall(function()
+                    remote:FireServer(towerId, path, level)
+                end)
+                print(string.format("[TDX] Upgrade sent for Macro %d (ID: %d) - Path %s Lv%d", macroId, towerId, path, level))
+                return true
+            end
+        end
+        task.wait(0.1)
     end
-
-    local remote = getRemote("TowerUpgradeRequest")
-    if not remote then
-        print("[TDX] TowerUpgradeRequest remote not found")
-        return false
-    end
-
-    pcall(function()
-        remote:FireServer(towerId, path, level)
-    end)
-
-    print(string.format("[TDX] Upgrade sent for Macro %d (ID: %d) - Path %s Lv%d", macroId, towerId, path, level))
-    return true
+    
+    print(string.format("[TDX] Macro %d not found after 3 seconds, cannot upgrade", macroId))
+    return false
 end
 
 function TDX:Sell(macroId)
@@ -89,16 +89,12 @@ function TDX:SetupUpgradeListener()
     queueRemote.OnClientEvent:Connect(function(...)
         local args = {...}
         
-        -- Try different possible structures
         local towerData = nil
         
-        -- Structure 1: args[1][1].Data[1]
         if args[1] and args[1][1] and args[1][1].Data and args[1][1].Data[1] then
             towerData = args[1][1].Data[1]
-        -- Structure 2: args[1].Data[1] (if unpacked differently)
         elseif args[1] and args[1].Data and args[1].Data[1] then
             towerData = args[1].Data[1]
-        -- Structure 3: direct
         elseif args[1] and args[1][1] and args[1][1][1] then
             towerData = args[1][1][1]
         end
@@ -124,8 +120,6 @@ function TDX:SetupUpgradeListener()
                     end
                 end
             end
-        else
-            print("[TDX] Could not parse tower data from event")
         end
     end)
     
