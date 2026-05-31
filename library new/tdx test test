@@ -85,17 +85,31 @@ function TDX:SetupUpgradeListener()
         print("[TDX] TowerFactoryQueueUpdated not found")
         return
     end
+    
+    print("[TDX] TowerFactoryQueueUpdated found, connecting...")
 
     queueRemote.OnClientEvent:Connect(function(data)
-        if type(data) ~= "table" then return end
+        print("[TDX] TowerFactoryQueueUpdated FIRED!")
+        print("[TDX] Data type:", type(data))
+        
+        if type(data) ~= "table" then 
+            print("[TDX] Data is not a table")
+            return 
+        end
+        
+        print("[TDX] Data keys:", table.concat(GetKeys(data), ", "))
         
         if data[1] and data[1][1] then
             local towerData = data[1][1]
+            print("[TDX] towerData found")
+            
             if towerData.Data and towerData.Data[1] then
                 local towerId = towerData.Data[1][1]
                 local towerName = towerData.Data[1][2]
                 local ownerId = towerData.Data[1][7]
                 local pos = towerData.Data[1][4]
+                
+                print(string.format("[TDX] Event: Tower=%s, ID=%s, Owner=%s", towerName, towerId, ownerId))
                 
                 if ownerId == player.Name then
                     for macroId, pending in pairs(pendingPlacements) do
@@ -115,6 +129,14 @@ function TDX:SetupUpgradeListener()
     end)
     
     print("[TDX] SetupUpgradeListener ready - waiting for tower placements")
+end
+
+function GetKeys(t)
+    local keys = {}
+    for k in pairs(t) do
+        table.insert(keys, k)
+    end
+    return keys
 end
 
 return TDX
