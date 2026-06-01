@@ -16,12 +16,36 @@ local gameOverTriggered = false
 local towerNameById = {}
 local towersByName = {}
 
+-- Persistent tower data
+local persistentData = {}  -- macroId -> { name, x, y, z, upgrades = { {path,level}, ... } }
+
+local function getCash()
+    if not player or not player.leaderstats then return 0 end
+    local cash = player.leaderstats:FindFirstChild("Cash")
+    return cash and cash.Value or 0
+end
+
+local function replaceTower(macroId)
+    local data = persistentData[macroId]
+    if not data then return end
+    -- Wait for enough cash (250k)
+    while getCash() < 25000 do
+        wait(0.5)
+    end
+    -- Place the tower again
+    TDX:Place(data.name, data.x, data.y, data.z, macroId)
+    -- Re-apply all recorded upgrades in order
+    for _, upg in ipairs(data.upgrades) do
+        TDX:Upgrade(macroId, upg.path, upg.level)
+    end
+end
+
 local function getRemote(name)
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     return remotes and remotes:FindFirstChild(name)
 end
 
-function TDX:Place(towerName, x, y, z, macroId)
+function TDX:Place(towerName, x, y, z, macroId, persist)
     for _, id in ipairs(pendingQueue) do
         if id == macroId then return false end
     end
@@ -35,6 +59,13 @@ function TDX:Place(towerName, x, y, z, macroId)
         wait(0.2)
     end
     while not macroToTowerId[macroId] do wait(0.05) end
+    if persist then
+        persistentData[macroId] = {
+            name = towerName,
+            x = x, y = y, z = z,
+            upgrades = {}   -- will be filled by TDX:Upgrade
+        }
+    end
     return true
 end
 
@@ -57,6 +88,10 @@ function TDX:Upgrade(macroId, path, level)
         macroToTowerId[macroId] = nil
         pendingUpgrade[macroId] = nil
         return false
+    end
+    -- Record upgrade for persistent towers
+    if persistentData[macroId] then
+        table.insert(persistentData[macroId].upgrades, { path = pathNum, level = levelNum })
     end
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then error("[TDX] TowerUpgradeRequest not found") end
@@ -93,12 +128,10 @@ function TDX:Sell(macroId)
     local remote = getRemote("SellTower")
     if not remote then return false end
     wait(0.1)
-    -- Try both FireServer and InvokeServer – some games use one, some the other
     local success, err = pcall(function() remote:FireServer(towerId) end)
     if not success then
         pcall(function() remote:InvokeServer(towerId) end)
     end
-    -- Wait for the removal event to process (max 2 seconds)
     local start = tick()
     while macroToTowerId[macroId] do
         if tick() - start > 2 then break end
@@ -119,10 +152,13 @@ function TDX:SetupUpgradeListener()
                 local towerId = ev.Data
                 if type(towerId) == "table" then towerId = towerId[1] end
                 if type(towerId) == "number" then
-                    for macroId, id in pairs(macroToTowerId) do
+                    local macroId = nil
+                    for mid, id in pairs(macroToTowerId) do
                         if id == towerId then
-                            macroToTowerId[macroId] = nil
-                            pendingUpgrade[macroId] = nil
+                            macroId = mid
+                            macroToTowerId[mid] = nil
+                            pendingUpgrade[mid] = nil
+                            break
                         end
                     end
                     local name = towerNameById[towerId]
@@ -133,6 +169,12 @@ function TDX:SetupUpgradeListener()
                     end
                     towerNameById[towerId] = nil
                     upgradeConfirm[towerId] = nil
+                    -- Auto‑replace persistent tower
+                    if macroId and persistentData[macroId] then
+                        spawn(function()
+                            replaceTower(macroId)
+                        end)
+                    end
                 end
             else
                 local towerInfo = ev.Data
