@@ -48,6 +48,7 @@ function TDX:Upgrade(macroId, path, level)
     local pathNum = tonumber(path) or path
     local levelNum = tonumber(level) or level
 
+    -- Wait for tower to exist
     while not macroToTowerId[macroId] do
         if not pendingUpgrade[macroId] then
             pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
@@ -56,23 +57,37 @@ function TDX:Upgrade(macroId, path, level)
     end
 
     local towerId = macroToTowerId[macroId]
+    -- Check if tower still exists in our records
     if not towerNameById[towerId] then
         macroToTowerId[macroId] = nil
+        pendingUpgrade[macroId] = nil
         return false
     end
 
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then error("[TDX] TowerUpgradeRequest not found") end
 
+    -- Retry until confirmed, but abort if tower dies
     while true do
+        -- Before sending request, check again
+        if not towerNameById[towerId] then
+            macroToTowerId[macroId] = nil
+            pendingUpgrade[macroId] = nil
+            return false
+        end
+
         upgradeConfirm[towerId] = false
         wait(0.1)
         pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
+
         local startWait = tick()
         while upgradeConfirm[towerId] == false do
             wait(0.05)
+            -- If tower removed during wait, abort immediately
             if not towerNameById[towerId] then
                 macroToTowerId[macroId] = nil
+                pendingUpgrade[macroId] = nil
+                upgradeConfirm[towerId] = nil
                 return false
             end
             if tick() - startWait > 2 then break end
@@ -97,6 +112,7 @@ function TDX:Sell(macroId)
     wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
 
+    -- Cleanup is also done by removal event, but do it here too
     local towerName = towerNameById[towerId]
     if towerName and towersByName[towerName] then
         for i, id in ipairs(towersByName[towerName]) do
@@ -120,10 +136,18 @@ function TDX:SetupUpgradeListener()
         local entry = args[1][1]
         if not entry.Data then return end
 
-        -- Handle removal (Creation == false)
+        -- REMOVAL: Creation == false
         if entry.Creation == false then
             local towerId = entry.Data[1]
             if towerId and type(towerId) == "number" then
+                -- Cancel any pending upgrades for this tower
+                for macroId, id in pairs(macroToTowerId) do
+                    if id == towerId then
+                        macroToTowerId[macroId] = nil
+                        pendingUpgrade[macroId] = nil
+                    end
+                end
+                -- Remove from name tracking
                 local name = towerNameById[towerId]
                 if name and towersByName[name] then
                     for i, id in ipairs(towersByName[name]) do
@@ -132,19 +156,14 @@ function TDX:SetupUpgradeListener()
                             break
                         end
                     end
-                    towerNameById[towerId] = nil
                 end
-                for macroId, id in pairs(macroToTowerId) do
-                    if id == towerId then
-                        macroToTowerId[macroId] = nil
-                    end
-                end
+                towerNameById[towerId] = nil
                 upgradeConfirm[towerId] = nil
             end
             return
         end
 
-        -- Handle placement (Creation == true)
+        -- PLACEMENT: Creation == true
         if type(entry.Data) == "table" and entry.Data[1] and type(entry.Data[1]) == "table" then
             local towerData = entry.Data[1]
             if towerData and type(towerData[1]) == "number" then
