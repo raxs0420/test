@@ -91,8 +91,9 @@ function TDX:Sell(macroId)
     wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
 
-    if towerNameById[towerId] then
-        local name = towerNameById[towerId]
+    -- Remove from tracking
+    local name = towerNameById[towerId]
+    if name then
         if towersByName[name] then
             for i, id in ipairs(towersByName[name]) do
                 if id == towerId then
@@ -115,6 +116,7 @@ function TDX:Sell(macroId)
 end
 
 function TDX:SetupUpgradeListener()
+    -- Placement and removal listener
     local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
     factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
@@ -125,6 +127,7 @@ function TDX:SetupUpgradeListener()
         local towerId = data[1]
         if not towerId then return end
 
+        -- Placement: data[2] is tower name (string)
         if type(data[2]) == "string" then
             if #pendingQueue > 0 then
                 local macroId = table.remove(pendingQueue, 1)
@@ -134,6 +137,7 @@ function TDX:SetupUpgradeListener()
                 if not towersByName[towerName] then towersByName[towerName] = {} end
                 table.insert(towersByName[towerName], towerId)
 
+                -- Execute queued upgrade for this macro
                 local upgrade = pendingUpgrade[macroId]
                 if upgrade then
                     wait(0.1)
@@ -146,6 +150,7 @@ function TDX:SetupUpgradeListener()
                     pendingSell = nil
                 end
             end
+        -- Removal: data[2] is true
         elseif data[2] == true then
             local name = towerNameById[towerId]
             if name then
@@ -169,6 +174,7 @@ function TDX:SetupUpgradeListener()
         end
     end)
 
+    -- Upgrade confirmation listener
     local upgradeRemote = ReplicatedStorage:FindFirstChild("Remotes"):FindFirstChild("TowerUpgradeQueueUpdated")
     if upgradeRemote then
         upgradeRemote.OnClientEvent:Connect(function(data)
