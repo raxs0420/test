@@ -26,10 +26,7 @@ function TDX:Place(towerName, x, y, z, macroId)
     if not remote then error("[TDX] PlaceTower remote not found") end
 
     for _, id in ipairs(pendingQueue) do
-        if id == macroId then
-            warn("[TDX] Macro", macroId, "already pending")
-            return false
-        end
+        if id == macroId then return false end
     end
 
     table.insert(pendingQueue, macroId)
@@ -59,6 +56,11 @@ function TDX:Upgrade(macroId, path, level)
     end
 
     local towerId = macroToTowerId[macroId]
+    if not towerNameById[towerId] then
+        macroToTowerId[macroId] = nil
+        return false
+    end
+
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then error("[TDX] TowerUpgradeRequest not found") end
 
@@ -69,7 +71,10 @@ function TDX:Upgrade(macroId, path, level)
         local startWait = tick()
         while upgradeConfirm[towerId] == false do
             wait(0.05)
-            if not macroToTowerId[macroId] then return false end
+            if not towerNameById[towerId] then
+                macroToTowerId[macroId] = nil
+                return false
+            end
             if tick() - startWait > 2 then break end
         end
         if upgradeConfirm[towerId] == true then break end
@@ -105,68 +110,61 @@ function TDX:Sell(macroId)
 end
 
 function TDX:SetupUpgradeListener()
-    -- PLACEMENT LISTENER (exact working version)
     local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
     factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
-        if args[1] and args[1][1] and args[1][1].Data then
-            local towerData = args[1][1].Data[1]
-            if towerData and towerData[1] then
-                local realId = towerData[1]
-                local towerName = towerData[2]
+        if not args[1] or not args[1][1] then return end
+        local entry = args[1][1]
+        if not entry.Data then return end
 
-                if #pendingQueue > 0 then
-                    local macroId = table.remove(pendingQueue, 1)
-                    macroToTowerId[macroId] = realId
-                    towerNameById[realId] = towerName
-                    if not towersByName[towerName] then towersByName[towerName] = {} end
-                    table.insert(towersByName[towerName], realId)
+        local towerData = entry.Data
+        if type(towerData) ~= "table" or not towerData[1] then return end
 
-                    local upgrade = pendingUpgrade[macroId]
-                    if upgrade then
-                        wait(0.1)
-                        TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
-                        pendingUpgrade[macroId] = nil
-                    end
-                    if pendingSell == macroId then
-                        wait(0.1)
-                        TDX:Sell(pendingSell)
-                        pendingSell = nil
-                    end
+        local realId = towerData[1]
+        if entry.Creation == true then
+            local towerName = towerData[2]
+            if type(towerName) == "string" and #pendingQueue > 0 then
+                local macroId = table.remove(pendingQueue, 1)
+                macroToTowerId[macroId] = realId
+                towerNameById[realId] = towerName
+                if not towersByName[towerName] then towersByName[towerName] = {} end
+                table.insert(towersByName[towerName], realId)
+
+                local upgrade = pendingUpgrade[macroId]
+                if upgrade then
+                    wait(0.1)
+                    TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
+                    pendingUpgrade[macroId] = nil
+                end
+                if pendingSell == macroId then
+                    wait(0.1)
+                    TDX:Sell(pendingSell)
+                    pendingSell = nil
                 end
             end
-        end
-    end)
-
-    -- REMOVAL LISTENER (separate, handles tower death/sell)
-    factoryRemote.OnClientEvent:Connect(function(...)
-        local args = {...}
-        if args[1] and args[1][1] and args[1][1].Creation == false then
-            local entry = args[1][1]
-            if entry.Data and entry.Data[1] then
-                local towerId = entry.Data[1]
-                local name = towerNameById[towerId]
-                if name and towersByName[name] then
+        else
+            local name = towerNameById[realId]
+            if name then
+                if towersByName[name] then
                     for i, id in ipairs(towersByName[name]) do
-                        if id == towerId then
+                        if id == realId then
                             table.remove(towersByName[name], i)
                             break
                         end
                     end
-                    towerNameById[towerId] = nil
                 end
-                for macroId, id in pairs(macroToTowerId) do
-                    if id == towerId then
-                        macroToTowerId[macroId] = nil
-                        break
-                    end
-                end
-                upgradeConfirm[towerId] = nil
+                towerNameById[realId] = nil
             end
+            for macroId, id in pairs(macroToTowerId) do
+                if id == realId then
+                    macroToTowerId[macroId] = nil
+                    break
+                end
+            end
+            upgradeConfirm[realId] = nil
         end
     end)
 
-    -- UPGRADE CONFIRMATION LISTENER
     local upgradeRemote = ReplicatedStorage:FindFirstChild("Remotes"):FindFirstChild("TowerUpgradeQueueUpdated")
     if upgradeRemote then
         upgradeRemote.OnClientEvent:Connect(function(data)
@@ -208,8 +206,10 @@ function TDX:AutoAbility(towerName, slot, isLooping)
             return
         end
         for _, id in ipairs(ids) do
-            useAbility(id)
-            wait(0.05)
+            if towerNameById[id] then
+                useAbility(id)
+                wait(0.05)
+            end
         end
     end
 
@@ -360,6 +360,7 @@ end
 function TDX:SetTarget(macroId, targetType)
     while not macroToTowerId[macroId] do wait(0.05) end
     local towerId = macroToTowerId[macroId]
+    if not towerNameById[towerId] then return false end
     local remote = getRemote("ChangeQueryType")
     if not remote then return false end
     local tv = getTypeValue(targetType)
@@ -501,12 +502,10 @@ function TDX:Ability(macroId, slot, loop)
     end
     while not macroToTowerId[macroId] do wait(0.05) end
     local actualId = macroToTowerId[macroId]
-    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+    if not towerNameById[actualId] then return end
+    local remote = getRemote("TowerUseAbilityRequest")
     if remote then
-        local req = remote:FindFirstChild("TowerUseAbilityRequest")
-        if req then
-            pcall(function() req:InvokeServer(actualId, slot) end)
-        end
+        pcall(function() remote:InvokeServer(actualId, slot) end)
     end
 end
 
