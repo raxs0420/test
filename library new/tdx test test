@@ -173,7 +173,10 @@ function TDX:AutoAbility(towerName, slot, isLooping)
 
     local function useOnAll()
         local ids = towersByName[towerName]
-        if not ids then return end
+        if not ids or #ids == 0 then
+            wait(0.5)
+            return
+        end
         for _, id in ipairs(ids) do
             useAbility(id)
             wait(0.05)
@@ -182,7 +185,9 @@ function TDX:AutoAbility(towerName, slot, isLooping)
 
     if isLooping then
         spawn(function()
-            while true do useOnAll() end
+            while true do
+                useOnAll()
+            end
         end)
     else
         useOnAll()
