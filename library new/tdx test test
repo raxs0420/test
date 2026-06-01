@@ -3,30 +3,32 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
-local pendingPlacements = {}   -- macroId -> {towerName, position}
-local macroToTowerId = {}      -- macroId -> realId
-local waitingForId = {}        -- macroId -> true
-local resolvedId = {}          -- macroId -> realId (set by listener or buffer)
+local pendingPlacements = {}
+local macroToTowerId = {}
+local waitingForId = {}
+local resolvedId = {}
 local pendingUpgrade = nil
 local pendingSell = nil
-
--- Event buffer: stores events that arrived before we started waiting
-local eventBuffer = {}          -- list of {realId, towerName, towerPos}
+local eventBuffer = {}
 
 local function getRemote(name)
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     return remotes and remotes:FindFirstChild(name)
 end
 
+-- Parse position string: handles "x, y, z", "x,y,z", "x y z", and even "x, y, z" with extra spaces
 local function parsePositionString(str)
     if type(str) ~= "string" then return nil end
+    -- Replace commas with spaces, then split by spaces
+    local cleaned = str:gsub(",", " ")
     local parts = {}
-    for part in string.gmatch(str, "[^,]+") do
-        local trimmed = part:match("^%s*(.-)%s*$")
-        if trimmed:find(",") then trimmed = trimmed:gsub(",", ".") end
-        local num = tonumber(trimmed)
+    for part in string.gmatch(cleaned, "%S+") do
+        -- Replace European comma decimal with dot (e.g., "1,000" -> "1.000")
+        if part:find(",") then part = part:gsub(",", ".") end
+        local num = tonumber(part)
         if not num then return nil end
         table.insert(parts, num)
+        if #parts == 3 then break end
     end
     if #parts == 3 then
         return Vector3.new(parts[1], parts[2], parts[3])
@@ -34,22 +36,26 @@ local function parsePositionString(str)
     return nil
 end
 
-local function deepFindFlatTable(t, depth)
+-- Recursively find the table that has numeric keys 1,2,3... (the actual tower data)
+local function findFlatTowerTable(t, depth)
     depth = depth or 0
-    if depth > 5 then return nil end
+    if depth > 6 then return nil end
     if type(t) ~= "table" then return nil end
-    if t[1] ~= nil and type(t[1]) ~= "table" and t[2] ~= nil then
+    -- Check if this table has key 1 and 2 that are NOT tables (numbers or strings)
+    if t[1] ~= nil and type(t[1]) ~= "table" and t[2] ~= nil and type(t[2]) ~= "table" then
         return t
     end
+    -- Search all values recursively
     for _, v in pairs(t) do
         if type(v) == "table" then
-            local found = deepFindFlatTable(v, depth+1)
+            local found = findFlatTowerTable(v, depth+1)
             if found then return found end
         end
     end
     return nil
 end
 
+-- Find which pending macro matches the tower name and position
 local function findMatchingMacroId(towerName, towerPos)
     for macroId, data in pairs(pendingPlacements) do
         if data.towerName == towerName and (data.position - towerPos).Magnitude < 0.5 then
@@ -60,21 +66,19 @@ local function findMatchingMacroId(towerName, towerPos)
 end
 
 function TDX:Place(towerName, x, y, z, macroId)
-    print("[DEBUG] Place called for macro", macroId, "tower", towerName)
     local remote = getRemote("PlaceTower")
     if not remote then return false end
 
     local pos = Vector3.new(x, y, z)
-    -- Store pending placement BEFORE sending request
     pendingPlacements[macroId] = { towerName = towerName, position = pos }
     waitingForId[macroId] = true
     resolvedId[macroId] = nil
 
-    -- Check event buffer FIRST for any already-arrived event that matches
+    -- First check if event already buffered for this exact tower
     for _, event in ipairs(eventBuffer) do
         if event.towerName == towerName and (event.towerPos - pos).Magnitude < 0.5 then
             resolvedId[macroId] = event.realId
-            print("[DEBUG] Found matching event in buffer for macro", macroId, "ID", event.realId)
+            print("[TDX] Placed Macro", macroId, "→ Tower ID", event.realId)
             break
         end
     end
@@ -87,19 +91,16 @@ function TDX:Place(towerName, x, y, z, macroId)
     if not success or result ~= true then
         pendingPlacements[macroId] = nil
         waitingForId[macroId] = nil
-        print("[ERROR] Place failed for macro", macroId)
         return false
     end
-
-    print("[TDX] Place sent for Macro", macroId, "– waiting for confirmation")
 
     -- If already resolved from buffer, skip waiting
     if resolvedId[macroId] then
         waitingForId[macroId] = nil
         pendingPlacements[macroId] = nil
         macroToTowerId[macroId] = resolvedId[macroId]
-        print("[TDX] ✓ Macro", macroId, "mapped instantly from buffer to ID", resolvedId[macroId])
-        -- Process queued actions...
+
+        -- Handle queued upgrade/sell for this macro
         if pendingUpgrade and pendingUpgrade.macroId == macroId then
             task.wait(0.1)
             TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
@@ -113,7 +114,7 @@ function TDX:Place(towerName, x, y, z, macroId)
         return true
     end
 
-    -- Otherwise wait for listener to set resolvedId
+    -- Otherwise wait for listener
     while waitingForId[macroId] and resolvedId[macroId] == nil do
         task.wait()
     end
@@ -123,7 +124,7 @@ function TDX:Place(towerName, x, y, z, macroId)
 
     if resolvedId[macroId] then
         macroToTowerId[macroId] = resolvedId[macroId]
-        print("[TDX] ✓ Macro", macroId, "mapped to real ID", resolvedId[macroId])
+        print("[TDX] Placed Macro", macroId, "→ Tower ID", resolvedId[macroId])
 
         if pendingUpgrade and pendingUpgrade.macroId == macroId then
             task.wait(0.1)
@@ -137,7 +138,7 @@ function TDX:Place(towerName, x, y, z, macroId)
         end
         return true
     else
-        print("[TDX] ERROR: Macro", macroId, "never got real ID")
+        print("[TDX] Failed to map Macro", macroId)
         return false
     end
 end
@@ -153,7 +154,7 @@ function TDX:Upgrade(macroId, path, level)
     if not remote then return false end
     task.wait(0.1)
     pcall(function() remote:FireServer(towerId, path, level) end)
-    print("[TDX] Upgrade sent for Macro", macroId, "(ID:", towerId, ")")
+    print("[TDX] Upgraded Macro", macroId, "(Tower ID", towerId, ")")
     return true
 end
 
@@ -168,7 +169,7 @@ function TDX:Sell(macroId)
     if not remote then return false end
     task.wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
-    print("[TDX] Sell sent for Macro", macroId, "(ID:", towerId, ")")
+    print("[TDX] Sold Macro", macroId, "(Tower ID", towerId, ")")
     macroToTowerId[macroId] = nil
     return true
 end
@@ -176,66 +177,38 @@ end
 function TDX:SetupUpgradeListener()
     local queueRemote = getRemote("TowerFactoryQueueUpdated")
     if not queueRemote then
-        print("[TDX] ERROR: TowerFactoryQueueUpdated not found")
+        print("[TDX] Remote not found")
         return
     end
 
     queueRemote.OnClientEvent:Connect(function(data)
-        print("\n[TDX] === EVENT RECEIVED ===")
-        -- Print raw data for debugging
-        if type(data) == "table" then
-            for k, v in pairs(data) do
-                if type(v) == "table" then
-                    print("  ", k, "= table")
-                    for k2, v2 in pairs(v) do
-                        print("      ", k2, "=", v2)
-                    end
-                else
-                    print("  ", k, "=", v)
-                end
-            end
-        end
-
-        local flat = deepFindFlatTable(data)
-        if not flat then
-            print("[TDX] No flat table found")
-            return
-        end
+        local flat = findFlatTowerTable(data)
+        if not flat then return end
 
         local realId = flat[1]
         local towerName = flat[2]
         local owner = flat[7]
         local posString = flat[4]
+
         local towerPos = parsePositionString(posString)
-
-        print("[TDX] Unwrapped -> ID:", realId, "Name:", towerName, "Owner:", owner, "Pos:", posString)
-
-        if not towerPos then
-            print("[TDX] Failed to parse position")
+        if not towerPos or tostring(owner) ~= player.Name then
             return
         end
 
-        if tostring(owner) ~= player.Name then
-            print("[TDX] Ignored – owned by", owner)
-            return
-        end
-
-        -- Add to buffer (for future Place calls that haven't started yet)
+        -- Buffer the event
         table.insert(eventBuffer, { realId = realId, towerName = towerName, towerPos = towerPos })
-        print("[TDX] Buffered event for", towerName, "at", towerPos)
+        -- Limit buffer size to avoid memory bloat
+        if #eventBuffer > 50 then table.remove(eventBuffer, 1) end
 
-        -- Also try to match any currently waiting macroId
+        -- Match with any waiting macro
         local macroId = findMatchingMacroId(towerName, towerPos)
         if macroId then
             resolvedId[macroId] = realId
-            print("[TDX] ✓ Matched waiting macro", macroId, "to real ID", realId)
-        else
-            print("[TDX] No waiting macro for this tower")
+            -- No print here; Place will print the mapping
         end
-        print("[TDX] ===================\n")
     end)
 
-    print("[TDX] Listener ready – events are buffered and can match before Place waits")
+    print("[TDX] Ready")
 end
 
 return TDX
