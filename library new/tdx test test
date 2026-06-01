@@ -16,8 +16,8 @@ local gameOverTriggered = false
 local towerNameById = {}
 local towersByName = {}
 
--- Persistent tower data
-local persistentData = {}  -- macroId -> { name, x, y, z, upgrades = { {path,level}, ... } }
+-- Persistent tower data: macroId -> { name, x, y, z, topLevel, bottomLevel }
+local persistentData = {}
 
 local function getCash()
     if not player or not player.leaderstats then return 0 end
@@ -28,15 +28,18 @@ end
 local function replaceTower(macroId)
     local data = persistentData[macroId]
     if not data then return end
-    -- Wait for enough cash (250k)
+    -- Wait for enough cash (25,000)
     while getCash() < 25000 do
         wait(0.5)
     end
     -- Place the tower again
     TDX:Place(data.name, data.x, data.y, data.z, macroId)
-    -- Re-apply all recorded upgrades in order
-    for _, upg in ipairs(data.upgrades) do
-        TDX:Upgrade(macroId, upg.path, upg.level)
+    -- Upgrade to stored levels
+    for path = 1, 2 do
+        local targetLevel = (path == 1) and data.topLevel or data.bottomLevel
+        for lvl = 1, targetLevel do
+            TDX:Upgrade(macroId, path, lvl)
+        end
     end
 end
 
@@ -63,7 +66,8 @@ function TDX:Place(towerName, x, y, z, macroId, persist)
         persistentData[macroId] = {
             name = towerName,
             x = x, y = y, z = z,
-            upgrades = {}   -- will be filled by TDX:Upgrade
+            topLevel = 0,
+            bottomLevel = 0
         }
     end
     return true
@@ -88,10 +92,6 @@ function TDX:Upgrade(macroId, path, level)
         macroToTowerId[macroId] = nil
         pendingUpgrade[macroId] = nil
         return false
-    end
-    -- Record upgrade for persistent towers
-    if persistentData[macroId] then
-        table.insert(persistentData[macroId].upgrades, { path = pathNum, level = levelNum })
     end
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then error("[TDX] TowerUpgradeRequest not found") end
@@ -169,7 +169,6 @@ function TDX:SetupUpgradeListener()
                     end
                     towerNameById[towerId] = nil
                     upgradeConfirm[towerId] = nil
-                    -- Auto‑replace persistent tower
                     if macroId and persistentData[macroId] then
                         spawn(function()
                             replaceTower(macroId)
@@ -219,6 +218,17 @@ function TDX:SetupUpgradeListener()
                 if not hash then continue end
                 if upgradeConfirm[hash] == false then
                     upgradeConfirm[hash] = true
+                end
+                -- Update persistent tower levels if this tower is tracked
+                if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
+                    local top = entry.LevelReplicationData[1] or 0
+                    local bottom = entry.LevelReplicationData[2] or 0
+                    for macroId, data in pairs(persistentData) do
+                        if macroToTowerId[macroId] == hash then
+                            data.topLevel = top
+                            data.bottomLevel = bottom
+                        end
+                    end
                 end
             end
         end)
