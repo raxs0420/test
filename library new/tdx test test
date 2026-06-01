@@ -23,17 +23,25 @@ local function getTowersFolder()
     return nil
 end
 
-local function isPartAlive(part)
-    return part and part.Parent ~= nil
-end
-
-local function matchPendingPlacement(towerName, position)
-    for macroId, data in pairs(pendingPlacements) do
-        if data.towerName == towerName and (data.position - position).Magnitude < 0.5 then
-            return macroId
-        end
+local function parsePositionFromEvent(posString)
+    if type(posString) ~= "string" then return nil end
+    local cleaned = posString:gsub(",", " ")
+    local parts = {}
+    for part in string.gmatch(cleaned, "%S+") do
+        if part:find(",") then part = part:gsub(",", ".") end
+        local num = tonumber(part)
+        if not num then return nil end
+        table.insert(parts, num)
+        if #parts == 3 then break end
+    end
+    if #parts == 3 then
+        return Vector3.new(parts[1], parts[2], parts[3])
     end
     return nil
+end
+
+local function isPartAlive(part)
+    return part and part.Parent ~= nil
 end
 
 local function addTower(part, macroId, realId)
@@ -84,12 +92,14 @@ local function syncAllTowers()
         end
     end
 
+    -- Optional: match any new part that appeared without event (fallback)
     for part in pairs(aliveParts) do
         if not partToId[part] then
-            local macroId = matchPendingPlacement(part.Name, part.Position)
-            if macroId and pendingPlacements[macroId] then
-                -- We don't have realId yet, wait for event
-                -- But we can store part association later when event arrives
+            for macroId, data in pairs(pendingPlacements) do
+                if data.towerName == part.Name and (data.position - part.Position).Magnitude < 0.5 then
+                    -- We don't have realId yet, wait for event or fetch from part attribute?
+                    -- Better to ignore, event will provide realId.
+                end
             end
         end
     end
@@ -155,33 +165,66 @@ function TDX:SetupUpgradeListener()
             local towerData = args[1][1].Data[1]
             if towerData and towerData[1] then
                 local realId = towerData[1]
-                print("[TDX] Event received - Tower ID:", realId)
+                local posString = towerData[4]  -- Position string
+                local towerName = towerData[2]  -- Tower name
                 
-                -- Scan towers folder to find which pending placement matches
-                local towersFolder = getTowersFolder()
-                if towersFolder then
-                    for _, part in ipairs(towersFolder:GetChildren()) do
-                        if part:IsA("BasePart") and not partToId[part] then
-                            local macroId = matchPendingPlacement(part.Name, part.Position)
-                            if macroId then
-                                addTower(part, macroId, realId)
+                local towerPos = parsePositionFromEvent(posString)
+                if not towerPos then
+                    print("[TDX] Failed to parse position from event, ignoring")
+                    return
+                end
+                
+                -- Find matching pending placement by name and position
+                local matchedMacro = nil
+                for macroId, data in pairs(pendingPlacements) do
+                    if data.towerName == towerName and (data.position - towerPos).Magnitude < 0.5 then
+                        matchedMacro = macroId
+                        break
+                    end
+                end
+                
+                if matchedMacro then
+                    -- Map the macro ID to the real ID
+                    macroToTowerId[matchedMacro] = realId
+                    pendingPlacements[matchedMacro] = nil
+                    print("[TDX] Placed Macro", matchedMacro, "→ Tower ID", realId)
+                    
+                    -- Optionally find the part in Towers folder and store it
+                    local towersFolder = getTowersFolder()
+                    if towersFolder then
+                        for _, part in ipairs(towersFolder:GetChildren()) do
+                            if part:IsA("BasePart") and not partToId[part] and (part.Position - towerPos).Magnitude < 0.5 then
+                                partToId[part] = realId
                                 break
                             end
                         end
                     end
+                    
+                    -- Process queued actions for this macro
+                    if pendingUpgrade and pendingUpgrade.macroId == matchedMacro then
+                        task.wait(0.1)
+                        TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
+                        pendingUpgrade = nil
+                    end
+                    if pendingSell == matchedMacro then
+                        task.wait(0.1)
+                        TDX:Sell(pendingSell)
+                        pendingSell = nil
+                    end
+                else
+                    print("[TDX] Event received for real ID", realId, "but no pending placement matched")
                 end
             end
         end
     end)
 
-    -- Periodic sync to clean up dead towers and catch missed placements
     task.spawn(function()
         while task.wait(1) do
             syncAllTowers()
         end
     end)
 
-    print("[TDX] Ready (listener + sync active)")
+    print("[TDX] Ready (matching by event position)")
 end
 
 return TDX
