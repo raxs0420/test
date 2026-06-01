@@ -16,11 +16,20 @@ end
 
 local function parsePositionString(str)
     if type(str) ~= "string" then return nil end
+    -- Split by commas
     local parts = {}
     for part in string.gmatch(str, "[^,]+") do
-        local trimmed = part:match("^%s*(.-)%s*$")  -- remove leading/trailing spaces
+        -- Trim whitespace
+        local trimmed = part:match("^%s*(.-)%s*$")
+        -- Replace comma with period if it looks like a decimal (e.g., "1,000000" -> "1.000000")
+        -- But only if the part contains a comma and the rest are digits
+        if trimmed:find(",") then
+            trimmed = trimmed:gsub(",", ".")
+        end
         local num = tonumber(trimmed)
-        if not num then return nil end
+        if not num then
+            return nil
+        end
         table.insert(parts, num)
     end
     if #parts == 3 then
@@ -33,9 +42,11 @@ local function deepFindFlatTable(t, depth)
     depth = depth or 0
     if depth > 5 then return nil end
     if type(t) ~= "table" then return nil end
+    -- Check if this table has numeric keys 1,2,3...
     if t[1] ~= nil and type(t[1]) ~= "table" and t[2] ~= nil then
         return t
     end
+    -- Otherwise search inside each value
     for _, v in pairs(t) do
         if type(v) == "table" then
             local found = deepFindFlatTable(v, depth+1)
@@ -61,11 +72,16 @@ local function findMatchingMacroId(towerName, towerPos)
 end
 
 function TDX:Place(towerName, x, y, z, macroId)
+    print("[DEBUG] Place called for macro", macroId, "tower", towerName)
     local remote = getRemote("PlaceTower")
-    if not remote then return false end
+    if not remote then
+        print("[ERROR] No PlaceTower remote")
+        return false
+    end
 
     local pos = Vector3.new(x, y, z)
     pendingPlacements[macroId] = { towerName = towerName, position = pos }
+    print("[DEBUG] Pending placement stored for macro", macroId)
 
     task.wait(0.1)
     local success, result = pcall(function()
@@ -77,12 +93,14 @@ function TDX:Place(towerName, x, y, z, macroId)
         task.wait(0.2)
         return true
     else
+        print("[ERROR] Place failed for macro", macroId)
         pendingPlacements[macroId] = nil
         return false
     end
 end
 
 function TDX:Upgrade(macroId, path, level)
+    print("[DEBUG] Upgrade requested for macro", macroId, "path", path, "level", level)
     local towerId = macroToTowerId[macroId]
     if not towerId then
         pendingUpgrade = { macroId = macroId, path = path, level = level }
@@ -90,7 +108,10 @@ function TDX:Upgrade(macroId, path, level)
         return false
     end
     local remote = getRemote("TowerUpgradeRequest")
-    if not remote then return false end
+    if not remote then
+        print("[ERROR] No TowerUpgradeRequest")
+        return false
+    end
     task.wait(0.1)
     pcall(function() remote:FireServer(towerId, path, level) end)
     print("[TDX] Upgrade sent for Macro", macroId, "(ID:", towerId, ")")
@@ -99,6 +120,7 @@ function TDX:Upgrade(macroId, path, level)
 end
 
 function TDX:Sell(macroId)
+    print("[DEBUG] Sell requested for macro", macroId)
     local towerId = macroToTowerId[macroId]
     if not towerId then
         pendingSell = macroId
@@ -106,7 +128,10 @@ function TDX:Sell(macroId)
         return false
     end
     local remote = getRemote("SellTower")
-    if not remote then return false end
+    if not remote then
+        print("[ERROR] No SellTower")
+        return false
+    end
     task.wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
     print("[TDX] Sell sent for Macro", macroId, "(ID:", towerId, ")")
@@ -123,10 +148,31 @@ function TDX:SetupUpgradeListener()
     end
 
     queueRemote.OnClientEvent:Connect(function(data)
+        print("\n[TDX] === EVENT RECEIVED ===")
+        print("[DEBUG] Raw data type:", type(data))
+        if type(data) == "table" then
+            print("[DEBUG] Raw data table dump:")
+            for k, v in pairs(data) do
+                if type(v) == "table" then
+                    print("  ", k, "= table")
+                    for k2, v2 in pairs(v) do
+                        print("      ", k2, "=", v2)
+                    end
+                else
+                    print("  ", k, "=", v)
+                end
+            end
+        end
+
         local flat = deepFindFlatTable(data)
         if not flat then
             print("[TDX] Could not find flat table in event")
             return
+        end
+
+        print("[DEBUG] Found flat table with keys:")
+        for k, v in pairs(flat) do
+            print("  ", k, "=", v)
         end
 
         local realId = flat[1]
@@ -134,35 +180,49 @@ function TDX:SetupUpgradeListener()
         local owner = flat[7]
         local posString = flat[4]
 
+        print("[DEBUG] Extracted -> ID:", realId, "Name:", towerName, "Owner:", owner, "PosStr:", posString)
+
         local towerPos = parsePositionString(posString)
         if not towerPos then
             print("[TDX] Failed to parse position:", posString)
             return
         end
 
+        print("[DEBUG] Parsed position:", towerPos)
+
         if tostring(owner) == player.Name then
+            print("[DEBUG] Owner matches player, looking for matching macro")
             local macroId = findMatchingMacroId(towerName, towerPos)
             if macroId then
                 macroToTowerId[macroId] = realId
                 print("[TDX] ✓ Mapped Macro", macroId, "→ Tower ID", realId)
 
                 if pendingUpgrade and pendingUpgrade.macroId == macroId then
+                    print("[DEBUG] Executing queued upgrade for macro", macroId)
                     task.wait(0.1)
                     TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
                     pendingUpgrade = nil
                 end
                 if pendingSell == macroId then
+                    print("[DEBUG] Executing queued sell for macro", macroId)
                     task.wait(0.1)
                     TDX:Sell(pendingSell)
                     pendingSell = nil
                 end
             else
                 print("[TDX] No pending macro for", towerName, "at", towerPos)
+                print("[DEBUG] Current pending placements:")
+                for k, v in pairs(pendingPlacements) do
+                    print("  Macro", k, ":", v.towerName, v.position)
+                end
             end
+        else
+            print("[TDX] Tower owned by", owner, "- ignoring")
         end
+        print("[TDX] ===================\n")
     end)
 
-    print("[TDX] Listener ready - position spaces fixed")
+    print("[TDX] Listener ready - verbose + comma-decimal position fix")
 end
 
 return TDX
