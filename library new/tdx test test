@@ -108,66 +108,53 @@ function TDX:SetupUpgradeListener()
     local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
     factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
-        -- The event may contain multiple entries as a sequence (array)
-        local entries = args
-        if type(entries) ~= "table" then return end
-        -- Iterate over all top-level entries
-        for i = 1, #entries do
-            local entry = entries[i]
-            if not entry or not entry.Data then continue end
-
-            -- Removal event
-            if entry.Creation == false then
-                local towerId = entry.Data[1]
-                if towerId and type(towerId) == "number" then
-                    for macroId, id in pairs(macroToTowerId) do
-                        if id == towerId then
-                            macroToTowerId[macroId] = nil
-                            pendingUpgrade[macroId] = nil
-                        end
-                    end
-                    local name = towerNameById[towerId]
-                    if name and towersByName[name] then
-                        for j, id in ipairs(towersByName[name]) do
+        -- The event is an array where each element is a sub-event (table with Data and Creation)
+        for idx, sub in ipairs(args) do
+            if type(sub) == "table" and sub.Data then
+                -- Removal
+                if sub.Creation == false then
+                    local towerId = sub.Data[1]
+                    if type(towerId) == "number" then
+                        for macroId, id in pairs(macroToTowerId) do
                             if id == towerId then
-                                table.remove(towersByName[name], j)
-                                break
+                                macroToTowerId[macroId] = nil
+                                pendingUpgrade[macroId] = nil
                             end
                         end
+                        local name = towerNameById[towerId]
+                        if name and towersByName[name] then
+                            for i, id in ipairs(towersByName[name]) do
+                                if id == towerId then table.remove(towersByName[name], i) break end
+                            end
+                        end
+                        towerNameById[towerId] = nil
+                        upgradeConfirm[towerId] = nil
                     end
-                    towerNameById[towerId] = nil
-                    upgradeConfirm[towerId] = nil
-                end
-                continue
-            end
+                else
+                    -- Placement: Data is an array? Actually from debug: sub.Data[1] is a table with the tower info
+                    local towerInfo = sub.Data[1]
+                    if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
+                        local realId = towerInfo[1]
+                        local towerName = towerInfo[2]
+                        if type(towerName) == "string" and #pendingQueue > 0 then
+                            local macroId = table.remove(pendingQueue, 1)
+                            macroToTowerId[macroId] = realId
+                            towerNameById[realId] = towerName
+                            if not towersByName[towerName] then towersByName[towerName] = {} end
+                            table.insert(towersByName[towerName], realId)
 
-            -- Placement event: data structure may be either:
-            --   entry.Data[1] is a sub-table containing tower data
-            -- or directly entry.Data[1] is the tower ID if the event is flattened.
-            local towerData = entry.Data
-            if type(towerData) == "table" and type(towerData[1]) == "table" then
-                towerData = towerData[1]
-            end
-            if towerData and type(towerData[1]) == "number" then
-                local realId = towerData[1]
-                local towerName = towerData[2]
-                if type(towerName) == "string" and #pendingQueue > 0 then
-                    local macroId = table.remove(pendingQueue, 1)
-                    macroToTowerId[macroId] = realId
-                    towerNameById[realId] = towerName
-                    if not towersByName[towerName] then towersByName[towerName] = {} end
-                    table.insert(towersByName[towerName], realId)
-                    -- Process queued upgrade for this macro
-                    local upgrade = pendingUpgrade[macroId]
-                    if upgrade then
-                        wait(0.1)
-                        TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
-                        pendingUpgrade[macroId] = nil
-                    end
-                    if pendingSell == macroId then
-                        wait(0.1)
-                        TDX:Sell(pendingSell)
-                        pendingSell = nil
+                            local upgrade = pendingUpgrade[macroId]
+                            if upgrade then
+                                wait(0.1)
+                                TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
+                                pendingUpgrade[macroId] = nil
+                            end
+                            if pendingSell == macroId then
+                                wait(0.1)
+                                TDX:Sell(pendingSell)
+                                pendingSell = nil
+                            end
+                        end
                     end
                 end
             end
