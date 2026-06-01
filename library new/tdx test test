@@ -1,6 +1,9 @@
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+if not player then
+    player = Players:WaitForChild("LocalPlayer")
+end
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
@@ -480,6 +483,8 @@ local function checkGameOver()
         end
     end)
 end
+
+
 checkGameOver()
 
 return TDX
