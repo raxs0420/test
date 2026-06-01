@@ -3,7 +3,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
-local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 
 local pendingQueue = {}
@@ -14,62 +13,12 @@ local pendingSell = nil
 local CurrentSpeed = 1
 local gameOverTriggered = false
 
-local partToId = {}
-local idToData = {}
 local towersByName = {}
-local towersFolder = nil
+local towerNameById = {}
 
 local function getRemote(name)
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
     return remotes and remotes:FindFirstChild(name)
-end
-
-local function isPartAlive(part)
-    return part and part.Parent ~= nil
-end
-
-local function removeTower(part)
-    local towerId = partToId[part]
-    if not towerId then return end
-    local data = idToData[towerId]
-    if data then
-        local name = data.name
-        if towersByName[name] then
-            for i, id in ipairs(towersByName[name]) do
-                if id == towerId then
-                    table.remove(towersByName[name], i)
-                    break
-                end
-            end
-        end
-        if macroToTowerId[data.macroId] == towerId then
-            macroToTowerId[data.macroId] = nil
-        end
-        upgradeConfirm[towerId] = nil
-    end
-    partToId[part] = nil
-    idToData[towerId] = nil
-end
-
-local function syncDeadTowers()
-    if not towersFolder then
-        local gameFolder = Workspace:FindFirstChild("Game")
-        if gameFolder then
-            towersFolder = gameFolder:FindFirstChild("Towers")
-        end
-        if not towersFolder then return end
-    end
-    local aliveParts = {}
-    for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") and isPartAlive(part) then
-            aliveParts[part] = true
-        end
-    end
-    for part in pairs(partToId) do
-        if not aliveParts[part] then
-            removeTower(part)
-        end
-    end
 end
 
 function TDX:Place(towerName, x, y, z, macroId)
@@ -92,8 +41,7 @@ function TDX:Place(towerName, x, y, z, macroId)
     end
 
     while not macroToTowerId[macroId] do
-        syncDeadTowers()
-        wait(0.1)
+        wait(0.05)
     end
     return true
 end
@@ -106,7 +54,6 @@ function TDX:Upgrade(macroId, path, level)
         if not pendingUpgrade[macroId] then
             pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
         end
-        syncDeadTowers()
         wait(0.1)
     end
 
@@ -121,7 +68,6 @@ function TDX:Upgrade(macroId, path, level)
         local startWait = tick()
         while upgradeConfirm[towerId] == false do
             wait(0.05)
-            syncDeadTowers()
             if not macroToTowerId[macroId] then return false end
             if tick() - startWait > 2 then break end
         end
@@ -136,7 +82,6 @@ end
 function TDX:Sell(macroId)
     while not macroToTowerId[macroId] do
         pendingSell = macroId
-        syncDeadTowers()
         wait(0.1)
     end
     local towerId = macroToTowerId[macroId]
@@ -145,11 +90,18 @@ function TDX:Sell(macroId)
 
     wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
-    for part, id in pairs(partToId) do
-        if id == towerId then
-            removeTower(part)
-            break
+
+    if towerNameById[towerId] then
+        local name = towerNameById[towerId]
+        if towersByName[name] then
+            for i, id in ipairs(towersByName[name]) do
+                if id == towerId then
+                    table.remove(towersByName[name], i)
+                    break
+                end
+            end
         end
+        towerNameById[towerId] = nil
     end
     macroToTowerId[macroId] = nil
     pendingSell = nil
@@ -157,50 +109,57 @@ function TDX:Sell(macroId)
 end
 
 function TDX:SetupUpgradeListener()
-    local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
-    factoryRemote.OnClientEvent:Connect(function(...)
+    local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
+    remote.OnClientEvent:Connect(function(...)
         local args = {...}
-        if args[1] and args[1][1] and args[1][1].Data then
-            local towerData = args[1][1].Data[1]
-            if towerData and towerData[1] then
-                local realId = towerData[1]
-                local towerName = towerData[2]
-                if #pendingQueue > 0 then
-                    local macroId = table.remove(pendingQueue, 1)
-                    macroToTowerId[macroId] = realId
-                    local part = nil
-                    if towersFolder then
-                        for _, p in ipairs(towersFolder:GetChildren()) do
-                            if p:IsA("BasePart") and (p.Position - Vector3.new(towerData[4] or 0, towerData[5] or 0, towerData[6] or 0)).Magnitude < 1 then
-                                part = p
-                                break
-                            end
-                        end
-                    end
-                    if part then
-                        partToId[part] = realId
-                    end
-                    idToData[realId] = {
-                        id = realId,
-                        macroId = macroId,
-                        name = towerName,
-                        part = part
-                    }
-                    if not towersByName[towerName] then towersByName[towerName] = {} end
-                    table.insert(towersByName[towerName], realId)
-                    local upgrade = pendingUpgrade[macroId]
-                    if upgrade then
-                        wait(0.1)
-                        TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
-                        pendingUpgrade[macroId] = nil
-                    end
-                    if pendingSell == macroId then
-                        wait(0.1)
-                        TDX:Sell(pendingSell)
-                        pendingSell = nil
-                    end
+        if not args[1] or not args[1][1] then return end
+        local entry = args[1][1]
+        if not entry.Data then return end
+        local data = entry.Data
+        local towerId = data[1]
+        if not towerId then return end
+
+        if type(data[2]) == "string" then
+            if #pendingQueue > 0 then
+                local macroId = table.remove(pendingQueue, 1)
+                local towerName = data[2]
+                macroToTowerId[macroId] = towerId
+                towerNameById[towerId] = towerName
+                if not towersByName[towerName] then towersByName[towerName] = {} end
+                table.insert(towersByName[towerName], towerId)
+
+                local upgrade = pendingUpgrade[macroId]
+                if upgrade then
+                    wait(0.1)
+                    TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
+                    pendingUpgrade[macroId] = nil
+                end
+                if pendingSell == macroId then
+                    wait(0.1)
+                    TDX:Sell(pendingSell)
+                    pendingSell = nil
                 end
             end
+        elseif data[2] == true then
+            local name = towerNameById[towerId]
+            if name then
+                if towersByName[name] then
+                    for i, id in ipairs(towersByName[name]) do
+                        if id == towerId then
+                            table.remove(towersByName[name], i)
+                            break
+                        end
+                    end
+                end
+                towerNameById[towerId] = nil
+            end
+            for macroId, id in pairs(macroToTowerId) do
+                if id == towerId then
+                    macroToTowerId[macroId] = nil
+                    break
+                end
+            end
+            upgradeConfirm[towerId] = nil
         end
     end)
 
@@ -220,13 +179,6 @@ function TDX:SetupUpgradeListener()
             end
         end)
     end
-
-    spawn(function()
-        while true do
-            wait(0.5)
-            syncDeadTowers()
-        end
-    end)
 end
 
 function TDX:AutoAbility(towerName, slot, isLooping)
@@ -252,8 +204,7 @@ function TDX:AutoAbility(towerName, slot, isLooping)
             return
         end
         for _, id in ipairs(ids) do
-            local data = idToData[id]
-            if data and data.part and isPartAlive(data.part) then
+            if towerNameById[id] then
                 useAbility(id)
                 wait(0.05)
             end
@@ -301,7 +252,7 @@ function TDX:Init()
             lastCheck = lastCheck + deltaTime
             if lastCheck >= 0.5 then
                 lastCheck = 0
-                local gameFolder = Workspace:FindFirstChild("Game")
+                local gameFolder = workspace:FindFirstChild("Game")
                 if gameFolder then
                     local enemies = gameFolder:FindFirstChild("Enemies")
                     if enemies then enemies:Destroy() end
@@ -352,7 +303,7 @@ function TDX:JoinMapViaAPC(mapName)
 
     local startTime = tick()
     while true do
-        local apcsFolder = Workspace:FindFirstChild("APCs")
+        local apcsFolder = workspace:FindFirstChild("APCs")
         if apcsFolder then
             for _, slot in ipairs(apcsFolder:GetChildren()) do
                 if (slot:GetAttribute("MapName") or "") == mapName then
@@ -372,7 +323,7 @@ function TDX:JoinMapViaAPC(mapName)
             end
         end
         if level >= 31 then
-            local apcs2Folder = Workspace:FindFirstChild("APCs2")
+            local apcs2Folder = workspace:FindFirstChild("APCs2")
             if apcs2Folder then
                 for _, slot in ipairs(apcs2Folder:GetChildren()) do
                     if (slot:GetAttribute("MapName") or "") == mapName then
