@@ -82,15 +82,31 @@ function TDX:Upgrade(macroId, path, level)
         error("[TDX] TowerUpgradeRequest not found")
     end
 
-    -- Mark that an upgrade is pending for this tower
-    upgradeConfirm[towerId] = false
-    wait(0.1)
-    pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
-    print("[TDX] Upgrade request sent for Macro", macroId, "(Tower ID", towerId, ")")
+    -- Keep trying until the upgrade is confirmed
+    while true do
+        -- Mark that we expect a confirmation for this tower
+        upgradeConfirm[towerId] = false
+        
+        wait(0.1)
+        pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
+        print("[TDX] Upgrade request sent for Macro", macroId, "(Tower ID", towerId, ")")
 
-    -- Wait for the upgrade to be confirmed by the listener
-    while upgradeConfirm[towerId] == false do
-        wait(0.05)
+        -- Wait for confirmation (or until something goes wrong)
+        local startWait = tick()
+        while upgradeConfirm[towerId] == false do
+            wait(0.05)
+            -- If no confirmation after 2 seconds, we retry
+            if tick() - startWait > 2 then
+                print("[TDX] Upgrade confirmation timeout, retrying...")
+                break
+            end
+        end
+
+        -- If confirmed, exit the retry loop
+        if upgradeConfirm[towerId] == true then
+            break
+        end
+        -- Otherwise, loop will retry
     end
 
     print("[TDX] Upgrade confirmed for Macro", macroId, "(Tower ID", towerId, ", Path", pathNum, ", Level", levelNum, ")")
