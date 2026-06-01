@@ -7,7 +7,7 @@ local player = Players.LocalPlayer
 
 local pendingQueue = {}
 local macroToTowerId = {}
-local pendingUpgrade = nil
+local pendingUpgrade = {}
 local pendingSell = nil
 local CurrentSpeed = 1
 local gameOverTriggered = false
@@ -24,18 +24,43 @@ end
 
 function TDX:Place(towerName, x, y, z, macroId)
     local remote = getRemote("PlaceTower")
-    if not remote then return false end
+    if not remote then
+        warn("[TDX] PlaceTower remote not found")
+        return false
+    end
+
+    for _, id in ipairs(pendingQueue) do
+        if id == macroId then
+            warn("[TDX] Macro", macroId, "already in pending queue")
+            return false
+        end
+    end
 
     table.insert(pendingQueue, macroId)
-
     local pos = Vector3.new(x, y, z)
+
     local success, result = pcall(function()
         return remote:InvokeServer(0, towerName, pos, 0)
     end)
 
-    if not success or result ~= true then
+    if not success then
+        warn("[TDX] Place remote error:", result)
         for i, id in ipairs(pendingQueue) do
-            if id == macroId then table.remove(pendingQueue, i); break end
+            if id == macroId then
+                table.remove(pendingQueue, i)
+                break
+            end
+        end
+        return false
+    end
+
+    if result ~= true then
+        warn("[TDX] Place failed, result:", result)
+        for i, id in ipairs(pendingQueue) do
+            if id == macroId then
+                table.remove(pendingQueue, i)
+                break
+            end
         end
         return false
     end
@@ -50,14 +75,17 @@ function TDX:Upgrade(macroId, path, level)
 
     local towerId = macroToTowerId[macroId]
     if not towerId then
-        pendingUpgrade = { macroId = macroId, path = pathNum, level = levelNum }
+        if pendingUpgrade[macroId] then
+            return false
+        end
+        pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
         print("[TDX] Queued upgrade for Macro", macroId)
         return false
     end
 
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then
-        print("[TDX] ERROR: TowerUpgradeRequest not found")
+        warn("[TDX] TowerUpgradeRequest not found")
         return false
     end
 
@@ -98,10 +126,11 @@ function TDX:SetupUpgradeListener()
                     macroToTowerId[macroId] = realId
                     print("[TDX] Placed Macro", macroId, "→ Tower ID", realId)
 
-                    if pendingUpgrade and pendingUpgrade.macroId == macroId then
+                    local upgrade = pendingUpgrade[macroId]
+                    if upgrade then
                         task.wait(0.1)
-                        TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
-                        pendingUpgrade = nil
+                        TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
+                        pendingUpgrade[macroId] = nil
                     end
                     if pendingSell == macroId then
                         task.wait(0.1)
@@ -113,7 +142,7 @@ function TDX:SetupUpgradeListener()
         end
     end)
 
-    print("[TDX] Ready (FIFO mapping + numeric upgrade args)")
+    print("[TDX] SetupUpgradeListener ready")
 end
 
 function TDX:Init()
@@ -344,11 +373,11 @@ function TDX:SetModeAndStart(mode)
     task.wait(0.5)
 end
 
-function TDX:Loadout(LoadoutId)
+function TDX:Loadout(loadoutId)
     task.wait(2)
     local load = getRemote("LoadoutSelectionChanged")
     if load then
-        load:FireServer(LoadoutId)
+        load:FireServer(loadoutId)
     end
     task.wait(0.5)
 end
