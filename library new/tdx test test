@@ -22,15 +22,14 @@ local function getRemote(name)
 end
 
 function TDX:Place(towerName, x, y, z, macroId)
-    local remote = getRemote("PlaceTower")
-    if not remote then error("[TDX] PlaceTower remote not found") end
-
     for _, id in ipairs(pendingQueue) do
         if id == macroId then return false end
     end
 
     table.insert(pendingQueue, macroId)
     local pos = Vector3.new(x, y, z)
+    local remote = getRemote("PlaceTower")
+    if not remote then error("[TDX] PlaceTower not found") end
 
     while true do
         local success, result = pcall(function()
@@ -48,17 +47,17 @@ function TDX:Upgrade(macroId, path, level)
     local pathNum = tonumber(path) or path
     local levelNum = tonumber(level) or level
 
-    -- If no tower and no pending placement, fail immediately (no hang)
-    if not macroToTowerId[macroId] then
-        local isPending = false
-        for _, id in ipairs(pendingQueue) do
-            if id == macroId then isPending = true break end
-        end
-        if not isPending then
-            print("[TDX] Upgrade: macro", macroId, "has no tower and is not pending, skipping")
-            pendingUpgrade[macroId] = nil
-            return false
-        end
+    -- Check if macro has a tower or is pending placement
+    local hasTower = macroToTowerId[macroId] ~= nil
+    local isPending = false
+    for _, id in ipairs(pendingQueue) do
+        if id == macroId then isPending = true break end
+    end
+
+    if not hasTower and not isPending then
+        print("[TDX] Upgrade: macro", macroId, "has no tower and is not pending, skipping")
+        pendingUpgrade[macroId] = nil
+        return false
     end
 
     while not macroToTowerId[macroId] do
@@ -110,13 +109,10 @@ end
 
 function TDX:CancelUpgrade(macroId)
     pendingUpgrade[macroId] = nil
-    if macroToTowerId[macroId] == nil then
-        -- Also remove from queue if it's pending placement
-        for i, id in ipairs(pendingQueue) do
-            if id == macroId then
-                table.remove(pendingQueue, i)
-                break
-            end
+    for i, id in ipairs(pendingQueue) do
+        if id == macroId then
+            table.remove(pendingQueue, i)
+            break
         end
     end
     print("[TDX] Cancelled upgrade for macro", macroId)
@@ -479,15 +475,10 @@ function TDX:TimeScale(speed)
     if speed == CurrentSpeed then return true end
     local remote = getRemote("SoloToggleSpeedControl")
     if remote then
-        if speed == 1 then
-            remote:FireServer(false)
-        elseif speed == 1.5 then
-            remote:FireServer(true, true)
-        elseif speed == 0.5 then
-            remote:FireServer(true, false)
-        else
-            return false
-        end
+        if speed == 1 then remote:FireServer(false)
+        elseif speed == 1.5 then remote:FireServer(true, true)
+        elseif speed == 0.5 then remote:FireServer(true, false)
+        else return false end
         CurrentSpeed = speed
     end
     return true
