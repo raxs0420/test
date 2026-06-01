@@ -65,7 +65,13 @@ function TDX:Place(towerName, x, y, z, macroId)
         return false
     end
 
-    print("[TDX] Place request sent for Macro", macroId)
+    print("[TDX] Place request sent for Macro", macroId, "waiting for tower ID...")
+
+    while not macroToTowerId[macroId] do
+        task.wait(0.05)
+    end
+
+    print("[TDX] Macro", macroId, "successfully placed → Tower ID", macroToTowerId[macroId])
     return true
 end
 
@@ -92,6 +98,7 @@ function TDX:Upgrade(macroId, path, level)
     task.wait(0.1)
     pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
     print("[TDX] Upgraded Macro", macroId, "(Tower ID", towerId, ", Path", pathNum, ", Level", levelNum, ")")
+    pendingUpgrade[macroId] = nil
     return true
 end
 
