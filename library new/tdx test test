@@ -3,6 +3,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
+
+-- Wait for LocalPlayer before proceeding
 local player = Players.LocalPlayer
 if not player then
     player = Players:WaitForChild("LocalPlayer")
@@ -22,12 +24,13 @@ end
 
 local function getRemote(name)
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    return remotes and remotes:FindFirstChild(name)
+    if not remotes then return nil end
+    return remotes:FindFirstChild(name)
 end
 
 function TDX:Place(towerName, x, y, z, macroId)
     local remote = getRemote("PlaceTower")
-    if not remote then return false end
+    if not remote then error("TDX: PlaceTower remote missing") end
 
     table.insert(pendingQueue, macroId)
 
@@ -38,9 +41,12 @@ function TDX:Place(towerName, x, y, z, macroId)
 
     if not success or result ~= true then
         for i, id in ipairs(pendingQueue) do
-            if id == macroId then table.remove(pendingQueue, i); break end
+            if id == macroId then
+                table.remove(pendingQueue, i)
+                break
+            end
         end
-        return false
+        error("TDX: PlaceTower server rejected " .. towerName)
     end
 
     print("[TDX] Place request sent for Macro", macroId)
@@ -62,7 +68,7 @@ function TDX:Upgrade(macroId, path, level)
 
     local towerId = macroToTowerId[macroId]
     local remote = getRemote("TowerUpgradeRequest")
-    if not remote then return false end
+    if not remote then error("TDX: TowerUpgradeRequest remote missing") end
 
     pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
     print("[TDX] Upgraded Macro", macroId)
@@ -74,9 +80,11 @@ function TDX:Sell(macroId)
         pendingSell = macroId
         task.wait()
     end
+
     local towerId = macroToTowerId[macroId]
     local remote = getRemote("SellTower")
-    if not remote then return false end
+    if not remote then error("TDX: SellTower remote missing") end
+
     pcall(function() remote:FireServer(towerId) end)
     print("[TDX] Sold Macro", macroId)
     macroToTowerId[macroId] = nil
@@ -121,21 +129,16 @@ end
 local function startCoinCollector()
     task.spawn(function()
         local remote = nil
-        local function getRemoteInternal()
+        while true do
             if not remote or not remote.Parent then
                 local remotes = ReplicatedStorage:FindFirstChild("Remotes")
                 if remotes then
                     remote = remotes:FindFirstChild("ClientsideCoinCollectedEvent")
                 end
             end
-            return remote
-        end
-
-        while true do
-            local currentRemote = getRemoteInternal()
-            if currentRemote then
+            if remote then
                 for i = 1, 100 do
-                    pcall(function() currentRemote:FireServer(i) end)
+                    pcall(function() remote:FireServer(i) end)
                 end
             end
             task.wait(1)
@@ -391,7 +394,7 @@ function TDX:TowerSkillUpgrade(TowerName, Skill)
             isProcessing = true
             while #upgradeQueue > 0 do
                 local upgrade = table.remove(upgradeQueue, 1)
-                local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
+                local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
                 local upgraded = false
                 while not upgraded do
                     local success, result = pcall(function()
@@ -436,18 +439,25 @@ end
 
 local function checkGameOver()
     if gameOverTriggered then return end
-    local playerGui = player:FindFirstChild("PlayerGui")
+
+    -- Wait until player GUI is ready
+    local playerGui = player:WaitForChild("PlayerGui", 999999)
     if not playerGui then return end
+
     local interface = playerGui:FindFirstChild("Interface")
-    if not interface then return end
-    local gameOverScreen = interface:FindFirstChild("GameOverScreen")
-    if not gameOverScreen then
-        task.spawn(function()
-            task.wait(10)
-            checkGameOver()
-        end)
+    if not interface then
+        task.wait(1)
+        checkGameOver()
         return
     end
+
+    local gameOverScreen = interface:FindFirstChild("GameOverScreen")
+    if not gameOverScreen then
+        task.wait(1)
+        checkGameOver()
+        return
+    end
+
     task.spawn(function()
         while not gameOverTriggered do
             if gameOverScreen.Visible then
@@ -463,6 +473,11 @@ local function checkGameOver()
         end
     end)
 end
-checkGameOver()
+
+-- Defer game over check until player exists
+task.spawn(function()
+    player = Players.LocalPlayer or Players:WaitForChild("LocalPlayer")
+    checkGameOver()
+end)
 
 return TDX
