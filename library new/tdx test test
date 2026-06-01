@@ -36,17 +36,27 @@ function TDX:Place(towerName, x, y, z, macroId)
 end
 
 function TDX:Upgrade(macroId, path, level)
+    -- Convert path and level to numbers if they're strings
+    local pathNum = tonumber(path) or path
+    local levelNum = tonumber(level) or level
+    
     local towerId = macroToTowerId[macroId]
     if not towerId then
-        pendingUpgrade = { macroId = macroId, path = path, level = level }
+        pendingUpgrade = { macroId = macroId, path = pathNum, level = levelNum }
         print("[TDX] Queued upgrade for Macro", macroId)
         return false
     end
+    
     local remote = getRemote("TowerUpgradeRequest")
-    if not remote then return false end
+    if not remote then
+        print("[TDX] ERROR: TowerUpgradeRequest not found")
+        return false
+    end
+    
     task.wait(0.1)
-    pcall(function() remote:FireServer(towerId, path, level) end)
-    print("[TDX] Upgraded Macro", macroId, "(ID", towerId, ")")
+    -- Fire with three numbers: towerId, path, level
+    pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
+    print("[TDX] Upgraded Macro", macroId, "(Tower ID", towerId, ", Path", pathNum, ", Level", levelNum, ")")
     return true
 end
 
@@ -61,7 +71,7 @@ function TDX:Sell(macroId)
     if not remote then return false end
     task.wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
-    print("[TDX] Sold Macro", macroId, "(ID", towerId, ")")
+    print("[TDX] Sold Macro", macroId, "(Tower ID", towerId, ")")
     macroToTowerId[macroId] = nil
     return true
 end
@@ -96,7 +106,7 @@ function TDX:SetupUpgradeListener()
         end
     end)
 
-    print("[TDX] Ready (FIFO mapping)")
+    print("[TDX] Ready (FIFO mapping + numeric upgrade args)")
 end
 
 return TDX
