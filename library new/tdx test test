@@ -1,14 +1,9 @@
 local TDX = {}
-local ReplicatedStorage = game and game:GetService("ReplicatedStorage")
-local Players = game and game:GetService("Players")
-local RunService = game and game:GetService("RunService")
-local TeleportService = game and game:GetService("TeleportService")
-local player = Players and Players.LocalPlayer
-
-if not ReplicatedStorage or not Players or not player then
-    warn("[TDX] Required services missing")
-    return TDX
-end
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local player = Players.LocalPlayer
 
 local pendingQueue = {}
 local macroToTowerId = {}
@@ -30,48 +25,38 @@ end
 function TDX:Place(towerName, x, y, z, macroId)
     local remote = getRemote("PlaceTower")
     if not remote then
-        warn("[TDX] PlaceTower remote not found")
-        return false
+        error("[TDX] PlaceTower remote not found")
     end
 
+    -- Avoid duplicate pending entries
     for _, id in ipairs(pendingQueue) do
         if id == macroId then
-            warn("[TDX] Macro", macroId, "already in pending queue")
+            warn("[TDX] Macro", macroId, "already pending")
             return false
         end
     end
 
+    -- Add to queue so listener knows which macroId this belongs to
     table.insert(pendingQueue, macroId)
     local pos = Vector3.new(x, y, z)
 
-    local success, result = pcall(function()
-        return remote:InvokeServer(0, towerName, pos, 0)
-    end)
+    -- Retry until the remote call returns true
+    while true do
+        local success, result = pcall(function()
+            return remote:InvokeServer(0, towerName, pos, 0)
+        end)
 
-    if not success then
-        warn("[TDX] Place remote error:", result)
-        for i, id in ipairs(pendingQueue) do
-            if id == macroId then
-                table.remove(pendingQueue, i)
-                break
-            end
+        if success and result == true then
+            break
+        else
+            warn("[TDX] Place failed, retrying in 0.2s...", success and result or "error")
+            wait(0.2)
         end
-        return false
     end
 
-    if result ~= true then
-        warn("[TDX] Place failed, result:", result)
-        for i, id in ipairs(pendingQueue) do
-            if id == macroId then
-                table.remove(pendingQueue, i)
-                break
-            end
-        end
-        return false
-    end
+    print("[TDX] Place request accepted for Macro", macroId, "waiting for tower ID...")
 
-    print("[TDX] Place request sent for Macro", macroId, "waiting for tower ID...")
-
+    -- Wait for the listener to map this macroId to a real tower ID
     while not macroToTowerId[macroId] do
         wait(0.05)
     end
@@ -84,20 +69,21 @@ function TDX:Upgrade(macroId, path, level)
     local pathNum = tonumber(path) or path
     local levelNum = tonumber(level) or level
 
-    local towerId = macroToTowerId[macroId]
-    if not towerId then
+    -- Wait for tower ID if not yet known
+    while not macroToTowerId[macroId] do
         if pendingUpgrade[macroId] then
+            -- Already queued, don't flood
             return false
         end
         pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
-        print("[TDX] Queued upgrade for Macro", macroId)
-        return false
+        print("[TDX] Queued upgrade for Macro", macroId, "(waiting for tower)")
+        wait(0.1)
     end
 
+    local towerId = macroToTowerId[macroId]
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then
-        warn("[TDX] TowerUpgradeRequest not found")
-        return false
+        error("[TDX] TowerUpgradeRequest not found")
     end
 
     wait(0.1)
@@ -108,18 +94,19 @@ function TDX:Upgrade(macroId, path, level)
 end
 
 function TDX:Sell(macroId)
-    local towerId = macroToTowerId[macroId]
-    if not towerId then
+    while not macroToTowerId[macroId] do
         pendingSell = macroId
-        print("[TDX] Queued sell for Macro", macroId)
-        return false
+        print("[TDX] Queued sell for Macro", macroId, "(waiting for tower)")
+        wait(0.1)
     end
+    local towerId = macroToTowerId[macroId]
     local remote = getRemote("SellTower")
     if not remote then return false end
     wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
     print("[TDX] Sold Macro", macroId, "(Tower ID", towerId, ")")
     macroToTowerId[macroId] = nil
+    pendingSell = nil
     return true
 end
 
@@ -138,6 +125,7 @@ function TDX:SetupUpgradeListener()
                     macroToTowerId[macroId] = realId
                     print("[TDX] Placed Macro", macroId, "→ Tower ID", realId)
 
+                    -- Process any queued upgrade for this macroId
                     local upgrade = pendingUpgrade[macroId]
                     if upgrade then
                         wait(0.1)
@@ -321,8 +309,10 @@ local function getTypeValue(t)
 end
 
 function TDX:SetTarget(macroId, targetType)
+    while not macroToTowerId[macroId] do
+        wait(0.05)
+    end
     local towerId = macroToTowerId[macroId]
-    if not towerId then return false end
     local remote = getRemote("ChangeQueryType")
     if not remote then return false end
     local tv = getTypeValue(targetType)
@@ -482,8 +472,10 @@ function TDX:Ability(macroId, slot, loop)
         end)
         return
     end
+    while not macroToTowerId[macroId] do
+        wait(0.05)
+    end
     local actualId = macroToTowerId[macroId]
-    if not actualId then return end
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
     if remote then
         local req = remote:FindFirstChild("TowerUseAbilityRequest")
