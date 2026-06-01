@@ -51,20 +51,7 @@ local function removeTower(part)
     idToData[towerId] = nil
 end
 
-local function addTower(part, macroId, towerId, towerName)
-    partToId[part] = towerId
-    idToData[towerId] = {
-        id = towerId,
-        macroId = macroId,
-        name = towerName,
-        part = part
-    }
-    if not towersByName[towerName] then towersByName[towerName] = {} end
-    table.insert(towersByName[towerName], towerId)
-    macroToTowerId[macroId] = towerId
-end
-
-local function syncAllTowers()
+local function syncDeadTowers()
     if not towersFolder then
         local gameFolder = Workspace:FindFirstChild("Game")
         if gameFolder then
@@ -72,45 +59,15 @@ local function syncAllTowers()
         end
         if not towersFolder then return end
     end
-
     local aliveParts = {}
-    local children = towersFolder:GetChildren()
-    for i = 1, #children do
-        local part = children[i]
+    for _, part in ipairs(towersFolder:GetChildren()) do
         if part:IsA("BasePart") and isPartAlive(part) then
             aliveParts[part] = true
         end
     end
-
     for part in pairs(partToId) do
         if not aliveParts[part] then
             removeTower(part)
-        end
-    end
-
-    for part in pairs(aliveParts) do
-        if not partToId[part] then
-            if #pendingQueue > 0 then
-                local macroId = pendingQueue[1]
-                local expectedId = macroToTowerId[macroId]
-                if not expectedId then
-                    local towerName = part.Name
-                    table.remove(pendingQueue, 1)
-                    addTower(part, macroId, part, towerName)
-                    print("[TDX] Auto-synced tower", macroId, "→", towerName)
-                    local upgrade = pendingUpgrade[macroId]
-                    if upgrade then
-                        wait(0.1)
-                        TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
-                        pendingUpgrade[macroId] = nil
-                    end
-                    if pendingSell == macroId then
-                        wait(0.1)
-                        TDX:Sell(pendingSell)
-                        pendingSell = nil
-                    end
-                end
-            end
         end
     end
 end
@@ -135,7 +92,7 @@ function TDX:Place(towerName, x, y, z, macroId)
     end
 
     while not macroToTowerId[macroId] do
-        syncAllTowers()
+        syncDeadTowers()
         wait(0.1)
     end
     return true
@@ -149,7 +106,7 @@ function TDX:Upgrade(macroId, path, level)
         if not pendingUpgrade[macroId] then
             pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
         end
-        syncAllTowers()
+        syncDeadTowers()
         wait(0.1)
     end
 
@@ -164,7 +121,7 @@ function TDX:Upgrade(macroId, path, level)
         local startWait = tick()
         while upgradeConfirm[towerId] == false do
             wait(0.05)
-            syncAllTowers()
+            syncDeadTowers()
             if not macroToTowerId[macroId] then return false end
             if tick() - startWait > 2 then break end
         end
@@ -179,7 +136,7 @@ end
 function TDX:Sell(macroId)
     while not macroToTowerId[macroId] do
         pendingSell = macroId
-        syncAllTowers()
+        syncDeadTowers()
         wait(0.1)
     end
     local towerId = macroToTowerId[macroId]
@@ -210,19 +167,27 @@ function TDX:SetupUpgradeListener()
                 local towerName = towerData[2]
                 if #pendingQueue > 0 then
                     local macroId = table.remove(pendingQueue, 1)
-                    if not macroToTowerId[macroId] then
-                        macroToTowerId[macroId] = realId
-                        if not idToData[realId] then
-                            idToData[realId] = {
-                                id = realId,
-                                macroId = macroId,
-                                name = towerName,
-                                part = nil
-                            }
+                    macroToTowerId[macroId] = realId
+                    local part = nil
+                    if towersFolder then
+                        for _, p in ipairs(towersFolder:GetChildren()) do
+                            if p:IsA("BasePart") and (p.Position - Vector3.new(towerData[4] or 0, towerData[5] or 0, towerData[6] or 0)).Magnitude < 1 then
+                                part = p
+                                break
+                            end
                         end
-                        if not towersByName[towerName] then towersByName[towerName] = {} end
-                        table.insert(towersByName[towerName], realId)
                     end
+                    if part then
+                        partToId[part] = realId
+                    end
+                    idToData[realId] = {
+                        id = realId,
+                        macroId = macroId,
+                        name = towerName,
+                        part = part
+                    }
+                    if not towersByName[towerName] then towersByName[towerName] = {} end
+                    table.insert(towersByName[towerName], realId)
                     local upgrade = pendingUpgrade[macroId]
                     if upgrade then
                         wait(0.1)
@@ -259,7 +224,7 @@ function TDX:SetupUpgradeListener()
     spawn(function()
         while true do
             wait(0.5)
-            syncAllTowers()
+            syncDeadTowers()
         end
     end)
 end
@@ -287,7 +252,8 @@ function TDX:AutoAbility(towerName, slot, isLooping)
             return
         end
         for _, id in ipairs(ids) do
-            if idToData[id] and idToData[id].part and isPartAlive(idToData[id].part) then
+            local data = idToData[id]
+            if data and data.part and isPartAlive(data.part) then
                 useAbility(id)
                 wait(0.05)
             end
