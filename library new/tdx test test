@@ -21,6 +21,22 @@ local function getRemote(name)
     return remotes and remotes:FindFirstChild(name)
 end
 
+local function deepPrint(tbl, indent)
+    indent = indent or ""
+    if type(tbl) ~= "table" then
+        print(indent .. tostring(tbl))
+        return
+    end
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            print(indent .. tostring(k) .. ":")
+            deepPrint(v, indent .. "  ")
+        else
+            print(indent .. tostring(k) .. " = " .. tostring(v))
+        end
+    end
+end
+
 function TDX:Place(towerName, x, y, z, macroId)
     print("[DEBUG] Place called: towerName=", towerName, "macroId=", macroId)
     local remote = getRemote("PlaceTower")
@@ -159,18 +175,11 @@ function TDX:SetupUpgradeListener()
     local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
     factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
-        print("[DEBUG] Factory event received. Raw args:")
-        for i, arg in ipairs(args) do
-            print("  Arg", i, "type:", type(arg))
-            if type(arg) == "table" then
-                for k, v in pairs(arg) do
-                    print("    ", k, "=", v)
-                end
-            end
-        end
+        print("[DEBUG] Factory event received. Full structure:")
+        deepPrint(args, "  ")
 
         if not args[1] or not args[1][1] then
-            print("[DEBUG] Invalid event structure, returning")
+            print("[DEBUG] Invalid event structure (missing args[1][1]), returning")
             return
         end
         local entry = args[1][1]
@@ -179,12 +188,11 @@ function TDX:SetupUpgradeListener()
             return
         end
 
-        -- REMOVAL (Creation == false)
+        -- REMOVAL: Creation == false
         if entry.Creation == false then
             local towerId = entry.Data[1]
             if towerId and type(towerId) == "number" then
                 print("[DEBUG] REMOVAL event for towerId", towerId)
-                -- Cancel any pending upgrades for this tower
                 for macroId, id in pairs(macroToTowerId) do
                     if id == towerId then
                         macroToTowerId[macroId] = nil
@@ -192,7 +200,6 @@ function TDX:SetupUpgradeListener()
                         print("[DEBUG] Removal: cleared macro", macroId, "mapping to tower", towerId)
                     end
                 end
-                -- Remove from name tracking
                 local name = towerNameById[towerId]
                 if name and towersByName[name] then
                     for i, id in ipairs(towersByName[name]) do
@@ -212,7 +219,8 @@ function TDX:SetupUpgradeListener()
             return
         end
 
-        -- PLACEMENT (Creation == true)
+        -- PLACEMENT: Creation == true
+        -- The structure is typically args[1][1].Data[1] = { towerId, towerName, ... }
         if type(entry.Data) == "table" and entry.Data[1] and type(entry.Data[1]) == "table" then
             local towerData = entry.Data[1]
             if towerData and type(towerData[1]) == "number" then
@@ -247,7 +255,35 @@ function TDX:SetupUpgradeListener()
                 print("[DEBUG] Placement: invalid towerData[1] type or missing")
             end
         else
-            print("[DEBUG] Placement: entry.Data is not the expected format")
+            print("[DEBUG] Placement: entry.Data is not the expected format. Trying alternative parsing...")
+            -- Fallback: maybe entry.Data itself is the tower data array?
+            if type(entry.Data) == "table" and #entry.Data >= 2 and type(entry.Data[1]) == "number" then
+                local realId = entry.Data[1]
+                local towerName = entry.Data[2]
+                print("[DEBUG] Alternative parse: realId=", realId, "towerName=", towerName)
+                if type(towerName) == "string" and #pendingQueue > 0 then
+                    local macroId = table.remove(pendingQueue, 1)
+                    macroToTowerId[macroId] = realId
+                    towerNameById[realId] = towerName
+                    if not towersByName[towerName] then towersByName[towerName] = {} end
+                    table.insert(towersByName[towerName], realId)
+                    print("[DEBUG] Placement (alt): mapped macro", macroId, "to towerId", realId, "name", towerName)
+
+                    local upgrade = pendingUpgrade[macroId]
+                    if upgrade then
+                        wait(0.1)
+                        TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
+                        pendingUpgrade[macroId] = nil
+                    end
+                    if pendingSell == macroId then
+                        wait(0.1)
+                        TDX:Sell(pendingSell)
+                        pendingSell = nil
+                    end
+                end
+            else
+                print("[DEBUG] Failed to parse placement event")
+            end
         end
     end)
 
@@ -255,7 +291,8 @@ function TDX:SetupUpgradeListener()
     if upgradeRemote then
         print("[DEBUG] Upgrade confirmation listener found, connecting...")
         upgradeRemote.OnClientEvent:Connect(function(data)
-            print("[DEBUG] Upgrade confirmation event received")
+            print("[DEBUG] Upgrade confirmation event received. Data:")
+            deepPrint(data, "  ")
             if type(data) ~= "table" then
                 print("[DEBUG] Upgrade data not a table, type=", type(data))
                 return
