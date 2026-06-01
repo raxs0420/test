@@ -1,12 +1,12 @@
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
 if not player then
     player = Players:WaitForChild("LocalPlayer")
 end
-local RunService = game:GetService("RunService")
-local TeleportService = game:GetService("TeleportService")
-local player = Players.LocalPlayer
 
 local pendingQueue = {}
 local macroToTowerId = {}
@@ -15,9 +15,6 @@ local pendingSell = nil
 local CurrentSpeed = 1
 local gameOverTriggered = false
 local towers = {}
-local function isPartAlive(part)
-    return part and part.Parent ~= nil
-end
 
 local function getRemote(name)
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
