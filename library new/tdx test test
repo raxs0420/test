@@ -93,15 +93,17 @@ function TDX:Sell(macroId)
     local remote = getRemote("SellTower")
     if not remote then return false end
     wait(0.1)
-    pcall(function() remote:FireServer(towerId) end)
-    local towerName = towerNameById[towerId]
-    if towerName and towersByName[towerName] then
-        for i, id in ipairs(towersByName[towerName]) do
-            if id == towerId then table.remove(towersByName[towerName], i) break end
-        end
-        towerNameById[towerId] = nil
+    -- Try both FireServer and InvokeServer – some games use one, some the other
+    local success, err = pcall(function() remote:FireServer(towerId) end)
+    if not success then
+        pcall(function() remote:InvokeServer(towerId) end)
     end
-    macroToTowerId[macroId] = nil
+    -- Wait for the removal event to process (max 2 seconds)
+    local start = tick()
+    while macroToTowerId[macroId] do
+        if tick() - start > 2 then break end
+        wait(0.05)
+    end
     pendingSell = nil
     return true
 end
