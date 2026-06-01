@@ -19,6 +19,22 @@ local function getRemote(name)
     return remotes and remotes:FindFirstChild(name)
 end
 
+local function printTable(t, indent)
+    indent = indent or 0
+    if type(t) ~= "table" then
+        print(string.rep("  ", indent) .. tostring(t))
+        return
+    end
+    for k, v in pairs(t) do
+        if type(v) == "table" then
+            print(string.rep("  ", indent) .. tostring(k) .. ":")
+            printTable(v, indent + 1)
+        else
+            print(string.rep("  ", indent) .. tostring(k) .. " = " .. tostring(v))
+        end
+    end
+end
+
 local function parsePositionString(str)
     if type(str) ~= "string" then return nil end
     local cleaned = str:gsub(",", " ")
@@ -70,10 +86,8 @@ local function verifyTowerExists(position, timeout)
     end
     while tick() - start < timeout do
         for _, obj in ipairs(towerFolder:GetDescendants()) do
-            if obj:IsA("BasePart") then
-                if (obj.Position - position).Magnitude < 0.5 then
-                    return true
-                end
+            if obj:IsA("BasePart") and (obj.Position - position).Magnitude < 0.5 then
+                return true
             end
         end
         task.wait(0.05)
@@ -135,10 +149,9 @@ function TDX:Place(towerName, x, y, z, macroId)
     if resolvedId[macroId] then
         macroToTowerId[macroId] = resolvedId[macroId]
         local confirmed = verifyTowerExists(pos, 1)
-        if confirmed then
-            print("[TDX] Placed Macro", macroId, "→ Tower ID", resolvedId[macroId])
-        else
-            print("[TDX] Warning: Tower placement not confirmed in world")
+        print("[TDX] Placed Macro", macroId, "→ Tower ID", resolvedId[macroId])
+        if not confirmed then
+            print("[TDX] Warning: Tower part not found in folder")
         end
         if pendingUpgrade and pendingUpgrade.macroId == macroId then
             task.wait(0.1)
@@ -191,13 +204,20 @@ end
 function TDX:SetupUpgradeListener()
     local queueRemote = getRemote("TowerFactoryQueueUpdated")
     if not queueRemote then
-        print("[TDX] Remote not found")
+        print("[TDX] ERROR: TowerFactoryQueueUpdated remote not found")
         return
     end
 
     queueRemote.OnClientEvent:Connect(function(data)
+        print("=== EVENT RECEIVED ===")
+        printTable(data)
+        print("======================")
+
         local flat = findFlatTowerTable(data)
-        if not flat then return end
+        if not flat then
+            print("[TDX] Could not find flat tower table in event")
+            return
+        end
 
         local realId = flat[1]
         local towerName = flat[2]
@@ -205,7 +225,12 @@ function TDX:SetupUpgradeListener()
         local posString = flat[4]
 
         local towerPos = parsePositionString(posString)
-        if not towerPos or tostring(owner) ~= player.Name then
+        if not towerPos then
+            print("[TDX] Failed to parse position:", posString)
+            return
+        end
+
+        if tostring(owner) ~= player.Name then
             return
         end
 
@@ -215,10 +240,13 @@ function TDX:SetupUpgradeListener()
         local macroId = findMatchingMacroId(towerName, towerPos)
         if macroId then
             resolvedId[macroId] = realId
+            print("[TDX] Matched waiting macro", macroId, "→ real ID", realId)
+        else
+            print("[TDX] No waiting macro for tower", towerName, "ID", realId)
         end
     end)
 
-    print("[TDX] Ready")
+    print("[TDX] Listener ready - full table dumping enabled")
 end
 
 return TDX
