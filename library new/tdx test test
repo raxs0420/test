@@ -16,7 +16,6 @@ local gameOverTriggered = false
 local towerNameById = {}
 local towersByName = {}
 
--- Persistent tower data: macroId -> { name, x, y, z, topLevel, bottomLevel }
 local persistentData = {}
 
 local function getCash()
@@ -28,13 +27,10 @@ end
 local function replaceTower(macroId)
     local data = persistentData[macroId]
     if not data then return end
-    -- Wait for enough cash (25,000)
-    while getCash() < 25000 do
+    while getCash() < 90000 do
         wait(0.5)
     end
-    -- Place the tower again
     TDX:Place(data.name, data.x, data.y, data.z, macroId)
-    -- Upgrade to stored levels
     for path = 1, 2 do
         local targetLevel = (path == 1) and data.topLevel or data.bottomLevel
         for lvl = 1, targetLevel do
