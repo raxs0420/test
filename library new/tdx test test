@@ -63,12 +63,14 @@ function TDX:Upgrade(macroId, path, level)
     if not remote then error("[TDX] TowerUpgradeRequest not found") end
 
     while true do
+        if not macroToTowerId[macroId] then return false end
         upgradeConfirm[towerId] = false
         wait(0.1)
         pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
         local startWait = tick()
         while upgradeConfirm[towerId] == false do
             wait(0.05)
+            if not macroToTowerId[macroId] then return false end
             if tick() - startWait > 2 then break end
         end
         if upgradeConfirm[towerId] == true then break end
@@ -111,21 +113,23 @@ function TDX:SetupUpgradeListener()
         local entry = args[1][1]
         if not entry.Data then return end
 
-        local towerData = entry.Data[1]
-        if not towerData or not towerData[1] then return end
+        -- Safely extract tower data
+        local towerData = entry.Data
+        if type(towerData) ~= "table" then return end
+        local towerId = towerData[1]
+        if not towerId then return end
 
-        local realId = towerData[1]
         local creation = entry.Creation
 
         if creation == true then
-            -- Placement
+            -- Placement: towerData[2] should be tower name (string)
             local towerName = towerData[2]
             if type(towerName) == "string" and #pendingQueue > 0 then
                 local macroId = table.remove(pendingQueue, 1)
-                macroToTowerId[macroId] = realId
-                towerNameById[realId] = towerName
+                macroToTowerId[macroId] = towerId
+                towerNameById[towerId] = towerName
                 if not towersByName[towerName] then towersByName[towerName] = {} end
-                table.insert(towersByName[towerName], realId)
+                table.insert(towersByName[towerName], towerId)
 
                 local upgrade = pendingUpgrade[macroId]
                 if upgrade then
@@ -139,27 +143,27 @@ function TDX:SetupUpgradeListener()
                     pendingSell = nil
                 end
             end
-        elseif creation == false then
-            -- Removal
-            local name = towerNameById[realId]
+        else
+            -- Removal: tower is destroyed or sold
+            local name = towerNameById[towerId]
             if name then
                 if towersByName[name] then
                     for i, id in ipairs(towersByName[name]) do
-                        if id == realId then
+                        if id == towerId then
                             table.remove(towersByName[name], i)
                             break
                         end
                     end
                 end
-                towerNameById[realId] = nil
+                towerNameById[towerId] = nil
             end
             for macroId, id in pairs(macroToTowerId) do
-                if id == realId then
+                if id == towerId then
                     macroToTowerId[macroId] = nil
                     break
                 end
             end
-            upgradeConfirm[realId] = nil
+            upgradeConfirm[towerId] = nil
         end
     end)
 
