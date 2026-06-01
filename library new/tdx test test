@@ -1,12 +1,10 @@
 local TDX = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 
-local pendingPlacements = {}   -- macroId -> {towerName, position}
-local macroToTowerId = {}      -- macroId -> realId
-local partToId = {}            -- part instance -> realId
+local pendingQueue = {}
+local macroToTowerId = {}
 local pendingUpgrade = nil
 local pendingSell = nil
 
@@ -15,109 +13,21 @@ local function getRemote(name)
     return remotes and remotes:FindFirstChild(name)
 end
 
-local function getTowersFolder()
-    local gameFolder = Workspace:FindFirstChild("Game")
-    if gameFolder then
-        return gameFolder:FindFirstChild("Towers")
-    end
-    return nil
-end
-
-local function parsePositionFromEvent(posString)
-    if type(posString) ~= "string" then return nil end
-    local cleaned = posString:gsub(",", " ")
-    local parts = {}
-    for part in string.gmatch(cleaned, "%S+") do
-        if part:find(",") then part = part:gsub(",", ".") end
-        local num = tonumber(part)
-        if not num then return nil end
-        table.insert(parts, num)
-        if #parts == 3 then break end
-    end
-    if #parts == 3 then
-        return Vector3.new(parts[1], parts[2], parts[3])
-    end
-    return nil
-end
-
-local function isPartAlive(part)
-    return part and part.Parent ~= nil
-end
-
-local function addTower(part, macroId, realId)
-    macroToTowerId[macroId] = realId
-    partToId[part] = realId
-    pendingPlacements[macroId] = nil
-    print("[TDX] Placed Macro", macroId, "→ Tower ID", realId)
-
-    if pendingUpgrade and pendingUpgrade.macroId == macroId then
-        task.wait(0.1)
-        TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
-        pendingUpgrade = nil
-    end
-    if pendingSell == macroId then
-        task.wait(0.1)
-        TDX:Sell(pendingSell)
-        pendingSell = nil
-    end
-end
-
-local function removeTower(part)
-    local realId = partToId[part]
-    if realId then
-        for macroId, id in pairs(macroToTowerId) do
-            if id == realId then
-                macroToTowerId[macroId] = nil
-                break
-            end
-        end
-        partToId[part] = nil
-    end
-end
-
-local function syncAllTowers()
-    local towersFolder = getTowersFolder()
-    if not towersFolder then return end
-
-    local aliveParts = {}
-    for _, part in ipairs(towersFolder:GetChildren()) do
-        if part:IsA("BasePart") and isPartAlive(part) then
-            aliveParts[part] = true
-        end
-    end
-
-    for part in pairs(partToId) do
-        if not aliveParts[part] then
-            removeTower(part)
-        end
-    end
-
-    -- Optional: match any new part that appeared without event (fallback)
-    for part in pairs(aliveParts) do
-        if not partToId[part] then
-            for macroId, data in pairs(pendingPlacements) do
-                if data.towerName == part.Name and (data.position - part.Position).Magnitude < 0.5 then
-                    -- We don't have realId yet, wait for event or fetch from part attribute?
-                    -- Better to ignore, event will provide realId.
-                end
-            end
-        end
-    end
-end
-
 function TDX:Place(towerName, x, y, z, macroId)
     local remote = getRemote("PlaceTower")
     if not remote then return false end
 
-    local pos = Vector3.new(x, y, z)
-    pendingPlacements[macroId] = { towerName = towerName, position = pos }
+    table.insert(pendingQueue, macroId)
 
+    local pos = Vector3.new(x, y, z)
     local success, result = pcall(function()
         return remote:InvokeServer(0, towerName, pos, 0)
     end)
 
     if not success or result ~= true then
-        pendingPlacements[macroId] = nil
+        for i, id in ipairs(pendingQueue) do
+            if id == macroId then table.remove(pendingQueue, i); break end
+        end
         return false
     end
 
@@ -165,66 +75,28 @@ function TDX:SetupUpgradeListener()
             local towerData = args[1][1].Data[1]
             if towerData and towerData[1] then
                 local realId = towerData[1]
-                local posString = towerData[4]  -- Position string
-                local towerName = towerData[2]  -- Tower name
                 
-                local towerPos = parsePositionFromEvent(posString)
-                if not towerPos then
-                    print("[TDX] Failed to parse position from event, ignoring")
-                    return
-                end
-                
-                -- Find matching pending placement by name and position
-                local matchedMacro = nil
-                for macroId, data in pairs(pendingPlacements) do
-                    if data.towerName == towerName and (data.position - towerPos).Magnitude < 0.5 then
-                        matchedMacro = macroId
-                        break
-                    end
-                end
-                
-                if matchedMacro then
-                    -- Map the macro ID to the real ID
-                    macroToTowerId[matchedMacro] = realId
-                    pendingPlacements[matchedMacro] = nil
-                    print("[TDX] Placed Macro", matchedMacro, "→ Tower ID", realId)
+                if #pendingQueue > 0 then
+                    local macroId = table.remove(pendingQueue, 1)
+                    macroToTowerId[macroId] = realId
+                    print("[TDX] Placed Macro", macroId, "→ Tower ID", realId)
                     
-                    -- Optionally find the part in Towers folder and store it
-                    local towersFolder = getTowersFolder()
-                    if towersFolder then
-                        for _, part in ipairs(towersFolder:GetChildren()) do
-                            if part:IsA("BasePart") and not partToId[part] and (part.Position - towerPos).Magnitude < 0.5 then
-                                partToId[part] = realId
-                                break
-                            end
-                        end
-                    end
-                    
-                    -- Process queued actions for this macro
-                    if pendingUpgrade and pendingUpgrade.macroId == matchedMacro then
+                    if pendingUpgrade and pendingUpgrade.macroId == macroId then
                         task.wait(0.1)
                         TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
                         pendingUpgrade = nil
                     end
-                    if pendingSell == matchedMacro then
+                    if pendingSell == macroId then
                         task.wait(0.1)
                         TDX:Sell(pendingSell)
                         pendingSell = nil
                     end
-                else
-                    print("[TDX] Event received for real ID", realId, "but no pending placement matched")
                 end
             end
         end
     end)
 
-    task.spawn(function()
-        while task.wait(1) do
-            syncAllTowers()
-        end
-    end)
-
-    print("[TDX] Ready (matching by event position)")
+    print("[TDX] Ready (FIFO mapping)")
 end
 
 return TDX
