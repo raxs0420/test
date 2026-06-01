@@ -7,11 +7,12 @@ local player = Players.LocalPlayer
 
 local pendingQueue = {}
 local macroToTowerId = {}
-local pendingUpgrade = {}
+local pendingUpgrade = {}      -- queued upgrades waiting for tower to exist
+local upgradeConfirm = {}      -- towerId -> true while upgrade in progress
 local pendingSell = nil
 local CurrentSpeed = 1
 local gameOverTriggered = false
-local towers = {}
+local towers = {}              -- optional, can be used by custom listeners
 
 local function isPartAlive(part)
     return part and part.Parent ~= nil
@@ -28,7 +29,6 @@ function TDX:Place(towerName, x, y, z, macroId)
         error("[TDX] PlaceTower remote not found")
     end
 
-    -- Avoid duplicate pending entries
     for _, id in ipairs(pendingQueue) do
         if id == macroId then
             warn("[TDX] Macro", macroId, "already pending")
@@ -36,7 +36,6 @@ function TDX:Place(towerName, x, y, z, macroId)
         end
     end
 
-    -- Add to queue so listener knows which macroId this belongs to
     table.insert(pendingQueue, macroId)
     local pos = Vector3.new(x, y, z)
 
@@ -56,7 +55,6 @@ function TDX:Place(towerName, x, y, z, macroId)
 
     print("[TDX] Place request accepted for Macro", macroId, "waiting for tower ID...")
 
-    -- Wait for the listener to map this macroId to a real tower ID
     while not macroToTowerId[macroId] do
         wait(0.05)
     end
@@ -69,14 +67,12 @@ function TDX:Upgrade(macroId, path, level)
     local pathNum = tonumber(path) or path
     local levelNum = tonumber(level) or level
 
-    -- Wait for tower ID if not yet known
+    -- Wait for tower to exist
     while not macroToTowerId[macroId] do
-        if pendingUpgrade[macroId] then
-            -- Already queued, don't flood
-            return false
+        if not pendingUpgrade[macroId] then
+            pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
+            print("[TDX] Queued upgrade for Macro", macroId, "(waiting for tower)")
         end
-        pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
-        print("[TDX] Queued upgrade for Macro", macroId, "(waiting for tower)")
         wait(0.1)
     end
 
@@ -86,10 +82,20 @@ function TDX:Upgrade(macroId, path, level)
         error("[TDX] TowerUpgradeRequest not found")
     end
 
+    -- Mark that an upgrade is pending for this tower
+    upgradeConfirm[towerId] = false
     wait(0.1)
     pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
-    print("[TDX] Upgraded Macro", macroId, "(Tower ID", towerId, ", Path", pathNum, ", Level", levelNum, ")")
+    print("[TDX] Upgrade request sent for Macro", macroId, "(Tower ID", towerId, ")")
+
+    -- Wait for the upgrade to be confirmed by the listener
+    while upgradeConfirm[towerId] == false do
+        wait(0.05)
+    end
+
+    print("[TDX] Upgrade confirmed for Macro", macroId, "(Tower ID", towerId, ", Path", pathNum, ", Level", levelNum, ")")
     pendingUpgrade[macroId] = nil
+    upgradeConfirm[towerId] = nil
     return true
 end
 
@@ -111,21 +117,20 @@ function TDX:Sell(macroId)
 end
 
 function TDX:SetupUpgradeListener()
-    local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
-
-    remote.OnClientEvent:Connect(function(...)
+    -- Listener for tower placement (TowerFactoryQueueUpdated)
+    local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
+    factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
         if args[1] and args[1][1] and args[1][1].Data then
             local towerData = args[1][1].Data[1]
             if towerData and towerData[1] then
                 local realId = towerData[1]
-
                 if #pendingQueue > 0 then
                     local macroId = table.remove(pendingQueue, 1)
                     macroToTowerId[macroId] = realId
                     print("[TDX] Placed Macro", macroId, "→ Tower ID", realId)
 
-                    -- Process any queued upgrade for this macroId
+                    -- Process queued upgrade for this macro
                     local upgrade = pendingUpgrade[macroId]
                     if upgrade then
                         wait(0.1)
@@ -141,6 +146,40 @@ function TDX:SetupUpgradeListener()
             end
         end
     end)
+
+    -- Listener for upgrade completion (TowerUpgradeQueueUpdated)
+    local upgradeRemote = ReplicatedStorage:FindFirstChild("Remotes"):FindFirstChild("TowerUpgradeQueueUpdated")
+    if upgradeRemote then
+        upgradeRemote.OnClientEvent:Connect(function(data)
+            if type(data) ~= "table" then return end
+            local entries = (#data > 0) and data or {data}
+            for _, entry in ipairs(entries) do
+                local hash = entry.Hash or entry.hash or entry.Id or entry.id
+                if not hash then continue end
+                if type(hash) == "string" then hash = tonumber(hash) end
+                if not hash then continue end
+
+                -- This hash should match the tower's real ID
+                if upgradeConfirm[hash] == false then
+                    upgradeConfirm[hash] = true
+                    print("[TDX] Upgrade confirmed for tower", hash)
+                end
+
+                -- Optionally store level data if you have a towers table
+                local top = 0
+                local bottom = 0
+                if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
+                    top = entry.LevelReplicationData[1] or 0
+                    bottom = entry.LevelReplicationData[2] or 0
+                end
+                -- You can update your custom tower data here
+                -- Example: if towers[towerPart] then towers[towerPart].topCount = top end
+            end
+        end)
+        print("[TDX] Upgrade listener ready (confirms upgrades)")
+    else
+        warn("[TDX] TowerUpgradeQueueUpdated not found, upgrades will not wait for confirmation")
+    end
 
     print("[TDX] SetupUpgradeListener ready")
 end
@@ -432,16 +471,16 @@ function TDX:AutoSkip(enabled)
     return true
 end
 
-local upgradeQueue = {}
+local upgradeSkillQueue = {}
 local isProcessing = false
 function TDX:TowerSkillUpgrade(TowerName, Skill)
-    table.insert(upgradeQueue, {TowerName = TowerName, Skill = Skill})
+    table.insert(upgradeSkillQueue, {TowerName = TowerName, Skill = Skill})
 
     if not isProcessing then
         spawn(function()
             isProcessing = true
-            while #upgradeQueue > 0 do
-                local upgrade = table.remove(upgradeQueue, 1)
+            while #upgradeSkillQueue > 0 do
+                local upgrade = table.remove(upgradeSkillQueue, 1)
                 local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
                 local upgraded = false
                 while not upgraded do
