@@ -1,9 +1,14 @@
 local TDX = {}
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TeleportService = game:GetService("TeleportService")
-local player = Players.LocalPlayer
+local ReplicatedStorage = game and game:GetService("ReplicatedStorage")
+local Players = game and game:GetService("Players")
+local RunService = game and game:GetService("RunService")
+local TeleportService = game and game:GetService("TeleportService")
+local player = Players and Players.LocalPlayer
+
+if not ReplicatedStorage or not Players or not player then
+    warn("[TDX] Required services missing")
+    return TDX
+end
 
 local pendingQueue = {}
 local macroToTowerId = {}
@@ -68,7 +73,7 @@ function TDX:Place(towerName, x, y, z, macroId)
     print("[TDX] Place request sent for Macro", macroId, "waiting for tower ID...")
 
     while not macroToTowerId[macroId] do
-        task.wait(0.05)
+        wait(0.05)
     end
 
     print("[TDX] Macro", macroId, "successfully placed → Tower ID", macroToTowerId[macroId])
@@ -95,7 +100,7 @@ function TDX:Upgrade(macroId, path, level)
         return false
     end
 
-    task.wait(0.1)
+    wait(0.1)
     pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
     print("[TDX] Upgraded Macro", macroId, "(Tower ID", towerId, ", Path", pathNum, ", Level", levelNum, ")")
     pendingUpgrade[macroId] = nil
@@ -111,7 +116,7 @@ function TDX:Sell(macroId)
     end
     local remote = getRemote("SellTower")
     if not remote then return false end
-    task.wait(0.1)
+    wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
     print("[TDX] Sold Macro", macroId, "(Tower ID", towerId, ")")
     macroToTowerId[macroId] = nil
@@ -135,12 +140,12 @@ function TDX:SetupUpgradeListener()
 
                     local upgrade = pendingUpgrade[macroId]
                     if upgrade then
-                        task.wait(0.1)
+                        wait(0.1)
                         TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
                         pendingUpgrade[macroId] = nil
                     end
                     if pendingSell == macroId then
-                        task.wait(0.1)
+                        wait(0.1)
                         TDX:Sell(pendingSell)
                         pendingSell = nil
                     end
@@ -153,7 +158,7 @@ function TDX:SetupUpgradeListener()
 end
 
 function TDX:Init()
-    task.spawn(function()
+    spawn(function()
         local remote = nil
         local function getRemoteInternal()
             if not remote or not remote.Parent then
@@ -172,11 +177,11 @@ function TDX:Init()
                     pcall(function() currentRemote:FireServer(i) end)
                 end
             end
-            task.wait(1)
+            wait(1)
         end
     end)
 
-    task.delay(13, function()
+    delay(13, function()
         local lastCheck = 0
         RunService.Heartbeat:Connect(function(deltaTime)
             lastCheck = lastCheck + deltaTime
@@ -206,7 +211,7 @@ function TDX:Init()
         end)
     end)
 
-    task.spawn(function()
+    spawn(function()
         if gameOverTriggered then return end
         local playerGui = player:FindFirstChild("PlayerGui")
         if not playerGui then return end
@@ -214,7 +219,7 @@ function TDX:Init()
         if not interface then return end
         local gameOverScreen = interface:FindFirstChild("GameOverScreen")
         if not gameOverScreen then
-            task.wait(10)
+            wait(10)
             TDX:Init()
             return
         end
@@ -222,19 +227,18 @@ function TDX:Init()
             if gameOverScreen.Visible then
                 gameOverTriggered = true
                 print("[TDX] Game Over! Teleporting...")
-                task.wait(2)
+                wait(2)
                 pcall(function()
                     TeleportService:Teleport(9503261072)
                 end)
                 break
             end
-            task.wait(0.5)
+            wait(0.5)
         end
     end)
 end
 
 function TDX:JoinMapViaAPC(mapName)
-    local player = Players.LocalPlayer
     local level = 0
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
@@ -249,7 +253,7 @@ function TDX:JoinMapViaAPC(mapName)
             if tick() - startTime >= 3 then
                 return false
             end
-            task.wait()
+            wait()
         else
             for _, slot in ipairs(apcsFolder:GetChildren()) do
                 local attr = slot:GetAttribute("MapName") or ""
@@ -262,7 +266,7 @@ function TDX:JoinMapViaAPC(mapName)
                         local char = player.Character
                         if char and char:FindFirstChild("HumanoidRootPart") then
                             char.HumanoidRootPart.CFrame = detector.CFrame
-                            task.wait(2)
+                            wait(2)
                             return true
                         end
                     end
@@ -284,7 +288,7 @@ function TDX:JoinMapViaAPC(mapName)
                             local char = player.Character
                             if char and char:FindFirstChild("HumanoidRootPart") then
                                 char.HumanoidRootPart.CFrame = detector.CFrame
-                                task.wait(2)
+                                wait(2)
                                 return true
                             end
                         end
@@ -294,7 +298,7 @@ function TDX:JoinMapViaAPC(mapName)
         end
 
         startTime = tick()
-        task.wait()
+        wait()
     end
 end
 
@@ -335,7 +339,7 @@ function TDX:Equip(items)
             eq:FireServer(items)
         end
     end
-    task.wait(0.5)
+    wait(0.5)
 end
 
 function TDX:VoteAndReady(map, attempts)
@@ -344,19 +348,19 @@ function TDX:VoteAndReady(map, attempts)
         local vote = getRemote("MapVoteCast")
         if vote then
             vote:FireServer(map)
-            task.wait(0.5)
+            wait(0.5)
             local ready = getRemote("MapVoteReady")
             if ready then
                 ready:FireServer()
             end
-            task.wait(0.3)
+            wait(0.3)
             return true
         end
         local change = getRemote("MapChangeVoteCast")
         if change then
             change:FireServer(true)
         end
-        task.wait(1)
+        wait(1)
     end
     return false
 end
@@ -368,39 +372,39 @@ function TDX:SetModeAndStart(mode)
         local partyMap = net:FindFirstChild("ClientChangePartyMapRequest")
         if partyType and partyMap then
             partyType:FireServer("Party")
-            task.wait(0.5)
+            wait(0.5)
             partyMap:FireServer(mode)
-            task.wait(0.5)
+            wait(0.5)
             local start = net:FindFirstChild("ClientStartGameRequest")
             if start then
                 start:FireServer()
             end
         end
     end
-    task.wait(0.5)
+    wait(0.5)
 end
 
 function TDX:Loadout(loadoutId)
-    task.wait(2)
+    wait(2)
     local load = getRemote("LoadoutSelectionChanged")
     if load then
         load:FireServer(loadoutId)
     end
-    task.wait(0.5)
+    wait(0.5)
 end
 
 function TDX:VoteDifficulty(diff)
-    task.wait(5.5)
+    wait(5.5)
     local vote = getRemote("DifficultyVoteCast")
     if vote then
         vote:FireServer(diff)
     end
-    task.wait(0.5)
+    wait(0.5)
     local ready = getRemote("DifficultyVoteReady")
     if ready then
         ready:FireServer(diff)
     end
-    task.wait(1)
+    wait(1)
 end
 
 function TDX:TimeScale(speed)
@@ -422,7 +426,7 @@ function TDX:TimeScale(speed)
 end
 
 function TDX:AutoSkip(enabled)
-    task.spawn(function()
+    spawn(function()
         while enabled do
             local skip = getRemote("SkipWaveVoteCast")
             if skip then
@@ -432,7 +436,7 @@ function TDX:AutoSkip(enabled)
             if cutscene then
                 pcall(function() cutscene:FireServer(true) end)
             end
-            task.wait(0.1)
+            wait(0.1)
         end
     end)
     return true
@@ -444,7 +448,7 @@ function TDX:TowerSkillUpgrade(TowerName, Skill)
     table.insert(upgradeQueue, {TowerName = TowerName, Skill = Skill})
 
     if not isProcessing then
-        task.spawn(function()
+        spawn(function()
             isProcessing = true
             while #upgradeQueue > 0 do
                 local upgrade = table.remove(upgradeQueue, 1)
@@ -458,10 +462,10 @@ function TDX:TowerSkillUpgrade(TowerName, Skill)
                         upgraded = true
                         print(string.format("[TDX] Upgraded %s: %s", upgrade.TowerName, upgrade.Skill))
                     else
-                        task.wait(1)
+                        wait(1)
                     end
                 end
-                task.wait(0.5)
+                wait(0.5)
             end
             isProcessing = false
         end)
@@ -470,10 +474,10 @@ end
 
 function TDX:Ability(macroId, slot, loop)
     if loop then
-        task.spawn(function()
+        spawn(function()
             while true do
                 TDX:Ability(macroId, slot, false)
-                task.wait(0.1)
+                wait(0.1)
             end
         end)
         return
