@@ -140,30 +140,49 @@ function TDX:SetupUpgradeListener()
     local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
     factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
-        print("\n=== FACTORY EVENT: RAW ===")
-        for i, v in ipairs(args) do
-            print("args[" .. i .. "] =", v)
-            if type(v) == "table" then
-                for k, w in pairs(v) do
-                    print("  " .. tostring(k) .. " =", w)
+        print("\n=== FACTORY EVENT RAW ===")
+        for i, arg in ipairs(args) do
+            print("args[" .. i .. "] type:", type(arg))
+            if type(arg) == "table" then
+                for k, v in pairs(arg) do
+                    print("  " .. tostring(k) .. " =", v, "type:", type(v))
+                    if type(v) == "table" then
+                        for k2, v2 in pairs(v) do
+                            print("    " .. tostring(k2) .. " =", v2, "type:", type(v2))
+                        end
+                    end
                 end
             end
         end
 
-        -- The event is an array of entries (removal and placement)
-        for idx, sub in ipairs(args) do
-            if type(sub) == "table" and sub.Data then
-                print("Processing entry", idx, "Creation=", sub.Creation)
+        -- Determine if the event structure is a single object or an array
+        local events = {}
+        -- If the first argument is a table and has Data field, treat as single event
+        if args[1] and type(args[1]) == "table" and args[1].Data then
+            events = {args[1]}
+        elseif args[1] and type(args[1]) == "table" and #args[1] > 0 then
+            -- If it's an array of events
+            events = args[1]
+        else
+            -- Fallback: assume args itself is the array
+            events = args
+        end
+
+        for idx, ev in ipairs(events) do
+            if type(ev) == "table" and ev.Data then
+                print("Processing event", idx, "Creation=", ev.Creation)
                 -- REMOVAL
-                if sub.Creation == false then
-                    local towerId = sub.Data[1]  -- in removal, Data[1] is the ID number
-                    print("REMOVAL: towerId =", towerId)
+                if ev.Creation == false then
+                    -- In removal, Data is likely a number (towerId) or a table with first element the Id
+                    local towerId = ev.Data
+                    if type(towerId) == "table" then towerId = towerId[1] end
                     if type(towerId) == "number" then
+                        print("REMOVAL: towerId =", towerId)
                         for macroId, id in pairs(macroToTowerId) do
                             if id == towerId then
                                 macroToTowerId[macroId] = nil
                                 pendingUpgrade[macroId] = nil
-                                print("Cleared macro " .. macroId)
+                                print("Cleared macro", macroId)
                             end
                         end
                         local name = towerNameById[towerId]
@@ -177,25 +196,28 @@ function TDX:SetupUpgradeListener()
                         end
                         towerNameById[towerId] = nil
                         upgradeConfirm[towerId] = nil
-                        print("Removal done for tower", towerId)
+                        print("Removed tower", towerId)
                     else
-                        print("Removal towerId is not a number:", towerId)
+                        print("Removal: towerId not a number", towerId)
                     end
                 else
-                    -- PLACEMENT: Data[1] is a sub-table containing tower info
-                    local towerInfo = sub.Data[1]
-                    print("PLACEMENT: towerInfo =", towerInfo)
+                    -- PLACEMENT: Data is a table with tower info
+                    local towerInfo = ev.Data
+                    -- Sometimes Data is an array where the first element is the info table
+                    if type(towerInfo) == "table" and towerInfo[1] and type(towerInfo[1]) == "table" then
+                        towerInfo = towerInfo[1]
+                    end
                     if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
                         local realId = towerInfo[1]
                         local towerName = towerInfo[2]
-                        print("Extracted: realId=", realId, "towerName=", towerName)
+                        print("PLACEMENT: realId=", realId, "towerName=", towerName, "type=", type(towerName))
                         if type(towerName) == "string" and #pendingQueue > 0 then
                             local macroId = table.remove(pendingQueue, 1)
                             macroToTowerId[macroId] = realId
                             towerNameById[realId] = towerName
                             if not towersByName[towerName] then towersByName[towerName] = {} end
                             table.insert(towersByName[towerName], realId)
-                            print("Mapped macro", macroId, "-> tower", realId, "name", towerName)
+                            print("Mapped macro", macroId, "-> tower", realId)
 
                             local upgrade = pendingUpgrade[macroId]
                             if upgrade then
@@ -217,7 +239,7 @@ function TDX:SetupUpgradeListener()
                     end
                 end
             else
-                print("Skipping entry, not a table or missing Data")
+                print("Skipping event, missing Data field")
             end
         end
         print("=== END EVENT ===\n")
