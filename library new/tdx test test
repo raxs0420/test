@@ -22,7 +22,6 @@ local function getRemote(name)
 end
 
 function TDX:Place(towerName, x, y, z, macroId)
-    print("[PLACE] called: " .. towerName .. " macro=" .. macroId)
     for _, id in ipairs(pendingQueue) do
         if id == macroId then return false end
     end
@@ -35,48 +34,34 @@ function TDX:Place(towerName, x, y, z, macroId)
         if success and result == true then break end
         wait(0.2)
     end
-    print("[PLACE] waiting for macro " .. macroId)
     while not macroToTowerId[macroId] do wait(0.05) end
-    print("[PLACE] macro " .. macroId .. " -> tower ID " .. macroToTowerId[macroId])
     return true
 end
 
 function TDX:Upgrade(macroId, path, level)
     local pathNum = tonumber(path) or path
     local levelNum = tonumber(level) or level
-    print("[UPGRADE] macro=" .. macroId .. " path=" .. pathNum .. " level=" .. levelNum)
-
     local hasTower = macroToTowerId[macroId] ~= nil
     local isPending = false
     for _, id in ipairs(pendingQueue) do if id == macroId then isPending = true break end end
     if not hasTower and not isPending then
-        print("[UPGRADE] macro " .. macroId .. " has no tower and not pending, skipping")
         pendingUpgrade[macroId] = nil
         return false
     end
-
     while not macroToTowerId[macroId] do
-        if not pendingUpgrade[macroId] then
-            pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
-            print("[UPGRADE] queued macro " .. macroId)
-        end
+        if not pendingUpgrade[macroId] then pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum } end
         wait(0.1)
     end
-
     local towerId = macroToTowerId[macroId]
     if not towerNameById[towerId] then
-        print("[UPGRADE] tower " .. towerId .. " not in tracking, abort")
         macroToTowerId[macroId] = nil
         pendingUpgrade[macroId] = nil
         return false
     end
-
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then error("[TDX] TowerUpgradeRequest not found") end
-
     while true do
         if not towerNameById[towerId] then
-            print("[UPGRADE] tower vanished")
             macroToTowerId[macroId] = nil
             pendingUpgrade[macroId] = nil
             return false
@@ -84,35 +69,25 @@ function TDX:Upgrade(macroId, path, level)
         upgradeConfirm[towerId] = false
         wait(0.1)
         pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
-        print("[UPGRADE] request sent for tower " .. towerId)
         local startWait = tick()
         while upgradeConfirm[towerId] == false do
             wait(0.05)
             if not towerNameById[towerId] then
-                print("[UPGRADE] tower died during confirm wait")
                 macroToTowerId[macroId] = nil
                 pendingUpgrade[macroId] = nil
                 upgradeConfirm[towerId] = nil
                 return false
             end
-            if tick() - startWait > 2 then
-                print("[UPGRADE] confirm timeout, retrying")
-                break
-            end
+            if tick() - startWait > 2 then break end
         end
-        if upgradeConfirm[towerId] == true then
-            print("[UPGRADE] confirmed for tower " .. towerId)
-            break
-        end
+        if upgradeConfirm[towerId] == true then break end
     end
-
     pendingUpgrade[macroId] = nil
     upgradeConfirm[towerId] = nil
     return true
 end
 
 function TDX:Sell(macroId)
-    print("[SELL] macro=" .. macroId)
     while not macroToTowerId[macroId] do pendingSell = macroId wait(0.1) end
     local towerId = macroToTowerId[macroId]
     local remote = getRemote("SellTower")
@@ -122,17 +97,12 @@ function TDX:Sell(macroId)
     local towerName = towerNameById[towerId]
     if towerName and towersByName[towerName] then
         for i, id in ipairs(towersByName[towerName]) do
-            if id == towerId then
-                table.remove(towersByName[towerName], i)
-                print("[SELL] removed tower " .. towerId .. " from " .. towerName)
-                break
-            end
+            if id == towerId then table.remove(towersByName[towerName], i) break end
         end
         towerNameById[towerId] = nil
     end
     macroToTowerId[macroId] = nil
     pendingSell = nil
-    print("[SELL] completed")
     return true
 end
 
@@ -140,115 +110,62 @@ function TDX:SetupUpgradeListener()
     local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
     factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
-        print("\n=== FACTORY EVENT RAW ===")
-        for i, arg in ipairs(args) do
-            print("args[" .. i .. "] type:", type(arg))
-            if type(arg) == "table" then
-                for k, v in pairs(arg) do
-                    print("  " .. tostring(k) .. " =", v, "type:", type(v))
-                    if type(v) == "table" then
-                        for k2, v2 in pairs(v) do
-                            print("    " .. tostring(k2) .. " =", v2, "type:", type(v2))
+        local events = (type(args[1]) == "table" and #args[1] > 0) and args[1] or args
+        for _, ev in ipairs(events) do
+            if type(ev) ~= "table" or not ev.Data then continue end
+            if ev.Creation == false then
+                local towerId = ev.Data
+                if type(towerId) == "table" then towerId = towerId[1] end
+                if type(towerId) == "number" then
+                    for macroId, id in pairs(macroToTowerId) do
+                        if id == towerId then
+                            macroToTowerId[macroId] = nil
+                            pendingUpgrade[macroId] = nil
                         end
                     end
-                end
-            end
-        end
-
-        -- Determine if the event structure is a single object or an array
-        local events = {}
-        -- If the first argument is a table and has Data field, treat as single event
-        if args[1] and type(args[1]) == "table" and args[1].Data then
-            events = {args[1]}
-        elseif args[1] and type(args[1]) == "table" and #args[1] > 0 then
-            -- If it's an array of events
-            events = args[1]
-        else
-            -- Fallback: assume args itself is the array
-            events = args
-        end
-
-        for idx, ev in ipairs(events) do
-            if type(ev) == "table" and ev.Data then
-                print("Processing event", idx, "Creation=", ev.Creation)
-                -- REMOVAL
-                if ev.Creation == false then
-                    -- In removal, Data is likely a number (towerId) or a table with first element the Id
-                    local towerId = ev.Data
-                    if type(towerId) == "table" then towerId = towerId[1] end
-                    if type(towerId) == "number" then
-                        print("REMOVAL: towerId =", towerId)
-                        for macroId, id in pairs(macroToTowerId) do
-                            if id == towerId then
-                                macroToTowerId[macroId] = nil
-                                pendingUpgrade[macroId] = nil
-                                print("Cleared macro", macroId)
-                            end
+                    local name = towerNameById[towerId]
+                    if name and towersByName[name] then
+                        for i, id in ipairs(towersByName[name]) do
+                            if id == towerId then table.remove(towersByName[name], i) break end
                         end
-                        local name = towerNameById[towerId]
-                        if name and towersByName[name] then
-                            for i, id in ipairs(towersByName[name]) do
-                                if id == towerId then
-                                    table.remove(towersByName[name], i)
-                                    break
-                                end
-                            end
-                        end
-                        towerNameById[towerId] = nil
-                        upgradeConfirm[towerId] = nil
-                        print("Removed tower", towerId)
-                    else
-                        print("Removal: towerId not a number", towerId)
                     end
-                else
-                    -- PLACEMENT: Data is a table with tower info
-                    local towerInfo = ev.Data
-                    -- Sometimes Data is an array where the first element is the info table
-                    if type(towerInfo) == "table" and towerInfo[1] and type(towerInfo[1]) == "table" then
-                        towerInfo = towerInfo[1]
-                    end
-                    if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
-                        local realId = towerInfo[1]
-                        local towerName = towerInfo[2]
-                        print("PLACEMENT: realId=", realId, "towerName=", towerName, "type=", type(towerName))
-                        if type(towerName) == "string" and #pendingQueue > 0 then
-                            local macroId = table.remove(pendingQueue, 1)
-                            macroToTowerId[macroId] = realId
-                            towerNameById[realId] = towerName
-                            if not towersByName[towerName] then towersByName[towerName] = {} end
-                            table.insert(towersByName[towerName], realId)
-                            print("Mapped macro", macroId, "-> tower", realId)
-
-                            local upgrade = pendingUpgrade[macroId]
-                            if upgrade then
-                                print("Executing queued upgrade for macro", macroId)
-                                wait(0.1)
-                                TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
-                                pendingUpgrade[macroId] = nil
-                            end
-                            if pendingSell == macroId then
-                                wait(0.1)
-                                TDX:Sell(pendingSell)
-                                pendingSell = nil
-                            end
-                        else
-                            print("Placement ignored: pendingQueue empty or towerName not string. pendingQueue size=", #pendingQueue)
-                        end
-                    else
-                        print("Placement: towerInfo not a table or missing id")
-                    end
+                    towerNameById[towerId] = nil
+                    upgradeConfirm[towerId] = nil
                 end
             else
-                print("Skipping event, missing Data field")
+                local towerInfo = ev.Data
+                if type(towerInfo) == "table" and towerInfo[1] and type(towerInfo[1]) == "table" then
+                    towerInfo = towerInfo[1]
+                end
+                if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
+                    local realId = towerInfo[1]
+                    local towerName = towerInfo[2]
+                    if type(towerName) == "string" and #pendingQueue > 0 then
+                        local macroId = table.remove(pendingQueue, 1)
+                        macroToTowerId[macroId] = realId
+                        towerNameById[realId] = towerName
+                        if not towersByName[towerName] then towersByName[towerName] = {} end
+                        table.insert(towersByName[towerName], realId)
+                        local upgrade = pendingUpgrade[macroId]
+                        if upgrade then
+                            wait(0.1)
+                            TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
+                            pendingUpgrade[macroId] = nil
+                        end
+                        if pendingSell == macroId then
+                            wait(0.1)
+                            TDX:Sell(pendingSell)
+                            pendingSell = nil
+                        end
+                    end
+                end
             end
         end
-        print("=== END EVENT ===\n")
     end)
 
     local upgradeRemote = ReplicatedStorage:FindFirstChild("Remotes"):FindFirstChild("TowerUpgradeQueueUpdated")
     if upgradeRemote then
         upgradeRemote.OnClientEvent:Connect(function(data)
-            print("[UPGRADE EVENT] data =", data)
             if type(data) ~= "table" then return end
             local entries = (#data > 0) and data or {data}
             for _, entry in ipairs(entries) do
@@ -256,15 +173,11 @@ function TDX:SetupUpgradeListener()
                 if not hash then continue end
                 if type(hash) == "string" then hash = tonumber(hash) end
                 if not hash then continue end
-                print("Upgrade confirm: hash=", hash, " current=", upgradeConfirm[hash])
                 if upgradeConfirm[hash] == false then
                     upgradeConfirm[hash] = true
-                    print("Confirmed upgrade for tower", hash)
                 end
             end
         end)
-    else
-        print("WARNING: TowerUpgradeQueueUpdated not found")
     end
 end
 
