@@ -103,14 +103,20 @@ function TDX:Sell(macroId)
         end
         towerNameById[towerId] = nil
     end
-    macroToTowerId[macroId] = nil
+    for mid, tid in pairs(macroToTowerId) do
+        if tid == towerId then
+            macroToTowerId[mid] = nil
+            break
+        end
+    end
+    upgradeConfirm[towerId] = nil
     pendingSell = nil
     return true
 end
 
 function TDX:SetupUpgradeListener()
-    local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
-    remote.OnClientEvent:Connect(function(...)
+    local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
+    factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
         if not args[1] or not args[1][1] then return end
         local entry = args[1][1]
