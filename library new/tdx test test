@@ -21,12 +21,29 @@ local function getRemote(name)
     return remotes and remotes:FindFirstChild(name)
 end
 
+local function deepPrint(tbl, indent)
+    indent = indent or ""
+    if type(tbl) ~= "table" then
+        print(indent .. tostring(tbl))
+        return
+    end
+    for k, v in pairs(tbl) do
+        if type(v) == "table" then
+            print(indent .. tostring(k) .. ":")
+            deepPrint(v, indent .. "  ")
+        else
+            print(indent .. tostring(k) .. " = " .. tostring(v))
+        end
+    end
+end
+
 function TDX:Place(towerName, x, y, z, macroId)
+    print("[DEBUG] Place called:", towerName, macroId)
     local remote = getRemote("PlaceTower")
     if not remote then error("[TDX] PlaceTower remote not found") end
 
     for _, id in ipairs(pendingQueue) do
-        if id == macroId then return false end
+        if id == macroId then print("[DEBUG] Macro already pending", macroId) return false end
     end
 
     table.insert(pendingQueue, macroId)
@@ -36,42 +53,62 @@ function TDX:Place(towerName, x, y, z, macroId)
         local success, result = pcall(function()
             return remote:InvokeServer(0, towerName, pos, 0)
         end)
-        if success and result == true then break end
-        wait(0.2)
+        if success and result == true then
+            print("[DEBUG] Place remote success for", macroId)
+            break
+        else
+            print("[DEBUG] Place failed, retrying:", success, result)
+            wait(0.2)
+        end
     end
 
+    print("[DEBUG] Waiting for tower ID for macro", macroId)
     while not macroToTowerId[macroId] do
         wait(0.05)
     end
+    print("[DEBUG] Tower placed, macro", macroId, "-> ID", macroToTowerId[macroId])
     return true
 end
 
 function TDX:Upgrade(macroId, path, level)
     local pathNum = tonumber(path) or path
     local levelNum = tonumber(level) or level
+    print("[DEBUG] Upgrade called for macro", macroId, "path", pathNum, "level", levelNum)
 
     while not macroToTowerId[macroId] do
         if not pendingUpgrade[macroId] then
             pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
+            print("[DEBUG] Upgrade queued for macro", macroId)
         end
         wait(0.1)
     end
 
     local towerId = macroToTowerId[macroId]
+    print("[DEBUG] Upgrade found towerId", towerId, "for macro", macroId)
     local remote = getRemote("TowerUpgradeRequest")
     if not remote then error("[TDX] TowerUpgradeRequest not found") end
 
     while true do
         upgradeConfirm[towerId] = false
         wait(0.1)
+        print("[DEBUG] Sending upgrade request for tower", towerId, "path", pathNum, "level", levelNum)
         pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
         local startWait = tick()
         while upgradeConfirm[towerId] == false do
             wait(0.05)
-            if not macroToTowerId[macroId] then return false end
-            if tick() - startWait > 2 then break end
+            if not macroToTowerId[macroId] then
+                print("[DEBUG] Macro disappeared during upgrade", macroId)
+                return false
+            end
+            if tick() - startWait > 2 then
+                print("[DEBUG] Upgrade confirmation timeout, retrying")
+                break
+            end
         end
-        if upgradeConfirm[towerId] == true then break end
+        if upgradeConfirm[towerId] == true then
+            print("[DEBUG] Upgrade confirmed for tower", towerId)
+            break
+        end
     end
 
     pendingUpgrade[macroId] = nil
@@ -80,6 +117,7 @@ function TDX:Upgrade(macroId, path, level)
 end
 
 function TDX:Sell(macroId)
+    print("[DEBUG] Sell called for macro", macroId)
     while not macroToTowerId[macroId] do
         pendingSell = macroId
         wait(0.1)
@@ -90,10 +128,10 @@ function TDX:Sell(macroId)
 
     wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
+    print("[DEBUG] Sell request sent for tower", towerId)
 
-    -- Remove from tracking
-    local name = towerNameById[towerId]
-    if name then
+    if towerNameById[towerId] then
+        local name = towerNameById[towerId]
         if towersByName[name] then
             for i, id in ipairs(towersByName[name]) do
                 if id == towerId then
@@ -112,23 +150,50 @@ function TDX:Sell(macroId)
     end
     upgradeConfirm[towerId] = nil
     pendingSell = nil
+    print("[DEBUG] Sold tower", towerId, "macro", macroId)
     return true
 end
 
 function TDX:SetupUpgradeListener()
-    -- Placement and removal listener
+    print("[DEBUG] Setting up listeners")
     local factoryRemote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("TowerFactoryQueueUpdated")
     factoryRemote.OnClientEvent:Connect(function(...)
         local args = {...}
-        if not args[1] or not args[1][1] then return end
-        local entry = args[1][1]
-        if not entry.Data then return end
-        local data = entry.Data
-        local towerId = data[1]
-        if not towerId then return end
+        print("[DEBUG] TowerFactoryQueueUpdated event received")
+        print("[DEBUG] Full event structure:")
+        deepPrint(args, "  ")
 
-        -- Placement: data[2] is tower name (string)
+        local entry = nil
+        if args[1] and type(args[1]) == "table" then
+            if args[1][1] then
+                entry = args[1][1]
+            else
+                entry = args[1]
+            end
+        end
+
+        if not entry then
+            print("[DEBUG] Could not find entry in event")
+            return
+        end
+
+        local data = entry.Data
+        if not data then
+            print("[DEBUG] No Data field in entry")
+            return
+        end
+
+        local towerId = data[1]
+        if not towerId then
+            print("[DEBUG] No towerId in data[1]")
+            return
+        end
+
+        print("[DEBUG] towerId =", towerId, "type(data[2]) =", type(data[2]), "data[2] =", data[2], "entry.Creation =", entry.Creation)
+
+        -- Placement: data[2] is string (tower name)
         if type(data[2]) == "string" then
+            print("[DEBUG] Placement detected via data[2] string")
             if #pendingQueue > 0 then
                 local macroId = table.remove(pendingQueue, 1)
                 local towerName = data[2]
@@ -136,22 +201,27 @@ function TDX:SetupUpgradeListener()
                 towerNameById[towerId] = towerName
                 if not towersByName[towerName] then towersByName[towerName] = {} end
                 table.insert(towersByName[towerName], towerId)
+                print("[DEBUG] Mapped macro", macroId, "to towerId", towerId, "name", towerName)
 
-                -- Execute queued upgrade for this macro
                 local upgrade = pendingUpgrade[macroId]
                 if upgrade then
+                    print("[DEBUG] Found queued upgrade for macro", macroId, "executing now")
                     wait(0.1)
                     TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
                     pendingUpgrade[macroId] = nil
                 end
                 if pendingSell == macroId then
+                    print("[DEBUG] Found queued sell for macro", macroId)
                     wait(0.1)
                     TDX:Sell(pendingSell)
                     pendingSell = nil
                 end
+            else
+                print("[DEBUG] No pending queue items")
             end
-        -- Removal: data[2] is true
-        elseif data[2] == true then
+        -- Removal: data[2] == true or Creation == false
+        elseif data[2] == true or entry.Creation == false then
+            print("[DEBUG] Removal detected")
             local name = towerNameById[towerId]
             if name then
                 if towersByName[name] then
@@ -163,33 +233,52 @@ function TDX:SetupUpgradeListener()
                     end
                 end
                 towerNameById[towerId] = nil
+                print("[DEBUG] Removed tower", towerId, "from name tracking")
             end
             for macroId, id in pairs(macroToTowerId) do
                 if id == towerId then
                     macroToTowerId[macroId] = nil
+                    print("[DEBUG] Removed mapping for macro", macroId)
                     break
                 end
             end
             upgradeConfirm[towerId] = nil
+        else
+            print("[DEBUG] Unknown event type: data[2]=", data[2], "Creation=", entry.Creation)
         end
     end)
 
-    -- Upgrade confirmation listener
     local upgradeRemote = ReplicatedStorage:FindFirstChild("Remotes"):FindFirstChild("TowerUpgradeQueueUpdated")
     if upgradeRemote then
+        print("[DEBUG] Upgrade listener found, connecting")
         upgradeRemote.OnClientEvent:Connect(function(data)
-            if type(data) ~= "table" then return end
+            print("[DEBUG] TowerUpgradeQueueUpdated event received")
+            print("[DEBUG] Upgrade data:", data)
+            if type(data) ~= "table" then
+                print("[DEBUG] Data is not a table")
+                return
+            end
             local entries = (#data > 0) and data or {data}
             for _, entry in ipairs(entries) do
                 local hash = entry.Hash or entry.hash or entry.Id or entry.id
-                if hash == nil then continue end
+                if hash == nil then
+                    print("[DEBUG] No hash in entry")
+                    continue
+                end
                 if type(hash) == "string" then hash = tonumber(hash) end
-                if hash == nil then continue end
+                if hash == nil then
+                    print("[DEBUG] Hash conversion failed")
+                    continue
+                end
+                print("[DEBUG] Upgrade event hash:", hash, "current confirm state:", upgradeConfirm[hash])
                 if upgradeConfirm[hash] == false then
                     upgradeConfirm[hash] = true
+                    print("[DEBUG] Upgrade confirmed for tower", hash)
                 end
             end
         end)
+    else
+        print("[DEBUG] TowerUpgradeQueueUpdated remote not found")
     end
 end
 
