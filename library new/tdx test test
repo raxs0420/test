@@ -4,10 +4,13 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
+if not player then
+    player = Players:WaitForChild("LocalPlayer")
+end
 
 local pendingQueue = {}
 local macroToTowerId = {}
-local pendingUpgrade = {}
+local pendingUpgrade = nil
 local pendingSell = nil
 local CurrentSpeed = 1
 local gameOverTriggered = false
@@ -24,54 +27,27 @@ end
 
 function TDX:Place(towerName, x, y, z, macroId)
     local remote = getRemote("PlaceTower")
-    if not remote then
-        warn("[TDX] PlaceTower remote not found")
-        return false
-    end
-
-    for _, id in ipairs(pendingQueue) do
-        if id == macroId then
-            warn("[TDX] Macro", macroId, "already in pending queue")
-            return false
-        end
-    end
+    if not remote then return false end
 
     table.insert(pendingQueue, macroId)
-    local pos = Vector3.new(x, y, z)
 
+    local pos = Vector3.new(x, y, z)
     local success, result = pcall(function()
         return remote:InvokeServer(0, towerName, pos, 0)
     end)
 
-    if not success then
-        warn("[TDX] Place remote error:", result)
+    if not success or result ~= true then
         for i, id in ipairs(pendingQueue) do
-            if id == macroId then
-                table.remove(pendingQueue, i)
-                break
-            end
+            if id == macroId then table.remove(pendingQueue, i); break end
         end
         return false
     end
 
-    if result ~= true then
-        warn("[TDX] Place failed, result:", result)
-        for i, id in ipairs(pendingQueue) do
-            if id == macroId then
-                table.remove(pendingQueue, i)
-                break
-            end
-        end
-        return false
-    end
-
-    print("[TDX] Place request sent for Macro", macroId, "waiting for tower ID...")
-
+    print("[TDX] Place request sent for Macro", macroId)
     while not macroToTowerId[macroId] do
-        task.wait(0.05)
+        task.wait()
     end
-
-    print("[TDX] Macro", macroId, "successfully placed → Tower ID", macroToTowerId[macroId])
+    print("[TDX] Tower confirmed for Macro", macroId)
     return true
 end
 
@@ -79,41 +55,30 @@ function TDX:Upgrade(macroId, path, level)
     local pathNum = tonumber(path) or path
     local levelNum = tonumber(level) or level
 
+    while not macroToTowerId[macroId] do
+        pendingUpgrade = { macroId = macroId, path = pathNum, level = levelNum }
+        task.wait()
+    end
+
     local towerId = macroToTowerId[macroId]
-    if not towerId then
-        if pendingUpgrade[macroId] then
-            return false
-        end
-        pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum }
-        print("[TDX] Queued upgrade for Macro", macroId)
-        return false
-    end
-
     local remote = getRemote("TowerUpgradeRequest")
-    if not remote then
-        warn("[TDX] TowerUpgradeRequest not found")
-        return false
-    end
+    if not remote then return false end
 
-    task.wait(0.1)
     pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
-    print("[TDX] Upgraded Macro", macroId, "(Tower ID", towerId, ", Path", pathNum, ", Level", levelNum, ")")
-    pendingUpgrade[macroId] = nil
+    print("[TDX] Upgraded Macro", macroId)
     return true
 end
 
 function TDX:Sell(macroId)
-    local towerId = macroToTowerId[macroId]
-    if not towerId then
+    while not macroToTowerId[macroId] do
         pendingSell = macroId
-        print("[TDX] Queued sell for Macro", macroId)
-        return false
+        task.wait()
     end
+    local towerId = macroToTowerId[macroId]
     local remote = getRemote("SellTower")
     if not remote then return false end
-    task.wait(0.1)
     pcall(function() remote:FireServer(towerId) end)
-    print("[TDX] Sold Macro", macroId, "(Tower ID", towerId, ")")
+    print("[TDX] Sold Macro", macroId)
     macroToTowerId[macroId] = nil
     return true
 end
@@ -133,26 +98,27 @@ function TDX:SetupUpgradeListener()
                     macroToTowerId[macroId] = realId
                     print("[TDX] Placed Macro", macroId, "→ Tower ID", realId)
 
-                    local upgrade = pendingUpgrade[macroId]
-                    if upgrade then
-                        task.wait(0.1)
-                        TDX:Upgrade(upgrade.macroId, upgrade.path, upgrade.level)
-                        pendingUpgrade[macroId] = nil
+                    if pendingUpgrade and pendingUpgrade.macroId == macroId then
+                        task.spawn(function()
+                            TDX:Upgrade(pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
+                            pendingUpgrade = nil
+                        end)
                     end
                     if pendingSell == macroId then
-                        task.wait(0.1)
-                        TDX:Sell(pendingSell)
-                        pendingSell = nil
+                        task.spawn(function()
+                            TDX:Sell(pendingSell)
+                            pendingSell = nil
+                        end)
                     end
                 end
             end
         end
     end)
 
-    print("[TDX] SetupUpgradeListener ready")
+    print("[TDX] Upgrade listener ready")
 end
 
-function TDX:Init()
+local function startCoinCollector()
     task.spawn(function()
         local remote = nil
         local function getRemoteInternal()
@@ -175,63 +141,43 @@ function TDX:Init()
             task.wait(1)
         end
     end)
-
-    task.delay(13, function()
-        local lastCheck = 0
-        RunService.Heartbeat:Connect(function(deltaTime)
-            lastCheck = lastCheck + deltaTime
-            if lastCheck >= 0.5 then
-                lastCheck = 0
-                local gameFolder = workspace:FindFirstChild("Game")
-                if gameFolder then
-                    local enemies = gameFolder:FindFirstChild("Enemies")
-                    if enemies then
-                        enemies:Destroy()
-                    end
-                end
-                local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
-                if tdxShared then
-                    local common = tdxShared:FindFirstChild("Common")
-                    if common then
-                        local resources = common:FindFirstChild("Resources")
-                        if resources then
-                            local deathEffects = resources:FindFirstChild("DeathEffects")
-                            if deathEffects then
-                                deathEffects:Destroy()
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-    end)
-
-    task.spawn(function()
-        if gameOverTriggered then return end
-        local playerGui = player:FindFirstChild("PlayerGui")
-        if not playerGui then return end
-        local interface = playerGui:FindFirstChild("Interface")
-        if not interface then return end
-        local gameOverScreen = interface:FindFirstChild("GameOverScreen")
-        if not gameOverScreen then
-            task.wait(10)
-            TDX:Init()
-            return
-        end
-        while not gameOverTriggered do
-            if gameOverScreen.Visible then
-                gameOverTriggered = true
-                print("[TDX] Game Over! Teleporting...")
-                task.wait(2)
-                pcall(function()
-                    TeleportService:Teleport(9503261072)
-                end)
-                break
-            end
-            task.wait(0.5)
-        end
-    end)
 end
+
+local function removeFolders()
+    local gameFolder = workspace:FindFirstChild("Game")
+    if gameFolder then
+        local enemies = gameFolder:FindFirstChild("Enemies")
+        if enemies then
+            enemies:Destroy()
+        end
+    end
+
+    local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
+    if tdxShared then
+        local common = tdxShared:FindFirstChild("Common")
+        if common then
+            local resources = common:FindFirstChild("Resources")
+            if resources then
+                local deathEffects = resources:FindFirstChild("DeathEffects")
+                if deathEffects then
+                    deathEffects:Destroy()
+                end
+            end
+        end
+    end
+end
+
+task.delay(13, function()
+    local lastCheck = 0
+    RunService.Heartbeat:Connect(function(deltaTime)
+        lastCheck = lastCheck + deltaTime
+        if lastCheck >= 0.5 then
+            lastCheck = 0
+            removeFolders()
+        end
+    end)
+end)
+startCoinCollector()
 
 function TDX:JoinMapViaAPC(mapName)
     local player = Players.LocalPlayer
@@ -250,21 +196,22 @@ function TDX:JoinMapViaAPC(mapName)
                 return false
             end
             task.wait()
-        else
-            for _, slot in ipairs(apcsFolder:GetChildren()) do
-                local attr = slot:GetAttribute("MapName") or ""
-                if attr == mapName then
-                    local detector = slot:FindFirstChild("Detector")
-                    if not detector and slot:FindFirstChild("APC") then
-                        detector = slot.APC:FindFirstChild("Detector")
-                    end
-                    if detector then
-                        local char = player.Character
-                        if char and char:FindFirstChild("HumanoidRootPart") then
-                            char.HumanoidRootPart.CFrame = detector.CFrame
-                            task.wait(2)
-                            return true
-                        end
+            goto continue
+        end
+
+        for _, slot in ipairs(apcsFolder:GetChildren()) do
+            local attr = slot:GetAttribute("MapName") or ""
+            if attr == mapName then
+                local detector = slot:FindFirstChild("Detector")
+                if not detector and slot:FindFirstChild("APC") then
+                    detector = slot.APC:FindFirstChild("Detector")
+                end
+                if detector then
+                    local char = player.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        char.HumanoidRootPart.CFrame = detector.CFrame
+                        task.wait(2)
+                        return true
                     end
                 end
             end
@@ -295,16 +242,12 @@ function TDX:JoinMapViaAPC(mapName)
 
         startTime = tick()
         task.wait()
+        ::continue::
     end
 end
 
 local typeMap = {
-    Elite = 0,
-    First = 1,
-    Last = 2,
-    Strong = 3,
-    Weak = 4,
-    Random = 5
+    Elite = 0, First = 1, Last = 2, Strong = 3, Weak = 4, Random = 5
 }
 
 local function getTypeValue(t)
@@ -317,8 +260,8 @@ local function getTypeValue(t)
 end
 
 function TDX:SetTarget(macroId, targetType)
+    while not macroToTowerId[macroId] do task.wait() end
     local towerId = macroToTowerId[macroId]
-    if not towerId then return false end
     local remote = getRemote("ChangeQueryType")
     if not remote then return false end
     local tv = getTypeValue(targetType)
@@ -380,11 +323,11 @@ function TDX:SetModeAndStart(mode)
     task.wait(0.5)
 end
 
-function TDX:Loadout(loadoutId)
+function TDX:Loadout(LoadoutId)
     task.wait(2)
     local load = getRemote("LoadoutSelectionChanged")
     if load then
-        load:FireServer(loadoutId)
+        load:FireServer(LoadoutId)
     end
     task.wait(0.5)
 end
@@ -448,7 +391,7 @@ function TDX:TowerSkillUpgrade(TowerName, Skill)
             isProcessing = true
             while #upgradeQueue > 0 do
                 local upgrade = table.remove(upgradeQueue, 1)
-                local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
+                local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
                 local upgraded = false
                 while not upgraded do
                     local success, result = pcall(function()
@@ -478,8 +421,10 @@ function TDX:Ability(macroId, slot, loop)
         end)
         return
     end
+    while not macroToTowerId[macroId] do task.wait() end
     local actualId = macroToTowerId[macroId]
-    if not actualId then return end
+    local data = towers[actualId]
+    if not data or not data.part or not isPartAlive(data.part) then return end
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
     if remote then
         local req = remote:FindFirstChild("TowerUseAbilityRequest")
@@ -488,5 +433,36 @@ function TDX:Ability(macroId, slot, loop)
         end
     end
 end
+
+local function checkGameOver()
+    if gameOverTriggered then return end
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if not playerGui then return end
+    local interface = playerGui:FindFirstChild("Interface")
+    if not interface then return end
+    local gameOverScreen = interface:FindFirstChild("GameOverScreen")
+    if not gameOverScreen then
+        task.spawn(function()
+            task.wait(10)
+            checkGameOver()
+        end)
+        return
+    end
+    task.spawn(function()
+        while not gameOverTriggered do
+            if gameOverScreen.Visible then
+                gameOverTriggered = true
+                print("[TDX] Game Over! Teleporting...")
+                task.wait(2)
+                pcall(function()
+                    TeleportService:Teleport(9503261072)
+                end)
+                break
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+checkGameOver()
 
 return TDX
