@@ -1694,17 +1694,24 @@ local function createAutomationTab()
         if maxWave and maxWave > 0 then
             currentMaxWave = maxWave
             waveBox.PlaceholderText = "Wave to Sell Farms (Max: " .. maxWave .. ")"
-            local currentValue = tonumber(waveBox.Text)
-            if currentValue and currentValue > maxWave then
-                waveBox.Text = tostring(maxWave)
+            
+            if maxWave > (_G.WaveFS or 40) then
                 _G.WaveFS = maxWave
+                waveBox.Text = tostring(maxWave)
                 saveSettings()
+            else
+                local currentValue = tonumber(waveBox.Text)
+                if currentValue and currentValue > maxWave then
+                    waveBox.Text = tostring(maxWave)
+                    _G.WaveFS = maxWave
+                    saveSettings()
+                end
             end
         else
             waveBox.PlaceholderText = "Wave to Sell Farms"
         end
     end
-
+    
     task.spawn(function()
         while true do
             updateMaxWavePlaceholder()
