@@ -947,13 +947,10 @@ function TDS:Mode(difficulty)
         local res
         repeat
             local ok, result = pcall(function()
-                local isEventMap = difficulty:match("^Map%dAdidas[Ee]asy$") or difficulty:match("^Map%dAdidas[Hh]ard$")
                 local mode = TDS.matchmaking_map[difficulty]
                 local payload
                 if mode then
                     payload = { mode = mode, count = 1 }
-                elseif isEventMap then
-                    payload = { mode = difficulty, count = 1 }
                 elseif difficulty == "Easy" or difficulty == "Hard" then
                     payload = { difficulty = difficulty, mode = "ducky2025", count = 1 }
                 else
