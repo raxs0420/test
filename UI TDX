@@ -9,7 +9,7 @@ if LocalPlayer.PlayerGui:FindFirstChild("TDXAuto") then return end
 
 local enemyBlocklist = {
     "Skulldrone", "Pilot", "Artemis", "Slow", "Quick", "Normal", "Buzzard", "Jumper",
-    "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drone",
+    "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drrone",
     "Rusher", "Jager", "Chariot Turret", "Spawner", "Haste", "Attack Drone", "Rocket Drone",
     "Multiplier 3", "Multiplier 2", "Multiplier 1", "Multiplier X", "Aerial Juggernaut",
     "Xcientist", "Shock Head", "Prisoner", "Prisoner Soul", "Contained", "Light Contained",
@@ -335,6 +335,7 @@ local towerPauseUntil = {}
 local pendingHash = nil
 local pendingTop = 0
 local pendingBottom = 0
+local pendingPlacements = {}
 
 local function updateTowersList()
     if not towersScroll or not towersLayout then return end
@@ -428,7 +429,7 @@ local function onNumericAdded(child, part)
     if num > old then
         towers[part].currentLevel = num
         addDebugLog(string.format("Level increase for %s: %d -> %d", part.Name, old, num))
-        if pendingHash and not towers[part].owned then
+        if pendingHash and pendingPlacements[pendingHash] and not towers[part].owned then
             towers[part].owned = true
             towers[part].hash = pendingHash
             towers[part].topCount = pendingTop
@@ -438,6 +439,7 @@ local function onNumericAdded(child, part)
             pendingHash = nil
             pendingTop = 0
             pendingBottom = 0
+            pendingPlacements[pendingHash] = nil
         end
     end
 end
@@ -478,45 +480,87 @@ local function setupUpgradeListener()
         addDebugLog("Remotes folder not found")
         return
     end
-    local queueRemote = remotes:FindFirstChild("TowerUpgradeQueueUpdated")
-    if not queueRemote then
-        addDebugLog("TowerUpgradeQueueUpdated not found")
-        return
-    end
-    queueRemote.OnClientEvent:Connect(function(data)
-        if type(data) ~= "table" then return end
-        local entries = (#data > 0) and data or {data}
-        for _, entry in ipairs(entries) do
-            local hash = entry.Hash or entry.hash or entry.Id or entry.id
-            if not hash then continue end
-            if type(hash) == "string" then hash = tonumber(hash) end
-            if not hash then continue end
-            
-            local top = 0
-            local bottom = 0
-            if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
-                top = entry.LevelReplicationData[1] or 0
-                bottom = entry.LevelReplicationData[2] or 0
-            end
-            
-            addDebugLog(string.format("Upgrade event: hash=%d top=%d bottom=%d", hash, top, bottom))
-            pendingHash = hash
-            pendingTop = top
-            pendingBottom = bottom
-            
-            for part, data in pairs(towers) do
-                if data.hash == hash then
-                    data.topCount = top
-                    data.bottomCount = bottom
-                    addDebugLog(string.format("Updated %s (hash %d) top/bottom: %d/%d", part.Name, hash, top, bottom))
-                    updateTowersList()
-                    pendingHash = nil
-                    break
+    local factoryRemote = remotes:FindFirstChild("TowerFactoryQueueUpdated")
+    if factoryRemote then
+        factoryRemote.OnClientEvent:Connect(function(...)
+            local args = {...}
+            local events = (type(args[1]) == "table" and #args[1] > 0) and args[1] or args
+            for _, ev in ipairs(events) do
+                if type(ev) ~= "table" then continue end
+                if ev.Creation == false then
+                    local towerId = ev.Data
+                    if type(towerId) == "table" then towerId = towerId[1] end
+                    if type(towerId) == "number" then
+                        pendingPlacements[towerId] = nil
+                        for part, data in pairs(towers) do
+                            if data.hash == towerId then
+                                removeTower(part)
+                                break
+                            end
+                        end
+                    end
+                else
+                    local towerInfo = ev.Data
+                    if type(towerInfo) == "table" and towerInfo[1] and type(towerInfo[1]) == "table" then
+                        towerInfo = towerInfo[1]
+                    end
+                    if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
+                        local towerId = towerInfo[1]
+                        local towerName = towerInfo[2]
+                        local playerName = towerInfo[7]
+                        if tostring(playerName) == LocalPlayer.Name then
+                            pendingPlacements[towerId] = {name = towerName, time = tick()}
+                            addDebugLog(string.format("Tower placed (local): %s, hash=%d", towerName, towerId))
+                        else
+                            addDebugLog(string.format("Tower placed (other): %s, hash=%d, player=%s", towerName, towerId, tostring(playerName)))
+                        end
+                    end
                 end
             end
-        end
-    end)
-    addDebugLog("Upgrade listener ready (waits for numeric level increase)")
+        end)
+        addDebugLog("TowerFactoryQueueUpdated listener ready")
+    else
+        addDebugLog("TowerFactoryQueueUpdated not found")
+    end
+    local upgradeRemote = remotes:FindFirstChild("TowerUpgradeQueueUpdated")
+    if upgradeRemote then
+        upgradeRemote.OnClientEvent:Connect(function(data)
+            if type(data) ~= "table" then return end
+            local entries = (#data > 0) and data or {data}
+            for _, entry in ipairs(entries) do
+                local hash = entry.Hash or entry.hash or entry.Id or entry.id
+                if not hash then continue end
+                if type(hash) == "string" then hash = tonumber(hash) end
+                if not hash then continue end
+                if not pendingPlacements[hash] then continue end
+                local top = 0
+                local bottom = 0
+                if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
+                    top = entry.LevelReplicationData[1] or 0
+                    bottom = entry.LevelReplicationData[2] or 0
+                end
+                addDebugLog(string.format("Upgrade event (local): hash=%d top=%d bottom=%d", hash, top, bottom))
+                pendingHash = hash
+                pendingTop = top
+                pendingBottom = bottom
+                for part, data in pairs(towers) do
+                    if data.hash == hash then
+                        data.topCount = top
+                        data.bottomCount = bottom
+                        addDebugLog(string.format("Updated %s (hash %d) top/bottom: %d/%d", part.Name, hash, top, bottom))
+                        updateTowersList()
+                        pendingHash = nil
+                        pendingTop = 0
+                        pendingBottom = 0
+                        break
+                    end
+                end
+            end
+        end)
+        addDebugLog("TowerUpgradeQueueUpdated listener ready")
+    else
+        addDebugLog("TowerUpgradeQueueUpdated not found")
+    end
 end
 
 local function getAllEnemies()
@@ -589,37 +633,359 @@ local function sendAbilityNoPosition(part, slot)
     return nil
 end
 
-local bountyLoop = nil
-local function runBountySequential(slot)
-    while settings.activeAbilities["BOUNTY"] do
-        local gmParts = {}
+local function makeFastSpamLoop(abilityName, towerName, requiredPath, pathLevel, slot)
+    return function()
+        while settings.activeAbilities[abilityName] do
+            local targets = {}
+            for part, data in pairs(towers) do
+                if data.owned and data.name == towerName and data.hash and part.Parent then
+                    local meets = false
+                    if requiredPath == "top" then
+                        meets = data.topCount >= pathLevel
+                    elseif requiredPath == "bottom" then
+                        meets = data.bottomCount >= pathLevel
+                    elseif requiredPath == "any" then
+                        meets = data.topCount >= pathLevel or data.bottomCount >= pathLevel
+                    end
+                    if meets then
+                        table.insert(targets, part)
+                    end
+                end
+            end
+            if #targets > 0 then
+                for _, part in ipairs(targets) do
+                    if not settings.activeAbilities[abilityName] then break end
+                    sendAbilityNoPosition(part, slot)
+                    task.wait(0.05)
+                end
+            else
+                task.wait(0.1)
+            end
+        end
+    end
+end
+
+local function runOperatorHumvee()
+    while settings.activeAbilities["HUMVEE"] do
+        local targets = {}
         for part, data in pairs(towers) do
-            if data.owned and data.name == "Golden Mobster" and part.Parent and data.hash and data.bottomCount >= 3 then
-                local pauseUntil = towerPauseUntil[part]
-                if not pauseUntil or tick() >= pauseUntil then
-                    table.insert(gmParts, part)
+            if data.owned and data.name == "Operator" and data.hash and data.bottomCount >= 3 and part.Parent then
+                table.insert(targets, part)
+            end
+        end
+        if #targets > 0 then
+            for _, part in ipairs(targets) do
+                if not settings.activeAbilities["HUMVEE"] then break end
+                local data = towers[part]
+                sendAbilityNoPosition(part, 1)
+                task.wait(0.05)
+                if data.bottomCount >= 4 then
+                    sendAbilityNoPosition(part, 2)
+                    task.wait(0.05)
+                end
+            end
+        else
+            task.wait(0.1)
+        end
+    end
+end
+
+local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerName)
+    return function()
+        while settings.activeAbilities[abilityName] do
+            local validParts = {}
+            for part, data in pairs(towers) do
+                if data.owned and data.name == towerName and part.Parent and data.hash and data.bottomCount >= requiredBottomLevel then
+                    local pauseUntil = towerPauseUntil[part]
+                    if not pauseUntil or tick() >= pauseUntil then
+                        table.insert(validParts, part)
+                    end
+                end
+            end
+            if #validParts == 0 then task.wait(0.4) continue end
+            local enemies = getAllEnemies()
+            if #enemies == 0 then task.wait(0.1) continue end
+            for _, part in ipairs(validParts) do
+                if not settings.activeAbilities[abilityName] then break end
+                local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist)
+                if not target then task.wait(0.1) continue end
+                local response = sendAbilityWithPosition(part, slot, target.Position)
+                if response == true then
+                    globalHitBlacklist[target] = true
+                    towerPauseUntil[part] = tick() + 3
+                end
+                task.wait(0.15)
+            end
+            task.wait(0.2)
+        end
+    end
+end
+
+local sniperFlareCooldowns = {}
+local lastFlareUseTime = 0
+local function runSniperFlare()
+    while settings.activeAbilities["FLARE"] do
+        local now = tick()
+        if now - lastFlareUseTime >= 5 then
+            local snipers = {}
+            for part, data in pairs(towers) do
+                if data.owned and data.name == "Sniper" and data.hash and data.bottomCount >= 4 and part.Parent then
+                    local cooldownUntil = sniperFlareCooldowns[part] or 0
+                    if now >= cooldownUntil then
+                        table.insert(snipers, part)
+                    end
+                end
+            end
+            if #snipers > 0 then
+                local selected = snipers[1]
+                sendAbilityNoPosition(selected, 1)
+                sniperFlareCooldowns[selected] = now + 10
+                lastFlareUseTime = now
+                addDebugLog("[Flare] Used on Sniper")
+            end
+        end
+        task.wait(0.5)
+    end
+end
+
+local laserBurstCooldowns = {}
+local lastBurstUseTime = 0
+local laserBurstIndex = 1
+local function runStealthSensor()
+    while settings.activeAbilities["STEALTH_SENSOR"] do
+        local now = tick()
+        if now - lastBurstUseTime >= 4 then
+            local gunners = {}
+            for part, data in pairs(towers) do
+                if data.owned and data.name == "Laser Gunner" and data.hash and data.bottomCount >= 3 and part.Parent then
+                    local cooldownUntil = laserBurstCooldowns[part] or 0
+                    if now >= cooldownUntil then
+                        table.insert(gunners, part)
+                    end
+                end
+            end
+            if #gunners > 0 then
+                if laserBurstIndex > #gunners then laserBurstIndex = 1 end
+                local selected = gunners[laserBurstIndex]
+                sendAbilityNoPosition(selected, 1)
+                laserBurstCooldowns[selected] = now + 4
+                lastBurstUseTime = now
+                laserBurstIndex = laserBurstIndex + 1
+                addDebugLog("[Stealth Sensor] Used on Laser Gunner")
+            end
+        end
+        task.wait(0.5)
+    end
+end
+
+local function runGoldenRanger()
+    while settings.activeAbilities["GOLDEN_RANGER"] do
+        local rangers = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Golden Ranger" and data.hash and data.bottomCount >= 5 and part.Parent then
+                table.insert(rangers, part)
+            end
+        end
+        if #rangers > 0 then
+            local enemies = getAllEnemies()
+            for _, part in ipairs(rangers) do
+                if not settings.activeAbilities["GOLDEN_RANGER"] then break end
+                local enemyInRange = false
+                for _, enemy in ipairs(enemies) do
+                    if (part.Position - enemy.Position).Magnitude <= 23 then
+                        enemyInRange = true
+                        break
+                    end
+                end
+                if enemyInRange then
+                    sendAbilityNoPosition(part, 1)
+                    task.wait(0.05)
+                end
+            end
+        else
+            task.wait(0.2)
+        end
+        task.wait(0.1)
+    end
+end
+
+local function runWarship()
+    while settings.activeAbilities["WARSHIP"] do
+        local warships = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Warship" and data.hash and (data.topCount >= 3 or data.bottomCount >= 3) and part.Parent then
+                table.insert(warships, part)
+            end
+        end
+        if #warships > 0 then
+            for _, part in ipairs(warships) do
+                if not settings.activeAbilities["WARSHIP"] then break end
+                sendAbilityNoPosition(part, 1)
+                task.wait(0.05)
+                sendAbilityNoPosition(part, 2)
+                task.wait(0.05)
+            end
+        else
+            task.wait(0.2)
+        end
+    end
+end
+
+local slammerGrandSlamCooldown = {}
+local grandSlamLoop = nil
+local function runGrandSlamSequential()
+    while settings.activeAbilities["GRAND_SLAM"] do
+        local slammers = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Slammer" and data.hash and data.topCount >= 5 and part.Parent then
+                local cooldownUntil = slammerGrandSlamCooldown[part] or 0
+                if tick() >= cooldownUntil then
+                    table.insert(slammers, part)
                 end
             end
         end
-        if #gmParts == 0 then task.wait(0.5) continue end
-        local enemies = getAllEnemies()
-        if #enemies == 0 then task.wait(0.1) continue end
-        for _, part in ipairs(gmParts) do
-            if not settings.activeAbilities["BOUNTY"] then break end
-            local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist)
-            if not target then task.wait(0.1) continue end
-            local response = sendAbilityWithPosition(part, slot, target.Position)
-            if response == true then
-                globalHitBlacklist[target] = true
-                towerPauseUntil[part] = tick() + 3
-            elseif response == false then
-                task.wait(0.15)
-            elseif response == nil then
-                task.wait(0.15)
+        if #slammers > 0 then
+            local enemies = getAllEnemies()
+            for _, slammerPart in ipairs(slammers) do
+                if not settings.activeAbilities["GRAND_SLAM"] then break end
+                local enemyInRange = false
+                for _, enemy in ipairs(enemies) do
+                    if (slammerPart.Position - enemy.Position).Magnitude <= 5.5 then
+                        enemyInRange = true
+                        break
+                    end
+                end
+                if enemyInRange then
+                    local response = sendAbilityNoPosition(slammerPart, 1)
+                    if response == true then
+                        slammerGrandSlamCooldown[slammerPart] = tick() + 3
+                        addDebugLog(string.format("[Grand Slam] Used on Slammer hash %d", towers[slammerPart].hash))
+                    end
+                end
             end
-            task.wait(0.15)
         end
-        task.wait(0.3)
+        task.wait(0.1)
+    end
+end
+
+local overloadLoop = nil
+local function runOverloadSequential()
+    while settings.activeAbilities["OVERLOAD"] do
+        local mobsters = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Golden Mobster" and data.hash and data.topCount >= 4 and part.Parent then
+                table.insert(mobsters, part)
+            end
+        end
+        if #mobsters > 0 then
+            for _, part in ipairs(mobsters) do
+                if not settings.activeAbilities["OVERLOAD"] then break end
+                sendAbilityNoPosition(part, 1)
+                task.wait(0.05)
+            end
+        else
+            task.wait(0.2)
+        end
+    end
+end
+
+local johnAxeCooldown = {}
+local axeLoop = nil
+local function runAxeSequential()
+    while settings.activeAbilities["AXE"] do
+        local johns = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "John" and data.hash and data.bottomCount >= 5 and part.Parent then
+                local cooldownUntil = johnAxeCooldown[part] or 0
+                if tick() >= cooldownUntil then
+                    table.insert(johns, part)
+                end
+            end
+        end
+        if #johns > 0 then
+            local enemies = getAllEnemies()
+            for _, johnPart in ipairs(johns) do
+                if not settings.activeAbilities["AXE"] then break end
+                local nearby = 0
+                for _, enemy in ipairs(enemies) do
+                    if (johnPart.Position - enemy.Position).Magnitude <= 6.5 then
+                        nearby = nearby + 1
+                        if nearby > 3 then break end
+                    end
+                end
+                if nearby > 3 then
+                    local response = sendAbilityNoPosition(johnPart, 1)
+                    if response == true then
+                        johnAxeCooldown[johnPart] = tick() + 6
+                        addDebugLog(string.format("[Axe] Used on John hash %d", towers[johnPart].hash))
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+local function runClusterCooldownAbility(abilityName, towerName, requiredPath, pathLevel, slot, clusterRadius)
+    return function()
+        local clusterStates = {}
+        while settings.activeAbilities[abilityName] do
+            local eligible = {}
+            for part, data in pairs(towers) do
+                if data.owned and data.name == towerName and data.hash and part.Parent then
+                    local meets = false
+                    if requiredPath == "top" then
+                        meets = data.topCount >= pathLevel
+                    elseif requiredPath == "bottom" then
+                        meets = data.bottomCount >= pathLevel
+                    end
+                    if meets then
+                        table.insert(eligible, {part = part, pos = part.Position, hash = data.hash})
+                    end
+                end
+            end
+            local clusters = {}
+            local visited = {}
+            for i, tower in ipairs(eligible) do
+                if not visited[i] then
+                    local cluster = {tower}
+                    visited[i] = true
+                    for j, other in ipairs(eligible) do
+                        if not visited[j] and (tower.pos - other.pos).Magnitude <= clusterRadius then
+                            table.insert(cluster, other)
+                            visited[j] = true
+                        end
+                    end
+                    table.insert(clusters, cluster)
+                end
+            end
+            for _, cluster in ipairs(clusters) do
+                local clusterKey = ""
+                for _, t in ipairs(cluster) do
+                    clusterKey = clusterKey .. t.hash .. "_"
+                end
+                local state = clusterStates[clusterKey]
+                local now = tick()
+                if not state then
+                    state = { lastUse = 0, nextIndex = 1 }
+                    clusterStates[clusterKey] = state
+                end
+                if now - state.lastUse >= 8 then
+                    local target = cluster[state.nextIndex]
+                    if target then
+                        local response = sendAbilityNoPosition(target.part, slot)
+                        if response == true then
+                            state.lastUse = now
+                            state.nextIndex = (state.nextIndex % #cluster) + 1
+                            addDebugLog(string.format("[%s] Used on %s hash %d", abilityName, towerName, target.hash))
+                        else
+                            task.wait(0.2)
+                        end
+                    end
+                end
+            end
+            task.wait(0.3)
+        end
     end
 end
 
@@ -630,9 +996,7 @@ local medicDroneIgnoreTowers = {
     ["Cryo Helicopter"] = true, ["Warship"] = true, ["Chicken House"] = true, ["Scarecrow"] = true,
     ["XWM Turret"] = true, ["Patrol Boat"] = true, ["Troll Tower"] = true,
 }
-
 local towerWeights = { ["Refractor"] = 5, ["Golden Mobster"] = 3, ["Golden Juggernaut"] = 3 }
-
 local function getBestMedicDronePosition(towerPositions, radius)
     local bestPos = nil
     local bestWeightedSum = -1
@@ -672,7 +1036,6 @@ local function getBestMedicDronePosition(towerPositions, radius)
     end
     return bestPos, bestWeightedSum
 end
-
 local medicDroneLoop = nil
 local function runMedicDroneSequential(slot)
     local recentDronePositions = {}
@@ -737,54 +1100,157 @@ local function runMedicDroneSequential(slot)
     end
 end
 
+local callToArmsLoop = nil
+local function runCallToArmsSequential()
+    local clusterStates = {}
+    while settings.activeAbilities["CALL_TO_ARMS"] do
+        local commanders = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Commander" and data.hash and data.topCount >= 3 and part.Parent then
+                table.insert(commanders, {part = part, pos = part.Position, hash = data.hash})
+            end
+        end
+        local clusters = {}
+        local visited = {}
+        for i, cmd in ipairs(commanders) do
+            if not visited[i] then
+                local cluster = {cmd}
+                visited[i] = true
+                for j, other in ipairs(commanders) do
+                    if not visited[j] and (cmd.pos - other.pos).Magnitude <= 5 then
+                        table.insert(cluster, other)
+                        visited[j] = true
+                    end
+                end
+                table.insert(clusters, cluster)
+            end
+        end
+        for _, cluster in ipairs(clusters) do
+            local size = #cluster
+            if size >= 2 then
+                local clusterKey = ""
+                for _, cmd in ipairs(cluster) do
+                    clusterKey = clusterKey .. cmd.hash .. "_"
+                end
+                local state = clusterStates[clusterKey]
+                local now = tick()
+                local interval = (size == 2) and 21 or 13
+                if not state then
+                    state = { lastUse = 0, nextIndex = 1 }
+                    clusterStates[clusterKey] = state
+                end
+                if now - state.lastUse >= interval then
+                    local targetCmd = cluster[state.nextIndex]
+                    local response = sendAbilityNoPosition(targetCmd.part, 1)
+                    if response == true then
+                        state.lastUse = now
+                        state.nextIndex = (state.nextIndex % size) + 1
+                        addDebugLog(string.format("[Call to Arms] Used on Commander hash %d", targetCmd.hash))
+                    else
+                        task.wait(0.2)
+                    end
+                end
+            end
+        end
+        task.wait(0.3)
+    end
+end
+
+local spawnApcLoop = nil
+local function runSpawnApcSequential()
+    while settings.activeAbilities["SPAWN_APC"] do
+        local commanders = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Commander" and data.hash and data.topCount >= 4 and part.Parent then
+                table.insert(commanders, part)
+            end
+        end
+        if #commanders > 0 then
+            for _, part in ipairs(commanders) do
+                if not settings.activeAbilities["SPAWN_APC"] then break end
+                sendAbilityNoPosition(part, 2)
+                task.wait(0.05)
+            end
+        else
+            task.wait(0.2)
+        end
+    end
+end
+
 local abilityLoops = {}
 
-local abilityLevelReqs = {
-    ["DJ_Encore"] = { top = 3 },
-    ["HUMVEE"] = { bottom = 3 },
-    ["OVERLOAD"] = { top = 4 },
-    ["REBOOT_SYSTEMS"] = { bottom = 5, top = 5 },
-    ["AXE_RAGE"] = { bottom = 5, top = 5 },    
-    ["UNSTUN_HEALTH"] = { bottom = 5, top = 5 },    
+local abilityLoopMap = {
+    GRENADE = makeFastSpamLoop("GRENADE", "Ranger", "bottom", 4, 1),
+    UNSTUN_HEALTH = makeFastSpamLoop("UNSTUN_HEALTH", "Shotgunner", "bottom", 5, 1),
+    HEALTH_PACK = makeFastSpamLoop("HEALTH_PACK", "Shotgunner", "top", 5, 1),
+    HUMVEE = runOperatorHumvee,
+    FLARE = runSniperFlare,
+    ENCORE = runClusterCooldownAbility("ENCORE", "EDJ", "top", 3, 1, 10),
+    SHOCK_ROUNDS = makeFastSpamLoop("SHOCK_ROUNDS", "Laser Gunner", "top", 4, 1),
+    STEALTH_SENSOR = runStealthSensor,
+    AP_ROUNDS = makeFastSpamLoop("AP_ROUNDS", "Mobster", "top", 4, 1),
+    N_BOUNTY = runBountyTargeted("N_BOUNTY", 1, 3, "Mobster"),
+    G_BOUNTY = runBountyTargeted("G_BOUNTY", 1, 3, "Golden Mobster"),
+    OVERLOAD = runOverloadSequential,
+    GOLDEN_RANGER = runGoldenRanger,
+    WARSHIP = runWarship,
+    GRAND_SLAM = runGrandSlamSequential,
+    RAGE = runClusterCooldownAbility("RAGE", "John", "top", 5, 1, 10),
+    AXE = runAxeSequential,
+    MEDIC_DRONE = function() runMedicDroneSequential(1) end,
+    CALL_TO_ARMS = runCallToArmsSequential,
+    SPAWN_APC = runSpawnApcSequential,
 }
 
+local activeAbilities = settings.activeAbilities
+
 local abilityOrder = {
-    "GRENADE", "UNSTUN_HEALTH", "HUMVEE", "FLARE", "DJ_Encore", "AXE_RAGE",
-    "LaserGunner", "TOXIC_BLAST", "AP_ROUNDS", "BOUNTY", "OVERLOAD",
-    "GRAND_SLAM", "GOLDEN_GRANDE", "Charge_Throw", "GLOBAL_STEALTH_REVEAL",
-    "REBOOT_SYSTEMS", "MEDIC_DRONE"
+    "GRENADE", "UNSTUN_HEALTH", "HEALTH_PACK", "HUMVEE", "FLARE", "ENCORE",
+    "SHOCK_ROUNDS", "STEALTH_SENSOR", "AP_ROUNDS", "N_BOUNTY", "G_BOUNTY", "OVERLOAD",
+    "GOLDEN_RANGER", "WARSHIP", "GRAND_SLAM", "RAGE", "AXE", "MEDIC_DRONE", "CALL_TO_ARMS", "SPAWN_APC"
+}
+
+local abilityDisplayNames = {
+    GRENADE = "Grenade (Bot 4+)",
+    UNSTUN_HEALTH = "UnStun (Bot 5)",
+    HEALTH_PACK = "Health Pack (Top 5)",
+    HUMVEE = "Humvee (Bot 3+)",
+    FLARE = "Flare (Bot 4+)",
+    ENCORE = "Encore (Top 3+)",
+    SHOCK_ROUNDS = "Shock Rounds (Top 4+)",
+    STEALTH_SENSOR = "Stealth Sensor (Bot 3+)",
+    AP_ROUNDS = "AP Rounds (Top 4+)",
+    N_BOUNTY = "N Bounty (Bot 3+)",
+    G_BOUNTY = "G Bounty (Bot 3+)",
+    OVERLOAD = "Overload (Top 4+)",
+    GOLDEN_RANGER = "Golden Ranger (Bot 5)",
+    WARSHIP = "Warship",
+    GRAND_SLAM = "Grand Slam (Top 5)",
+    RAGE = "Rage (Top 5+)",
+    AXE = "Axe (Bot 5)",
+    MEDIC_DRONE = "Medic Drone (Bot 3+)",
+    CALL_TO_ARMS = "Call to Arms (Top 3+)",
+    SPAWN_APC = "Spawn APC (Top 4+)"
 }
 
 local towerAbilities = {
     Ranger = {{ability = "GRENADE", slot = 1}},
-    Shotgunner = {{ability = "UNSTUN_HEALTH", slot = 1}},
+    Shotgunner = {{ability = "UNSTUN_HEALTH", slot = 1}, {ability = "HEALTH_PACK", slot = 1}},
     Operator = {{ability = "HUMVEE", slot = 1}},
     Sniper = {{ability = "FLARE", slot = 1}},
-    EDJ = {{ability = "DJ_Encore", slot = 1}},
-    John = {{ability = "AXE_RAGE", slot = 1}},
-    ["Laser Gunner"] = {{ability = "LaserGunner", slot = 1}},
-    Toxicnator = {{ability = "TOXIC_BLAST", slot = 1}},
-    Mobster = {{ability = "AP_ROUNDS", slot = 1}},
-    ["Golden Mobster"] = {{ability = "BOUNTY", slot = 1}, {ability = "OVERLOAD", slot = 1}},
+    EDJ = {{ability = "ENCORE", slot = 1}},
+    ["Laser Gunner"] = {{ability = "SHOCK_ROUNDS", slot = 1}, {ability = "STEALTH_SENSOR", slot = 1}},
+    Mobster = {{ability = "AP_ROUNDS", slot = 1}, {ability = "N_BOUNTY", slot = 1}},
+    ["Golden Mobster"] = {{ability = "G_BOUNTY", slot = 1}, {ability = "OVERLOAD", slot = 1}},
+    ["Golden Ranger"] = {{ability = "GOLDEN_RANGER", slot = 1}},
+    Warship = {{ability = "WARSHIP", slot = 1}},
     Slammer = {{ability = "GRAND_SLAM", slot = 1}},
-    ["Golden Ranger"] = {{ability = "GOLDEN_GRANDE", slot = 1}},
-    ["Golden Mine Layer"] = {{ability = "Charge_Throw", slot = 1}},
-    Warship = {{ability = "GLOBAL_STEALTH_REVEAL", slot = 1}},
-    ["Golden Juggernaut"] = {{ability = "REBOOT_SYSTEMS", slot = 1}},
-    ["Combat Medic"] = {{ability = "MEDIC_DRONE", slot = 1}}
+    John = {{ability = "RAGE", slot = 1}, {ability = "AXE", slot = 1}},
+    ["Combat Medic"] = {{ability = "MEDIC_DRONE", slot = 1}},
+    Commander = {{ability = "CALL_TO_ARMS", slot = 1}, {ability = "SPAWN_APC", slot = 2}}
 }
 
-local abilityDisplayNames = {
-    GRENADE = "Grenade", UNSTUN_HEALTH = "Health/UnStun", HUMVEE = "Humvee", FLARE = "Flare",
-    DJ_Encore = "DJ Encore", AXE_RAGE = "Axe/Rage", LaserGunner = "Laser Gunner", TOXIC_BLAST = "Toxic Blast",
-    AP_ROUNDS = "AP Rounds", BOUNTY = "Bounty", OVERLOAD = "Overload",
-    GRAND_SLAM = "Grand Slam", GOLDEN_GRANDE = "Golden Grenade", Charge_Throw = "Charge Throw",
-    GLOBAL_STEALTH_REVEAL = "Global Stealth", REBOOT_SYSTEMS = "Reboot Systems", MEDIC_DRONE = "Medic Drone"
-}
-
-local activeAbilities = settings.activeAbilities
 local abilityTargets = {}
-
 for towerName, abilityList in pairs(towerAbilities) do
     for _, ab in ipairs(abilityList) do
         local abilityName = ab.ability
@@ -793,10 +1259,6 @@ for towerName, abilityList in pairs(towerAbilities) do
         end
         table.insert(abilityTargets[abilityName].towers, towerName)
     end
-end
-
-if abilityTargets["HUMVEE"] then
-    abilityTargets["HUMVEE"].slots = {1,2,3}
 end
 
 local rowFrame = nil
@@ -831,21 +1293,18 @@ for _, abilityName in ipairs(abilityOrder) do
             if activeAbilities[abilityName] then
                 activeAbilities[abilityName] = false
                 btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-                if abilityName == "BOUNTY" and bountyLoop then task.cancel(bountyLoop) bountyLoop = nil end
-                if abilityName == "MEDIC_DRONE" and medicDroneLoop then task.cancel(medicDroneLoop) medicDroneLoop = nil end
+                if abilityLoops[abilityName] then
+                    task.cancel(abilityLoops[abilityName])
+                    abilityLoops[abilityName] = nil
+                end
             else
                 activeAbilities[abilityName] = true
                 btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-                if abilityName == "BOUNTY" then
-                    for k in pairs(towerPauseUntil) do towerPauseUntil[k] = nil end
-                    if bountyLoop then task.cancel(bountyLoop) end
-                    bountyLoop = task.spawn(runBountySequential, abilityTargets["BOUNTY"].slot)
-                elseif abilityName == "MEDIC_DRONE" then
-                    for part, data in pairs(towers) do if data.name == "Combat Medic" then towerPauseUntil[part] = nil end end
-                    if medicDroneLoop then task.cancel(medicDroneLoop) end
-                    medicDroneLoop = task.spawn(runMedicDroneSequential, abilityTargets["MEDIC_DRONE"].slot)
+                local loopFunc = abilityLoopMap[abilityName]
+                if loopFunc then
+                    abilityLoops[abilityName] = task.spawn(loopFunc)
                 else
-                    startAbilityLoop(abilityName)
+                    addDebugLog("No loop defined for " .. abilityName)
                 end
             end
             saveSettings()
@@ -853,74 +1312,6 @@ for _, abilityName in ipairs(abilityOrder) do
     end
 end
 abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 40 + 10)
-
-local function startAbilityLoop(abilityName)
-    if abilityName == "BOUNTY" then
-        if bountyLoop then task.cancel(bountyLoop) bountyLoop = nil end
-        if not activeAbilities["BOUNTY"] then return false end
-        bountyLoop = task.spawn(runBountySequential, abilityTargets["BOUNTY"].slot)
-        return true
-    elseif abilityName == "MEDIC_DRONE" then
-        if medicDroneLoop then task.cancel(medicDroneLoop) medicDroneLoop = nil end
-        if not activeAbilities["MEDIC_DRONE"] then return false end
-        medicDroneLoop = task.spawn(runMedicDroneSequential, abilityTargets["MEDIC_DRONE"].slot)
-        return true
-    else
-        if abilityLoops[abilityName] then
-            task.cancel(abilityLoops[abilityName])
-            abilityLoops[abilityName] = nil
-            return false
-        end
-        local data = abilityTargets[abilityName]
-        if not data then return false end
-        abilityLoops[abilityName] = task.spawn(function()
-            while activeAbilities[abilityName] do
-                local targetParts = {}
-                for part, towerData in pairs(towers) do
-                    if towerData.owned and towerData.hash then
-                        for _, towerName in ipairs(data.towers) do
-                            if towerData.name == towerName then
-                                local req = abilityLevelReqs[abilityName]
-                                local qualifies = true
-                                if req then
-                                    local topOk = (not req.top) or (towerData.topCount >= req.top)
-                                    local bottomOk = (not req.bottom) or (towerData.bottomCount >= req.bottom)
-                                    qualifies = topOk or bottomOk
-                                end
-                                if qualifies then
-                                    table.insert(targetParts, part)
-                                end
-                                break 
-                            end
-                        end
-                    end
-                end
-                if #targetParts > 0 then
-                    for _, part in ipairs(targetParts) do
-                        if not activeAbilities[abilityName] then break end
-                        local remote = ReplicatedStorage:FindFirstChild("Remotes")
-                        if remote then
-                            local req = remote:FindFirstChild("TowerUseAbilityRequest")
-                            if req then
-                                if data.slots then
-                                    for _, slot in ipairs(data.slots) do
-                                        if not activeAbilities[abilityName] then break end
-                                        pcall(function() req:InvokeServer(towers[part].hash, slot) end)
-                                    end
-                                else
-                                    pcall(function() req:InvokeServer(towers[part].hash, data.slot) end)
-                                end
-                            end
-                        end
-                        task.wait(0.02)
-                    end
-                end
-                task.wait(0.5)
-            end
-        end)
-        return true
-    end
-end
 
 local autoSkip = settings.autoSkip
 local skipLoop = nil
@@ -1086,7 +1477,7 @@ pcall(function()
     if not TowersFolder then return end
     TowersFolder.ChildAdded:Connect(function(part) if part:IsA("BasePart") then addTower(part) watchTower(part) end end)
     TowersFolder.ChildRemoved:Connect(function(part) if part:IsA("BasePart") then removeTower(part) end end)
-    task.spawn(function() while true do cleanupDeadTowers() task.wait(0.5) end end)
+    task.spawn(function() while true do cleanupDeadTowers() task.wait(0.1) end end)
     for _, part in ipairs(TowersFolder:GetChildren()) do
         if part:IsA("BasePart") then
             addTower(part)
@@ -1096,16 +1487,8 @@ pcall(function()
 end)
 
 for abilityName, isActive in pairs(activeAbilities) do
-    if isActive and abilityTargets[abilityName] then
-        if abilityName == "BOUNTY" then
-            if bountyLoop then task.cancel(bountyLoop) end
-            bountyLoop = task.spawn(runBountySequential, abilityTargets["BOUNTY"].slot)
-        elseif abilityName == "MEDIC_DRONE" then
-            if medicDroneLoop then task.cancel(medicDroneLoop) end
-            medicDroneLoop = task.spawn(runMedicDroneSequential, abilityTargets["MEDIC_DRONE"].slot)
-        else
-            startAbilityLoop(abilityName)
-        end
+    if isActive and abilityLoopMap[abilityName] then
+        abilityLoops[abilityName] = task.spawn(abilityLoopMap[abilityName])
     end
 end
 
