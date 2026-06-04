@@ -234,26 +234,24 @@ end
 
 local function rejoin_match()
     if not _G.AutoRejoin then return end
-
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local remote = ReplicatedStorage:WaitForChild("RemoteFunction")
-
-    local function check_res_ok(res)
-        return res and type(res) == "table" and (res.success == true or res.Success == true)
-    end
-
+    local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
     local success = false
     local res
-
+    local IsMobile = game:GetService("UserInputService").TouchEnabled
+    Globals = Globals or {}
+    local privateCode = Globals.PrivateCode or _G.PrivateCode
+    if privateCode and privateCode ~= "" and not IsMobile then
+        SmartTeleportToLobby()
+        task.wait(9e9)
+        return
+    end
     repeat
-        local StateFolder = ReplicatedStorage:FindFirstChild("State")
+        local StateFolder = replicated_storage:FindFirstChild("State")
         local CurrentMode = StateFolder and StateFolder.Difficulty.Value
-
         if CurrentMode then
             local ok, result = pcall(function()
                 local payload
                 local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
-
                 if CurrentMode == "PizzaParty" then
                     payload = { mode = "halloween", count = 1 }
                 elseif CurrentMode == "Hardcore" then
@@ -270,10 +268,8 @@ local function rejoin_match()
                 else
                     payload = { difficulty = CurrentMode, mode = "survival", count = 1 }
                 end
-
                 return remote:InvokeServer("Multiplayer", "v2:start", payload)
             end)
-
             if ok and check_res_ok(result) then
                 success = true
                 res = result
@@ -284,7 +280,6 @@ local function rejoin_match()
             task.wait(1)
         end
     until success
-
     return res
 end
 
@@ -917,15 +912,14 @@ function TDS:Mode(difficulty)
     if game_state ~= "LOBBY" then
         return false
     end
-
     if difficulty == "Trial" then
-        local Elevators = workspace:FindFirstChild("TrialElevators") or workspace:FindFirstChild("Elevators")
-        local Network = replicated_storage:FindFirstChild("Network")
+        local Elevators = workspace:WaitForChild("Elevators")
+        local Network = replicated_storage:WaitForChild("Network")
         if Elevators and Network then
             local targetElevator = nil
             repeat
                 for _, v in pairs(Elevators:GetChildren()) do
-                    if v.Name:match("Elevator") or v.Name:match("Trial") or v.Name:match("Event") then
+                    if v.Name:match("Trial") or v.Name:match("Event") then
                         targetElevator = v
                         break
                     end
@@ -933,41 +927,30 @@ function TDS:Mode(difficulty)
                 if not targetElevator then task.wait(0.5) end
             until targetElevator
             task.spawn(function()
-                local ElevatorsNet = Network:FindFirstChild("Elevators")
-                if ElevatorsNet then
-                    local EnterRemote = ElevatorsNet:FindFirstChild("RF:Enter")
-                    local SetSizeRemote = ElevatorsNet:FindFirstChild("RF:SetSize")
-                    local SetReadyRemote = ElevatorsNet:FindFirstChild("RF:SetReady")
-                    if EnterRemote and SetSizeRemote and SetReadyRemote then
-                        pcall(function() EnterRemote:InvokeServer(targetElevator) end)
-                        pcall(function() SetSizeRemote:InvokeServer(1) end)
-                        pcall(function() SetReadyRemote:InvokeServer(true) end)
-                    end
-                end
+                local ElevatorsNet = Network:WaitForChild("Elevators")
+                local EnterRemote = ElevatorsNet:WaitForChild("RF:Enter")
+                local SetSizeRemote = ElevatorsNet:WaitForChild("RF:SetSize")
+                local SetReadyRemote = ElevatorsNet:WaitForChild("RF:SetReady")
+                pcall(function() EnterRemote:InvokeServer(targetElevator) end)
+                pcall(function() SetSizeRemote:InvokeServer(1) end)
+                pcall(function() SetReadyRemote:InvokeServer(true) end)
             end)
             return true
         end
     end
-
-    local LobbyHud = player_gui:FindFirstChild("ReactLobbyHud")
-    if not LobbyHud then
-        LobbyHud = player_gui:WaitForChild("ReactLobbyHud", 30)
-    end
-    local frame = LobbyHud and LobbyHud:FindFirstChild("Frame")
-    local MatchMaking = frame and frame:FindFirstChild("matchmaking")
-
+    local LobbyHud = player_gui:WaitForChild("ReactLobbyHud", 30)
+    local frame = LobbyHud and LobbyHud:WaitForChild("Frame", 30)
+    local MatchMaking = frame and frame:WaitForChild("matchmaking", 30)
     if MatchMaking then
         local remote = replicated_storage:WaitForChild("RemoteFunction")
         local success = false
+        local res
         repeat
             local ok, result = pcall(function()
                 local mode = TDS.matchmaking_map[difficulty]
                 local payload
                 if mode then
                     payload = { mode = mode, count = 1 }
-                    if difficulty:match("Ducky") then
-                        payload.difficulty = difficulty:gsub("Ducky", "")
-                    end
                 elseif difficulty == "Easy" or difficulty == "Hard" then
                     payload = { difficulty = difficulty, mode = "ducky2025", count = 1 }
                 else
@@ -977,6 +960,7 @@ function TDS:Mode(difficulty)
             end)
             if ok and check_res_ok(result) then
                 success = true
+                res = result
             else
                 task.wait(0.5)
             end
@@ -1347,7 +1331,7 @@ function TDS:AutoSkip(state)
     start_auto_skip()
 end
 
-function start_claim_rewards()
+local function start_claim_rewards()
     if auto_claim_rewards or not _G.ClaimRewards or game_state ~= "LOBBY" then
         return
     end
@@ -1806,9 +1790,15 @@ task.spawn(function()
         if _G.AutoUber and not auto_uber_running then start_auto_uber() end
         if _G.AutoSupport and not auto_support_running then start_auto_support() end
         task.wait(1)
-        if _G.AutoClaimRewards and not auto_claim_rewards then start_claim_rewards() end
     end
 end)
+
+if _G.ClaimRewards and not auto_claim_rewards then
+    start_claim_rewards()
+end
+
+start_back_to_lobby()
+start_rejoin_on_disconnect()
 
 local function create_buttons()
     local playerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
@@ -1931,7 +1921,5 @@ task.spawn(function()
     game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     create_buttons()
 end)
-
-start_claim_rewards()
 
 return TDS
