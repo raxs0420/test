@@ -235,31 +235,6 @@ end
 local function rejoin_match()
     if not _G.AutoRejoin then return end
 
-    local IsMobile = game:GetService("UserInputService").TouchEnabled
-    Globals = Globals or {}
-    local privateCode = Globals.PrivateCode or _G.PrivateCode
-
-    if privateCode and privateCode ~= "" and not IsMobile then
-        local MarketplaceService = game:GetService("MarketplaceService")
-        local LocalPlayer = game:GetService("Players").LocalPlayer
-        if not MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 10518590) then
-            local ReplicatedStorage = game:GetService("ReplicatedStorage")
-            local GetServerType = ReplicatedStorage:FindFirstChild("GetServerType")
-            local ServerType = GetServerType and GetServerType:InvokeServer() or ""
-            if ServerType ~= "VIPServer" then
-                game:GetService("ExperienceService"):LaunchExperience({
-                    placeId = game.PlaceId,
-                    linkCode = tostring(privateCode)
-                })
-                task.wait(9e9)
-                return
-            end
-        end
-        SmartTeleportToLobby()
-        task.wait(9e9)
-        return
-    end
-
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local remote = ReplicatedStorage:WaitForChild("RemoteFunction")
 
@@ -934,34 +909,13 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
     return nil
 end
 
-function TDS:Mode(difficulty, code)
-    local targetCode = ""
-
-    if not IsMobile then
-        if code and code ~= "" then
-            targetCode = code
-        elseif Globals.PrivateCode then
-            targetCode = Globals.PrivateCode
-        end
-    end
-
-    self.PrivateCode = tostring(targetCode)
-
-    if game_state ~= "LOBBY" then
+function TDS:Mode(difficulty)
+    if not _G.AutoRejoin then
+        warn("TDS:Mode blocked because Auto Rejoin is disabled")
         return false
     end
-
-    if targetCode ~= "" and not MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 10518590) then
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local GetServerType = ReplicatedStorage:FindFirstChild("GetServerType")
-        local ServerType = GetServerType and GetServerType:InvokeServer() or ""
-        if ServerType ~= "VIPServer" then
-            game:GetService("ExperienceService"):LaunchExperience({
-                placeId = game.PlaceId,
-                linkCode = tostring(targetCode)
-            })
-            return true
-        end
+    if game_state ~= "LOBBY" then
+        return false
     end
 
     if difficulty == "Trial" then
@@ -1001,7 +955,7 @@ function TDS:Mode(difficulty, code)
     end
     local frame = LobbyHud and LobbyHud:FindFirstChild("Frame")
     local MatchMaking = frame and frame:FindFirstChild("matchmaking")
-    
+
     if MatchMaking then
         local remote = replicated_storage:WaitForChild("RemoteFunction")
         local success = false
