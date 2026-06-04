@@ -934,22 +934,44 @@ local function do_activate_ability(t_obj, ab_name, ab_data, is_looping)
     return nil
 end
 
-function TDS:Mode(difficulty)
-    if not _G.AutoRejoin then
-        warn("TDS:Mode blocked because Auto Rejoin is disabled")
-        return false
+function TDS:Mode(difficulty, code)
+    local targetCode = ""
+
+    if not IsMobile then
+        if code and code ~= "" then
+            targetCode = code
+        elseif Globals.PrivateCode then
+            targetCode = Globals.PrivateCode
+        end
     end
+
+    self.PrivateCode = tostring(targetCode)
+
     if game_state ~= "LOBBY" then
         return false
     end
+
+    if targetCode ~= "" and not MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 10518590) then
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local GetServerType = ReplicatedStorage:FindFirstChild("GetServerType")
+        local ServerType = GetServerType and GetServerType:InvokeServer() or ""
+        if ServerType ~= "VIPServer" then
+            game:GetService("ExperienceService"):LaunchExperience({
+                placeId = game.PlaceId,
+                linkCode = tostring(targetCode)
+            })
+            return true
+        end
+    end
+
     if difficulty == "Trial" then
-        local Elevators = workspace:WaitForChild("Elevators")
-        local Network = replicated_storage:WaitForChild("Network")
+        local Elevators = workspace:FindFirstChild("TrialElevators") or workspace:FindFirstChild("Elevators")
+        local Network = replicated_storage:FindFirstChild("Network")
         if Elevators and Network then
             local targetElevator = nil
             repeat
                 for _, v in pairs(Elevators:GetChildren()) do
-                    if v.Name:match("Trial") or v.Name:match("Event") then
+                    if v.Name:match("Elevator") or v.Name:match("Trial") or v.Name:match("Event") then
                         targetElevator = v
                         break
                     end
@@ -957,30 +979,41 @@ function TDS:Mode(difficulty)
                 if not targetElevator then task.wait(0.5) end
             until targetElevator
             task.spawn(function()
-                local ElevatorsNet = Network:WaitForChild("Elevators")
-                local EnterRemote = ElevatorsNet:WaitForChild("RF:Enter")
-                local SetSizeRemote = ElevatorsNet:WaitForChild("RF:SetSize")
-                local SetReadyRemote = ElevatorsNet:WaitForChild("RF:SetReady")
-                pcall(function() EnterRemote:InvokeServer(targetElevator) end)
-                pcall(function() SetSizeRemote:InvokeServer(1) end)
-                pcall(function() SetReadyRemote:InvokeServer(true) end)
+                local ElevatorsNet = Network:FindFirstChild("Elevators")
+                if ElevatorsNet then
+                    local EnterRemote = ElevatorsNet:FindFirstChild("RF:Enter")
+                    local SetSizeRemote = ElevatorsNet:FindFirstChild("RF:SetSize")
+                    local SetReadyRemote = ElevatorsNet:FindFirstChild("RF:SetReady")
+                    if EnterRemote and SetSizeRemote and SetReadyRemote then
+                        pcall(function() EnterRemote:InvokeServer(targetElevator) end)
+                        pcall(function() SetSizeRemote:InvokeServer(1) end)
+                        pcall(function() SetReadyRemote:InvokeServer(true) end)
+                    end
+                end
             end)
             return true
         end
     end
-    local LobbyHud = player_gui:WaitForChild("ReactLobbyHud", 30)
-    local frame = LobbyHud and LobbyHud:WaitForChild("Frame", 30)
-    local MatchMaking = frame and frame:WaitForChild("matchmaking", 30)
+
+    local LobbyHud = player_gui:FindFirstChild("ReactLobbyHud")
+    if not LobbyHud then
+        LobbyHud = player_gui:WaitForChild("ReactLobbyHud", 30)
+    end
+    local frame = LobbyHud and LobbyHud:FindFirstChild("Frame")
+    local MatchMaking = frame and frame:FindFirstChild("matchmaking")
+    
     if MatchMaking then
         local remote = replicated_storage:WaitForChild("RemoteFunction")
         local success = false
-        local res
         repeat
             local ok, result = pcall(function()
                 local mode = TDS.matchmaking_map[difficulty]
                 local payload
                 if mode then
                     payload = { mode = mode, count = 1 }
+                    if difficulty:match("Ducky") then
+                        payload.difficulty = difficulty:gsub("Ducky", "")
+                    end
                 elseif difficulty == "Easy" or difficulty == "Hard" then
                     payload = { difficulty = difficulty, mode = "ducky2025", count = 1 }
                 else
@@ -990,7 +1023,6 @@ function TDS:Mode(difficulty)
             end)
             if ok and check_res_ok(result) then
                 success = true
-                res = result
             else
                 task.wait(0.5)
             end
