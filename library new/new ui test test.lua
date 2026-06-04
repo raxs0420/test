@@ -273,43 +273,8 @@ local function rejoin_match()
     repeat
         local StateFolder = ReplicatedStorage:FindFirstChild("State")
         local CurrentMode = StateFolder and StateFolder.Difficulty.Value
-        local GameState = StateFolder and StateFolder.CurrentState and StateFolder.CurrentState.Value
 
-        if GameState ~= "LOBBY" then
-            task.wait(1)
-        elseif CurrentMode == "Trial" then
-            local Elevators = workspace:FindFirstChild("TrialElevators") or workspace:FindFirstChild("Elevators")
-            local Network = ReplicatedStorage:FindFirstChild("Network")
-            if Elevators and Network then
-                local targetElevator = nil
-                repeat
-                    for _, v in pairs(Elevators:GetChildren()) do
-                        if v.Name:match("Trial") or v.Name:match("Event") or v.Name:match("Elevator") then
-                            targetElevator = v
-                            break
-                        end
-                    end
-                    if not targetElevator then task.wait(0.5) end
-                until targetElevator
-
-                task.spawn(function()
-                    local ElevatorsNet = Network:FindFirstChild("Elevators")
-                    if ElevatorsNet then
-                        local EnterRemote = ElevatorsNet:FindFirstChild("RF:Enter")
-                        local SetSizeRemote = ElevatorsNet:FindFirstChild("RF:SetSize")
-                        local SetReadyRemote = ElevatorsNet:FindFirstChild("RF:SetReady")
-                        if EnterRemote and SetSizeRemote and SetReadyRemote then
-                            pcall(function() EnterRemote:InvokeServer(targetElevator) end)
-                            pcall(function() SetSizeRemote:InvokeServer(1) end)
-                            pcall(function() SetReadyRemote:InvokeServer(true) end)
-                        end
-                    end
-                end)
-                return true
-            else
-                task.wait(1)
-            end
-        elseif CurrentMode then
+        if CurrentMode then
             local ok, result = pcall(function()
                 local payload
                 local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
@@ -324,6 +289,9 @@ local function rejoin_match()
                     payload = { mode = "badlands", count = 1 }
                 elseif EventMode == "DuckEvent" then
                     payload = { difficulty = CurrentMode, mode = "ducky2025", count = 1 }
+                elseif CurrentMode == "Trial" then
+                    SmartTeleportToLobby()
+                    return true
                 else
                     payload = { difficulty = CurrentMode, mode = "survival", count = 1 }
                 end
