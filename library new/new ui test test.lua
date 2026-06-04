@@ -232,12 +232,14 @@ local function SmartTeleportToLobby()
     end)
 end
 
-local function rejoin_private_server()
+local function rejoin_match()
     if not _G.AutoRejoin then return end
+
     local IsMobile = game:GetService("UserInputService").TouchEnabled
     Globals = Globals or {}
-    local targetCode = Globals.PrivateCode or _G.PrivateCode
-    if targetCode and targetCode ~= "" and not IsMobile then
+    local privateCode = Globals.PrivateCode or _G.PrivateCode
+
+    if privateCode and privateCode ~= "" and not IsMobile then
         local MarketplaceService = game:GetService("MarketplaceService")
         local LocalPlayer = game:GetService("Players").LocalPlayer
         if not MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 10518590) then
@@ -247,34 +249,32 @@ local function rejoin_private_server()
             if ServerType ~= "VIPServer" then
                 game:GetService("ExperienceService"):LaunchExperience({
                     placeId = game.PlaceId,
-                    linkCode = tostring(targetCode)
+                    linkCode = tostring(privateCode)
                 })
-                return true
+                task.wait(9e9)
+                return
             end
         end
-    end
-    return false
-end
-
-local function rejoin_match()
-    if not _G.AutoRejoin then return end
-    if rejoin_private_server() then
+        SmartTeleportToLobby()
         task.wait(9e9)
         return
     end
-    
+
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local remote = ReplicatedStorage:WaitForChild("RemoteFunction")
-    
+
     local function check_res_ok(res)
         return res and type(res) == "table" and (res.success == true or res.Success == true)
     end
-    
+
+    local success = false
+    local res
+
     repeat
         local StateFolder = ReplicatedStorage:FindFirstChild("State")
         local CurrentMode = StateFolder and StateFolder.Difficulty.Value
         local GameState = StateFolder and StateFolder.CurrentState and StateFolder.CurrentState.Value
-        
+
         if GameState ~= "LOBBY" then
             task.wait(1)
         elseif CurrentMode == "Trial" then
@@ -291,7 +291,7 @@ local function rejoin_match()
                     end
                     if not targetElevator then task.wait(0.5) end
                 until targetElevator
-                
+
                 task.spawn(function()
                     local ElevatorsNet = Network:FindFirstChild("Elevators")
                     if ElevatorsNet then
@@ -309,40 +309,40 @@ local function rejoin_match()
             else
                 task.wait(1)
             end
-        else
-            if CurrentMode then
-                local ok, result = pcall(function()
-                    local payload
-                    local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
-                    
-                    if CurrentMode == "PizzaParty" then
-                        payload = { mode = "halloween", count = 1 }
-                    elseif CurrentMode == "Hardcore" then
-                        payload = { mode = "hardcore", count = 1 }
-                    elseif CurrentMode == "PollutedWasteland" then
-                        payload = { mode = "polluted", count = 1 }
-                    elseif CurrentMode == "Badlands" then
-                        payload = { mode = "badlands", count = 1 }
-                    elseif EventMode == "DuckEvent" or CurrentMode:match("Ducky") then
-                        local diff = CurrentMode:gsub("Ducky", "")
-                        payload = { difficulty = diff, mode = "ducky2025", count = 1 }
-                    else
-                        payload = { difficulty = CurrentMode, mode = "survival", count = 1 }
-                    end
-                    
-                    return remote:InvokeServer("Multiplayer", "v2:start", payload)
-                end)
-                
-                if ok and check_res_ok(result) then
-                    return result
+        elseif CurrentMode then
+            local ok, result = pcall(function()
+                local payload
+                local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
+
+                if CurrentMode == "PizzaParty" then
+                    payload = { mode = "halloween", count = 1 }
+                elseif CurrentMode == "Hardcore" then
+                    payload = { mode = "hardcore", count = 1 }
+                elseif CurrentMode == "PollutedWasteland" then
+                    payload = { mode = "polluted", count = 1 }
+                elseif CurrentMode == "Badlands" then
+                    payload = { mode = "badlands", count = 1 }
+                elseif EventMode == "DuckEvent" then
+                    payload = { difficulty = CurrentMode, mode = "ducky2025", count = 1 }
                 else
-                    task.wait(0.5)
+                    payload = { difficulty = CurrentMode, mode = "survival", count = 1 }
                 end
+
+                return remote:InvokeServer("Multiplayer", "v2:start", payload)
+            end)
+
+            if ok and check_res_ok(result) then
+                success = true
+                res = result
             else
-                task.wait(1)
+                task.wait(0.5)
             end
+        else
+            task.wait(1)
         end
-    until false
+    until success
+
+    return res
 end
 
 local function handle_post_match()
