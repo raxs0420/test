@@ -232,55 +232,117 @@ local function SmartTeleportToLobby()
     end)
 end
 
-local function rejoin_match()
+local function rejoin_private_server()
     if not _G.AutoRejoin then return end
-    local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
-    local success = false
-    local res
     local IsMobile = game:GetService("UserInputService").TouchEnabled
     Globals = Globals or {}
-    local privateCode = Globals.PrivateCode or _G.PrivateCode
-    if privateCode and privateCode ~= "" and not IsMobile then
-        SmartTeleportToLobby()
+    local targetCode = Globals.PrivateCode or _G.PrivateCode
+    if targetCode and targetCode ~= "" and not IsMobile then
+        local MarketplaceService = game:GetService("MarketplaceService")
+        local LocalPlayer = game:GetService("Players").LocalPlayer
+        if not MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 10518590) then
+            local ReplicatedStorage = game:GetService("ReplicatedStorage")
+            local GetServerType = ReplicatedStorage:FindFirstChild("GetServerType")
+            local ServerType = GetServerType and GetServerType:InvokeServer() or ""
+            if ServerType ~= "VIPServer" then
+                game:GetService("ExperienceService"):LaunchExperience({
+                    placeId = game.PlaceId,
+                    linkCode = tostring(targetCode)
+                })
+                return true
+            end
+        end
+    end
+    return false
+end
+
+local function rejoin_match()
+    if not _G.AutoRejoin then return end
+    if rejoin_private_server() then
         task.wait(9e9)
         return
     end
+    
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local remote = ReplicatedStorage:WaitForChild("RemoteFunction")
+    
+    local function check_res_ok(res)
+        return res and type(res) == "table" and (res.success == true or res.Success == true)
+    end
+    
     repeat
-        local StateFolder = replicated_storage:FindFirstChild("State")
+        local StateFolder = ReplicatedStorage:FindFirstChild("State")
         local CurrentMode = StateFolder and StateFolder.Difficulty.Value
-        if CurrentMode then
-            local ok, result = pcall(function()
-                local payload
-                local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
-                if CurrentMode == "PizzaParty" then
-                    payload = { mode = "halloween", count = 1 }
-                elseif CurrentMode == "Hardcore" then
-                    payload = { mode = "hardcore", count = 1 }
-                elseif CurrentMode == "PollutedWasteland" then
-                    payload = { mode = "polluted", count = 1 }
-                elseif CurrentMode == "Badlands" then
-                    payload = { mode = "badlands", count = 1 }
-                elseif EventMode == "DuckEvent" then
-                    payload = { difficulty = CurrentMode, mode = "ducky2025", count = 1 }
-                elseif CurrentMode == "Trial" then
-                    SmartTeleportToLobby()
-                    return true
-                else
-                    payload = { difficulty = CurrentMode, mode = "survival", count = 1 }
-                end
-                return remote:InvokeServer("Multiplayer", "v2:start", payload)
-            end)
-            if ok and check_res_ok(result) then
-                success = true
-                res = result
+        local GameState = StateFolder and StateFolder.CurrentState and StateFolder.CurrentState.Value
+        
+        if GameState ~= "LOBBY" then
+            task.wait(1)
+        elseif CurrentMode == "Trial" then
+            local Elevators = workspace:FindFirstChild("TrialElevators") or workspace:FindFirstChild("Elevators")
+            local Network = ReplicatedStorage:FindFirstChild("Network")
+            if Elevators and Network then
+                local targetElevator = nil
+                repeat
+                    for _, v in pairs(Elevators:GetChildren()) do
+                        if v.Name:match("Trial") or v.Name:match("Event") or v.Name:match("Elevator") then
+                            targetElevator = v
+                            break
+                        end
+                    end
+                    if not targetElevator then task.wait(0.5) end
+                until targetElevator
+                
+                task.spawn(function()
+                    local ElevatorsNet = Network:FindFirstChild("Elevators")
+                    if ElevatorsNet then
+                        local EnterRemote = ElevatorsNet:FindFirstChild("RF:Enter")
+                        local SetSizeRemote = ElevatorsNet:FindFirstChild("RF:SetSize")
+                        local SetReadyRemote = ElevatorsNet:FindFirstChild("RF:SetReady")
+                        if EnterRemote and SetSizeRemote and SetReadyRemote then
+                            pcall(function() EnterRemote:InvokeServer(targetElevator) end)
+                            pcall(function() SetSizeRemote:InvokeServer(1) end)
+                            pcall(function() SetReadyRemote:InvokeServer(true) end)
+                        end
+                    end
+                end)
+                return true
             else
-                task.wait(0.5)
+                task.wait(1)
             end
         else
-            task.wait(1)
+            if CurrentMode then
+                local ok, result = pcall(function()
+                    local payload
+                    local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
+                    
+                    if CurrentMode == "PizzaParty" then
+                        payload = { mode = "halloween", count = 1 }
+                    elseif CurrentMode == "Hardcore" then
+                        payload = { mode = "hardcore", count = 1 }
+                    elseif CurrentMode == "PollutedWasteland" then
+                        payload = { mode = "polluted", count = 1 }
+                    elseif CurrentMode == "Badlands" then
+                        payload = { mode = "badlands", count = 1 }
+                    elseif EventMode == "DuckEvent" or CurrentMode:match("Ducky") then
+                        local diff = CurrentMode:gsub("Ducky", "")
+                        payload = { difficulty = diff, mode = "ducky2025", count = 1 }
+                    else
+                        payload = { difficulty = CurrentMode, mode = "survival", count = 1 }
+                    end
+                    
+                    return remote:InvokeServer("Multiplayer", "v2:start", payload)
+                end)
+                
+                if ok and check_res_ok(result) then
+                    return result
+                else
+                    task.wait(0.5)
+                end
+            else
+                task.wait(1)
+            end
         end
-    until success
-    return res
+    until false
 end
 
 local function handle_post_match()
