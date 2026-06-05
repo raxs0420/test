@@ -378,7 +378,7 @@ function TDX:JoinMapViaAPC(mapName)
     local apcFolderFound = false
     while true do
         if not apcFolderFound then
-            if tick() - startTime >= 5 then
+            if tick() - startTime >= 3 then
                 return false
             end
             local apcsFolder = workspace:FindFirstChild("APCs")
