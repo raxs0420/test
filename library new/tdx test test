@@ -91,7 +91,7 @@ function TDX:Upgrade(macroId, path, level)
     end
     while not macroToTowerId[macroId] do
         if not pendingUpgrade[macroId] then pendingUpgrade[macroId] = { macroId = macroId, path = pathNum, level = levelNum } end
-        wait(0.1)
+        wait(0.15)
     end
     local towerId = macroToTowerId[macroId]
     if not towerNameById[towerId] then
@@ -108,18 +108,18 @@ function TDX:Upgrade(macroId, path, level)
             return false
         end
         upgradeConfirm[towerId] = false
-        wait(0.1)
+        wait(0.15)
         pcall(function() remote:FireServer(towerId, pathNum, levelNum) end)
         local startWait = tick()
         while upgradeConfirm[towerId] == false do
-            wait(0.05)
+            wait(0.1)
             if not towerNameById[towerId] then
                 macroToTowerId[macroId] = nil
                 pendingUpgrade[macroId] = nil
                 upgradeConfirm[towerId] = nil
                 return false
             end
-            if tick() - startWait > 2 then break end
+            if tick() - startWait > 3 then break end
         end
         if upgradeConfirm[towerId] == true then break end
     end
