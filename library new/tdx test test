@@ -548,16 +548,26 @@ function TDX:TimeScale(speed)
     return true
 end
 
+local autoSkipThread = nil
+local autoSkipEnabled = false
+
 function TDX:AutoSkip(enabled)
-    spawn(function()
-        while enabled do
-            local skip = getRemote("SkipWaveVoteCast")
-            if skip then pcall(function() skip:FireServer(true) end) end
-            local cutscene = getRemote("CutsceneVoteCast")
-            if cutscene then pcall(function() cutscene:FireServer(true) end) end
-            wait(0.1)
-        end
-    end)
+    autoSkipEnabled = enabled
+    if autoSkipThread then
+        task.cancel(autoSkipThread)
+        autoSkipThread = nil
+    end
+    if enabled then
+        autoSkipThread = task.spawn(function()
+            while autoSkipEnabled do
+                local skip = getRemote("SkipWaveVoteCast")
+                if skip then pcall(function() skip:FireServer(true) end) end
+                local cutscene = getRemote("CutsceneVoteCast")
+                if cutscene then pcall(function() cutscene:FireServer(true) end) end
+                wait(0.1)
+            end
+        end)
+    end
     return true
 end
 
