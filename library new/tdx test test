@@ -3,6 +3,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
+local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 
 local pendingQueue = {}
@@ -15,8 +16,16 @@ local gameOverTriggered = false
 
 local towerNameById = {}
 local towersByName = {}
-
 local persistentData = {}
+local towerPositions = {}
+local pendingTowerPosition = {}
+
+local axeLoopActive = false
+local axeLoopCoroutine = nil
+local axeMinEnemies = 3
+local axeRadius = 6.5
+local axeCooldown = {}
+local AXE_SLOT = 1
 
 local function getCash()
     if not player or not player.leaderstats then return 0 end
@@ -50,6 +59,7 @@ function TDX:Place(towerName, x, y, z, macroId, persist)
     end
     table.insert(pendingQueue, macroId)
     local pos = Vector3.new(x, y, z)
+    pendingTowerPosition[macroId] = pos
     local remote = getRemote("PlaceTower")
     if not remote then error("[TDX] PlaceTower not found") end
     while true do
@@ -165,6 +175,7 @@ function TDX:SetupUpgradeListener()
                     end
                     towerNameById[towerId] = nil
                     upgradeConfirm[towerId] = nil
+                    towerPositions[towerId] = nil
                     if macroId and persistentData[macroId] then
                         spawn(function()
                             replaceTower(macroId)
@@ -185,6 +196,10 @@ function TDX:SetupUpgradeListener()
                         towerNameById[realId] = towerName
                         if not towersByName[towerName] then towersByName[towerName] = {} end
                         table.insert(towersByName[towerName], realId)
+                        if pendingTowerPosition[macroId] then
+                            towerPositions[realId] = pendingTowerPosition[macroId]
+                            pendingTowerPosition[macroId] = nil
+                        end
                         local upgrade = pendingUpgrade[macroId]
                         if upgrade then
                             wait(0.1)
@@ -215,7 +230,6 @@ function TDX:SetupUpgradeListener()
                 if upgradeConfirm[hash] == false then
                     upgradeConfirm[hash] = true
                 end
-                -- Update persistent tower levels if this tower is tracked
                 if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
                     local top = entry.LevelReplicationData[1] or 0
                     local bottom = entry.LevelReplicationData[2] or 0
@@ -253,6 +267,71 @@ function TDX:AutoAbility(towerName, slot, isLooping)
     return true
 end
 
+local function getEnemyPositions()
+    local enemiesFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Enemies")
+    if not enemiesFolder then return {} end
+    local positions = {}
+    for _, child in ipairs(enemiesFolder:GetChildren()) do
+        if child:IsA("BasePart") and child.Name ~= "Arrow" then
+            table.insert(positions, child.Position)
+        end
+    end
+    return positions
+end
+
+local function sendAbilityByTowerId(towerId, slot)
+    local remote = getRemote("TowerUseAbilityRequest")
+    if not remote then return false end
+    local success, result = pcall(function() return remote:InvokeServer(towerId, slot) end)
+    return success and result == true
+end
+
+local function runAxeLoop()
+    while axeLoopActive do
+        local enemyPositions = getEnemyPositions()
+        local johnIds = towersByName["John"] or {}
+        for _, towerId in ipairs(johnIds) do
+            if not axeLoopActive then break end
+            local pos = towerPositions[towerId]
+            if not pos then continue end
+            local enemiesInRange = 0
+            for _, enemyPos in ipairs(enemyPositions) do
+                if (pos - enemyPos).Magnitude <= axeRadius then
+                    enemiesInRange = enemiesInRange + 1
+                end
+            end
+            if enemiesInRange >= axeMinEnemies then
+                local lastUse = axeCooldown[towerId] or 0
+                if tick() - lastUse >= 3 then
+                    if sendAbilityByTowerId(towerId, AXE_SLOT) then
+                        axeCooldown[towerId] = tick()
+                    end
+                    task.wait(0.1)
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+end
+
+function TDX:AXE(minEnemies, radius)
+    axeMinEnemies = minEnemies or 3
+    axeRadius = radius or 6.5
+    if not axeLoopActive then
+        axeLoopActive = true
+        axeLoopCoroutine = task.spawn(runAxeLoop)
+    end
+end
+
+function TDX:StopAxe()
+    axeLoopActive = false
+    if axeLoopCoroutine then
+        task.cancel(axeLoopCoroutine)
+        axeLoopCoroutine = nil
+    end
+    axeCooldown = {}
+end
+
 function TDX:Init()
     spawn(function()
         local remote = nil
@@ -276,7 +355,7 @@ function TDX:Init()
             lastCheck = lastCheck + deltaTime
             if lastCheck >= 0.5 then
                 lastCheck = 0
-                local gameFolder = workspace:FindFirstChild("Game")
+                local gameFolder = Workspace:FindFirstChild("Game")
                 if gameFolder then
                     local enemies = gameFolder:FindFirstChild("Enemies")
                     if enemies then enemies:Destroy() end
@@ -322,7 +401,7 @@ function TDX:JoinMapViaAPC(mapName)
     if lvl then level = lvl.Value end
     local startTime = tick()
     while true do
-        local apcsFolder = workspace:FindFirstChild("APCs")
+        local apcsFolder = Workspace:FindFirstChild("APCs")
         if apcsFolder then
             for _, slot in ipairs(apcsFolder:GetChildren()) do
                 if (slot:GetAttribute("MapName") or "") == mapName then
@@ -340,7 +419,7 @@ function TDX:JoinMapViaAPC(mapName)
             end
         end
         if level >= 31 then
-            local apcs2Folder = workspace:FindFirstChild("APCs2")
+            local apcs2Folder = Workspace:FindFirstChild("APCs2")
             if apcs2Folder then
                 for _, slot in ipairs(apcs2Folder:GetChildren()) do
                     if (slot:GetAttribute("MapName") or "") == mapName then
