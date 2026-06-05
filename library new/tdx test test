@@ -400,28 +400,22 @@ function TDX:JoinMapViaAPC(mapName)
     local lvl = player and player.leaderstats and player.leaderstats:FindFirstChild("Level")
     if lvl then level = lvl.Value end
     local startTime = tick()
+    local apcFolderFound = false
     while true do
-        local apcsFolder = Workspace:FindFirstChild("APCs")
-        if apcsFolder then
-            for _, slot in ipairs(apcsFolder:GetChildren()) do
-                if (slot:GetAttribute("MapName") or "") == mapName then
-                    local detector = slot:FindFirstChild("Detector")
-                    if not detector and slot:FindFirstChild("APC") then detector = slot.APC:FindFirstChild("Detector") end
-                    if detector then
-                        local char = player.Character
-                        if char and char:FindFirstChild("HumanoidRootPart") then
-                            char.HumanoidRootPart.CFrame = detector.CFrame
-                            wait(2)
-                            return true
-                        end
-                    end
-                end
+        if not apcFolderFound then
+            if tick() - startTime >= 5 then
+                return false
             end
-        end
-        if level >= 31 then
-            local apcs2Folder = Workspace:FindFirstChild("APCs2")
-            if apcs2Folder then
-                for _, slot in ipairs(apcs2Folder:GetChildren()) do
+            local apcsFolder = workspace:FindFirstChild("APCs")
+            if apcsFolder then
+                apcFolderFound = true
+            else
+                wait(0.2)
+            end
+        else
+            local apcsFolder = workspace:FindFirstChild("APCs")
+            if apcsFolder then
+                for _, slot in ipairs(apcsFolder:GetChildren()) do
                     if (slot:GetAttribute("MapName") or "") == mapName then
                         local detector = slot:FindFirstChild("Detector")
                         if not detector and slot:FindFirstChild("APC") then detector = slot.APC:FindFirstChild("Detector") end
@@ -436,9 +430,27 @@ function TDX:JoinMapViaAPC(mapName)
                     end
                 end
             end
+            if level >= 31 then
+                local apcs2Folder = workspace:FindFirstChild("APCs2")
+                if apcs2Folder then
+                    for _, slot in ipairs(apcs2Folder:GetChildren()) do
+                        if (slot:GetAttribute("MapName") or "") == mapName then
+                            local detector = slot:FindFirstChild("Detector")
+                            if not detector and slot:FindFirstChild("APC") then detector = slot.APC:FindFirstChild("Detector") end
+                            if detector then
+                                local char = player.Character
+                                if char and char:FindFirstChild("HumanoidRootPart") then
+                                    char.HumanoidRootPart.CFrame = detector.CFrame
+                                    wait(2)
+                                    return true
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            wait(0.2)
         end
-        if tick() - startTime >= 3 then return false end
-        wait()
     end
 end
 
