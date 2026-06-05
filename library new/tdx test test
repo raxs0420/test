@@ -323,15 +323,6 @@ function TDX:AXE(minEnemies, radius)
     end
 end
 
-function TDX:StopAxe()
-    axeLoopActive = false
-    if axeLoopCoroutine then
-        task.cancel(axeLoopCoroutine)
-        axeLoopCoroutine = nil
-    end
-    axeCooldown = {}
-end
-
 function TDX:Init()
     spawn(function()
         local remote = nil
@@ -355,22 +346,6 @@ function TDX:Init()
             lastCheck = lastCheck + deltaTime
             if lastCheck >= 0.5 then
                 lastCheck = 0
-                local gameFolder = Workspace:FindFirstChild("Game")
-                if gameFolder then
-                    local enemies = gameFolder:FindFirstChild("Enemies")
-                    if enemies then enemies:Destroy() end
-                end
-                local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
-                if tdxShared then
-                    local common = tdxShared:FindFirstChild("Common")
-                    if common then
-                        local resources = common:FindFirstChild("Resources")
-                        if resources then
-                            local deathEffects = resources:FindFirstChild("DeathEffects")
-                            if deathEffects then deathEffects:Destroy() end
-                        end
-                    end
-                end
             end
         end)
     end)
