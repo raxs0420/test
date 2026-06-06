@@ -822,7 +822,7 @@ end
 local function startPeriodicRefresh()
     task.spawn(function()
         while periodicRefreshEnabled do
-            task.wait(10)
+            task.wait(2)
 
             if contentFrames["MANAGER"] and contentFrames["MANAGER"].Visible and currentManagerScrollFrame then
                 updateTowerButtons(currentManagerScrollFrame)
@@ -1358,130 +1358,78 @@ local function createAutomationTab()
         Library.Colors.BackgroundDark
     )
     Library:AddCorner(scrollFrame, 6)
+    scrollFrame.ScrollBarThickness = 8
+
+    local function createToggleButton(parent, yPos, text, settingName, isHalfWidth)
+        local btn = Instance.new("TextButton")
+        if isHalfWidth then
+            btn.Size = UDim2.new(0.5, -Library:ScaleX(2.5), 0, Library:ScaleY(5))
+        else
+            btn.Size = UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(5))
+        end
+        btn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
+        btn.BackgroundColor3 = _G[settingName] and Library.Colors.Success or Library.Colors.Accent
+        btn.Text = _G[settingName] and (text .. ": ON") or (text .. ": OFF")
+        btn.TextColor3 = Library.Colors.Text
+        btn.Font = Library.Fonts.Bold
+        btn.TextSize = Library:ScaleY(1.3)
+        btn.Parent = parent
+        btn.AutoButtonColor = false
+        Library:AddCorner(btn, 4)
+        Library:AddStroke(btn, 1, Library.Colors.Border)
+
+        btn.MouseButton1Click:Connect(function()
+            _G[settingName] = not _G[settingName]
+            btn.BackgroundColor3 = _G[settingName] and Library.Colors.Success or Library.Colors.Accent
+            btn.Text = _G[settingName] and (text .. ": ON") or (text .. ": OFF")
+            saveSettings()
+            local origColor = btn.BackgroundColor3
+            btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            task.wait(0.05)
+            btn.BackgroundColor3 = origColor
+        end)
+        return btn
+    end
 
     local yPos = Library:ScaleY(1)
-    local buttonHeight = Library:ScaleY(5)
-    local buttonSpacing = Library:ScaleY(1)
-    local halfWidth = (scrollFrame.AbsoluteSize.X - Library:ScaleX(5)) / 2
-    local autoSkipBtn = Instance.new("TextButton")
-    autoSkipBtn.Size = UDim2.new(0, halfWidth, 0, buttonHeight)
-    autoSkipBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
-    autoSkipBtn.BackgroundColor3 = _G.AutoSkip and Library.Colors.Success or Library.Colors.Accent
-    autoSkipBtn.Text = _G.AutoSkip and "Auto Skip: ON" or "Auto Skip: OFF"
-    autoSkipBtn.TextColor3 = Library.Colors.Text
-    autoSkipBtn.Font = Library.Fonts.Bold
-    autoSkipBtn.TextSize = Library:ScaleY(1.3)
-    autoSkipBtn.Parent = scrollFrame
-    autoSkipBtn.AutoButtonColor = false
-    Library:AddCorner(autoSkipBtn, 4)
-    Library:AddStroke(autoSkipBtn, 1, Library.Colors.Border)
-    local autoSmartSkipBtn = Instance.new("TextButton")
-    autoSmartSkipBtn.Size = UDim2.new(0, halfWidth, 0, buttonHeight)
-    autoSmartSkipBtn.Position = UDim2.new(0, Library:ScaleX(2) + halfWidth + Library:ScaleX(1), 0, yPos)
-    autoSmartSkipBtn.BackgroundColor3 = _G.AutoSmartSkip and Library.Colors.Success or Library.Colors.Accent
-    autoSmartSkipBtn.Text = _G.AutoSmartSkip and "Smart Skip: ON" or "Smart Skip: OFF"
-    autoSmartSkipBtn.TextColor3 = Library.Colors.Text
-    autoSmartSkipBtn.Font = Library.Fonts.Bold
-    autoSmartSkipBtn.TextSize = Library:ScaleY(1.3)
-    autoSmartSkipBtn.Parent = scrollFrame
-    autoSmartSkipBtn.AutoButtonColor = false
-    Library:AddCorner(autoSmartSkipBtn, 4)
-    Library:AddStroke(autoSmartSkipBtn, 1, Library.Colors.Border)
-    local autoNecroBtn = Instance.new("TextButton")
-    autoNecroBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
-    autoNecroBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + buttonHeight + buttonSpacing)
-    autoNecroBtn.BackgroundColor3 = _G.AutoNecro and Library.Colors.Success or Library.Colors.Accent
-    autoNecroBtn.Text = _G.AutoNecro and "Auto Necromancer: ON" or "Auto Necromancer: OFF"
-    autoNecroBtn.TextColor3 = Library.Colors.Text
-    autoNecroBtn.Font = Library.Fonts.Bold
-    autoNecroBtn.TextSize = Library:ScaleY(1.3)
-    autoNecroBtn.Parent = scrollFrame
-    autoNecroBtn.AutoButtonColor = false
-    Library:AddCorner(autoNecroBtn, 4)
-    Library:AddStroke(autoNecroBtn, 1, Library.Colors.Border)
-    local autoUberBtn = Instance.new("TextButton")
-    autoUberBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
-    autoUberBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 2)
-    autoUberBtn.BackgroundColor3 = _G.AutoUber and Library.Colors.Success or Library.Colors.Accent
-    autoUberBtn.Text = _G.AutoUber and "Auto Uber: ON" or "Auto Uber: OFF"
-    autoUberBtn.TextColor3 = Library.Colors.Text
-    autoUberBtn.Font = Library.Fonts.Bold
-    autoUberBtn.TextSize = Library:ScaleY(1.3)
-    autoUberBtn.Parent = scrollFrame
-    autoUberBtn.AutoButtonColor = false
-    Library:AddCorner(autoUberBtn, 4)
-    Library:AddStroke(autoUberBtn, 1, Library.Colors.Border)
-    local autoDJBtn = Instance.new("TextButton")
-    autoDJBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
-    autoDJBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 3)
-    autoDJBtn.BackgroundColor3 = _G.AutoDJ and Library.Colors.Success or Library.Colors.Accent
-    autoDJBtn.Text = _G.AutoDJ and "Auto DJ Booth: ON" or "Auto DJ Booth: OFF"
-    autoDJBtn.TextColor3 = Library.Colors.Text
-    autoDJBtn.Font = Library.Fonts.Bold
-    autoDJBtn.TextSize = Library:ScaleY(1.3)
-    autoDJBtn.Parent = scrollFrame
-    autoDJBtn.AutoButtonColor = false
-    Library:AddCorner(autoDJBtn, 4)
-    Library:AddStroke(autoDJBtn, 1, Library.Colors.Border)
-    local autoSupportBtn = Instance.new("TextButton")
-    autoSupportBtn.Size = UDim2.new(0, halfWidth, 0, buttonHeight)
-    autoSupportBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 4)
-    autoSupportBtn.BackgroundColor3 = _G.AutoSupport and Library.Colors.Success or Library.Colors.Accent
-    autoSupportBtn.Text = _G.AutoSupport and "Auto Support: ON" or "Auto Support: OFF"
-    autoSupportBtn.TextColor3 = Library.Colors.Text
-    autoSupportBtn.Font = Library.Fonts.Bold
-    autoSupportBtn.TextSize = Library:ScaleY(1.3)
-    autoSupportBtn.Parent = scrollFrame
-    autoSupportBtn.AutoButtonColor = false
-    Library:AddCorner(autoSupportBtn, 4)
-    Library:AddStroke(autoSupportBtn, 1, Library.Colors.Border)
-    local autoChainBtn = Instance.new("TextButton")
-    autoChainBtn.Size = UDim2.new(0, halfWidth, 0, buttonHeight)
-    autoChainBtn.Position = UDim2.new(0, Library:ScaleX(2) + halfWidth + Library:ScaleX(1), 0, yPos + (buttonHeight + buttonSpacing) * 4)
-    autoChainBtn.BackgroundColor3 = _G.AutoChain and Library.Colors.Success or Library.Colors.Accent
-    autoChainBtn.Text = _G.AutoChain and "Auto Chain: ON" or "Auto Chain: OFF"
-    autoChainBtn.TextColor3 = Library.Colors.Text
-    autoChainBtn.Font = Library.Fonts.Bold
-    autoChainBtn.TextSize = Library:ScaleY(1.3)
-    autoChainBtn.Parent = scrollFrame
-    autoChainBtn.AutoButtonColor = false
-    Library:AddCorner(autoChainBtn, 4)
-    Library:AddStroke(autoChainBtn, 1, Library.Colors.Border)
-    local autoPickupsBtn = Instance.new("TextButton")
-    autoPickupsBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
-    autoPickupsBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 5)
-    autoPickupsBtn.BackgroundColor3 = _G.AutoPickups and Library.Colors.Success or Library.Colors.Accent
-    autoPickupsBtn.Text = _G.AutoPickups and "Auto Pickups: ON" or "Auto Pickups: OFF"
-    autoPickupsBtn.TextColor3 = Library.Colors.Text
-    autoPickupsBtn.Font = Library.Fonts.Bold
-    autoPickupsBtn.TextSize = Library:ScaleY(1.3)
-    autoPickupsBtn.Parent = scrollFrame
-    autoPickupsBtn.AutoButtonColor = false
-    Library:AddCorner(autoPickupsBtn, 4)
-    Library:AddStroke(autoPickupsBtn, 1, Library.Colors.Border)
 
-    local mercenaryContainer = Instance.new("Frame")
-    mercenaryContainer.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight + Library:ScaleY(6))
-    mercenaryContainer.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 6)
-    mercenaryContainer.BackgroundTransparency = 1
-    mercenaryContainer.Parent = scrollFrame
+    local leftBtn = createToggleButton(scrollFrame, yPos, "Auto Skip", "AutoSkip", true)
+    local rightBtn = createToggleButton(scrollFrame, yPos, "Smart Skip", "AutoSmartSkip", true)
+    rightBtn.Position = UDim2.new(0.5, Library:ScaleX(1.5), 0, yPos) 
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
+
+    createToggleButton(scrollFrame, yPos, "Auto Necromancer", "AutoNecro", false)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
+    createToggleButton(scrollFrame, yPos, "Auto Uber", "AutoUber", false)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
+    createToggleButton(scrollFrame, yPos, "Auto DJ Booth", "AutoDJ", false)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
+
+    local supportBtn = createToggleButton(scrollFrame, yPos, "Auto Support", "AutoSupport", true)
+    local chainBtn = createToggleButton(scrollFrame, yPos, "Auto Chain", "AutoChain", true)
+    chainBtn.Position = UDim2.new(0.5, Library:ScaleX(1.5), 0, yPos)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
+
+    createToggleButton(scrollFrame, yPos, "Auto Pickups", "AutoPickups", false)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
 
     local sliderLabel = Instance.new("TextLabel")
-    sliderLabel.Size = UDim2.new(1, 0, 0, Library:ScaleY(3))
-    sliderLabel.Position = UDim2.new(0, 0, 0, 0)
+    sliderLabel.Size = UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(3))
+    sliderLabel.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
     sliderLabel.BackgroundTransparency = 1
     sliderLabel.TextColor3 = Library.Colors.Text
     sliderLabel.TextSize = Library:ScaleY(1.1)
     sliderLabel.Font = Library.Fonts.Bold
-    sliderLabel.Text = "Mercenary Distance: " .. tostring(_G.MercDistance) .. " studs"
-    sliderLabel.Parent = mercenaryContainer
+    sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(_G.MercDistance)) .. " studs"
+    sliderLabel.Parent = scrollFrame
+    yPos = yPos + Library:ScaleY(3) + Library:ScaleY(0.5)
 
     local sliderFrame = Instance.new("Frame")
-    sliderFrame.Size = UDim2.new(1, 0, 0, Library:ScaleY(2))
-    sliderFrame.Position = UDim2.new(0, 0, 0, Library:ScaleY(3.5))
+    sliderFrame.Size = UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(2))
+    sliderFrame.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
     sliderFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
     sliderFrame.BorderSizePixel = 0
-    sliderFrame.Parent = mercenaryContainer
+    sliderFrame.Parent = scrollFrame
     Library:AddCorner(sliderFrame, 4)
 
     local sliderFill = Instance.new("Frame")
@@ -1500,141 +1448,49 @@ local function createAutomationTab()
     sliderButton.Parent = sliderFrame
     Library:AddCorner(sliderButton, 10)
 
+    yPos = yPos + Library:ScaleY(2) + Library:ScaleY(1)
+
     local minusBtn = Instance.new("TextButton")
     minusBtn.Size = UDim2.new(0, Library:ScaleX(3), 0, Library:ScaleY(3.5))
-    minusBtn.Position = UDim2.new(0, 0, 0, Library:ScaleY(7))
+    minusBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
     minusBtn.BackgroundColor3 = Library.Colors.BackgroundLight
     minusBtn.Text = "-5"
     minusBtn.TextColor3 = Library.Colors.Text
     minusBtn.Font = Library.Fonts.Bold
     minusBtn.TextSize = Library:ScaleY(1.2)
-    minusBtn.Parent = mercenaryContainer
+    minusBtn.Parent = scrollFrame
     Library:AddCorner(minusBtn, 4)
     Library:AddStroke(minusBtn, 1, Library.Colors.Border)
 
     local plusBtn = Instance.new("TextButton")
     plusBtn.Size = UDim2.new(0, Library:ScaleX(3), 0, Library:ScaleY(3.5))
-    plusBtn.Position = UDim2.new(1, -Library:ScaleX(3), 0, Library:ScaleY(7))
+    plusBtn.Position = UDim2.new(1, -Library:ScaleX(5), 0, yPos) 
     plusBtn.BackgroundColor3 = Library.Colors.BackgroundLight
     plusBtn.Text = "+5"
     plusBtn.TextColor3 = Library.Colors.Text
     plusBtn.Font = Library.Fonts.Bold
     plusBtn.TextSize = Library:ScaleY(1.2)
-    plusBtn.Parent = mercenaryContainer
+    plusBtn.Parent = scrollFrame
     Library:AddCorner(plusBtn, 4)
     Library:AddStroke(plusBtn, 1, Library.Colors.Border)
 
-    local currentMaxDistance = GetPathMaxDistance()
-    local function updateSliderMax()
-        currentMaxDistance = GetPathMaxDistance()
-        if currentMaxDistance < 1 then currentMaxDistance = 250 end
-        if _G.MercDistance > currentMaxDistance then
-            _G.MercDistance = currentMaxDistance
-        end
-        sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(_G.MercDistance)) .. " / " .. math.floor(currentMaxDistance) .. " studs"
-        local percent = math.clamp(_G.MercDistance / currentMaxDistance, 0, 1)
-        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-        local buttonPosX = math.clamp(percent * sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X/2, 0, sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X)
-        sliderButton.Position = UDim2.new(0, buttonPosX, 0.5, -sliderButton.AbsoluteSize.Y/2)
-        saveSettings()
-    end
+    yPos = yPos + Library:ScaleY(3.5) + Library:ScaleY(1)
 
-    local dragging = false
-    local function startDrag() dragging = true end
-    local function stopDrag() dragging = false end
+    createToggleButton(scrollFrame, yPos, "Auto Mercenary", "AutoMercenary", false)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
 
-    sliderButton.MouseButton1Down:Connect(startDrag)
-    UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
-        end
-    end)
+    local waveBox = Library:CreateTextBox(
+        scrollFrame,
+        "Wave to Sell Farms (Max: ?)",
+        UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(3.5)),
+        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
+    )
+    waveBox.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
+    waveBox.Text = tostring(_G.WaveFS or 40)
+    yPos = yPos + Library:ScaleY(3.5) + Library:ScaleY(0.5)
 
-    local function updateSliderFromInput()
-        if not dragging then return end
-        local mousePos = UIS:GetMouseLocation()
-        if mousePos.X == 0 and mousePos.Y == 0 then
-            local touches = UIS:GetTouchPositions()
-            if #touches > 0 then
-                mousePos = touches[1]
-            else
-                return
-            end
-        end
-        local framePos = sliderFrame.AbsolutePosition.X
-        local relativeX = math.clamp(mousePos.X - framePos, 0, sliderFrame.AbsoluteSize.X)
-        local percent = relativeX / sliderFrame.AbsoluteSize.X
-        local newDist = percent * currentMaxDistance
-        newDist = math.clamp(newDist, 1, currentMaxDistance)
-        if math.abs(_G.MercDistance - newDist) > 0.5 then
-            _G.MercDistance = newDist
-            sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(_G.MercDistance)) .. " / " .. math.floor(currentMaxDistance) .. " studs"
-            sliderFill.Size = UDim2.new(percent, 0, 1, 0)
-            local buttonPosX = math.clamp(percent * sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X/2, 0, sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X)
-            sliderButton.Position = UDim2.new(0, buttonPosX, 0.5, -sliderButton.AbsoluteSize.Y/2)
-            saveSettings()
-        end
-    end
-
-    RunService.RenderStepped:Connect(updateSliderFromInput)
-
-    minusBtn.MouseButton1Click:Connect(function()
-        local newDist = _G.MercDistance - 5
-        if newDist < 1 then newDist = 1 end
-        _G.MercDistance = newDist
-        if _G.MercDistance > currentMaxDistance then _G.MercDistance = currentMaxDistance end
-        updateSliderMax()
-    end)
-
-    plusBtn.MouseButton1Click:Connect(function()
-        local newDist = _G.MercDistance + 5
-        if newDist > currentMaxDistance then newDist = currentMaxDistance end
-        _G.MercDistance = newDist
-        updateSliderMax()
-    end)
-
-    local autoMercenaryBtn = Instance.new("TextButton")
-    autoMercenaryBtn.Size = UDim2.new(1, 0, 0, buttonHeight)
-    autoMercenaryBtn.Position = UDim2.new(0, 0, 0, Library:ScaleY(12))
-    autoMercenaryBtn.BackgroundColor3 = _G.AutoMercenary and Library.Colors.Success or Library.Colors.Accent
-    autoMercenaryBtn.Text = _G.AutoMercenary and "Auto Mercenary: ON" or "Auto Mercenary: OFF"
-    autoMercenaryBtn.TextColor3 = Library.Colors.Text
-    autoMercenaryBtn.Font = Library.Fonts.Bold
-    autoMercenaryBtn.TextSize = Library:ScaleY(1.3)
-    autoMercenaryBtn.Parent = mercenaryContainer
-    autoMercenaryBtn.AutoButtonColor = false
-    Library:AddCorner(autoMercenaryBtn, 4)
-    Library:AddStroke(autoMercenaryBtn, 1, Library.Colors.Border)
-
-    autoMercenaryBtn.MouseButton1Click:Connect(function()
-        _G.AutoMercenary = not _G.AutoMercenary
-        if _G.AutoMercenary then
-            autoMercenaryBtn.BackgroundColor3 = Library.Colors.Success
-            autoMercenaryBtn.Text = "Auto Mercenary: ON"
-        else
-            autoMercenaryBtn.BackgroundColor3 = Library.Colors.Accent
-            autoMercenaryBtn.Text = "Auto Mercenary: OFF"
-        end
-        saveSettings()
-    end)
-
-    local function periodicUpdateMax()
-        while true do
-            task.wait(5)
-            local newMax = GetPathMaxDistance()
-            if newMax ~= currentMaxDistance then
-                updateSliderMax()
-            end
-        end
-    end
-    task.spawn(periodicUpdateMax)
-    updateSliderMax()
-
-    local sellFarmsContainer = Instance.new("Frame")
-    sellFarmsContainer.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight + Library:ScaleY(4))
-    sellFarmsContainer.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 7 + Library:ScaleY(10))
-    sellFarmsContainer.BackgroundTransparency = 1
-    sellFarmsContainer.Parent = scrollFrame
+    createToggleButton(scrollFrame, yPos, "Auto Sell Farms", "SellFarms", false)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
 
     local function getMaxWaveFromGUI()
         local waveLabel = playerGui:FindFirstChild("ReactGameTopGameDisplay", true)
@@ -1649,14 +1505,10 @@ local function createAutomationTab()
                         if valueLabel and valueLabel:IsA("TextLabel") then
                             local text = valueLabel.Text
                             local parts = {}
-                            for part in string.gmatch(text, "[^/]+") do
-                                table.insert(parts, part)
-                            end
+                            for part in string.gmatch(text, "[^/]+") do table.insert(parts, part) end
                             if #parts == 2 then
                                 local maxWave = tonumber(parts[2]:match("%d+"))
-                                if maxWave then
-                                    return maxWave
-                                end
+                                if maxWave then return maxWave end
                             end
                         end
                     end
@@ -1666,35 +1518,10 @@ local function createAutomationTab()
         return 0
     end
 
-    local waveBox = Library:CreateTextBox(
-        sellFarmsContainer,
-        "Wave to Sell Farms (Max: ?)",
-        UDim2.new(1, 0, 0, Library:ScaleY(3.5)),
-        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
-    )
-    waveBox.Text = tostring(_G.WaveFS or 40)
-    waveBox.Position = UDim2.new(0, 0, 0, 0)
-
-    local autoSellFarmsBtn = Instance.new("TextButton")
-    autoSellFarmsBtn.Size = UDim2.new(1, 0, 0, buttonHeight)
-    autoSellFarmsBtn.Position = UDim2.new(0, 0, 0, Library:ScaleY(4))
-    autoSellFarmsBtn.BackgroundColor3 = _G.SellFarms and Library.Colors.Success or Library.Colors.Accent
-    autoSellFarmsBtn.Text = _G.SellFarms and "Auto Sell Farms: ON" or "Auto Sell Farms: OFF"
-    autoSellFarmsBtn.TextColor3 = Library.Colors.Text
-    autoSellFarmsBtn.Font = Library.Fonts.Bold
-    autoSellFarmsBtn.TextSize = Library:ScaleY(1.3)
-    autoSellFarmsBtn.Parent = sellFarmsContainer
-    autoSellFarmsBtn.AutoButtonColor = false
-    Library:AddCorner(autoSellFarmsBtn, 4)
-    Library:AddStroke(autoSellFarmsBtn, 1, Library.Colors.Border)
-
-    local currentMaxWave = 0
     local function updateMaxWavePlaceholder()
         local maxWave = getMaxWaveFromGUI()
         if maxWave and maxWave > 0 then
-            currentMaxWave = maxWave
             waveBox.PlaceholderText = "Wave to Sell Farms (Max: " .. maxWave .. ")"
-            
             if maxWave > (_G.WaveFS or 40) then
                 _G.WaveFS = maxWave
                 waveBox.Text = tostring(maxWave)
@@ -1711,7 +1538,7 @@ local function createAutomationTab()
             waveBox.PlaceholderText = "Wave to Sell Farms"
         end
     end
-    
+
     task.spawn(function()
         while true do
             updateMaxWavePlaceholder()
@@ -1749,9 +1576,7 @@ local function createAutomationTab()
                         if valueLabel and valueLabel:IsA("TextLabel") then
                             local text = valueLabel.Text
                             local currentNum = tonumber(text:match("^(%d+)"))
-                            if currentNum then
-                                return currentNum
-                            end
+                            if currentNum then return currentNum end
                         end
                     end
                 end
@@ -1791,22 +1616,11 @@ local function createAutomationTab()
         end)
     end
 
-    autoSellFarmsBtn.MouseButton1Click:Connect(function()
-        _G.SellFarms = not _G.SellFarms
-        if _G.SellFarms then
-            autoSellFarmsBtn.BackgroundColor3 = Library.Colors.Success
-            autoSellFarmsBtn.Text = "Auto Sell Farms: ON"
-            StartSellFarm()
-        else
-            autoSellFarmsBtn.BackgroundColor3 = Library.Colors.Accent
-            autoSellFarmsBtn.Text = "Auto Sell Farms: OFF"
-        end
-        saveSettings()
-    end)
+    if _G.SellFarms then StartSellFarm() end
 
     local autoGatlingBtn = Instance.new("TextButton")
-    autoGatlingBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, buttonHeight)
-    autoGatlingBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos + (buttonHeight + buttonSpacing) * 8 + Library:ScaleY(14))
+    autoGatlingBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(5))
+    autoGatlingBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
     autoGatlingBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
     autoGatlingBtn.Text = "Auto Gatling Gun"
     autoGatlingBtn.TextColor3 = Library.Colors.Text
@@ -1829,12 +1643,64 @@ local function createAutomationTab()
         autoGatlingBtn.Text = "Auto Gatling Gun"
     end)
 
-    local totalHeight = yPos + (buttonHeight + buttonSpacing) * 9 + Library:ScaleY(28)
-    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, totalHeight)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(2)
 
-    if _G.SellFarms then
-        StartSellFarm()
+    scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yPos + Library:ScaleY(2))
+
+    local currentMaxDistance = GetPathMaxDistance()
+    local function updateSliderMax()
+        currentMaxDistance = GetPathMaxDistance()
+        if currentMaxDistance < 1 then currentMaxDistance = 250 end
+        if _G.MercDistance > currentMaxDistance then _G.MercDistance = currentMaxDistance end
+        sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(_G.MercDistance)) .. " / " .. math.floor(currentMaxDistance) .. " studs"
+        local percent = math.clamp(_G.MercDistance / currentMaxDistance, 0, 1)
+        sliderFill.Size = UDim2.new(percent, 0, 1, 0)
+        task.wait()
+        if sliderFrame.AbsoluteSize.X > 0 then
+            local buttonPosX = math.clamp(percent * sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X/2, 0, sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X)
+            sliderButton.Position = UDim2.new(0, buttonPosX, 0.5, -sliderButton.AbsoluteSize.Y/2)
+        end
+        saveSettings()
     end
+
+    local dragging = false
+    sliderButton.MouseButton1Down:Connect(function() dragging = true end)
+    UIS.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+        end
+    end)
+
+    local function updateSliderFromInput()
+        if not dragging then return end
+        local mousePos = UIS:GetMouseLocation()
+        if mousePos.X == 0 and mousePos.Y == 0 then
+            local touches = UIS:GetTouchPositions()
+            if #touches > 0 then mousePos = touches[1] else return end
+        end
+        if sliderFrame.AbsoluteSize.X == 0 then return end
+        local framePos = sliderFrame.AbsolutePosition.X
+        local relativeX = math.clamp(mousePos.X - framePos, 0, sliderFrame.AbsoluteSize.X)
+        local percent = relativeX / sliderFrame.AbsoluteSize.X
+        local newDist = percent * currentMaxDistance
+        newDist = math.clamp(newDist, 1, currentMaxDistance)
+        if math.abs(_G.MercDistance - newDist) > 0.5 then
+            _G.MercDistance = newDist
+            updateSliderMax()
+        end
+    end
+    RunService.RenderStepped:Connect(updateSliderFromInput)
+
+    minusBtn.MouseButton1Click:Connect(function()
+        _G.MercDistance = math.max(1, _G.MercDistance - 5)
+        updateSliderMax()
+    end)
+    plusBtn.MouseButton1Click:Connect(function()
+        _G.MercDistance = math.min(currentMaxDistance, _G.MercDistance + 5)
+        updateSliderMax()
+    end)
+
+    updateSliderMax()
 
     return contentFrame
 end
