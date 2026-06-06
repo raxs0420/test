@@ -1,85 +1,56 @@
 -- [[ CONFIGURATION ]]
-_G.AutoPickups = true
 _G.AntiLag = true
 _G.ClaimRewards = true
 _G.AutoSmartSkip = true 
-_G.AutoDJ = true
-_G.PrivateCode = "534f0b086a025749bde1b7560862c84e"
+_G.AutoRejoin = true
 
 -- [[ WEBHOOK SETTINGS ]]
 _G.SendWebhook = false
-_G.Webhook = "YOUR-WEBHOOK-URL-HERE" 
+_G.Webhook = "YOUR-WEBHOOK-URL-HERE"
 
 -- [[ INITIALIZE LIBRARY ]]
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
 local function startMatch()
-    TDS:Loadout("DJ Booth", "Gatling Gun", "Hacker", "Scout", "Accelerator")
+    TDS:Loadout("Firework Technician", "Gatling Gun", "Hacker", "Scout", "Accelerator")
     TDS:Mode("Frost")
-
+            
     loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
-
-    local function honeyValleyStrategy()
-        TDS:UnlockTimeScale()
-        TDS:TimeScale(2)
-
-        for i = 1, 16 do
-            TDS:Place("Scout", 0.273, 60, 14.569)
-        end
-
-        for i = 1, 16 do
-            TDS:Upgrade(i)
-            TDS:Upgrade(i)
-        end
-
-        TDS:Place("Hacker", -7.907, 60, 16.988)
-        TDS:Place("Gatling Gun", 2.884, 60, 1.988)
-        TDS:Place("DJ Booth", -0.043, 60, 1.320)
-
-        TDS:SetOption(19, "Track", "Green")
-        for i = 1, 3 do TDS:Upgrade(19) end
+        
+    local function WinterAbyssStrategy()
+    
+        for i = 1, 8 do TDS:Place("Scout", -3.446479, 60, 43.919820) end
+        for i = 1, 8 do TDS:Upgrade(i) TDS:Upgrade(i) end
+        for i = 1, 8 do TDS:Place("Scout", -4.179082, 60, 54.208679) end
+        for i = 9, 16 do TDS:Upgrade(i) TDS:Upgrade(i) end
+        TDS:Place("Hacker", -4.662402, 60, 48.980261)
         for i = 1, 2 do TDS:Upgrade(17) end
-        for i = 1, 2 do TDS:Upgrade(18) end
-
-        for i = 1, 16 do
-            TDS:Upgrade(i)
-            TDS:Upgrade(i)
-        end
-
+        TDS:Place("Gatling Gun", -7.657363, 60, 33.675670)
+        for i = 1, 3 do TDS:Upgrade(18) end
+        TDS:Place("Firework Technician", -3.446479, 60, 43.919820)
         for i = 1, 2 do TDS:Upgrade(19) end
-        for i = 1, 4 do TDS:Upgrade(18) end
+        for i = 1, 16 do TDS:Upgrade(i) TDS:Upgrade(i) end
+        TDS:Upgrade(18)
+        for i = 1, 2 do TDS:Upgrade(19) end
         for i = 1, 2 do TDS:Upgrade(17) end
         TDS:Upgrade(17, 2)
-        TDS:SetOption(19, "Track", "Red")
-
-        for i = 1, 5 do
-            TDS:Place("Accelerator", 6.750, 60, 3.329)
-        end
-
-        for i = 20, 24 do
-            TDS:Upgrade(i) 
-            TDS:Upgrade(i)
-            TDS:Upgrade(i)
-            TDS:Upgrade(i)
-            TDS:Upgrade(i)
-        end
-
-        TDS:Ability(17, "Hologram Tower", { 
-            towerToClone = 18, 
-            towerPosition = Vector3.new(3.861, 60, -2.573) 
-        }, true)
+        for i = 1, 2 do TDS:Upgrade(18) end
+        for i = 1, 5 do TDS:Place("Accelerator", -7.657363, 60, 33.675670) end
+        for i = 20, 24 do TDS:Upgrade(i) TDS:Upgrade(i) TDS:Upgrade(i) TDS:Upgrade(i) TDS:Upgrade(i) end
+        TDS:Ability(17, "Hologram Tower", { towerToClone = 18, towerPosition = Vector3.new(-9.871734, 60, 40.533802) }, true)
     end
 
-    TDS.pending_strategy = honeyValleyStrategy
-
-    TDS:GameInfo("Honey Valley", {
+    TDS.pending_strategy = WinterAbyssStrategy
+    TDS:GameInfo("Winter Abyss", {
         Quarantine = true,
-        Glass = true,
-        ExplodingEnemies = true,
+        Limitation = true, 
         HiddenEnemies = true,
-        Committed = true
+        Committed = true,
+        Glass = true
     })
 end
 
 TDS.ReplayCallback = startMatch
+
 startMatch()
+
