@@ -95,7 +95,6 @@ local TDS = {
     placed_towers = {},
     active_strat = true,
     matchmaking_map = {
-        ["Hardcore"] = "hardcore",
         ["Pizza Party"] = "halloween",
         ["Badlands"] = "badlands",
         ["Polluted"] = "polluted"
@@ -255,7 +254,9 @@ local function rejoin_match()
                 if CurrentMode == "PizzaParty" then
                     payload = { mode = "halloween", count = 1 }
                 elseif CurrentMode == "Hardcore" then
-                    payload = { mode = "hardcore", count = 1 }
+                    payload = { mode = "hardcore", difficulty = "Easy", count = 1 }
+                elseif CurrentMode == "Voidcore" then
+                    payload = { mode = "hardcore", difficulty = "Hard", count = 1 }
                 elseif CurrentMode == "PollutedWasteland" then
                     payload = { mode = "polluted", count = 1 }
                 elseif CurrentMode == "Badlands" then
@@ -949,7 +950,11 @@ function TDS:Mode(difficulty)
             local ok, result = pcall(function()
                 local mode = TDS.matchmaking_map[difficulty]
                 local payload
-                if mode then
+                if difficulty == "Hardcore" then
+                    payload = { mode = "hardcore", difficulty = "Easy", count = 1 }
+                elseif difficulty == "Voidcore" then
+                    payload = { mode = "hardcore", difficulty = "Hard", count = 1 }
+                elseif mode then
                     payload = { mode = mode, count = 1 }
                 elseif difficulty == "Easy" or difficulty == "Hard" then
                     payload = { difficulty = difficulty, mode = "ducky2025", count = 1 }
