@@ -19,6 +19,7 @@ local function load_auto_rejoin_state()
 end
 
 _G.AutoRejoin = load_auto_rejoin_state()
+_G.LastPlayedMode = nil 
 
 local function identify_game_state()
     local players = game:GetService("Players")
@@ -244,23 +245,24 @@ local function rejoin_match()
             local ok, result = pcall(function()
                 local payload
                 local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
-                if CurrentMode == "PizzaParty" then
+                local modeToUse = _G.LastPlayedMode or CurrentMode
+                if modeToUse == "PizzaParty" then
                     payload = { mode = "halloween", count = 1 }
-                elseif CurrentMode == "Hardcore" then
+                elseif modeToUse == "Hardcore" then
                     payload = { mode = "hardcore", difficulty = "Easy", count = 1 }
-                elseif CurrentMode == "Voidcore" then
+                elseif modeToUse == "Voidcore" then
                     payload = { mode = "hardcore", difficulty = "Hard", count = 1 }
-                elseif CurrentMode == "PollutedWasteland" then
+                elseif modeToUse == "PollutedWasteland" then
                     payload = { mode = "polluted", count = 1 }
-                elseif CurrentMode == "Badlands" then
+                elseif modeToUse == "Badlands" then
                     payload = { mode = "badlands", count = 1 }
                 elseif EventMode == "DuckEvent" then
-                    payload = { difficulty = CurrentMode, mode = "ducky2025", count = 1 }
-                elseif CurrentMode == "Trial" then
+                    payload = { difficulty = modeToUse, mode = "ducky2025", count = 1 }
+                elseif modeToUse == "Trial" then
                     SmartTeleportToLobby()
                     return true
                 else
-                    payload = { difficulty = CurrentMode, mode = "survival", count = 1 }
+                    payload = { difficulty = modeToUse, mode = "survival", count = 1 }
                 end
                 return remote:InvokeServer("Multiplayer", "v2:start", payload)
             end)
@@ -989,6 +991,7 @@ function TDS:Mode(difficulty)
             if ok and check_res_ok(result) then
                 success = true
                 res = result
+                _G.LastPlayedMode = difficulty
             else
                 task.wait(0.5)
             end
