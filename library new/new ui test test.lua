@@ -1,11 +1,18 @@
 if not game:IsLoaded() then game.Loaded:Wait() end
 
 local function save_auto_rejoin_state(state)
+    if not writefile then return end
+    pcall(function() writefile("TDS_AutoRejoin.txt", tostring(state)) end)
+end
+
+local function load_auto_rejoin_state()
+    if not readfile then return true end
+    local saved = true
     pcall(function()
-        if writefile then
-            writefile("TDS_AutoRejoin.txt", tostring(state))
-        end
+        local content = readfile("TDS_AutoRejoin.txt")
+        if content == "false" then saved = false end
     end)
+    return saved
 end
 
 local function load_auto_rejoin_state()
@@ -42,11 +49,10 @@ end
 
 game_state = identify_game_state()
 
-local send_request = request or http_request or httprequest or GetDevice and GetDevice().request
-
+local send_request = request or http_request or httprequest
 if not send_request then
-    warn("failure: no http function")
-    return
+    _G.SendWebhook = false
+    warn("No HTTP function)
 end
 
 local teleport_service = game:GetService("TeleportService")
@@ -54,6 +60,8 @@ local marketplace_service = game:GetService("MarketplaceService")
 local replicated_storage = game:GetService("ReplicatedStorage")
 local remote_func = replicated_storage:WaitForChild("RemoteFunction")
 local remote_event = replicated_storage:WaitForChild("RemoteEvent")
+local hasWriteFile = pcall(function() return writefile end) and writefile or nil
+local hasReadFile = pcall(function() return readfile end) and readfile or nil
 local players_service = game:GetService("Players")
 local local_player = players_service.LocalPlayer or players_service.PlayerAdded:Wait()
 local player_gui = local_player:WaitForChild("PlayerGui")
@@ -109,6 +117,7 @@ local TDS = {
 local upgrade_history = {}
 
 shared = shared or {}
+_G = _G or {}
 shared.TDS_Table = TDS
 
 local start_coins, current_total_coins, start_gems, current_total_gems = 0, 0, 0, 0
