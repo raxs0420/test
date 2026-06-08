@@ -1,7 +1,6 @@
 -- [[ CONFIGURATION ]]
 _G.AntiLag = true
 _G.ClaimRewards = true
-_G.AutoSmartSkip = true 
 _G.AutoRejoin = true
 
 -- [[ WEBHOOK SETTINGS ]]
@@ -12,13 +11,13 @@ _G.Webhook = "YOUR-WEBHOOK-URL-HERE"
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
 local function startMatch()
-    TDS:Loadout("Firework Technician", "Gatling Gun", "Hacker", "Scout", "Accelerator")
+    TDS:Loadout("Firework Technician", "Gatling Gun", "Hacker", "Scout", "EvolvedJuggernaut")
     TDS:Mode("Frost")
-            
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
-        
+
     local function WinterAbyssStrategy()
-    
+        TDS:AutoSkip(true)
+        TDS:UnlockTimeScale()  
+        TDS:TimeScale(2) 
         for i = 1, 8 do TDS:Place("Scout", -3.446479, 60, 43.919820) end
         for i = 1, 8 do TDS:Upgrade(i) TDS:Upgrade(i) end
         for i = 1, 8 do TDS:Place("Scout", -4.179082, 60, 54.208679) end
@@ -34,10 +33,27 @@ local function startMatch()
         for i = 1, 2 do TDS:Upgrade(19) end
         for i = 1, 2 do TDS:Upgrade(17) end
         TDS:Upgrade(17, 2)
+        TDS:SetTarget(1, "Weakest")
+        TDS:SetTarget(2, "Weakest")
+        TDS:SetTarget(3, "Weakest")
+        TDS:SetTarget(4, "Weakest")
+        TDS:SetTarget(5, "Weakest")
+        TDS:SetTarget(6, "Weakest")
+        TDS:SetTarget(7, "Weakest")
+        TDS:SetTarget(8, "Weakest")
+        TDS:SetTarget(9, "Weakest")
+        TDS:SetTarget(10, "Weakest")
+        TDS:SetTarget(11, "Weakest")
+        TDS:SetTarget(12, "Weakest")
         for i = 1, 2 do TDS:Upgrade(18) end
-        for i = 1, 5 do TDS:Place("Accelerator", -7.657363, 60, 33.675670) end
-        for i = 20, 24 do TDS:Upgrade(i) TDS:Upgrade(i) TDS:Upgrade(i) TDS:Upgrade(i) TDS:Upgrade(i) end
+        TDS:Place("EvolvedJuggernaut", -7.657363, 60, 33.675670)
+        for i = 1, 3 do TDS:Upgrade(20) end
+        for i = 1, 4 do TDS:Upgrade(20, 2) end
+        TDS:Place("Hacker", -4.662402, 60, 48.980261)
+        for i = 1, 4 do TDS:Upgrade(21) end
+        TDS:Upgrade(21, 2)
         TDS:Ability(17, "Hologram Tower", { towerToClone = 18, towerPosition = Vector3.new(-9.871734, 60, 40.533802) }, true)
+        TDS:Ability(21, "Hologram Tower", { towerToClone = 20, towerPosition = Vector3.new(-13.164421, 60, 33.483294) }, true)
     end
 
     TDS.pending_strategy = WinterAbyssStrategy
@@ -48,9 +64,11 @@ local function startMatch()
         Committed = true,
         Glass = true
     })
+    
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
+    
 end
 
 TDS.ReplayCallback = startMatch
 
 startMatch()
-
