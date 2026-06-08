@@ -437,27 +437,57 @@ end
 
 local function match_ready_up()
     local player_gui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
-    local ui_overrides = player_gui:WaitForChild("ReactOverridesVote", 30)
-    local main_frame = ui_overrides and ui_overrides:WaitForChild("Frame", 30)
-    if not main_frame then return end
-    local vote_ready = nil
-    while not vote_ready do
-        local vote_node = main_frame:FindFirstChild("votes")
-        if vote_node then
-            local container = vote_node:FindFirstChild("container")
-            if container then
-                local ready = container:FindFirstChild("ready")
-                if ready then vote_ready = ready end
+    local remote_func = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
+    local remote_event = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvent")
+    
+    local ui_success = false
+    local ui_attempts = 0
+    while ui_attempts < 15 and not ui_success do
+        local ui_overrides = player_gui:FindFirstChild("ReactOverridesVote")
+        local main_frame = ui_overrides and ui_overrides:FindFirstChild("Frame")
+        if main_frame then
+            local vote_node = main_frame:FindFirstChild("votes")
+            if vote_node then
+                local container = vote_node:FindFirstChild("container")
+                if container then
+                    local ready = container:FindFirstChild("ready")
+                    if ready and ready.Visible == true then
+                        pcall(function()
+                            remote_event:FireServer("LobbyVoting", "Ready")
+                        end)
+                        pcall(function()
+                            remote_func:InvokeServer("Voting", "Skip")
+                        end)
+                        log_match_start()
+                        if TDS.pending_strategy then
+                            task.spawn(TDS.pending_strategy)
+                            TDS.pending_strategy = nil
+                        end
+                        ui_success = true
+                        break
+                    end
+                end
             end
         end
-        if not vote_ready then task.wait(0.5) end
+        ui_attempts = ui_attempts + 1
+        task.wait(0.5)
     end
-    repeat task.wait(0.5) until vote_ready.Visible == true
-    run_vote_skip()
-    log_match_start()
-    if TDS.pending_strategy then
-        task.spawn(TDS.pending_strategy)
-        TDS.pending_strategy = nil
+    
+    if not ui_success then
+        for i = 1, 5 do
+            pcall(function()
+                remote_event:FireServer("LobbyVoting", "Ready")
+            end)
+            pcall(function()
+                remote_func:InvokeServer("Voting", "Skip")
+            end)
+            task.wait(0.5)
+        end
+        log_match_start()
+        if TDS.pending_strategy then
+            task.spawn(TDS.pending_strategy)
+            TDS.pending_strategy = nil
+        end
     end
 end
 
