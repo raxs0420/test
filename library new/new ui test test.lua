@@ -108,6 +108,7 @@ local TDS = {
 
 local upgrade_history = {}
 
+shared = shared or {}
 shared.TDS_Table = TDS
 
 local start_coins, current_total_coins, start_gems, current_total_gems = 0, 0, 0, 0
