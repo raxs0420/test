@@ -18,6 +18,7 @@ TDS:GameInfo("Summer Castle", {
 })
 
 TDS:Place("Cowboy", 11.729564666748047, 60, 24.119956970214844)
+TDS:Ready()
 TDS:Upgrade(1)
 TDS:Upgrade(1)
 TDS:Upgrade(1)
