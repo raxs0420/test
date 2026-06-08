@@ -7,8 +7,7 @@ _G.AutoChain = true
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
-TDS:Loadout("Cowboy", "EvolvedJuggernaut", "DJ Booth", "Accelerator", "Commander")
-TDS:Mode("Molten")
+TDS:Mode("Voidcore")
 TDS:GameInfo("Summer Castle", {
     Quarantine = true,
     Limitation = true, 
@@ -19,8 +18,6 @@ TDS:GameInfo("Summer Castle", {
 })
 
 TDS:Place("Cowboy", 11.729564666748047, 60, 24.119956970214844)
-TDS:UnlockTimeScale()  
-TDS:TimeScale(2) 
 TDS:Upgrade(1)
 TDS:Upgrade(1)
 TDS:Upgrade(1)
