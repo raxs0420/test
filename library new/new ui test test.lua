@@ -547,8 +547,6 @@ local function is_map_available(name)
 end
 
 local function veto_and_wait_for_maps()
-    local total_players = #players_service:GetPlayers()
-    remote_event:FireServer("LobbyVoting", "Veto")
     local veto_ui = player_gui:FindFirstChild("ReactGameIntermission")
     if not veto_ui then return false end
     local frame = veto_ui:FindFirstChild("Frame")
@@ -559,15 +557,13 @@ local function veto_and_wait_for_maps()
     if not veto_button then return false end
     local veto_value = veto_button:FindFirstChild("value")
     if not veto_value then return false end
-    local max_wait_time = 10
-    local start_time = os.time()
-    while os.time() - start_time < max_wait_time do
-        if veto_value.Text == "Veto ("..total_players.."/"..total_players..")" then
-            break
-        end
-        task.wait(1)
+    local veto_text = veto_value.Text
+    local current_str, total_str = veto_text:match("(%d+)/(%d+)")
+    local current = current_str and tonumber(current_str) or 0
+    local total = total_str and tonumber(total_str) or #players_service:GetPlayers()
+    if total > 0 and current == 0 then
+        remote_event:FireServer("LobbyVoting", "Veto")
     end
-    task.wait(1)
     return true
 end
 
@@ -688,18 +684,33 @@ function TDS:GameInfo(mapName, modifiers)
         select_map_override(mapName, "vip")
         return true
     end
-    if is_map_available(mapName) then
-        select_map_override(mapName)
-        return true
-    end
-    warn("Map '" .. tostring(mapName) .. "' not available, teleporting to lobby")
+    local veto_cast = false
+    local veto_value = frame.buttons.veto.value
+    repeat
+        if is_map_available(mapName) then
+            select_map_override(mapName)
+            return true
+        end
+        local veto_text = veto_value.Text
+        if veto_text ~= "" and not veto_text:find("Veto") then
+            break
+        end
+        local current_str, total_str = veto_text:match("(%d+)/(%d+)")
+        local current = current_str and tonumber(current_str) or 0
+        local total = total_str and tonumber(total_str) or #Players:GetChildren()
+        if not veto_cast and total > 0 and current == 0 then
+            veto_and_wait_for_maps()
+            veto_cast = true
+        end
+        task.wait(1)
+        local new_total = #Players:GetChildren()
+        if new_total > 0 and current == new_total then
+            break
+        end
+    until false
+    warn("Map '" .. tostring(mapName) .. "' not available after veto, teleporting to lobby")
     task.wait(1)
-    local success, errorMsg = pcall(function()
-        teleport_service:Teleport(3260590327, local_player)
-    end)
-    if not success then
-        warn("Teleport failed: " .. tostring(errorMsg))
-    end
+    teleport_service:Teleport(3260590327, local_player)
     return false
 end
 
