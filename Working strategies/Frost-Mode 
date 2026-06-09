@@ -56,18 +56,12 @@ local function startMatch()
         TDS:Ability(21, "Hologram Tower", { towerToClone = 20, towerPosition = Vector3.new(-13.164421, 60, 33.483294) }, true)
     end
 
-TDS:RunStrategy({
-    mode = "Frost",
-    mapPriority = {"Winter Abyss"},
-    maxAttempts = 2,     
-    modifiers = {
-        Quarantine = true,
-        Limitation = true,
-        HiddenEnemies = true,
-        Committed = true,
-        Glass = true
-    },
-    defaultStrategy = WinterAbyssStrategy  
+TDS:GameInfo("Winter Abyss", {
+    Quarantine = true,
+    Limitation = true,
+    HiddenEnemies = true,
+    Committed = true,
+    Glass = true
 })
     
 loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
