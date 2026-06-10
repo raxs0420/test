@@ -664,6 +664,37 @@ function TDS:RunStrategy(config)
     return true
 end
 
+local function GetMatchStatus()
+    while true do
+        local success, status = pcall(function()
+            local uiRoot = PlayerGui:FindFirstChild("ReactGameNewRewards")
+            if not uiRoot then return nil end
+            local mainFrame = uiRoot:FindFirstChild("Frame")
+            if not mainFrame or not mainFrame.Visible then return nil end
+            local gameOver = mainFrame:FindFirstChild("gameOver")
+            if not gameOver or not gameOver.Visible then return nil end
+            local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+            if not rewardsScreen or not rewardsScreen.Visible then return nil end
+            local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
+            if not topBanner then return nil end
+            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
+            if not label then return nil end
+            local txt = label.Text:upper()
+            if txt == "" then return nil end
+            if txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") then
+                return "WIN"
+            elseif txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL") then
+                return "LOSS"
+            end
+            return nil
+        end)
+        if success and status then
+            return status
+        end
+        task.wait(0.5)
+    end
+end
+
 function TDS:GameInfo(mapName, modifiers)
     if not _G.AutoRejoin then
         warn("TDS:GameInfo blocked because Auto Rejoin is disabled")
