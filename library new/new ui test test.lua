@@ -1631,7 +1631,6 @@ local function start_auto_chain()
                 task.wait(0.5)
             end
         end
-        -- When the loop exits (because _G.AutoChain became false), decrement the counter
         active_group_counter = active_group_counter - 1
         if active_group_counter == 0 then
             auto_chain_running = false
