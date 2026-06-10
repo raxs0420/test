@@ -831,7 +831,6 @@ function TDS:RestartGame()
             found_section = true
         end
     until found_section
-    task.wait(2)
     run_vote_skip()
 end
 
@@ -843,7 +842,7 @@ function TDS:GameStatse()
             self:ClearSessionData()
             self:RestartGame()
         end
-        task.wait(2)
+        task.wait(1)
     end
 end
 
