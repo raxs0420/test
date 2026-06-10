@@ -1631,22 +1631,21 @@ local function start_auto_chain()
                 task.wait(0.5)
             end
         end
+        -- When the loop exits (because _G.AutoChain became false), decrement the counter
+        active_group_counter = active_group_counter - 1
+        if active_group_counter == 0 then
+            auto_chain_running = false
+        end
     end
 
     local commanders_with_pos = get_commanders_with_pos()
     local groups = form_groups_of_three(commanders_with_pos)
-    local active_groups = 0
+    local active_group_counter = 0
     for i = 1, math.min(2, #groups) do
-        active_groups = active_groups + 1
-        task.spawn(function()
-            run_group(groups[i])
-            active_groups = active_groups - 1
-            if active_groups == 0 then
-                auto_chain_running = false
-            end
-        end)
+        active_group_counter = active_group_counter + 1
+        task.spawn(run_group, groups[i])
     end
-    if active_groups == 0 then
+    if active_group_counter == 0 then
         auto_chain_running = false
     end
 end
