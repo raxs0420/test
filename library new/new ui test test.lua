@@ -664,37 +664,6 @@ function TDS:RunStrategy(config)
     return true
 end
 
-local function GetMatchStatus()
-    while true do
-        local success, status = pcall(function()
-            local uiRoot = PlayerGui:FindFirstChild("ReactGameNewRewards")
-            if not uiRoot then return nil end
-            local mainFrame = uiRoot:FindFirstChild("Frame")
-            if not mainFrame or not mainFrame.Visible then return nil end
-            local gameOver = mainFrame:FindFirstChild("gameOver")
-            if not gameOver or not gameOver.Visible then return nil end
-            local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
-            if not rewardsScreen or not rewardsScreen.Visible then return nil end
-            local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
-            if not topBanner then return nil end
-            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
-            if not label then return nil end
-            local txt = label.Text:upper()
-            if txt == "" then return nil end
-            if txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") then
-                return "WIN"
-            elseif txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL") then
-                return "LOSS"
-            end
-            return nil
-        end)
-        if success and status then
-            return status
-        end
-        task.wait(0.5)
-    end
-end
-
 function TDS:GameInfo(mapName, modifiers)
     if not _G.AutoRejoin then
         warn("TDS:GameInfo blocked because Auto Rejoin is disabled")
@@ -807,7 +776,50 @@ local function waitUntilUnstunned(tower)
     end
 end
 
-local function trigger_restart()
+function TDS:ClearSessionData()
+    self.placed_towers = {}
+    upgrade_history = {}
+    self.PlacedTraps = nil
+    self.MapInteractions = nil
+    self.current_map = nil
+    self.current_strategy = nil
+    if self.ReplayCallback then
+        self.ReplayCallback = nil
+    end
+end
+
+function TDS:WaitForMatchStatus()
+    while true do
+        local success, status = pcall(function()
+            local uiRoot = PlayerGui:FindFirstChild("ReactGameNewRewards")
+            if not uiRoot then return nil end
+            local mainFrame = uiRoot:FindFirstChild("Frame")
+            if not mainFrame or not mainFrame.Visible then return nil end
+            local gameOver = mainFrame:FindFirstChild("gameOver")
+            if not gameOver or not gameOver.Visible then return nil end
+            local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+            if not rewardsScreen or not rewardsScreen.Visible then return nil end
+            local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
+            if not topBanner then return nil end
+            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
+            if not label then return nil end
+            local txt = label.Text:upper()
+            if txt == "" then return nil end
+            if txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") then
+                return "WIN"
+            elseif txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL") then
+                return "LOSS"
+            end
+            return nil
+        end)
+        if success and status then
+            return status
+        end
+        task.wait(0.5)
+    end
+end
+
+function TDS:RestartGame()
     local ui_root = player_gui:WaitForChild("ReactGameNewRewards")
     local found_section = false
     repeat
@@ -821,6 +833,18 @@ local function trigger_restart()
     until found_section
     task.wait(2)
     run_vote_skip()
+end
+
+function TDS:GameStatse()
+    while true do
+        local status = self:WaitForMatchStatus()
+        print(status)
+        if status == "LOSS" or status == "WIN" then
+            self:ClearSessionData()
+            self:RestartGame()
+        end
+        task.wait(2)
+    end
 end
 
 local function get_current_wave()
@@ -1198,10 +1222,6 @@ end
 
 function TDS:GetWave()
     return get_current_wave()
-end
-
-function TDS:RestartGame()
-    trigger_restart()
 end
 
 function TDS:Place(t_name, px, py, pz, ...)
