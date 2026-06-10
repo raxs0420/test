@@ -279,6 +279,14 @@ local function rejoin_match()
     return res
 end
 
+local function getTowerPosition(towerModel)
+    local primary = towerModel:FindFirstChild("PrimaryPart") or towerModel:FindFirstChild("Head") or towerModel:FindFirstChildWhichIsA("BasePart")
+    if primary then
+        return primary.Position
+    end
+    return nil
+end
+
 local function handle_post_match()
     if not _G.AutoRejoin then return end
     local ui_root
@@ -1551,8 +1559,10 @@ local function start_auto_chain()
                 and tower:GetAttribute("Name") == "Commander"
                 and tower:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
                 and (tower:GetAttribute("Upgrade") or 0) >= 2 then
-                local pos = tower.Position
-                table.insert(commanders, {commander = tower.Parent, pos = pos})
+                local pos = getTowerPosition(tower.Parent)
+                if pos then
+                    table.insert(commanders, {commander = tower.Parent, pos = pos})
+                end
             end
         end
         return commanders
@@ -1590,7 +1600,7 @@ local function start_auto_chain()
             local replicator = current_commander:FindFirstChild("TowerReplicator")
             local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
             if upgrade_level >= 4 and _G.SupportCaravan then
-                remote_func:InvokeServer(
+                RemoteFunction:InvokeServer(
                     "Troops",
                     "Abilities",
                     "Activate",
@@ -1598,7 +1608,7 @@ local function start_auto_chain()
                 )
                 task.wait(0.1)
             end
-            local response = remote_func:InvokeServer(
+            local response = RemoteFunction:InvokeServer(
                 "Troops",
                 "Abilities",
                 "Activate",
@@ -1606,7 +1616,7 @@ local function start_auto_chain()
             )
             if response then
                 idx = idx % #group + 1
-                local hotbar = player_gui.ReactUniversalHotbar.Frame
+                local hotbar = playerGui.ReactUniversalHotbar.Frame
                 local timescale = hotbar and hotbar:FindFirstChild("timescale")
                 if timescale and timescale.Visible then
                     if timescale:FindFirstChild("Lock") then
