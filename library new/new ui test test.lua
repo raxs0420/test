@@ -1542,73 +1542,103 @@ local function start_auto_chain()
     if auto_chain_running or not _G.AutoChain then return end
     auto_chain_running = true
 
-    task.spawn(function()
-        local idx = 1
-
-        while _G.AutoChain do
-            local commander = {}
-            local towers_folder = workspace:FindFirstChild("Towers")
-
-            if towers_folder then
-                for _, towers in ipairs(towers_folder:GetDescendants()) do
-                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
-                    and towers:GetAttribute("Name") == "Commander"
-                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
-                    and (towers:GetAttribute("Upgrade") or 0) >= 2 then
-                        commander[#commander + 1] = towers.Parent
-                    end
-                end
+    local function get_commanders_with_pos()
+        local commanders = {}
+        local towers_folder = workspace:FindFirstChild("Towers")
+        if not towers_folder then return commanders end
+        for _, tower in ipairs(towers_folder:GetDescendants()) do
+            if tower:IsA("Folder") and tower.Name == "TowerReplicator"
+                and tower:GetAttribute("Name") == "Commander"
+                and tower:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                and (tower:GetAttribute("Upgrade") or 0) >= 2 then
+                local pos = tower.Position
+                table.insert(commanders, {commander = tower.Parent, pos = pos})
             end
+        end
+        return commanders
+    end
 
-            if #commander >= 3 then
-                if idx > #commander then idx = 1 end
+    local function form_groups_of_three(commanders_with_pos)
+        local groups = {}
+        local ungrouped = {}
+        for i, data in ipairs(commanders_with_pos) do
+            ungrouped[i] = {commander = data.commander, pos = data.pos}
+        end
+        while #ungrouped >= 3 do
+            local anchor = ungrouped[1]
+            local nearest = {}
+            for i = 2, #ungrouped do
+                local dist = (anchor.pos - ungrouped[i].pos).Magnitude
+                table.insert(nearest, {idx = i, dist = dist})
+            end
+            table.sort(nearest, function(a,b) return a.dist < b.dist end)
+            local group = {anchor.commander, ungrouped[nearest[1].idx].commander, ungrouped[nearest[2].idx].commander}
+            table.insert(groups, group)
+            local to_remove = {1, nearest[1].idx, nearest[2].idx}
+            table.sort(to_remove, function(a,b) return a > b end)
+            for _, r in ipairs(to_remove) do
+                table.remove(ungrouped, r)
+            end
+        end
+        return groups
+    end
 
-                local current_commander = commander[idx]
-                local replicator = current_commander:FindFirstChild("TowerReplicator")
-                local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
-
-                if upgrade_level >= 4 and _G.SupportCaravan then
-                    remote_func:InvokeServer(
-                        "Troops",
-                        "Abilities",
-                        "Activate",
-                        { Troop = current_commander, Name = "Support Caravan", Data = {} }
-                    )
-                    task.wait(0.1)
-                end
-
-                local response = remote_func:InvokeServer(
+    local function run_group(group)
+        local idx = 1
+        while _G.AutoChain do
+            local current_commander = group[idx]
+            local replicator = current_commander:FindFirstChild("TowerReplicator")
+            local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
+            if upgrade_level >= 4 and _G.SupportCaravan then
+                remote_func:InvokeServer(
                     "Troops",
                     "Abilities",
                     "Activate",
-                    { Troop = current_commander, Name = "Call Of Arms", Data = {} }
+                    { Troop = current_commander, Name = "Support Caravan", Data = {} }
                 )
-
-                if response then
-                    idx = idx + 1
-
-                    local hotbar = player_gui.ReactUniversalHotbar.Frame
-                    local timescale = hotbar and hotbar:FindFirstChild("timescale")
-
-                    if timescale and timescale.Visible then
-                        if timescale:FindFirstChild("Lock") then
-                            task.wait(10.3)
-                        else
-                            task.wait(5.25)
-                        end
-                    else
+                task.wait(0.1)
+            end
+            local response = remote_func:InvokeServer(
+                "Troops",
+                "Abilities",
+                "Activate",
+                { Troop = current_commander, Name = "Call Of Arms", Data = {} }
+            )
+            if response then
+                idx = idx % #group + 1
+                local hotbar = player_gui.ReactUniversalHotbar.Frame
+                local timescale = hotbar and hotbar:FindFirstChild("timescale")
+                if timescale and timescale.Visible then
+                    if timescale:FindFirstChild("Lock") then
                         task.wait(10.3)
+                    else
+                        task.wait(5.25)
                     end
                 else
-                    task.wait(0.5)
+                    task.wait(10.3)
                 end
             else
-                task.wait(1)
+                task.wait(0.5)
             end
         end
+    end
 
+    local commanders_with_pos = get_commanders_with_pos()
+    local groups = form_groups_of_three(commanders_with_pos)
+    local active_groups = 0
+    for i = 1, math.min(2, #groups) do
+        active_groups = active_groups + 1
+        task.spawn(function()
+            run_group(groups[i])
+            active_groups = active_groups - 1
+            if active_groups == 0 then
+                auto_chain_running = false
+            end
+        end)
+    end
+    if active_groups == 0 then
         auto_chain_running = false
-    end)
+    end
 end
 
 local function start_auto_support()
