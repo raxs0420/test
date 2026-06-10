@@ -1600,7 +1600,7 @@ local function start_auto_chain()
             local replicator = current_commander:FindFirstChild("TowerReplicator")
             local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
             if upgrade_level >= 4 and _G.SupportCaravan then
-                RemoteFunction:InvokeServer(
+                remote_func:InvokeServer(
                     "Troops",
                     "Abilities",
                     "Activate",
@@ -1608,7 +1608,7 @@ local function start_auto_chain()
                 )
                 task.wait(0.1)
             end
-            local response = RemoteFunction:InvokeServer(
+            local response = remote_func:InvokeServer(
                 "Troops",
                 "Abilities",
                 "Activate",
@@ -1616,8 +1616,8 @@ local function start_auto_chain()
             )
             if response then
                 idx = idx % #group + 1
-                local hotbar = playerGui.ReactUniversalHotbar.Frame
-                local timescale = hotbar and hotbar:FindFirstChild("timescale")
+                local hotbar = player_gui:FindFirstChild("ReactUniversalHotbar")
+                local timescale = hotbar and hotbar:FindFirstChild("Frame") and hotbar.Frame:FindFirstChild("timescale")
                 if timescale and timescale.Visible then
                     if timescale:FindFirstChild("Lock") then
                         task.wait(10.3)
