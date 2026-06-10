@@ -791,7 +791,7 @@ end
 function TDS:WaitForMatchStatus()
     while true do
         local success, status = pcall(function()
-            local uiRoot = PlayerGui:FindFirstChild("ReactGameNewRewards")
+            local uiRoot = player_gui:FindFirstChild("ReactGameNewRewards")
             if not uiRoot then return nil end
             local mainFrame = uiRoot:FindFirstChild("Frame")
             if not mainFrame or not mainFrame.Visible then return nil end
