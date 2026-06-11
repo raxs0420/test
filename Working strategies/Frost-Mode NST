@@ -1,169 +1,141 @@
-_G.AutoSmartSkip = true
+_G.AutoPickups = true
 _G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoSmartSkip = true
+_G.AutoSupport = true
 _G.AutoDJ = true
-_G.PrivateCode = "534f0b086a025749bde1b7560862c84e"
-
+_G.AutoChain = true
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
-TDS:Loadout("Ranger", "Turret", "DJ Booth", "Crook Boss", "Electroshocker")
+TDS:Loadout("Ranger", "Turret", "Commander", "DJ Booth", "Militant")
 TDS:Mode("Frost")
-TDS:GameInfo("Honey Valley", {})
- 
- TDS:Ready()
- 
-TDS:Place("Electroshocker", 4.274596, -6.367913, 11.227084)
-TDS:Upgrade(1)
-TDS:Upgrade(1)
-TDS:Place("Electroshocker", 6.820831, -6.367913, 9.456706)
-TDS:Upgrade(2)
-TDS:Upgrade(2)
-TDS:Place("Electroshocker", 5.229614, -6.367913, 14.112535)
-TDS:Upgrade(3)
-TDS:Upgrade(3)
-TDS:Place("Electroshocker", 7.756357, -6.367913, 12.334065)
-TDS:Upgrade(4)
-TDS:Upgrade(4)
-TDS:Place("Electroshocker", 0.522757, -6.367913, 14.015482)
-TDS:Upgrade(5)
-TDS:Upgrade(5)
-TDS:Place("Electroshocker", -2.00942, -6.367913, 15.735548)
-TDS:Upgrade(6)
-TDS:Upgrade(6)
-TDS:Place("Electroshocker", -4.896468, -6.367913, 16.659052)
-TDS:Upgrade(7)
-TDS:Upgrade(7)
-TDS:Place("Electroshocker", 2.723845, -6.367913, 6.642992)
-TDS:Upgrade(8)
-TDS:Upgrade(8)
-TDS:Place("Electroshocker", 1.515686, -6.367913, 3.765596)
-TDS:Upgrade(9)
-TDS:Upgrade(9)
-TDS:Place("Electroshocker", 4.502551, -6.367913, 4.215443)
-TDS:Upgrade(10)
-TDS:Upgrade(10)
-TDS:Place("DJ Booth", -1.025823, -6.367913, 0.450724)
-TDS:Upgrade(11)
-TDS:SetOption(11, "Track", "Green")
-TDS:Upgrade(11)
-TDS:Upgrade(11)
-TDS:Place("Crook Boss", 2.975944, -6.367913, 0.919102)
-TDS:Upgrade(12)
-TDS:Upgrade(12)
-TDS:Place("Crook Boss", 5.952941, -6.367913, 1.519423)
-TDS:Upgrade(13)
-TDS:Upgrade(13)
-TDS:Place("Crook Boss", 2.138841, -6.367913, -2.070299)
-TDS:Upgrade(14)
-TDS:Upgrade(14)
-TDS:Place("Crook Boss", 8.723892, -6.367913, 0.251501)
-TDS:Upgrade(15)
-TDS:Upgrade(15)
-TDS:Place("Crook Boss", 6.114938, -6.367913, -1.48123)
-TDS:Upgrade(16)
-TDS:Upgrade(16)
-TDS:Upgrade(11)
-TDS:Upgrade(11)
-TDS:Upgrade(8)
-TDS:Upgrade(8)
-TDS:Upgrade(8)
-TDS:Upgrade(9)
-TDS:Upgrade(9)
-TDS:Upgrade(9)
-TDS:Upgrade(10)
-TDS:Upgrade(10)
-TDS:Upgrade(10)
-TDS:Upgrade(1)
-TDS:Upgrade(1)
-TDS:Upgrade(1)
-TDS:Upgrade(2)
-TDS:Upgrade(2)
-TDS:Upgrade(2)
-TDS:Upgrade(3)
-TDS:Upgrade(3)
-TDS:Upgrade(3)
-TDS:Upgrade(4)
-TDS:Upgrade(4)
-TDS:Upgrade(4)
-TDS:Upgrade(5)
-TDS:Upgrade(5)
-TDS:SetOption(11, "Track", "Red")
-TDS:Upgrade(5)
-TDS:Upgrade(6)
-TDS:Upgrade(6)
-TDS:Upgrade(6)
-TDS:Upgrade(7)
-TDS:SetOption(11, "Track", "Green")
-TDS:Upgrade(7)
-TDS:Upgrade(7)
-TDS:Upgrade(12)
-TDS:Upgrade(12)
-TDS:Upgrade(13)
-TDS:Upgrade(13)
-TDS:Upgrade(14)
-TDS:Upgrade(14)
-TDS:Upgrade(16)
-TDS:Upgrade(16)
-TDS:Upgrade(15)
-TDS:Upgrade(15)
-TDS:Place("Turret", 9.305684, -6.367913, -3.249834)
-TDS:Upgrade(17)
-TDS:Upgrade(17)
-TDS:SetOption(11, "Track", "Red")
-TDS:Upgrade(17)
-TDS:Place("Turret", -0.792608, -6.367913, -4.145023)
-TDS:Upgrade(18)
-TDS:Upgrade(18)
-TDS:Upgrade(18)
-TDS:Place("Turret", -4.666071, -6.367913, -2.786957)
-TDS:Upgrade(19)
-TDS:Upgrade(19)
-TDS:Upgrade(19)
-TDS:SetOption(11, "Track", "Green")
-TDS:Upgrade(17)
-TDS:Upgrade(17)
-TDS:Upgrade(18)
-TDS:Upgrade(18)
-TDS:Upgrade(19)
-TDS:Upgrade(19)
-TDS:SetOption(11, "Track", "Red")
-TDS:Place("Ranger", -5.217119, -1.744811, 9.88997)
-TDS:Upgrade(20)
-TDS:Upgrade(20)
-TDS:Place("Ranger", -8.272059, -1.744811, 9.876995)
-TDS:Upgrade(21)
-TDS:Upgrade(21)
-TDS:Place("Ranger", -9.349856, -1.744811, 7.071362)
-TDS:Upgrade(22)
-TDS:Upgrade(22)
-TDS:Place("Ranger", -5.036769, -1.744811, 6.731277)
-TDS:Upgrade(23)
-TDS:Upgrade(23)
-TDS:Place("Ranger", 13.282401, -0.955599, 8.058312)
-TDS:Upgrade(24)
-TDS:Upgrade(24)
-TDS:Place("Ranger", 14.015162, -0.955599, 11.000153)
-TDS:Upgrade(25)
-TDS:Upgrade(25)
-TDS:Place("Ranger", 16.226597, -0.955599, 7.084064)
-TDS:Upgrade(26)
-TDS:Upgrade(26)
-TDS:Place("Ranger", 16.973757, -0.955599, 10.297499)
-TDS:Upgrade(27)
-TDS:Upgrade(27)
-TDS:Upgrade(23)
-TDS:Upgrade(23)
-TDS:Upgrade(22)
-TDS:Upgrade(22)
-TDS:Upgrade(20)
-TDS:Upgrade(20)
-TDS:Upgrade(21)
-TDS:Upgrade(21)
-TDS:Upgrade(24)
-TDS:Upgrade(24)
-TDS:Upgrade(26)
-TDS:Upgrade(26)
-TDS:Upgrade(25)
-TDS:Upgrade(25)
-TDS:Upgrade(27)
-TDS:Upgrade(27)
+TDS:GameInfo("Summer Castle", {
+    Quarantine = true,
+    Committed = true,
+    Glass = true
+    })
+
+local positions = {
+    {13.503290, 60, 24.204869},
+    {10.774687, 60, 22.436772},
+    {7.741606, 60, 22.276571},
+    {9.446415, 60, 19.530021},
+    {6.332923, 60, 19.444619},
+}
+
+for repeatCount = 1, 3 do
+    for _, pos in ipairs(positions) do
+        local idx = TDS:Place("Militant", pos[1], pos[2], pos[3])
+        TDS:Upgrade(idx)
+    end
+end
+
+for i = 1, 15 do
+    TDS:Upgrade(i)
+end
+
+
+TDS:Place("DJ Booth", 10.248911, 60, 13.500265)
+for i = 1, 3 do
+    TDS:Upgrade(16)
+end
+
+TDS:SetOption(16, "Track", "Green")
+
+for i = 1, 6 do
+    TDS:Upgrade(i)
+end
+
+TDS:Place("Commander", 10.248911, 60, 13.500265)
+TDS:Place("Commander", 10.248911, 60, 13.500265)
+TDS:Place("Commander", 10.248911, 60, 13.500265)
+for i = 17, 19 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+TDS:Place("Ranger", 10.927726, 60, 7.637120)
+TDS:Place("Ranger", 10.927726, 60, 7.637120)
+TDS:Place("Ranger", 10.927726, 60, 7.637120)
+TDS:Place("Ranger", 10.927726, 60, 7.637120)
+for i = 20, 23 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+for i = 1, 6 do
+    TDS:SetTarget(i, "Last")
+end
+
+TDS:Place("Turret", 5.720808, 60, 13.945748)
+TDS:Place("Turret", 5.720808, 60, 13.945748)
+TDS:Place("Turret", 5.720808, 60, 13.945748)
+for i = 24, 26 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+for i = 1, 2 do
+    TDS:Upgrade(16)
+end
+
+
+TDS:Place("Ranger", 10.927726, 60, 7.637120)
+TDS:Place("Ranger", 10.927726, 60, 7.637120)
+TDS:Place("Ranger", 10.927726, 60, 7.637120)
+TDS:Place("Ranger", 10.927726, 60, 7.637120)
+for i = 27, 30 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+for i = 1, 15 do
+    TDS:Upgrade(i)
+end
+
+for i = 7, 15 do
+    TDS:Upgrade(i)
+end
+
+for i = 17, 19 do
+    TDS:Upgrade(i)
+end
+
+TDS:SetOption(16, "Track", "Red")
+
+for i = 20, 23 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+for i = 27, 30 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+for i = 24, 26 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+for i = 17, 19 do
+    TDS:Upgrade(i)
+end
+
+TDS:Place("Commander", 10.248911, 60, 13.500265)
+TDS:Place("Commander", 10.248911, 60, 13.500265)
+TDS:Place("Commander", 10.248911, 60, 13.500265)
+for i = 31, 33 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+for id = 34, 50 do
+    local idx = TDS:Place("Militant", 7.077420, 60, 10.705230)
+    for _ = 1, 4 do
+        TDS:Upgrade(idx)
+    end
+end
+
+
+
