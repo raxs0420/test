@@ -648,28 +648,8 @@ function TDS:RunStrategy(config)
         error("TDS:RunStrategy - mapPriority is required")
     end
     self:Mode(config.mode)
-    local maxAttempts = config.maxAttempts or 1
-    local selectedMap = nil
-    for attempt = 1, maxAttempts do
-        local availableMaps = self:GetAvailableMaps()
-        for _, preferred in ipairs(config.mapPriority) do
-            if table.find(availableMaps, preferred) then
-                selectedMap = preferred
-                break
-            end
-        end
-        if selectedMap then
-            break
-        end
-        if attempt < maxAttempts then
-            self:VetoMaps()
-            task.wait(1)
-        end
-    end
-    if not selectedMap then
-        self:TeleportToLobby()
-        return false
-    end
+    local selectedMap = self:SelectMapWithPriority(config.mapPriority, config.maxAttempts)
+    if not selectedMap then return false end
     local strategy = nil
     if config.strategies then
         strategy = config.strategies[selectedMap]
