@@ -611,6 +611,9 @@ function TDS:IsMapAvailable(mapName)
 end
 
 function TDS:SelectMapWithPriority(mapPriorityList, maxAttempts)
+    if game:GetService("MarketplaceService"):UserOwnsGamePassAsync(game.Players.LocalPlayer.UserId, 10518590) then
+        return mapPriorityList[1]
+    end
     maxAttempts = maxAttempts or 2
     repeat task.wait() until game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ReactGameIntermission")
     task.wait(1)
