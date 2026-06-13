@@ -1054,8 +1054,6 @@ function TDS:Mode(difficulty)
                     payload = { mode = "hardcore", difficulty = "Hard", count = 1 }
                 elseif mode then
                     payload = { mode = mode, count = 1 }
-                elseif difficulty == "Easy" or difficulty == "Hard" then
-                    payload = { difficulty = difficulty, mode = "ducky2025", count = 1 }
                 else
                     payload = { difficulty = difficulty, mode = "survival", count = 1 }
                 end
