@@ -303,10 +303,62 @@ local function layby()
     TDS:Upgrade(2)
 end
 
+local function winterstronghold()
+    TDS:Loadout("Shotgunner", "Soldier")
+    TDS:Ready()
+    TDS:Place("Soldier", 19.042030, 60, -7.962288)
+    TDS:UnlockTimeScale()  
+    TDS:TimeScale(2) 
+    TDS:Place("Soldier", -17.690160, 60, 35.030288)
+    TDS:Upgrade(2)
+    TDS:Upgrade(1)
+    TDS:Upgrade(1)
+    TDS:Upgrade(2)
+    TDS:Place("Shotgunner", -34.597603, 60, 30.748932)
+    TDS:Place("Shotgunner", 34.960527, 60, -4.877532)
+    TDS:Place("Shotgunner", 29.235214, 60, -3.668399)
+    TDS:Place("Shotgunner", -29.182194, 60, 30.646047)
+    TDS:Place("Shotgunner", -34.736552, 60, 32.861148)
+    TDS:Place("Shotgunner", 34.598464, 60, -7.046683)
+    TDS:Place("Shotgunner", 29.032654, 60, -5.912941)
+    TDS:Place("Shotgunner", -29.485935, 60, 32.732120)
+    TDS:Upgrade(3)
+    TDS:Upgrade(4)
+    TDS:Upgrade(8)
+    TDS:Upgrade(7)
+    TDS:Upgrade(6)
+    TDS:Upgrade(5)
+    TDS:Upgrade(9)
+    TDS:Upgrade(10)
+    TDS:Upgrade(3)
+    TDS:Upgrade(4)
+    TDS:Upgrade(8)
+    TDS:Upgrade(7)
+    TDS:Upgrade(6)
+    TDS:Upgrade(5)
+    TDS:Upgrade(9)
+    TDS:Upgrade(10)
+    TDS:Upgrade(2)
+    TDS:Upgrade(1)
+    TDS:Upgrade(5)
+    TDS:Upgrade(6)
+    TDS:Upgrade(10)
+    TDS:Upgrade(9)
+    TDS:Upgrade(4)
+    TDS:Upgrade(3)
+    TDS:Upgrade(7)
+    TDS:Upgrade(8)
+    TDS:Place("Shotgunner", 28.919105, 60, -8.224837)
+    TDS:Upgrade(11)
+    TDS:Upgrade(11)
+    TDS:Upgrade(11)
+    TDS:Upgrade(11)
+end
+
 task.wait(5)
 TDS:RunStrategy({
     mode = "Easy",
-    mapPriority = {"Gilded Path", "Lay By", "Dead Ahead", "Mason Arch", "Black Spot Exchange", "Space City"},
+    mapPriority = {"Gilded Path", "Lay By", "Dead Ahead", "Mason Arch", "Black Spot Exchange", "Winter Stronghold", "Space City"},
     maxAttempts = 2,
     modifiers = {
         Quarantine = true,
@@ -320,9 +372,8 @@ TDS:RunStrategy({
         ["Space City"] = spacecityStrategy,
         ["Mason Arch"] = masonarch,
         ["Dead Ahead"] = deadahead,
-        ["Lay By"] = layby
+        ["Lay By"] = layby,
+        ["Winter Stronghold"] = winterstronghold
     },
 })
-
-
 
