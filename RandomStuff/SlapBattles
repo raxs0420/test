@@ -1,5 +1,6 @@
 local player = game.Players.LocalPlayer
 local teleportService = game:GetService("TeleportService")
+local httpService = game:GetService("HttpService")
 
 local folder = workspace:FindFirstChild("Arena")
 if folder then folder = folder:FindFirstChild("island5") end
@@ -20,7 +21,7 @@ local function teleportToModel(model)
     root.CFrame = CFrame.new(pos)
 end
 
-task.wait(5)
+task.wait(3)
 
 local teleportPart = workspace:FindFirstChild("Lobby")
 if teleportPart then teleportPart = teleportPart:FindFirstChild("Teleport1") end
@@ -34,10 +35,10 @@ if teleportPart then
     end
 end
 
-task.wait(2)
+task.wait(0.5)
 
 local cyclesDone = 0
-while cyclesDone < 2 do
+while cyclesDone < 1 do
     while not player.Character do task.wait(0.1) end
     local model = models[index]
     if model then teleportToModel(model) end
@@ -46,9 +47,37 @@ while cyclesDone < 2 do
         index = 1
         cyclesDone = cyclesDone + 1
     end
-    task.wait(0.2)
+    task.wait(0.1)
 end
 
-local options = Instance.new("TeleportOptions")
-options:SetTeleportData({})
-teleportService:Teleport(6403373529, player, options)
+local PlaceId = game.PlaceId
+local CurrentJobId = game.JobId
+
+local function getServers(cursor)
+    local url = "https://games.roblox.com/v1/games/" .. PlaceId ..
+        "/servers/Public?sortOrder=Asc&limit=100"
+    if cursor then
+        url = url .. "&cursor=" .. cursor
+    end
+    return httpService:JSONDecode(game:HttpGet(url))
+end
+
+local cursor = nil
+local found = false
+
+for i = 1, 5 do
+    local data = getServers(cursor)
+    if not data or not data.data then break end
+
+    for _, server in ipairs(data.data) do
+        if server.id ~= CurrentJobId and server.playing >= 6 and server.playing <= 9 then
+            teleportService:TeleportToPlaceInstance(PlaceId, server.id, player)
+            found = true
+            break
+        end
+    end
+
+    if found then break end
+    cursor = data.nextPageCursor
+    if not cursor then break end
+end
