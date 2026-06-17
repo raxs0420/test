@@ -1,0 +1,54 @@
+local player = game.Players.LocalPlayer
+local teleportService = game:GetService("TeleportService")
+
+local folder = workspace:FindFirstChild("Arena")
+if folder then folder = folder:FindFirstChild("island5") end
+if folder then folder = folder:FindFirstChild("Slapples") end
+if not folder then return end
+
+local models = folder:GetChildren()
+if #models == 0 then return end
+
+local index = 1
+
+local function teleportToModel(model)
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local pos = model:GetPivot().Position + Vector3.new(0, 2, 0)
+    root.CFrame = CFrame.new(pos)
+end
+
+task.wait(5)
+
+local teleportPart = workspace:FindFirstChild("Lobby")
+if teleportPart then teleportPart = teleportPart:FindFirstChild("Teleport1") end
+if teleportPart then
+    local char = player.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = CFrame.new(teleportPart.Position + Vector3.new(0, 2, 0))
+        end
+    end
+end
+
+task.wait(2)
+
+local cyclesDone = 0
+while cyclesDone < 2 do
+    while not player.Character do task.wait(0.1) end
+    local model = models[index]
+    if model then teleportToModel(model) end
+    index = index + 1
+    if index > #models then
+        index = 1
+        cyclesDone = cyclesDone + 1
+    end
+    task.wait(0.2)
+end
+
+local options = Instance.new("TeleportOptions")
+options:SetTeleportData({})
+teleportService:Teleport(6403373529, player, options)
