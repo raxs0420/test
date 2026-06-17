@@ -21,7 +21,7 @@ local function teleportToModel(model)
     root.CFrame = CFrame.new(pos)
 end
 
-task.wait(3)
+task.wait(0.5)
 
 local teleportPart = workspace:FindFirstChild("Lobby")
 if teleportPart then teleportPart = teleportPart:FindFirstChild("Teleport1") end
@@ -35,7 +35,7 @@ if teleportPart then
     end
 end
 
-task.wait(0.5)
+task.wait(0.1)
 
 local cyclesDone = 0
 while cyclesDone < 1 do
