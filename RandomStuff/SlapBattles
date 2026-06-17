@@ -62,22 +62,37 @@ local function getServers(cursor)
     return httpService:JSONDecode(game:HttpGet(url))
 end
 
-local cursor = nil
-local found = false
+local maxRetries = 5
+local success = false
 
-for i = 1, 5 do
-    local data = getServers(cursor)
-    if not data or not data.data then break end
+for retry = 1, maxRetries do
+    local cursor = nil
+    local found = false
 
-    for _, server in ipairs(data.data) do
-        if server.id ~= CurrentJobId and server.playing >= 6 and server.playing <= 9 then
-            teleportService:TeleportToPlaceInstance(PlaceId, server.id, player)
-            found = true
-            break
+    for i = 1, 5 do
+        local data = getServers(cursor)
+        if not data or not data.data then break end
+
+        for _, server in ipairs(data.data) do
+            if server.id ~= CurrentJobId and server.playing >= 6 and server.playing <= 9 then
+                teleportService:TeleportToPlaceInstance(PlaceId, server.id, player)
+                found = true
+                break
+            end
         end
+
+        if found then break end
+        cursor = data.nextPageCursor
+        if not cursor then break end
     end
 
-    if found then break end
-    cursor = data.nextPageCursor
-    if not cursor then break end
+    if found then
+        task.wait(3)
+        if game.JobId ~= CurrentJobId then
+            success = true
+            break
+        end
+    else
+        task.wait(0.1)
+    end
 end
