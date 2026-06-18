@@ -62,16 +62,15 @@ local function getServers(cursor)
     return httpService:JSONDecode(game:HttpGet(url))
 end
 
-local maxRetries = 5
-local success = false
-
-for retry = 1, maxRetries do
+while true do
     local cursor = nil
     local found = false
 
-    for i = 1, 5 do
-        local data = getServers(cursor)
-        if not data or not data.data then break end
+    for i = 1, 10 do
+        local success, data = pcall(getServers, cursor)
+        if not success or not data or not data.data then
+            break
+        end
 
         for _, server in ipairs(data.data) do
             if server.id ~= CurrentJobId and server.playing >= 6 and server.playing <= 9 then
@@ -87,12 +86,8 @@ for retry = 1, maxRetries do
     end
 
     if found then
-        task.wait(3)
-        if game.JobId ~= CurrentJobId then
-            success = true
-            break
-        end
-    else
-        task.wait(0.1)
+        break
     end
+
+    task.wait(5)
 end
