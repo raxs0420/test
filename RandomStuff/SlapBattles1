@@ -17,7 +17,10 @@ if #models == 0 then return end
 
 local index = 1
 
-local sessionData = { sessionStart = 0, sessionGain = 0, sessionTime = 0 }
+local sessionData = { sessionStart = 0, sessionGain = 0, sessionTime = 0, sessionStartTime = 0 }
+local beforeSlaps = 0
+local afterSlaps = 0
+local runGain = 0
 
 local function loadSession()
     local success, data = pcall(readfile, SESSION_FILE)
@@ -27,11 +30,14 @@ local function loadSession()
             local currentTime = os.time()
             if currentTime - decoded.sessionTime < SESSION_TIMEOUT then
                 sessionData = decoded
+                if not sessionData.sessionStartTime then
+                    sessionData.sessionStartTime = sessionData.sessionTime
+                end
                 return
             end
         end
     end
-    sessionData = { sessionStart = 0, sessionGain = 0, sessionTime = 0 }
+    sessionData = { sessionStart = 0, sessionGain = 0, sessionTime = 0, sessionStartTime = 0 }
 end
 
 local function saveSession()
@@ -49,7 +55,7 @@ screenGui.IgnoreGuiInset = true
 screenGui.Parent = playerGui
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 240, 0, 170)
+mainFrame.Size = UDim2.new(0, 260, 0, 220)
 mainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
 mainFrame.BorderSizePixel = 0
@@ -122,6 +128,8 @@ local afterLabel = createRow("After", "After: 0", 2)
 local gainedLabel = createRow("Gained", "Gained: +0", 3)
 local sessionStartLabel = createRow("SessionStart", "Session Start: 0", 4)
 local sessionGainedLabel = createRow("SessionGained", "Total Gained: +0", 5)
+local timeLabel = createRow("Time", "Time: 0s", 6)
+local rateLabel = createRow("Rate", "Rate: 0/h", 7)
 
 local dragging = false
 local dragStart = nil
@@ -174,14 +182,34 @@ local function getSlaps()
     return slaps and slaps.Value or 0
 end
 
-local function updateUI(before, after, gain, sessionStartVal, sessionGainVal)
-    beforeLabel.Text = string.format("Before: %d", before)
-    afterLabel.Text = string.format("After: %d", after)
-    gainedLabel.Text = string.format("Gained: +%d", gain)
-    sessionStartLabel.Text = string.format("Session Start: %d", sessionStartVal)
-    sessionGainedLabel.Text = string.format("Total Gained: +%d", sessionGainVal)
+local function formatTime(seconds)
+    local m = math.floor(seconds / 60)
+    local s = math.floor(seconds % 60)
+    if m > 0 then
+        return string.format("%dm %ds", m, s)
+    else
+        return string.format("%ds", s)
+    end
+end
 
-    if gain > 0 then
+local function updateUI()
+    beforeLabel.Text = string.format("Before: %d", beforeSlaps)
+    afterLabel.Text = string.format("After: %d", afterSlaps)
+    gainedLabel.Text = string.format("Gained: +%d", runGain)
+    sessionStartLabel.Text = string.format("Session Start: %d", sessionData.sessionStart)
+    sessionGainedLabel.Text = string.format("Total Gained: +%d", sessionData.sessionGain)
+
+    local elapsed = os.time() - sessionData.sessionStartTime
+    if elapsed < 0 then elapsed = 0 end
+    timeLabel.Text = "Time: " .. formatTime(elapsed)
+
+    local rate = 0
+    if elapsed > 0 then
+        rate = sessionData.sessionGain / (elapsed / 3600)
+    end
+    rateLabel.Text = string.format("Rate: %.1f/h", rate)
+
+    if runGain > 0 then
         gainedLabel.TextColor3 = Color3.fromRGB(46, 204, 113)
         local tween = game:GetService("TweenService"):Create(uiStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = Color3.fromRGB(46, 204, 113)})
         tween:Play()
@@ -190,6 +218,13 @@ local function updateUI(before, after, gain, sessionStartVal, sessionGainVal)
         end)
     end
 end
+
+task.spawn(function()
+    while screenGui and screenGui.Parent do
+        updateUI()
+        task.wait(1)
+    end
+end)
 
 task.wait(0.1)
 
@@ -207,12 +242,13 @@ end
 
 task.wait(0.05)
 
-local beforeSlaps = getSlaps()
+beforeSlaps = getSlaps()
 
 if sessionData.sessionStart == 0 then
     sessionData.sessionStart = beforeSlaps
     sessionData.sessionGain = 0
     sessionData.sessionTime = os.time()
+    sessionData.sessionStartTime = os.time()
     saveSession()
 end
 
@@ -229,14 +265,14 @@ while cyclesDone < 3 do
     task.wait(0.05)
 end
 
-local afterSlaps = getSlaps()
-local runGain = afterSlaps - beforeSlaps
+afterSlaps = getSlaps()
+runGain = afterSlaps - beforeSlaps
 
 sessionData.sessionGain = sessionData.sessionGain + runGain
 sessionData.sessionTime = os.time()
 saveSession()
 
-updateUI(beforeSlaps, afterSlaps, runGain, sessionData.sessionStart, sessionData.sessionGain)
+updateUI()
 
 local PlaceId = game.PlaceId
 local CurrentJobId = game.JobId
