@@ -1,0 +1,293 @@
+local player = game.Players.LocalPlayer
+local teleportService = game:GetService("TeleportService")
+local httpService = game:GetService("HttpService")
+local userInputService = game:GetService("UserInputService")
+
+local SESSION_TIMEOUT = 300
+local SESSION_FILE = "SlapSession.json"
+local STUCK_TIMEOUT = 240
+
+local folder = workspace:FindFirstChild("Arena")
+if folder then folder = folder:FindFirstChild("island5") end
+if folder then folder = folder:FindFirstChild("Slapples") end
+if not folder then return end
+
+local models = folder:GetChildren()
+if #models == 0 then return end
+
+local index = 1
+
+local sessionData = { sessionStart = 0, sessionGain = 0, sessionTime = 0 }
+
+local function loadSession()
+    local success, data = pcall(readfile, SESSION_FILE)
+    if success and data then
+        local decoded = httpService:JSONDecode(data)
+        if decoded and decoded.sessionStart and decoded.sessionTime then
+            local currentTime = os.time()
+            if currentTime - decoded.sessionTime < SESSION_TIMEOUT then
+                sessionData = decoded
+                return
+            end
+        end
+    end
+    sessionData = { sessionStart = 0, sessionGain = 0, sessionTime = 0 }
+end
+
+local function saveSession()
+    local encoded = httpService:JSONEncode(sessionData)
+    pcall(writefile, SESSION_FILE, encoded)
+end
+
+loadSession()
+
+local playerGui = player:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "SlapTracker"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 240, 0, 170)
+mainFrame.Position = UDim2.new(0.05, 0, 0.3, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.ClipsDescendants = false
+mainFrame.Parent = screenGui
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.CornerRadius = UDim.new(0, 10)
+uiCorner.Parent = mainFrame
+
+local uiStroke = Instance.new("UIStroke")
+uiStroke.Color = Color3.fromRGB(55, 55, 75)
+uiStroke.Thickness = 2
+uiStroke.Parent = mainFrame
+
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 30)
+topBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+topBar.BorderSizePixel = 0
+topBar.Parent = mainFrame
+
+local topGradient = Instance.new("UIGradient")
+topGradient.Color = ColorSequence.new(Color3.fromRGB(74, 144, 226), Color3.fromRGB(142, 68, 173))
+topGradient.Parent = topBar
+
+local topCorner = Instance.new("UICorner")
+topCorner.CornerRadius = UDim.new(0, 10)
+topCorner.Parent = topBar
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, -10, 1, 0)
+titleLabel.Position = UDim2.new(0, 10, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🔄 SLAP TRACKER"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 13
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = topBar
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 2)
+listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listLayout.Parent = mainFrame
+
+local uiPadding = Instance.new("UIPadding")
+uiPadding.PaddingTop = UDim.new(0, 10)
+uiPadding.PaddingLeft = UDim.new(0, 12)
+uiPadding.PaddingRight = UDim.new(0, 12)
+uiPadding.Parent = mainFrame
+
+local function createRow(name, defaultText, layoutOrder)
+    local row = Instance.new("TextLabel")
+    row.Name = name
+    row.Size = UDim2.new(1, 0, 0, 22)
+    row.BackgroundTransparency = 1
+    row.Text = defaultText
+    row.TextColor3 = Color3.fromRGB(220, 220, 230)
+    row.Font = Enum.Font.GothamMedium
+    row.TextSize = 13
+    row.TextXAlignment = Enum.TextXAlignment.Left
+    row.RichText = true
+    row.LayoutOrder = layoutOrder
+    row.Parent = mainFrame
+    return row
+end
+
+local beforeLabel = createRow("Before", "Before: 0", 1)
+local afterLabel = createRow("After", "After: 0", 2)
+local gainedLabel = createRow("Gained", "Gained: +0", 3)
+local sessionStartLabel = createRow("SessionStart", "Session Start: 0", 4)
+local sessionGainedLabel = createRow("SessionGained", "Total Gained: +0", 5)
+
+local dragging = false
+local dragStart = nil
+local startPos = nil
+local dragInput = nil
+
+local function updatePosition(input)
+    local delta = input.Position - dragStart
+    mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+topBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+topBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+userInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        updatePosition(input)
+    end
+end)
+
+local function teleportToModel(model)
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    local pos = model:GetPivot().Position + Vector3.new(0, 2, 0)
+    root.CFrame = CFrame.new(pos)
+end
+
+local function getSlaps()
+    local stats = player:FindFirstChild("leaderstats")
+    if not stats then return 0 end
+    local slaps = stats:FindFirstChild("Slaps")
+    return slaps and slaps.Value or 0
+end
+
+local function updateUI(before, after, gain, sessionStartVal, sessionGainVal)
+    beforeLabel.Text = string.format("Before: %d", before)
+    afterLabel.Text = string.format("After: %d", after)
+    gainedLabel.Text = string.format("Gained: +%d", gain)
+    sessionStartLabel.Text = string.format("Session Start: %d", sessionStartVal)
+    sessionGainedLabel.Text = string.format("Total Gained: +%d", sessionGainVal)
+
+    if gain > 0 then
+        gainedLabel.TextColor3 = Color3.fromRGB(46, 204, 113)
+        local tween = game:GetService("TweenService"):Create(uiStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = Color3.fromRGB(46, 204, 113)})
+        tween:Play()
+        task.delay(0.8, function()
+            game:GetService("TweenService"):Create(uiStroke, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Color = Color3.fromRGB(55, 55, 75)}):Play()
+        end)
+    end
+end
+
+task.wait(0.1)
+
+local teleportPart = workspace:FindFirstChild("Lobby")
+if teleportPart then teleportPart = teleportPart:FindFirstChild("Teleport1") end
+if teleportPart then
+    local char = player.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            root.CFrame = CFrame.new(teleportPart.Position + Vector3.new(0, 2, 0))
+        end
+    end
+end
+
+task.wait(0.05)
+
+local beforeSlaps = getSlaps()
+
+if sessionData.sessionStart == 0 then
+    sessionData.sessionStart = beforeSlaps
+    sessionData.sessionGain = 0
+    sessionData.sessionTime = os.time()
+    saveSession()
+end
+
+local cyclesDone = 0
+while cyclesDone < 3 do
+    while not player.Character do task.wait(0.05) end
+    local model = models[index]
+    if model then teleportToModel(model) end
+    index = index + 1
+    if index > #models then
+        index = 1
+        cyclesDone = cyclesDone + 1
+    end
+    task.wait(0.05)
+end
+
+local afterSlaps = getSlaps()
+local runGain = afterSlaps - beforeSlaps
+
+sessionData.sessionGain = sessionData.sessionGain + runGain
+sessionData.sessionTime = os.time()
+saveSession()
+
+updateUI(beforeSlaps, afterSlaps, runGain, sessionData.sessionStart, sessionData.sessionGain)
+
+local PlaceId = game.PlaceId
+local CurrentJobId = game.JobId
+
+local function getServers(cursor)
+    local url = "https://games.roblox.com/v1/games/" .. PlaceId ..
+        "/servers/Public?sortOrder=Asc&limit=100"
+    if cursor then
+        url = url .. "&cursor=" .. cursor
+    end
+    return httpService:JSONDecode(game:HttpGet(url))
+end
+
+local searchStartTime = os.time()
+local stuck = false
+
+while true do
+    local cursor = nil
+    local found = false
+
+    for i = 1, 10 do
+        local success, data = pcall(getServers, cursor)
+        if not success or not data or not data.data then
+            break
+        end
+
+        for _, server in ipairs(data.data) do
+            if server.id ~= CurrentJobId and server.playing >= 9 and server.playing <= 14 then
+                teleportService:TeleportToPlaceInstance(PlaceId, server.id, player)
+                found = true
+                break
+            end
+        end
+
+        if found then break end
+        cursor = data.nextPageCursor
+        if not cursor then break end
+    end
+
+    if found then
+        break
+    end
+
+    if os.time() - searchStartTime >= STUCK_TIMEOUT then
+        stuck = true
+        break
+    end
+
+    task.wait(5)
+end
+
+if stuck then
+    teleportService:Teleport(PlaceId, player)
+end
