@@ -415,32 +415,28 @@ local isMobile = UIS.TouchEnabled
 
 local function getWorldPositionPrecise(screenPosition)
     local ray = Camera:ViewportPointToRay(screenPosition.X, screenPosition.Y)
-
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     raycastParams.FilterDescendantsInstances = {player.Character, Camera}
     raycastParams.IgnoreWater = true
 
     local raycastResult = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
-
     if raycastResult then
         local hitPoint = raycastResult.Position
-        return hitPoint.X, hitPoint.Y + 5, hitPoint.Z
+        return hitPoint.X, hitPoint.Y + 2, hitPoint.Z
     end
 
     local directions = {
         ray.Direction,
-        Vector3.new(ray.Direction.X, ray.Direction.Y - 0.05, ray.Direction.Z),
-        Vector3.new(ray.Direction.X, ray.Direction.Y + 0.05, ray.Direction.Z)
+        Vector3.new(ray.Direction.X, ray.Direction.Y - 0.1, ray.Direction.Z),
+        Vector3.new(ray.Direction.X, ray.Direction.Y + 0.1, ray.Direction.Z)
     }
-
     for _, dir in ipairs(directions) do
         local fallbackResult = Workspace:Raycast(ray.Origin, dir * 1000, raycastParams)
         if fallbackResult then
-            return fallbackResult.Position.X, fallbackResult.Position.Y + 5, fallbackResult.Position.Z
+            return fallbackResult.Position.X, fallbackResult.Position.Y + 2, fallbackResult.Position.Z
         end
     end
-
     return nil, nil, nil
 end
 
@@ -448,16 +444,13 @@ local function placeTowerAtPosition(towerName, x, y, z)
     if not towerName or not x or not z then 
         return false, "Invalid parameters"
     end
-
     local placeY = (y or 80) + 5
-
     local success, result = pcall(function()
         return RemoteFunction:InvokeServer("Troops", "Place", {
             Rotation = CFrame.new(),
             Position = Vector3.new(x, placeY, z)
         }, towerName)
     end)
-
     if success then
         return true, result
     else
@@ -618,14 +611,22 @@ local function do_upgrade_tower(t_obj)
             Path = 1
         })
     end)
-    return ok and check_res_ok(res)
+    if ok and check_res_ok(res) then
+        refreshManagerUI()
+        return true
+    end
+    return false
 end
 
 local function do_sell_tower(t_obj)
     local ok, res = pcall(function()
         return RemoteFunction:InvokeServer("Troops", "Sell", { Troop = t_obj })
     end)
-    return ok and check_res_ok(res)
+    if ok and check_res_ok(res) then
+        refreshManagerUI()
+        return true
+    end
+    return false
 end
 
 local function do_set_target(t_obj, targetType)
@@ -636,6 +637,15 @@ local function do_set_target(t_obj, targetType)
         })
     end)
     return ok and check_res_ok(res)
+end
+
+local function refreshManagerUI()
+    if contentFrames["MANAGER"] and contentFrames["MANAGER"].Visible then
+        local scrollFrame = contentFrames["MANAGER"]:FindFirstChildOfClass("ScrollingFrame")
+        if scrollFrame then
+            updateTowerButtons(scrollFrame)
+        end
+    end
 end
 
 local function clearTowerSelection()
@@ -1019,70 +1029,78 @@ local function createSwitcherTab()
         Library.Colors.BackgroundDark
     )
 
-    local allTowers = {
-        "Farm", "DJ Booth", "Commander", "Gatling Gun", "Turret", "Cowboy", "Militant", "Freezer", "Assassin", "Shotgunner", 
-        "Pyromancer", "Ace Pilot", "Slime Trooper", "Medic", "Scout", "Rocketeer", "Trapper", "Military Base", "Crook Boss", "Electroshocker", 
-        "Paintballer", "Warden", "Soldier", "Sniper", "Minigunner", "Ranger", "Pursuit", "Demoman", "Hunter", "Mortar", 
-        "Mercenary Base", "Brawler", "Necromancer", "Accelerator", "Engineer", "Hacker", "Tesla", "Gladiator", "Commando", "Slasher", 
-        "Frost Blaster", "Archer", "Swarmer", "Toxic Gunner", "Sledger", "Executioner", "Elf Camp", "Jester", "Cryomancer", 
-        "Hallow Punk", "Biologist", "Harvester", "Snowballer", "Elementalist", "Firework Technician", "Warlock", "Spotlight Tech", "War Machine", "Saboteur", "EvolvedJuggernaut", "Mecha Base"
-    }
-
-    local function populateTowers(searchText)
-        for _, child in ipairs(towerListFrame:GetChildren()) do
-            if child:IsA("TextButton") then
-                child:Destroy()
-            end
+    local function getAllTowerNames()
+    local towerNames = {}
+    local content = ReplicatedStorage:FindFirstChild("Content")
+    if not content then return towerNames end
+    local towersFolder = content:FindFirstChild("Towers") or content:FindFirstChild("Tower")
+    if not towersFolder then return towerNames end
+    for _, child in ipairs(towersFolder:GetChildren()) do
+        local name = child.Name
+        if name and name ~= "" then
+            table.insert(towerNames, name)
         end
-
-        local filtered = {}
-        if searchText and searchText ~= "" then
-            searchText = searchText:lower()
-            for _, tower in ipairs(allTowers) do
-                if tower:lower():find(searchText) then
-                    table.insert(filtered, tower)
-                end
-            end
-        else
-            filtered = allTowers
-        end
-
-        for i, towerName in ipairs(filtered) do
-            local towerBtn = Instance.new("TextButton")
-            towerBtn.Size = UDim2.new(1, -Library:ScaleX(1), 0, Library:ScaleY(4))
-            towerBtn.Position = UDim2.new(0, Library:ScaleX(0.5), 0, (i-1) * Library:ScaleY(4.5))
-
-            if i % 2 == 0 then
-                towerBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
-            else
-                towerBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-            end
-
-            towerBtn.Text = towerName
-            towerBtn.TextColor3 = Library.Colors.Text
-            towerBtn.TextSize = Library:ScaleY(1.2)
-            towerBtn.Font = Library.Fonts.Normal
-            towerBtn.Parent = towerListFrame
-            towerBtn.AutoButtonColor = false
-
-            Library:AddCorner(towerBtn, 3)
-            Library:AddStroke(towerBtn, 1, Library.Colors.Border)
-
-            towerBtn.MouseButton1Click:Connect(function()
-                if lastSelectedSlot then
-                    local slotNum = lastSelectedSlot
-                    slotFilled[slotNum] = true
-                    slotNames[slotNum] = towerName
-                    slotButtons[slotNum].BackgroundColor3 = Library.Colors.Success
-                    slotButtons[slotNum].Text = towerName
-                    slotButtons[slotNum].TextColor3 = Library.Colors.Text
-                    slotButtons[lastSelectedSlot].BackgroundColor3 = Color3.fromRGB(0, 100, 0)
-                end
-            end)
-        end
-
-        towerListFrame.CanvasSize = UDim2.new(0, 0, 0, #filtered * Library:ScaleY(4.5))
     end
+    table.sort(towerNames)
+    return towerNames
+end
+
+local function populateTowers(searchText)
+    for _, child in ipairs(towerListFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+
+    local allTowers = getAllTowerNames()
+    local filtered = {}
+    if searchText and searchText ~= "" then
+        searchText = searchText:lower()
+        for _, tower in ipairs(allTowers) do
+            if tower:lower():find(searchText) then
+                table.insert(filtered, tower)
+            end
+        end
+    else
+        filtered = allTowers
+    end
+
+    for i, towerName in ipairs(filtered) do
+        local towerBtn = Instance.new("TextButton")
+        towerBtn.Size = UDim2.new(1, -Library:ScaleX(1), 0, Library:ScaleY(4))
+        towerBtn.Position = UDim2.new(0, Library:ScaleX(0.5), 0, (i-1) * Library:ScaleY(4.5))
+
+        if i % 2 == 0 then
+            towerBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
+        else
+            towerBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+        end
+
+        towerBtn.Text = towerName
+        towerBtn.TextColor3 = Library.Colors.Text
+        towerBtn.TextSize = Library:ScaleY(1.2)
+        towerBtn.Font = Library.Fonts.Normal
+        towerBtn.Parent = towerListFrame
+        towerBtn.AutoButtonColor = false
+
+        Library:AddCorner(towerBtn, 3)
+        Library:AddStroke(towerBtn, 1, Library.Colors.Border)
+
+        towerBtn.MouseButton1Click:Connect(function()
+            if lastSelectedSlot then
+                local slotNum = lastSelectedSlot
+                slotFilled[slotNum] = true
+                slotNames[slotNum] = towerName
+                slotButtons[slotNum].BackgroundColor3 = Library.Colors.Success
+                slotButtons[slotNum].Text = towerName
+                slotButtons[slotNum].TextColor3 = Library.Colors.Text
+                slotButtons[lastSelectedSlot].BackgroundColor3 = Color3.fromRGB(0, 100, 0)
+            end
+        end)
+    end
+
+    towerListFrame.CanvasSize = UDim2.new(0, 0, 0, #filtered * Library:ScaleY(4.5))
+end
 
     populateTowers("")
 
@@ -1112,9 +1130,9 @@ local function createManagerTab()
     towerScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
     Library:AddCorner(towerScrollFrame, 6)
     Library:AddStroke(towerScrollFrame, 1, Library.Colors.Border)
-    
+
     currentManagerScrollFrame = towerScrollFrame
-    
+
     setupTowerUpdates(towerScrollFrame)
 
     local buttonContainer = Library:CreateFrame(
@@ -1307,41 +1325,178 @@ local function createManagerTab()
             flashButton(upgradeBtn, Color3.fromRGB(255, 100, 100), "Wait!")
             return
         end
-        
+
         isUpgrading = true
-        
+
         upgradeBtn.BackgroundColor3 = Library.Colors.Success
         upgradeBtn.Text = "!"
-        
+
         if selectedTowerData and selectedTowerData.folders then
             local upgradedCount = 0
             local foldersToUpgrade = {}
             for _, folder in ipairs(selectedTowerData.folders) do
                 table.insert(foldersToUpgrade, folder)
             end
-        
+
             for _, folder in ipairs(foldersToUpgrade) do
                 if do_upgrade_tower(folder) then
                     upgradedCount = upgradedCount + 1
                 end
                 task.wait(0.1)
             end
-        
+
             if upgradedCount > 0 then
                 upgradeBtn.BackgroundColor3 = Library.Colors.Success
                 upgradeBtn.Text = "UP " .. upgradedCount
                 task.wait(0.05)
             end
         end
-        
+
         upgradeBtn.BackgroundColor3 = Library.Colors.Success
         upgradeBtn.Text = "UPGRADE"
         isUpgrading = false
     end)
-    
+
     return contentFrame
 end
+
+local function extractUUIDsFromTowersSelected(raw)
+    if not raw or raw == "" then return {} end
+    local success, decoded = pcall(HttpService.JSONDecode, HttpService, raw)
+    if success and type(decoded) == "table" then
+        local uuids = {}
+        for k, v in pairs(decoded) do
+            if v == true and type(k) == "string" and #k > 20 then
+                table.insert(uuids, k)
+            end
+        end
+        return uuids
+    end
+    local uuids = {}
+    local pattern = "([%a%d%-]+%-[%a%d%-]+%-[%a%d%-]+%-[%a%d%-]+%-[%a%d%-]+)"
+    for match in string.gmatch(raw, pattern) do
+        table.insert(uuids, match)
+    end
+    return uuids
+end
+
+local function getSelectedUUIDs()
+    local selected = {}
+    local towersFolder = Workspace:FindFirstChild("Towers")
+    if not towersFolder then return selected end
+    for _, tower in ipairs(towersFolder:GetChildren()) do
+        local rep = tower:FindFirstChild("TowerReplicator")
+        if rep and rep:GetAttribute("Name") == "Medic" and rep:GetAttribute("OwnerId") == player.UserId then
+            local raw = rep:GetAttribute("TowersSelected")
+            local uuids = extractUUIDsFromTowersSelected(raw)
+            for _, uuid in ipairs(uuids) do
+                selected[uuid] = true
+            end
+        end
+    end
+    return selected
+end
+
+local function getTowerUID(towerFolder)
+    local rep = towerFolder:FindFirstChild("TowerReplicator")
+    if not rep then return nil end
+    local uid = rep:GetAttribute("UID") or rep:GetAttribute("TowerId") or rep:GetAttribute("Id")
+    if not uid and #rep.Name > 20 then uid = rep.Name end
+    return uid
+end
+
+local function getTowerPosition(towerModel)
+    local primary = towerModel:FindFirstChild("PrimaryPart") or towerModel:FindFirstChild("Head") or towerModel:FindFirstChildWhichIsA("BasePart")
+    if primary then
+        return primary.Position
+    end
+    return nil
+end
+
+local function getMedicPosition(medicModel)
+    local primary = medicModel:FindFirstChild("PrimaryPart") or medicModel:FindFirstChild("Head") or medicModel:FindFirstChildWhichIsA("BasePart")
+    if primary then
+        return primary.Position
+    end
+    return nil
+end
+
+local function toggleTower(targetFolder)
+    local towersFolder = Workspace:FindFirstChild("Towers")
+    if not towersFolder then return false end
+
+    local targetUUID = getTowerUID(targetFolder)
+    if not targetUUID then return false end
+
+    local medics = {}
+    for _, folder in ipairs(towersFolder:GetChildren()) do
+        local rep = folder:FindFirstChild("TowerReplicator")
+        if rep and rep:GetAttribute("Name") == "Medic" and rep:GetAttribute("OwnerId") == player.UserId then
+            local upgrade = rep:GetAttribute("Upgrade") or 0
+            local max = 1
+            if upgrade == 1 then max = 2
+            elseif upgrade >= 2 and upgrade <= 3 then max = 3
+            elseif upgrade == 4 then max = 4
+            elseif upgrade >= 5 then max = 5
+            end
+            local current = extractUUIDsFromTowersSelected(rep:GetAttribute("TowersSelected") or "")
+            local pos = getMedicPosition(folder)
+            table.insert(medics, {folder = folder, max = max, current = current, pos = pos})
+        end
+    end
+    if #medics == 0 then return false end
+
+    local medicWithTarget = nil
+    for _, medic in ipairs(medics) do
+        for _, uuid in ipairs(medic.current) do
+            if uuid == targetUUID then
+                medicWithTarget = medic
+                break
+            end
+        end
+        if medicWithTarget then break end
+    end
+
+    if medicWithTarget then
+        pcall(function()
+            RemoteFunction:InvokeServer("Troops", "TowerServerEvent", "ToggleSelectedTower", medicWithTarget.folder, targetFolder)
+        end)
+        return true
+    end
+
+    local targetPos = getTowerPosition(targetFolder)
+    if not targetPos then
+        for _, medic in ipairs(medics) do
+            if #medic.current < medic.max then
+                pcall(function()
+                    RemoteFunction:InvokeServer("Troops", "TowerServerEvent", "ToggleSelectedTower", medic.folder, targetFolder)
+                end)
+                return true
+            end
+        end
+        return false
+    end
+
+    local medicsWithDistance = {}
+    for _, medic in ipairs(medics) do
+        local dist = medic.pos and (medic.pos - targetPos).Magnitude or math.huge
+        table.insert(medicsWithDistance, {medic = medic, dist = dist})
+    end
+    table.sort(medicsWithDistance, function(a, b) return a.dist < b.dist end)
     
+    for _, item in ipairs(medicsWithDistance) do
+        local medic = item.medic
+        if #medic.current < medic.max then
+            pcall(function()
+                RemoteFunction:InvokeServer("Troops", "TowerServerEvent", "ToggleSelectedTower", medic.folder, targetFolder)
+            end)
+            return true
+        end
+    end
+
+    return false
+end
+
 local function createAutomationTab()
     local contentFrame = Library:CreateFrame(
         rightPanel,
@@ -1492,6 +1647,198 @@ local function createAutomationTab()
     createToggleButton(scrollFrame, yPos, "Auto Sell Farms", "SellFarms", false)
     yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
 
+    local medicTargetBtn = Instance.new("TextButton")
+    medicTargetBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(5))
+    medicTargetBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
+    medicTargetBtn.BackgroundColor3 = Color3.fromRGB(120, 0, 120)
+    medicTargetBtn.Text = "Medic Targeting"
+    medicTargetBtn.TextColor3 = Library.Colors.Text
+    medicTargetBtn.Font = Library.Fonts.Bold
+    medicTargetBtn.TextSize = Library:ScaleY(1.3)
+    medicTargetBtn.Parent = scrollFrame
+    medicTargetBtn.AutoButtonColor = false
+    Library:AddCorner(medicTargetBtn, 4)
+    Library:AddStroke(medicTargetBtn, 1, Library.Colors.Border)
+
+    local medicDropdownFrame = Library:CreateFrame(
+        screenGui,
+        UDim2.new(0, Library:ScaleX(35), 0, Library:ScaleY(35)),
+        UDim2.new(0.5, -Library:ScaleX(17.5), 0.5, -Library:ScaleY(17.5)),
+        false,
+        Library.Colors.BackgroundDarker
+    )
+    medicDropdownFrame.Visible = false
+    medicDropdownFrame.ZIndex = 50
+    Library:AddCorner(medicDropdownFrame, 8)
+    Library:AddStroke(medicDropdownFrame, 2, Library.Colors.BorderLight)
+
+    local titleBar = Library:CreateFrame(
+        medicDropdownFrame,
+        UDim2.new(1, 0, 0, Library:ScaleY(4)),
+        UDim2.new(0, 0, 0, 0),
+        false,
+        Library.Colors.Accent
+    )
+    Library:AddCorner(titleBar, 8)
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, 0, 1, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "Select towers to target"
+    titleLabel.TextColor3 = Library.Colors.Text
+    titleLabel.Font = Library.Fonts.Bold
+    titleLabel.TextSize = Library:ScaleY(1.2)
+    titleLabel.Parent = titleBar
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, Library:ScaleX(4), 0, Library:ScaleY(4))
+    closeBtn.Position = UDim2.new(1, -Library:ScaleX(4.5), 0, Library:ScaleY(0.5))
+    closeBtn.BackgroundColor3 = Library.Colors.Danger
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Library.Colors.Text
+    closeBtn.Font = Library.Fonts.Bold
+    closeBtn.TextSize = Library:ScaleY(1.5)
+    closeBtn.BorderSizePixel = 0
+    closeBtn.Parent = medicDropdownFrame
+    Library:AddCorner(closeBtn, 4)
+    closeBtn.ZIndex = 60
+    closeBtn.MouseButton1Click:Connect(function()
+        medicDropdownFrame.Visible = false
+    end)
+
+    local function makeDraggable(frame, dragHandle)
+        local dragging = false
+        local dragStart = nil
+        local startPos = nil
+        dragHandle.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                dragging = true
+                dragStart = input.Position
+                startPos = frame.Position
+                input.Changed:Connect(function()
+                    if input.UserInputState == Enum.UserInputState.End then
+                        dragging = false
+                    end
+                end)
+            end
+        end)
+        dragHandle.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                local delta = input.Position - dragStart
+                frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+            end
+        end)
+    end
+    makeDraggable(medicDropdownFrame, titleBar)
+
+    local medicScroll = Library:CreateScrollingFrame(
+        medicDropdownFrame,
+        UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(4) - Library:ScaleY(1)),
+        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(4.5)),
+        Library.Colors.BackgroundDark
+    )
+    medicScroll.ScrollBarThickness = 8
+    Library:AddCorner(medicScroll, 6)
+
+    local medicCheckboxes = {}
+
+    local function refreshAllCheckboxes()
+        local selected = getSelectedUUIDs()
+        for folder, data in pairs(medicCheckboxes) do
+            local uid = getTowerUID(folder)
+            local isSel = uid and selected[uid] == true
+            if isSel then
+                data.btn.Text = string.format("[X] L%d. %s", data.level, data.name)
+                data.btn.BackgroundColor3 = Color3.fromRGB(0,150,0)
+            else
+                data.btn.Text = string.format("[ ] L%d. %s", data.level, data.name)
+                data.btn.BackgroundColor3 = (data.rowIndex % 2 == 0) and Color3.fromRGB(40,40,48) or Color3.fromRGB(35,35,42)
+            end
+        end
+    end
+
+    local function populateMedicDropdown()
+        for _, data in pairs(medicCheckboxes) do
+            pcall(function() data.btn:Destroy() end)
+        end
+        medicCheckboxes = {}
+
+        local towersFolder = Workspace:FindFirstChild("Towers")
+        local towersList = {}
+        if towersFolder then
+            for _, folder in ipairs(towersFolder:GetChildren()) do
+                local rep = folder:FindFirstChild("TowerReplicator")
+                if rep and rep:GetAttribute("OwnerId") == player.UserId then
+                    local name = rep:GetAttribute("Name")
+                    if name and name ~= "Medic" then
+                        local level = rep:GetAttribute("Upgrade") or 0
+                        table.insert(towersList, {folder = folder, name = name, level = level})
+                    end
+                end
+            end
+        end
+
+        local yPosD = Library:ScaleY(1)
+        local btnHeightD = Library:ScaleY(3.5)
+        for i, tower in ipairs(towersList) do
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeightD)
+            btn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPosD)
+            btn.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(40,40,48) or Color3.fromRGB(35,35,42)
+            btn.Text = string.format("[ ] L%d. %s", tower.level, tower.name)
+            btn.TextColor3 = Library.Colors.Text
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.Font = Library.Fonts.Normal
+            btn.TextSize = Library:ScaleY(1.1)
+            btn.Parent = medicScroll
+            btn.AutoButtonColor = false
+            Library:AddCorner(btn, 3)
+            Library:AddStroke(btn, 1, Library.Colors.Border)
+
+            local data = {btn = btn, name = tower.name, level = tower.level, rowIndex = i}
+            medicCheckboxes[tower.folder] = data
+
+            btn.MouseButton1Click:Connect(function()
+                toggleTower(tower.folder)
+                task.wait(0.3)
+                refreshAllCheckboxes()
+            end)
+
+            yPosD = yPosD + btnHeightD + Library:ScaleY(0.5)
+        end
+        medicScroll.CanvasSize = UDim2.new(0, 0, 0, yPosD + Library:ScaleY(2))
+        refreshAllCheckboxes()
+    end
+
+    medicTargetBtn.MouseButton1Click:Connect(function()
+        if medicDropdownFrame.Visible then
+            medicDropdownFrame.Visible = false
+        else
+            populateMedicDropdown()
+            medicDropdownFrame.Visible = true
+            medicDropdownFrame.ZIndex = 100
+        end
+    end)
+
+    task.spawn(function()
+        while true do
+            task.wait(2)
+            if medicDropdownFrame and medicDropdownFrame.Visible then
+                populateMedicDropdown()
+            end
+        end
+    end)
+
+    task.spawn(function()
+        while true do
+            task.wait(0.5)
+            if medicDropdownFrame and medicDropdownFrame.Visible then
+                refreshAllCheckboxes()
+            end
+        end
+    end)
+
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
+
     local function getMaxWaveFromGUI()
         local waveLabel = playerGui:FindFirstChild("ReactGameTopGameDisplay", true)
         if waveLabel then
@@ -1593,12 +1940,12 @@ local function createAutomationTab()
                 local CurrentWave = get_current_wave()
                 local sellAtWave = _G.WaveFS or 40
                 if CurrentWave >= sellAtWave and CurrentWave > 0 then
-                    local TowersFolder = workspace:FindFirstChild("Towers")
+                    local TowersFolder = Workspace:FindFirstChild("Towers")
                     if TowersFolder then
                         for _, replicator in ipairs(TowersFolder:GetDescendants()) do
                             if replicator:IsA("Folder") and replicator.Name == "TowerReplicator" then
                                 local IsFarm = replicator:GetAttribute("Name") == "Farm"
-                                local IsMine = replicator:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                                local IsMine = replicator:GetAttribute("OwnerId") == player.UserId
                                 if IsFarm and IsMine then
                                     local TowerModel = replicator.Parent
                                     pcall(function()
@@ -1787,8 +2134,8 @@ local function createMapsTab()
         end
         return result
     end
-    
-    local debugging = false
+
+    local debugging = false 
 
     local function populateMaps()
         for _, btn in pairs(mapButtons) do
@@ -1818,7 +2165,7 @@ local function createMapsTab()
         for _, module in ipairs(allModules) do
             local mapName = nil
             local parent = module.Parent
-            
+
             if parent and parent.Name == "Data" then
                 local grandParent = parent.Parent
                 if grandParent and grandParent ~= mapsFolder then
@@ -1831,7 +2178,7 @@ local function createMapsTab()
             if not mapName or mapName == "" then
                 mapName = module.Name
             end
-            
+
             local mapData = safeRequire(module, 1.5)
             local isCommunity = false
             if mapData and type(mapData) == "table" and CommunityEnumValue then
@@ -1839,14 +2186,14 @@ local function createMapsTab()
                     isCommunity = true
                 end
             end
-            
+
             if mapDataTable[mapName] == nil then
                 mapDataTable[mapName] = isCommunity
             elseif isCommunity then
                 mapDataTable[mapName] = true
             end
         end
-        
+
         local validMaps = {}
         for mapName, isCommunity in pairs(mapDataTable) do
             if debugging then
@@ -1858,9 +2205,9 @@ local function createMapsTab()
             end
         end
         table.sort(validMaps)
-        
+
         loadingLabel.Visible = false
-        
+
         local yPos = Library:ScaleY(1)
         local btnHeight = Library:ScaleY(4)
         for i, mapName in ipairs(validMaps) do
