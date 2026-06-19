@@ -244,7 +244,6 @@ local function rejoin_match()
         if gameState then
             local DisplayName = gameState:GetAttribute("DifficultyDisplayName")
             local EventMode = gameState:GetAttribute("GameMode")
-            print(string.format("Rejoin Debug: DisplayName=%s, GameMode=%s", tostring(DisplayName), tostring(EventMode)))
             if DisplayName then
                 local ok, result = pcall(function()
                     local payload
