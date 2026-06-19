@@ -241,16 +241,14 @@ local function rejoin_match()
     repeat
         local stateReplicator = replicated_storage:FindFirstChild("StateReplicators")
         local gameState = stateReplicator and stateReplicator:FindFirstChild("GameStateReplicator")
-
         if gameState then
             local DisplayName = gameState:FindFirstChild("DifficultyDisplayName") and gameState.DifficultyDisplayName.Value
             local EventMode = gameState:FindFirstChild("GameMode") and gameState.GameMode.Value
-
+            print(string.format("Rejoin Debug: DisplayName=%s, GameMode=%s", tostring(DisplayName), tostring(EventMode)))
             if DisplayName then
                 local ok, result = pcall(function()
                     local payload
                     local modeToUse = DisplayName
-
                     if modeToUse == "PizzaParty" then
                         payload = { mode = "halloween", count = 1 }
                     elseif modeToUse == "Hardcore" then
@@ -269,10 +267,8 @@ local function rejoin_match()
                     else
                         payload = { difficulty = modeToUse, mode = "survival", count = 1 }
                     end
-
                     return remote:InvokeServer("Multiplayer", "v2:start", payload)
                 end)
-
                 if ok and check_res_ok(result) then
                     success = true
                     res = result
