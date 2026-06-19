@@ -248,7 +248,8 @@ local function rejoin_match()
             if DisplayName then
                 local ok, result = pcall(function()
                     local payload
-                    local modeToUse = DisplayName
+                    local rawMode = DisplayName
+                    local modeToUse = string.gsub(rawMode, " ", "") -- Remove all spaces
                     if modeToUse == "PizzaParty" then
                         payload = { mode = "halloween", count = 1 }
                     elseif modeToUse == "Hardcore" then
@@ -260,12 +261,12 @@ local function rejoin_match()
                     elseif modeToUse == "Badlands" then
                         payload = { mode = "badlands", count = 1 }
                     elseif EventMode == "DuckEvent" then
-                        payload = { difficulty = modeToUse, mode = "ducky2025", count = 1 }
+                        payload = { difficulty = rawMode, mode = "ducky2025", count = 1 }
                     elseif modeToUse == "Trial" then
                         SmartTeleportToLobby()
                         return true
                     else
-                        payload = { difficulty = modeToUse, mode = "survival", count = 1 }
+                        payload = { difficulty = rawMode, mode = "survival", count = 1 }
                     end
                     return remote:InvokeServer("Multiplayer", "v2:start", payload)
                 end)
