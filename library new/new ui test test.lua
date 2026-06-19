@@ -242,8 +242,8 @@ local function rejoin_match()
         local stateReplicator = replicated_storage:FindFirstChild("StateReplicators")
         local gameState = stateReplicator and stateReplicator:FindFirstChild("GameStateReplicator")
         if gameState then
-            local DisplayName = gameState:FindFirstChild("DifficultyDisplayName") and gameState.DifficultyDisplayName.Value
-            local EventMode = gameState:FindFirstChild("GameMode") and gameState.GameMode.Value
+            local DisplayName = gameState:GetAttribute("DifficultyDisplayName")
+            local EventMode = gameState:GetAttribute("GameMode")
             print(string.format("Rejoin Debug: DisplayName=%s, GameMode=%s", tostring(DisplayName), tostring(EventMode)))
             if DisplayName then
                 local ok, result = pcall(function()
