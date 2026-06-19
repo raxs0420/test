@@ -239,38 +239,48 @@ local function rejoin_match()
         return
     end
     repeat
-        local StateFolder = replicated_storage:FindFirstChild("State")
-        local CurrentMode = StateFolder and StateFolder.Difficulty.Value
-        if CurrentMode then
-            local ok, result = pcall(function()
-                local payload
-                local EventMode = StateFolder:FindFirstChild("Mode") and StateFolder.Mode.Value
-                local modeToUse = _G.LastPlayedMode or CurrentMode
-                if modeToUse == "PizzaParty" then
-                    payload = { mode = "halloween", count = 1 }
-                elseif modeToUse == "Hardcore" then
-                    payload = { mode = "hardcore", difficulty = "Easy", count = 1 }
-                elseif modeToUse == "Voidcore" then
-                    payload = { mode = "hardcore", difficulty = "Hard", count = 1 }
-                elseif modeToUse == "PollutedWasteland" then
-                    payload = { mode = "polluted", count = 1 }
-                elseif modeToUse == "Badlands" then
-                    payload = { mode = "badlands", count = 1 }
-                elseif EventMode == "DuckEvent" then
-                    payload = { difficulty = modeToUse, mode = "ducky2025", count = 1 }
-                elseif modeToUse == "Trial" then
-                    SmartTeleportToLobby()
-                    return true
+        local stateReplicator = replicated_storage:FindFirstChild("StateReplicators")
+        local gameState = stateReplicator and stateReplicator:FindFirstChild("GameStateReplicator")
+        
+        if gameState then
+            local CurrentMode = gameState:FindFirstChild("Difficulty") and gameState.Difficulty.Value
+            local EventMode = gameState:FindFirstChild("GameMode") and gameState.GameMode.Value
+            
+            if CurrentMode then
+                local ok, result = pcall(function()
+                    local payload
+                    local modeToUse = CurrentMode
+                    
+                    if modeToUse == "PizzaParty" then
+                        payload = { mode = "halloween", count = 1 }
+                    elseif modeToUse == "Hardcore" then
+                        payload = { mode = "hardcore", difficulty = "Easy", count = 1 }
+                    elseif modeToUse == "Voidcore" then
+                        payload = { mode = "hardcore", difficulty = "Hard", count = 1 }
+                    elseif modeToUse == "PollutedWasteland" then
+                        payload = { mode = "polluted", count = 1 }
+                    elseif modeToUse == "Badlands" then
+                        payload = { mode = "badlands", count = 1 }
+                    elseif EventMode == "DuckEvent" then
+                        payload = { difficulty = modeToUse, mode = "ducky2025", count = 1 }
+                    elseif modeToUse == "Trial" then
+                        SmartTeleportToLobby()
+                        return true
+                    else
+                        payload = { difficulty = modeToUse, mode = "survival", count = 1 }
+                    end
+                    
+                    return remote:InvokeServer("Multiplayer", "v2:start", payload)
+                end)
+                
+                if ok and check_res_ok(result) then
+                    success = true
+                    res = result
                 else
-                    payload = { difficulty = modeToUse, mode = "survival", count = 1 }
+                    task.wait(0.5)
                 end
-                return remote:InvokeServer("Multiplayer", "v2:start", payload)
-            end)
-            if ok and check_res_ok(result) then
-                success = true
-                res = result
             else
-                task.wait(0.5)
+                task.wait(1)
             end
         else
             task.wait(1)
