@@ -1515,15 +1515,18 @@ task.spawn(function()
         local replicated_storage = game:GetService("ReplicatedStorage")
         local vote_replicator = replicated_storage:FindFirstChild("StateReplicators") and replicated_storage.StateReplicators:FindFirstChild("VoteReplicator")
         
-        if vote_replicator and vote_replicator:GetAttribute("Enabled") == true and vote_replicator:GetAttribute("Title") == "Ready?" then
-            pcall(function()
-                match_ready_up()
-                run_vote_skip()
-            end)
-            
-            repeat
-                task.wait(0.1)
-            until vote_replicator:GetAttribute("Enabled") == false
+        if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
+            local title = vote_replicator:GetAttribute("Title")
+            if title == "Ready?" or title == "Skip Cutscene?" then
+                pcall(function()
+                    match_ready_up()
+                    run_vote_skip()
+                end)
+                
+                repeat
+                    task.wait(0.1)
+                until vote_replicator:GetAttribute("Enabled") == false
+            end
         end
         task.wait(0.1)
     end
