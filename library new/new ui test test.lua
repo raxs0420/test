@@ -1517,30 +1517,24 @@ task.spawn(function()
         
         if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
             local title = vote_replicator:GetAttribute("Title")
-            
-            if title == "Ready?" then
+            if title == "Ready?" or title == "Skip Cutscene?" then
+                if title == "Skip Cutscene?" then
+                    task.wait(0.5)
+                end
                 pcall(function()
                     match_ready_up()
                     run_vote_skip()
                 end)
-                repeat
-                    task.wait(0.5)
-                until vote_replicator:GetAttribute("Enabled") == false
                 
-            elseif title == "Skip Cutscene?" then
-                task.wait(1.5)
-                while vote_replicator:GetAttribute("Enabled") == true and vote_replicator:GetAttribute("Title") == "Skip Cutscene?" do
-                    pcall(function()
-                        match_ready_up()
-                        run_vote_skip()
-                    end)
-                    task.wait(0.1)
-                end
+                repeat
+                    task.wait(0.2)
+                until vote_replicator:GetAttribute("Enabled") == false
             end
         end
         task.wait(0.1)
     end
 end)
+
 local function start_rejoin_on_disconnect()
     task.spawn(function()
         game.Players.PlayerRemoving:connect(function (plr)
