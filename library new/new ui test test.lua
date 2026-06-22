@@ -798,33 +798,15 @@ function TDS:ClearSessionData()
 end
 
 function TDS:WaitForMatchStatus()
+    local player_gui = game.Players.LocalPlayer.PlayerGui
     while true do
-        local success, status = pcall(function()
-            local uiRoot = player_gui:FindFirstChild("ReactGameNewRewards")
-            if not uiRoot then return nil end
-            local mainFrame = uiRoot:FindFirstChild("Frame")
-            if not mainFrame or not mainFrame.Visible then return nil end
-            local gameOver = mainFrame:FindFirstChild("gameOver")
-            if not gameOver or not gameOver.Visible then return nil end
-            local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
-            if not rewardsScreen or not rewardsScreen.Visible then return nil end
-            local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
-            if not topBanner then return nil end
-            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
-            if not label then return nil end
-            local txt = label.Text:upper()
-            if txt == "" then return nil end
-            if txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") then
-                return "WIN"
-            elseif txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL") then
-                return "LOSS"
-            end
-            return nil
-        end)
-        if success and status then
-            return status
+        if player_gui:FindFirstChild("ReactGameNewRewards") 
+            and player_gui.ReactGameNewRewards:FindFirstChild("Frame")
+            and player_gui.ReactGameNewRewards.Frame:FindFirstChild("gameOver")
+            and player_gui.ReactGameNewRewards.Frame.gameOver.Visible == true then
+            return "END"
         end
-        task.wait(0.5)
+        task.wait(0.1)  
     end
 end
 
@@ -832,7 +814,7 @@ function TDS:RestartGame()
     local ui_root = player_gui:WaitForChild("ReactGameNewRewards")
     local found_section = false
     repeat
-        task.wait(0.3)
+        task.wait(0.1)
         local f = ui_root:FindFirstChild("Frame")
         local g = f and f:FindFirstChild("gameOver")
         local s = g and g:FindFirstChild("RewardsScreen")
@@ -845,13 +827,10 @@ end
 
 function TDS:GameStatse()
     while true do
-        local status = self:WaitForMatchStatus()
-        print(status)
-        if status == "LOSS" or status == "WIN" then
-            self:ClearSessionData()
-            self:RestartGame()
-        end
-        task.wait(1)
+        self:WaitForMatchStatus()
+        self:ClearSessionData()
+        self:RestartGame()
+        task.wait(0.1)
     end
 end
 
