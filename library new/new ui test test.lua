@@ -1510,8 +1510,6 @@ local function start_anti_lag()
     end)
 end
 
-_G.AutoReady = true
-
 task.spawn(function()
     while _G.AutoReady do
         local replicated_storage = game:GetService("ReplicatedStorage")
