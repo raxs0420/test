@@ -1766,7 +1766,8 @@ local function start_smart_auto_skip()
     if auto_smart_skip_running or not _G.AutoSmartSkip then return end
     auto_smart_skip_running = true
     local HEALTH_THRESHOLDS = { [1] = 10, [6] = 50, [16] = 150, [26] = 500, [36] = 2500 }
-    local current_wave_tracking = {wave = 0, wave_start_time = 0, skip_active = false}
+    local current_wave = 0
+    local skip_active = false
     local function get_current_wave()
         local success, result = pcall(function()
             local value = player_gui.ReactGameTopGameDisplay.Frame.wave.container.value
@@ -1793,54 +1794,55 @@ local function start_smart_auto_skip()
         end
         return total_health
     end
-    local function is_vote_visible()
-        local b = player_gui:FindFirstChild("ReactOverridesVote")
-        b = b and b:FindFirstChild("Frame")
-        b = b and b:FindFirstChild("votes")
-        b = b and b:FindFirstChild("vote", true)
-        return b and b.Visible and b.Position == UDim2.new(0.5, 0, 0.5, 0)
-    end
-    local function click_vote()
-        local b = player_gui:FindFirstChild("ReactOverridesVote")
-        b = b and b:FindFirstChild("Frame")
-        b = b and b:FindFirstChild("votes")
-        b = b and b:FindFirstChild("vote", true)
-        if b then
-            if b:IsA("GuiButton") then b:Click() end
-            for _, e in ipairs(b:GetChildren()) do if e:IsA("BindableEvent") then e:Fire() end end
+    local function get_threshold(wave)
+        local thresh = 2500
+        for w, t in pairs(HEALTH_THRESHOLDS) do
+            if wave >= w then thresh = t end
         end
-        pcall(function() remote_func:InvokeServer("Voting", "Skip") end)
-        pcall(function() remote_event:FireServer("Voting", "Skip") end)
+        return thresh
     end
     task.spawn(function()
         while _G.AutoSmartSkip do
-            local current_wave = get_current_wave()
-            if current_wave ~= current_wave_tracking.wave then
-                current_wave_tracking.wave = current_wave
-                current_wave_tracking.wave_start_time = tick()
-                current_wave_tracking.skip_active = false
+            local wave = get_current_wave()
+            if wave ~= current_wave then
+                current_wave = wave
+                skip_active = false
             end
-            if not current_wave_tracking.skip_active and tick() - current_wave_tracking.wave_start_time > 10 then
+            if not skip_active then
                 local health = get_total_enemy_health()
-                local threshold = 2500
-                for w, t in pairs(HEALTH_THRESHOLDS) do
-                    if current_wave >= w then threshold = t end
-                end
+                local threshold = get_threshold(wave)
                 if health < threshold then
-                    current_wave_tracking.skip_active = true
-                    task.spawn(function()
-                        while current_wave_tracking.skip_active and _G.AutoSmartSkip do
-                            if get_current_wave() > current_wave_tracking.wave then
-                                current_wave_tracking.skip_active = false
-                                break
+                    local replicated_storage = game:GetService("ReplicatedStorage")
+                    local vote_replicator = replicated_storage:FindFirstChild("StateReplicators") and replicated_storage.StateReplicators:FindFirstChild("VoteReplicator")
+                    if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
+                        skip_active = true
+                        task.spawn(function()
+                            while skip_active and _G.AutoSmartSkip do
+                                if get_current_wave() ~= current_wave then
+                                    skip_active = false
+                                    break
+                                end
+                                if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
+                                    pcall(function()
+                                        local b = player_gui:FindFirstChild("ReactOverridesVote")
+                                        b = b and b:FindFirstChild("Frame")
+                                        b = b and b:FindFirstChild("votes")
+                                        b = b and b:FindFirstChild("vote", true)
+                                        if b then
+                                            if b:IsA("GuiButton") then b:Click() end
+                                            for _, e in ipairs(b:GetChildren()) do if e:IsA("BindableEvent") then e:Fire() end end
+                                        end
+                                        pcall(function() remote_func:InvokeServer("Voting", "Skip") end)
+                                        pcall(function() remote_event:FireServer("Voting", "Skip") end)
+                                    end)
+                                end
+                                task.wait(0.1)
                             end
-                            if is_vote_visible() then click_vote() end
-                            task.wait(0.1)
-                        end
-                    end)
+                        end)
+                    end
                 end
             end
-            task.wait(0.2)
+            task.wait(0.1)
         end
         auto_smart_skip_running = false
     end)
