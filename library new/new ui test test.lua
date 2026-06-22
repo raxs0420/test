@@ -823,20 +823,22 @@ function TDS:RestartGame()
         end
     until found_section
     run_vote_skip()
-    local player_gui = game.Players.LocalPlayer.PlayerGui
-    repeat
-        task.wait(0.1)
-    until not (player_gui:FindFirstChild("ReactGameNewRewards") 
-               and player_gui.ReactGameNewRewards:FindFirstChild("Frame")
-               and player_gui.ReactGameNewRewards.Frame:FindFirstChild("gameOver")
-               and player_gui.ReactGameNewRewards.Frame.gameOver.Visible == true)
 end
 
 function TDS:GameStatse()
     while true do
-        self:WaitForMatchStatus()
+        self:WaitForMatchStatus()        
         self:ClearSessionData()
-        self:RestartGame()
+        self:RestartGame()            
+
+        local player_gui = game.Players.LocalPlayer.PlayerGui
+        repeat
+            task.wait(0.1)
+        until not (player_gui:FindFirstChild("ReactGameNewRewards") 
+                   and player_gui.ReactGameNewRewards:FindFirstChild("Frame")
+                   and player_gui.ReactGameNewRewards.Frame:FindFirstChild("gameOver")
+                   and player_gui.ReactGameNewRewards.Frame.gameOver.Visible == true)
+
         if self.ReplayCallback then
             self.ReplayCallback()
         end
