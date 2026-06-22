@@ -1510,29 +1510,24 @@ local function start_anti_lag()
     end)
 end
 
-local player = game.Players.LocalPlayer
-
-local function Jump()
-    local character = player.Character
-    local humanoid = character and character:FindFirstChild("Humanoid")
-    if humanoid and humanoid.Health > 0 then
-        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-    end
-end
-
-local function RandomJumpLoop()
-    while true do
-        local waitTime = math.random(300, 600)
-        task.wait(waitTime)
-        local character = player.Character
-        local humanoid = character and character:FindFirstChild("Humanoid")
-        if humanoid and humanoid.Health > 0 then
-            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+task.spawn(function()
+    while _G.AutoReady do
+        local replicated_storage = game:GetService("ReplicatedStorage")
+        local vote_replicator = replicated_storage:FindFirstChild("StateReplicators") and replicated_storage.StateReplicators:FindFirstChild("VoteReplicator")
+        
+        if vote_replicator and vote_replicator:GetAttribute("Enabled") == true and vote_replicator:GetAttribute("Title") == "Ready?" then
+            pcall(function()
+                match_ready_up()
+                run_vote_skip()
+            end)
+            
+            repeat
+                task.wait(0.5)
+            until vote_replicator:GetAttribute("Enabled") == false
         end
+        task.wait(0.2)
     end
-end
-
-task.spawn(RandomJumpLoop)
+end)
 
 local function start_rejoin_on_disconnect()
     task.spawn(function()
@@ -1933,6 +1928,8 @@ end)
 if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
+
+_G.AutoReady = true
 
 start_back_to_lobby()
 start_rejoin_on_disconnect()
