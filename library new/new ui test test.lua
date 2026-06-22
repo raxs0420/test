@@ -1510,6 +1510,8 @@ local function start_anti_lag()
     end)
 end
 
+_G.AutoReady = true
+
 task.spawn(function()
     while _G.AutoReady do
         local replicated_storage = game:GetService("ReplicatedStorage")
@@ -1522,10 +1524,10 @@ task.spawn(function()
             end)
             
             repeat
-                task.wait(0.5)
+                task.wait(0.1)
             until vote_replicator:GetAttribute("Enabled") == false
         end
-        task.wait(0.2)
+        task.wait(0.1)
     end
 end)
 
@@ -1928,8 +1930,6 @@ end)
 if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
-
-_G.AutoReady = true
 
 start_back_to_lobby()
 start_rejoin_on_disconnect()
