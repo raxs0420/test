@@ -1518,13 +1518,16 @@ task.spawn(function()
         if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
             local title = vote_replicator:GetAttribute("Title")
             if title == "Ready?" or title == "Skip Cutscene?" then
+                if title == "Skip Cutscene?" then
+                    task.wait(2)
+                end
                 pcall(function()
                     match_ready_up()
                     run_vote_skip()
                 end)
                 
                 repeat
-                    task.wait(0.1)
+                    task.wait(0.5)
                 until vote_replicator:GetAttribute("Enabled") == false
             end
         end
