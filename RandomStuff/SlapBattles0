@@ -240,9 +240,9 @@ player.CharacterAdded:Connect(function()
 		task.cancel(monitoringThread)
 		monitoringThread = nil
 	end
-	task.wait(0.5)
+	task.wait(0.2)
 	checkBackpack()
 end)
 
-task.wait(0.5)
+task.wait(0.2)
 checkBackpack()
