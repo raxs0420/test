@@ -3,12 +3,14 @@ local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local backpack = player:WaitForChild("Backpack")
+local resetEvent = player:FindFirstChild("Reset")
 
 local currentTween = nil
 local isTeleporting = false
 local lastTargetPos = nil
 local teleportedToLobby = false
 local selectedTarget = nil
+local monitoringThread = nil
 
 local function hasTools()
 	local char = player.Character
@@ -67,7 +69,7 @@ local function teleportToSelectedPlayer()
 	if not targetChar then return end
 	local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
 	if not targetRoot then return end
-	local targetPos = targetRoot.Position + targetRoot.CFrame.LookVector * 3 + Vector3.new(0, 2, 0)
+	local targetPos = targetRoot.Position + targetRoot.CFrame.LookVector * 4 + Vector3.new(0, 0.1, 0)
 	smoothTeleport(targetPos, 0.1)
 end
 
@@ -83,10 +85,40 @@ local function performEmptyCycle()
 		end
 	end
 	if not selectedTarget then return end
+
+	if monitoringThread then
+		task.cancel(monitoringThread)
+		monitoringThread = nil
+	end
+
 	teleportToLobby()
 	task.wait(0.3)
 	teleportToSelectedPlayer()
 	teleportedToLobby = true
+
+	local landingPos = lastTargetPos
+	if not landingPos then return end
+
+	monitoringThread = task.spawn(function()
+		task.wait(0.05)
+		while true do
+			task.wait(0.1)
+			local char = player.Character
+			if char then
+				local root = char:FindFirstChild("HumanoidRootPart")
+				if root then
+					local dist = (root.Position - landingPos).Magnitude
+					if dist > 5 then
+						if resetEvent and resetEvent:IsA("RemoteEvent") then
+							resetEvent:FireServer()
+						end
+						break
+					end
+				end
+			end
+		end
+		monitoringThread = nil
+	end)
 end
 
 local function checkBackpack()
@@ -181,7 +213,6 @@ local function refreshDropdown()
 				selectedTarget = otherPlayer
 				mainButton.Text = otherPlayer.Name
 				dropdown.Visible = false
-
 				teleportedToLobby = false
 				performEmptyCycle()
 			end)
@@ -205,6 +236,10 @@ backpack.ChildRemoved:Connect(checkBackpack)
 player.CharacterAdded:Connect(function()
 	teleportedToLobby = false
 	lastTargetPos = nil
+	if monitoringThread then
+		task.cancel(monitoringThread)
+		monitoringThread = nil
+	end
 	task.wait(0.5)
 	checkBackpack()
 end)
