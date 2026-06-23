@@ -100,7 +100,7 @@ local function performEmptyCycle()
 	if not landingPos then return end
 
 	monitoringThread = task.spawn(function()
-		task.wait(0.05)
+		task.wait(0.05) 
 		while true do
 			task.wait(0.1)
 			local char = player.Character
@@ -108,7 +108,7 @@ local function performEmptyCycle()
 				local root = char:FindFirstChild("HumanoidRootPart")
 				if root then
 					local dist = (root.Position - landingPos).Magnitude
-					if dist > 5 then
+					if dist > 8 then   -- increased to 8 for knockback detection
 						if resetEvent and resetEvent:IsA("RemoteEvent") then
 							resetEvent:FireServer()
 						end
@@ -240,9 +240,9 @@ player.CharacterAdded:Connect(function()
 		task.cancel(monitoringThread)
 		monitoringThread = nil
 	end
-	task.wait(0.2)
+	task.wait(0.5)
 	checkBackpack()
 end)
 
-task.wait(0.2)
+task.wait(0.5)
 checkBackpack()
