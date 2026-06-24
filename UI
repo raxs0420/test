@@ -1,3 +1,5 @@
+_G.ClaimRewards = true
+
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/ui%20lib.txt"))()
 if not Library then
     warn("Failed to load UI Library!")
@@ -412,9 +414,19 @@ Library:AddStroke(placeToggle, 1, Library.Colors.Border)
 
 local placingEnabled = true
 local isMobile = UIS.TouchEnabled
+local terrain = workspace.Terrain
 
 local function getWorldPositionPrecise(screenPosition)
-    local ray = Camera:ViewportPointToRay(screenPosition.X, screenPosition.Y)
+    if terrain then
+        local success, pos = pcall(function()
+            return terrain:GetMousePosition(Camera, screenPosition)
+        end)
+        if success and pos then
+            return pos.X, pos.Y + 2, pos.Z
+        end
+    end
+
+    local ray = Camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     raycastParams.FilterDescendantsInstances = {player.Character, Camera}
@@ -2378,4 +2390,3 @@ mapsTab.MouseButton1Click:Connect(function()
     mapsTab.BackgroundColor3 = Library.Colors.Accent
 end)
 
-_G.ClaimRewards = true
