@@ -1,0 +1,125 @@
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoSmartSkip = true
+_G.AutoDJ = true
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("Engineer", "Hacker", "EvolvedJuggernaut", "DJ Booth", "Scout")
+TDS:Mode("Frost")
+TDS:GameInfo("Simplicity", {
+    Quarantine = true,
+    Limitation = true, 
+    HiddenEnemies = true,
+    Committed = true,
+    Glass = true
+})
+
+TDS:Place("Scout", -18.082771, 60, -2.013406)
+
+TDS:UnlockTimeScale()  
+TDS:TimeScale(2) 
+
+TDS:Place("Scout", -18.202414, 60, -5.121972)
+TDS:Place("Scout", -18.331582, 60, -8.187027)
+TDS:Place("Scout", -18.557208, 60, -11.317688)
+TDS:Place("Scout", -15.353621, 60, -9.007553)
+
+for i = 1, 5 do TDS:Upgrade(i) end
+for i = 1, 5 do TDS:Upgrade(i) end
+
+local positions = {
+    {-15.484793, 60, -12.174769},
+    {-17.745361, 60, -14.276367},
+    {-14.350877, 60, -15.111237},
+    {-12.461774, 60, -12.672904},
+    {-20.785341, 60, -13.440812},
+}
+
+for repeatCount = 1, 1 do
+    for _, pos in ipairs(positions) do
+        local idx = TDS:Place("Scout", pos[1], pos[2], pos[3])
+        TDS:Upgrade(idx)
+        TDS:Upgrade(idx)
+    end
+end
+
+
+TDS:Place("Hacker", -12.343602, 60, -9.664664)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+
+TDS:Place("DJ Booth", -8.139061, 60, -8.995306)
+for i = 1, 3 do
+    TDS:Upgrade(12)
+end
+TDS:SetOption(12, "Track", "Green")
+
+TDS:Place("Engineer", -12.200405, 60, -3.397177)
+for i = 1, 4 do
+    TDS:Upgrade(13)
+end
+
+for i = 1, 10 do TDS:Upgrade(i) end
+
+TDS:Place("Engineer", -9.180488, 60, -3.558496)
+TDS:Place("Engineer", -12.591729, 60, -0.309067)
+TDS:Place("Engineer", -9.489992, 60, -0.533635)
+TDS:Place("Engineer", -8.010014, 60, 2.135802)
+TDS:Place("Engineer", -11.020089, 60, 2.328686)
+
+for i = 14, 18 do TDS:Upgrade(i) TDS:Upgrade(i) TDS:Upgrade(i) TDS:Upgrade(i) end
+
+for i = 1, 2 do
+    TDS:Upgrade(12)
+end
+
+for i = 1, 10 do TDS:Upgrade(i) end
+
+for i = 13, 18 do TDS:Upgrade(i) end
+for i = 13, 18 do TDS:Upgrade(i) end
+
+TDS:Place("EvolvedJuggernaut", -2.206455, 60, 2.610607)
+for i = 1, 4 do
+    TDS:Upgrade(19)
+end
+for i = 1, 3 do
+    TDS:Upgrade(19, 1)
+end
+
+TDS:SetOption(12, "Track", "Red")
+
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Upgrade(11, 2)
+
+TDS:Place("Hacker", -5.651282, 60, -3.509763)
+for i = 1, 4 do
+    TDS:Upgrade(20)
+end
+TDS:Upgrade(20, 2)
+
+TDS:Ability(20, "Hologram Tower", {
+    cloneTowerList = {19},
+    attemptsPerId = 1,
+    towerPosition = {
+        Vector3.new(4.316554, 60, 2.506384),
+    }
+}, true)
+
+TDS:Ability(11, "Hologram Tower", {
+    cloneTowerList = {17, 16, 15},
+    attemptsPerId = 1,
+    towerPosition = {
+        Vector3.new(-2.046533, 60, -9.565443),
+        Vector3.new(-2.350916, 60, -3.524966),
+        Vector3.new(0.720035, 60, -3.700259),
+    }
+}, true)
+
+for i = 1, 10 do
+    local id = 20 + i
+    TDS:Place("Scout", -9.180488, 60, -3.558496)
+    for j = 1, 4 do TDS:Upgrade(id) end
+end
