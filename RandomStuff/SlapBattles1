@@ -293,14 +293,14 @@ while true do
     local cursor = nil
     local found = false
 
-    for i = 1, 10 do
+    for i = 1, 5 do
         local success, data = pcall(getServers, cursor)
         if not success or not data or not data.data then
             break
         end
 
         for _, server in ipairs(data.data) do
-            if server.id ~= CurrentJobId and server.playing >= 9 and server.playing <= 14 then
+            if server.id ~= CurrentJobId and server.playing >= 6 and server.playing <= 16 then
                 teleportService:TeleportToPlaceInstance(PlaceId, server.id, player)
                 found = true
                 break
@@ -321,7 +321,7 @@ while true do
         break
     end
 
-    task.wait(5)
+    task.wait(3)
 end
 
 if stuck then
