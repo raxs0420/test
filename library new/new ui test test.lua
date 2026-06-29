@@ -297,7 +297,7 @@ local function handle_post_match()
     if not _G.AutoRejoin then return end
     local ui_root
     repeat
-        task.wait(1)
+        task.wait(1.5)
         local root = player_gui:FindFirstChild("ReactGameNewRewards")
         local frame = root and root:FindFirstChild("Frame")
         local gameOver = frame and frame:FindFirstChild("gameOver")
@@ -312,7 +312,7 @@ local function handle_post_match()
         if _G.sent_to_lobby then send_to_lobby() else rejoin_match() end
         return
     end
-    task.wait(1)
+    task.wait(1.5)
     local match = get_all_rewards()
     current_total_coins = current_total_coins + match.Coins
     current_total_gems = current_total_gems + match.Gems
