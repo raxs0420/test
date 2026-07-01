@@ -9,6 +9,11 @@ local isTeleporting = false
 local lastTargetPos = nil
 local teleportedToLobby = false
 local selectedTarget = nil
+local periodicThread = nil
+
+local lobby = workspace:FindFirstChild("Lobby")
+local teleportPart = lobby and lobby:FindFirstChild("Teleport1")
+local LOBBY_RADIUS = 50
 
 local function hasTools()
 	local char = player.Character
@@ -53,9 +58,6 @@ local function smoothTeleport(targetPos, duration)
 end
 
 local function teleportToLobby()
-	local lobby = workspace:FindFirstChild("Lobby")
-	if not lobby then return end
-	local teleportPart = lobby:FindFirstChild("Teleport1")
 	if not teleportPart then return end
 	local targetPos = teleportPart.Position + Vector3.new(0, 2, 0)
 	smoothTeleport(targetPos, 0.1)
@@ -88,6 +90,43 @@ local function performEmptyCycle()
 	task.wait(0.3)
 	teleportToSelectedPlayer()
 	teleportedToLobby = true
+end
+
+local function isInLobby()
+	if not player.Character then return false end
+	local root = player.Character:FindFirstChild("HumanoidRootPart")
+	if not root or not teleportPart then return false end
+	return (root.Position - teleportPart.Position).Magnitude < LOBBY_RADIUS
+end
+
+local function periodicTeleport()
+	if not selectedTarget then return end
+	if hasTools() then return end
+	if not isInLobby() then
+		teleportToLobby()
+		task.wait(0.3)
+		teleportToSelectedPlayer()
+	end
+end
+
+local function startPeriodicCheck()
+	if periodicThread then
+		task.cancel(periodicThread)
+		periodicThread = nil
+	end
+	periodicThread = task.spawn(function()
+		while selectedTarget and player.Character do
+			task.wait(10)
+			periodicTeleport()
+		end
+	end)
+end
+
+local function stopPeriodicCheck()
+	if periodicThread then
+		task.cancel(periodicThread)
+		periodicThread = nil
+	end
 end
 
 local function checkBackpack()
@@ -183,6 +222,7 @@ local function refreshDropdown()
 				mainButton.Text = otherPlayer.Name
 				dropdown.Visible = false
 				teleportedToLobby = false
+				startPeriodicCheck()
 				performEmptyCycle()
 			end)
 		end
@@ -207,7 +247,20 @@ player.CharacterAdded:Connect(function()
 	lastTargetPos = nil
 	task.wait(0.5)
 	checkBackpack()
+	if selectedTarget then
+		startPeriodicCheck()
+	end
 end)
 
 task.wait(0.5)
 checkBackpack()
+if not selectedTarget then
+	for _, other in pairs(Players:GetPlayers()) do
+		if other ~= player then
+			selectedTarget = other
+			mainButton.Text = other.Name
+			startPeriodicCheck()
+			break
+		end
+	end
+end
