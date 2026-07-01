@@ -1,0 +1,213 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+
+local player = Players.LocalPlayer
+local backpack = player:WaitForChild("Backpack")
+
+local currentTween = nil
+local isTeleporting = false
+local lastTargetPos = nil
+local teleportedToLobby = false
+local selectedTarget = nil
+
+local function hasTools()
+	local char = player.Character
+	if char then
+		for _, obj in pairs(char:GetDescendants()) do
+			if obj:IsA("Tool") then return true end
+		end
+	end
+	for _, obj in pairs(backpack:GetChildren()) do
+		if obj:IsA("Tool") then return true end
+	end
+	return false
+end
+
+local function smoothTeleport(targetPos, duration)
+	if isTeleporting then
+		if currentTween then
+			currentTween:Cancel()
+			currentTween = nil
+			isTeleporting = false
+		else
+			return
+		end
+	end
+	local char = player.Character
+	if not char then return end
+	local root = char:FindFirstChild("HumanoidRootPart")
+	if not root then return end
+	if lastTargetPos and (root.Position - targetPos).Magnitude < 2 then
+		return
+	end
+	isTeleporting = true
+	lastTargetPos = targetPos
+	local tweenInfo = TweenInfo.new(duration or 0.1, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut)
+	local goal = {CFrame = CFrame.new(targetPos)}
+	local tween = TweenService:Create(root, tweenInfo, goal)
+	currentTween = tween
+	tween:Play()
+	tween.Completed:Wait()
+	currentTween = nil
+	isTeleporting = false
+end
+
+local function teleportToLobby()
+	local lobby = workspace:FindFirstChild("Lobby")
+	if not lobby then return end
+	local teleportPart = lobby:FindFirstChild("Teleport1")
+	if not teleportPart then return end
+	local targetPos = teleportPart.Position + Vector3.new(0, 2, 0)
+	smoothTeleport(targetPos, 0.1)
+end
+
+local function teleportToSelectedPlayer()
+	if not selectedTarget then return end
+	local targetChar = selectedTarget.Character
+	if not targetChar then return end
+	local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+	if not targetRoot then return end
+	local targetPos = targetRoot.Position + targetRoot.CFrame.LookVector * 4 + Vector3.new(0, 0.1, 0)
+	smoothTeleport(targetPos, 0.1)
+end
+
+local function performEmptyCycle()
+	if teleportedToLobby then return end
+	if not selectedTarget then
+		for _, other in pairs(Players:GetPlayers()) do
+			if other ~= player then
+				selectedTarget = other
+				mainButton.Text = other.Name
+				break
+			end
+		end
+	end
+	if not selectedTarget then return end
+
+	teleportToLobby()
+	task.wait(0.3)
+	teleportToSelectedPlayer()
+	teleportedToLobby = true
+end
+
+local function checkBackpack()
+	if not hasTools() then
+		performEmptyCycle()
+	else
+		teleportedToLobby = false
+	end
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local mainButton = Instance.new("TextButton")
+mainButton.Size = UDim2.new(0, 200, 0, 40)
+mainButton.Position = UDim2.new(0, 20, 0, 20)
+mainButton.Text = "Select Player"
+mainButton.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+mainButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+mainButton.BorderSizePixel = 0
+mainButton.Font = Enum.Font.SourceSansBold
+mainButton.TextSize = 16
+mainButton.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainButton
+
+local shadow = Instance.new("UIStroke")
+shadow.Color = Color3.fromRGB(80, 80, 80)
+shadow.Thickness = 1
+shadow.Transparency = 0.5
+shadow.Parent = mainButton
+
+local dropdown = Instance.new("Frame")
+dropdown.Size = UDim2.new(0, 200, 0, 200)
+dropdown.Position = UDim2.new(0, 20, 0, 65)
+dropdown.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+dropdown.BackgroundTransparency = 0.2
+dropdown.BorderSizePixel = 0
+dropdown.Visible = false
+dropdown.Parent = screenGui
+
+local dropCorner = Instance.new("UICorner")
+dropCorner.CornerRadius = UDim.new(0, 8)
+dropCorner.Parent = dropdown
+
+local scroll = Instance.new("ScrollingFrame")
+scroll.Size = UDim2.new(1, -10, 1, -10)
+scroll.Position = UDim2.new(0, 5, 0, 5)
+scroll.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+scroll.BackgroundTransparency = 0.5
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 6
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.Parent = dropdown
+
+local listLayout = Instance.new("UIListLayout")
+listLayout.Padding = UDim.new(0, 4)
+listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+listLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+listLayout.Parent = scroll
+
+local function refreshDropdown()
+	for _, child in pairs(scroll:GetChildren()) do
+		if child:IsA("TextButton") then child:Destroy() end
+	end
+	for _, otherPlayer in pairs(Players:GetPlayers()) do
+		if otherPlayer ~= player then
+			local btn = Instance.new("TextButton")
+			btn.Size = UDim2.new(0.9, 0, 0, 30)
+			btn.Text = otherPlayer.Name
+			btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.BorderSizePixel = 0
+			btn.Font = Enum.Font.SourceSans
+			btn.TextSize = 14
+			btn.Parent = scroll
+
+			local btnCorner = Instance.new("UICorner")
+			btnCorner.CornerRadius = UDim.new(0, 4)
+			btnCorner.Parent = btn
+
+			btn.MouseEnter:Connect(function()
+				btn.BackgroundColor3 = Color3.fromRGB(70, 70, 70)
+			end)
+			btn.MouseLeave:Connect(function()
+				btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+			end)
+
+			btn.MouseButton1Click:Connect(function()
+				selectedTarget = otherPlayer
+				mainButton.Text = otherPlayer.Name
+				dropdown.Visible = false
+				teleportedToLobby = false
+				performEmptyCycle()
+			end)
+		end
+	end
+	task.wait()
+	scroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+end
+
+mainButton.MouseButton1Click:Connect(function()
+	dropdown.Visible = not dropdown.Visible
+	if dropdown.Visible then refreshDropdown() end
+end)
+
+Players.PlayerAdded:Connect(refreshDropdown)
+Players.PlayerRemoving:Connect(refreshDropdown)
+
+backpack.ChildAdded:Connect(checkBackpack)
+backpack.ChildRemoved:Connect(checkBackpack)
+
+player.CharacterAdded:Connect(function()
+	teleportedToLobby = false
+	lastTargetPos = nil
+	task.wait(0.5)
+	checkBackpack()
+end)
+
+task.wait(0.5)
+checkBackpack()
