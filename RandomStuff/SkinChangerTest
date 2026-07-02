@@ -1,267 +1,825 @@
-local requestRemote = game:GetService("ReplicatedStorage").Network.AssetStreaming["RE:requestAssets"]
-if requestRemote then
-    requestRemote:FireServer({ "Troops/Scout/Skins/Banned" })
-end
-
 local player = game.Players.LocalPlayer
-local streaming = player:WaitForChild("PlayerGui"):WaitForChild("Streaming")
-local bannedModel = nil
-for i = 1, 30 do
-    local path = streaming:FindFirstChild("Troops")
-    if path then path = path:FindFirstChild("Scout") end
-    if path then path = path:FindFirstChild("Skins") end
-    if path then bannedModel = path:FindFirstChild("Banned") end
-    if bannedModel then break end
-    task.wait(0.5)
-end
-if not bannedModel then end
 
-local assets = game:GetService("ReplicatedStorage"):FindFirstChild("Assets")
-if not assets then assets = Instance.new("Folder") assets.Name = "Assets" assets.Parent = game:GetService("ReplicatedStorage") end
-local troops = assets:FindFirstChild("Troops") or Instance.new("Folder") troops.Name = "Troops" troops.Parent = assets
-local scout = troops:FindFirstChild("Scout") or Instance.new("Folder") scout.Name = "Scout" scout.Parent = troops
-local skins = scout:FindFirstChild("Skins") or Instance.new("Folder") skins.Name = "Skins" skins.Parent = scout
-local existing = skins:FindFirstChild("Banned")
-if existing then existing:Destroy() end
-local bannedCopy = bannedModel:Clone()
-bannedCopy.Parent = skins
-bannedCopy.Name = "Banned"
+local gui = Instance.new("ScreenGui")
+gui.Name = "TowerSkinSwitcher"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
 
-local skinFolder = workspace:FindFirstChild("SkinChanger")
-if not skinFolder then
-    skinFolder = Instance.new("Folder")
-    skinFolder.Name = "SkinChanger"
-    skinFolder.Parent = workspace
-end
+local mainFrame = Instance.new("Frame")
+mainFrame.Size = UDim2.new(0, 420, 0, 360)
+mainFrame.Position = UDim2.new(0.5, -210, 0.5, -180)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+mainFrame.BackgroundTransparency = 0.15
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = gui
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 10)
+corner.Parent = mainFrame
 
-local function isScoutTower(tower)
-    if not tower:IsA("Model") then return false end
-    if tower:GetAttribute("TowerName") == "Scout" then return true end
-    if tower.Name == "Scout" then return true end
-    local rep = tower:FindFirstChild("TowerReplicator")
-    if rep then
-        if rep:GetAttribute("Name") == "Scout" then return true end
-        if rep:GetAttribute("TowerName") == "Scout" then return true end
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 28)
+title.BackgroundTransparency = 1
+title.Text = "Skin Changer"
+title.TextColor3 = Color3.fromRGB(140, 255, 140)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 17
+title.Parent = mainFrame
+
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.new(0, 28, 0, 28)
+minBtn.Position = UDim2.new(1, -32, 0, 2)
+minBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+minBtn.Text = "–"
+minBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 20
+minBtn.Parent = mainFrame
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 65, 0, 28)
+toggleBtn.Position = UDim2.new(1, -105, 0, 2)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+toggleBtn.Text = "Disable"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 12
+toggleBtn.Parent = mainFrame
+
+local minimized = false
+minBtn.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    mainFrame.Size = minimized and UDim2.new(0, 420, 0, 32) or UDim2.new(0, 420, 0, 360)
+    if leftPanel then leftPanel.Visible = not minimized end
+    if rightPanel then rightPanel.Visible = not minimized end
+    title.Text = minimized and "TDS Skin Changer" or "Skin Changer"
+end)
+
+local leftPanel = Instance.new("Frame")
+leftPanel.Size = UDim2.new(0.4, -10, 1, -38)
+leftPanel.Position = UDim2.new(0, 5, 0, 32)
+leftPanel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+leftPanel.BackgroundTransparency = 0.3
+leftPanel.BorderSizePixel = 0
+leftPanel.Parent = mainFrame
+local leftCorner = Instance.new("UICorner")
+leftCorner.CornerRadius = UDim.new(0, 6)
+leftCorner.Parent = leftPanel
+local leftScroll = Instance.new("ScrollingFrame")
+leftScroll.Size = UDim2.new(1, 0, 1, 0)
+leftScroll.BackgroundTransparency = 1
+leftScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+leftScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+leftScroll.ScrollBarThickness = 3
+leftScroll.Parent = leftPanel
+local leftLayout = Instance.new("UIListLayout")
+leftLayout.Padding = UDim.new(0, 4)
+leftLayout.SortOrder = Enum.SortOrder.LayoutOrder
+leftLayout.Parent = leftScroll
+
+local rightPanel = Instance.new("Frame")
+rightPanel.Size = UDim2.new(0.6, -15, 1, -38)
+rightPanel.Position = UDim2.new(0.4, 5, 0, 32)
+rightPanel.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+rightPanel.BackgroundTransparency = 0.3
+rightPanel.BorderSizePixel = 0
+rightPanel.Parent = mainFrame
+local rightCorner = Instance.new("UICorner")
+rightCorner.CornerRadius = UDim.new(0, 6)
+rightCorner.Parent = rightPanel
+local rightScroll = Instance.new("ScrollingFrame")
+rightScroll.Size = UDim2.new(1, 0, 1, 0)
+rightScroll.BackgroundTransparency = 1
+rightScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+rightScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+rightScroll.ScrollBarThickness = 3
+rightScroll.Parent = rightPanel
+local rightLayout = Instance.new("UIListLayout")
+rightLayout.Padding = UDim.new(0, 4)
+rightLayout.SortOrder = Enum.SortOrder.LayoutOrder
+rightLayout.Parent = rightScroll
+
+local towerFolder = game:GetService("ReplicatedStorage").Content.Tower
+if not towerFolder then return end
+
+local function getSkinsForTower(towerName)
+    local statsModule = towerFolder:FindFirstChild(towerName):FindFirstChild("Stats")
+    if not statsModule then return {} end
+    local ok, data = pcall(require, statsModule)
+    if not ok or not data then return {} end
+    local skinData = data.Properties and data.Properties.SkinData
+    if not skinData then skinData = data.SkinData end
+    if not skinData then return {} end
+    local skins = {}
+    for name, info in pairs(skinData) do
+        table.insert(skins, {Name = name, Rarity = info.Rarity})
     end
-    return false
+    table.sort(skins, function(a,b) return a.Name < b.Name end)
+    return skins
 end
 
-local tracked = {}
+local allTowers = {}
+for _, child in ipairs(towerFolder:GetChildren()) do
+    if child:IsA("Folder") then
+        allTowers[child.Name] = getSkinsForTower(child.Name)
+    end
+end
+local towerNames = {}
+for name in pairs(allTowers) do table.insert(towerNames, name) end
+table.sort(towerNames)
 
-local function setUpgradeVisibility(skinModel, level)
-    local upgrades = skinModel:FindFirstChild("Upgrades")
-    if not upgrades then return end
-    for i = 0, 4 do
-        local folder = upgrades:FindFirstChild(tostring(i))
-        if folder then
-            local visible = (i == level)
-            for _, part in ipairs(folder:GetDescendants()) do
+local enabled = true
+local activeInjectors = {}
+local selectedSkins = {}
+local heartbeatConnections = {}
+
+local function stopAllTracks(animator)
+    if not animator then return end
+    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
+        pcall(function()
+            track:Stop()
+            track:Destroy()
+        end)
+    end
+end
+
+local function safeDestroy(obj)
+    if obj and obj.Parent then
+        pcall(function() obj:Destroy() end)
+    end
+end
+
+local function cleanupAll()
+    local skinFolder = workspace:FindFirstChild("SkinChanger")
+    if skinFolder then
+        for _, child in ipairs(skinFolder:GetChildren()) do
+            if child and child:IsA("Model") then
+                local animator = child:FindFirstChild("AnimationController") and child.AnimationController:FindFirstChildOfClass("Animator")
+                if animator then stopAllTracks(animator) end
+                safeDestroy(child)
+            end
+        end
+    end
+    for towerName, data in pairs(activeInjectors) do
+        if data.tracked then
+            for uid, info in pairs(data.tracked) do
+                if info.skin then
+                    local animator = info.skin:FindFirstChild("AnimationController") and info.skin.AnimationController:FindFirstChildOfClass("Animator")
+                    if animator then stopAllTracks(animator) end
+                    safeDestroy(info.skin)
+                end
+                if info.animConnection then info.animConnection:Disconnect() end
+            end
+            data.tracked = {}
+        end
+    end
+    activeInjectors = {}
+    for _, conn in pairs(heartbeatConnections) do conn:Disconnect() end
+    heartbeatConnections = {}
+end
+
+local function restoreOriginalParts()
+    local towerContainer = workspace:FindFirstChild("Towers") or workspace
+    for _, child in ipairs(towerContainer:GetChildren()) do
+        if child:IsA("Model") then
+            for _, part in ipairs(child:GetDescendants()) do
                 if part:IsA("BasePart") then
-                    part.Transparency = visible and 0 or 1
-                    part.CanCollide = false
-                    part.CanQuery = false
+                    part.Transparency = 0
+                    part.CanQuery = true
+                    part.CanCollide = true
                 end
             end
         end
     end
 end
 
-local function playIdleAnimation(skin)
-    local animator = skin:FindFirstChild("AnimationController") and skin.AnimationController:FindFirstChildOfClass("Animator")
-    if animator then
-        local idleFolder = skin:FindFirstChild("Animations") and skin.Animations:FindFirstChild("Idle")
-        if idleFolder then
-            local animObj = idleFolder:FindFirstChild("0") or idleFolder:FindFirstChildOfClass("Animation")
-            if animObj then
-                local track = animator:LoadAnimation(animObj)
-                track:Play()
-                return track
-            end
-        end
-    end
-    return nil
-end
-
-local function playFireAnimation(skin, level, rightHand)
-    local animator = skin:FindFirstChild("AnimationController") and skin.AnimationController:FindFirstChildOfClass("Animator")
-    if not animator then return end
-    local fireFolder = skin:FindFirstChild("Animations") and skin.Animations:FindFirstChild("Fire")
-    if not fireFolder then return end
-    local animObj = nil
-    if level < 4 then
-        local folder0 = fireFolder:FindFirstChild("0")
-        if folder0 then
-            animObj = folder0:FindFirstChild("Fire")
+local function toggleSkinChanger()
+    enabled = not enabled
+    if enabled then
+        toggleBtn.Text = "Disable"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+        for towerName, skinName in pairs(selectedSkins) do
+            requestAndApplySkin(towerName, skinName)
         end
     else
-        local folder4 = fireFolder:FindFirstChild("4")
-        if folder4 then
-            if rightHand then
-                animObj = folder4:FindFirstChild("Right")
-            else
-                animObj = folder4:FindFirstChild("Left")
-            end
+        toggleBtn.Text = "Enable"
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+        cleanupAll()
+        restoreOriginalParts()
+    end
+end
+
+toggleBtn.MouseButton1Click:Connect(toggleSkinChanger)
+
+local function getTowerType(tower)
+    local rep = tower:FindFirstChild("TowerReplicator")
+    if rep then
+        local nameAttr = rep:GetAttribute("Name")
+        if nameAttr and nameAttr ~= "" then
+            return nameAttr
         end
     end
+    return tower:GetAttribute("TowerName") or tower.Name
+end
+
+local function findAnimationInSkin(skin, animName)
+    local animFolder = skin:FindFirstChild("Animations")
+    if not animFolder then return nil end
+    local function search(folder, name)
+        for _, child in ipairs(folder:GetChildren()) do
+            if child:IsA("Animation") and child.Name == name then
+                return child
+            end
+            if child:IsA("Folder") then
+                local found = search(child, name)
+                if found then return found end
+            end
+        end
+        return nil
+    end
+    return search(animFolder, animName)
+end
+
+local function playIdleOnSkin(skin, level)
+    local animator = skin:FindFirstChild("AnimationController") and skin.AnimationController:FindFirstChildOfClass("Animator")
+    if not animator then return nil end
+    local idleFolder = skin:FindFirstChild("Animations") and skin.Animations:FindFirstChild("Idle")
+    if not idleFolder then return nil end
+    local keys = {}
+    for _, child in ipairs(idleFolder:GetChildren()) do
+        local num = tonumber(child.Name)
+        if num ~= nil then table.insert(keys, num) end
+    end
+    if #keys == 0 then return nil end
+    table.sort(keys)
+    local selectedKey = keys[1]
+    for _, k in ipairs(keys) do
+        if level >= k then selectedKey = k else break end
+    end
+    local entry = idleFolder:FindFirstChild(tostring(selectedKey))
+    if not entry then return nil end
+    local animObj = entry:IsA("Folder") and entry:FindFirstChildOfClass("Animation") or (entry:IsA("Animation") and entry)
     if animObj then
         local track = animator:LoadAnimation(animObj)
+        track.Looped = true
         track:Play()
         return track
     end
     return nil
 end
 
-local function hideOriginalParts(tower)
-    for _, part in ipairs(tower:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if part.Name == "HumanoidRootPart" then
+local function getFireSoundFromSkin(skin, level, rightHand)
+    local weapon = skin:FindFirstChild("Weapon")
+    if not weapon then return nil end
+    local gunName = (level >= 4) and (rightHand and "Gun2" or "Gun1") or "Gun1"
+    local gun = weapon:FindFirstChild(gunName)
+    if not gun then gun = weapon:FindFirstChild("Gun") end
+    if not gun then return nil end
+    local handle = gun:FindFirstChild("Handle")
+    if handle then
+        local sound = handle:FindFirstChild("Fire")
+        if sound and sound:IsA("Sound") then return sound end
+    end
+    local config = gun:FindFirstChild("Configuration")
+    if config then
+        local sounds = config:FindFirstChild("Sounds")
+        if sounds then
+            local fireVal = sounds:FindFirstChild("Fire")
+            if fireVal and fireVal:IsA("ObjectValue") then
+                local soundObj = fireVal.Value
+                if soundObj and soundObj:IsA("Sound") then return soundObj end
+            end
+            if fireVal and fireVal:IsA("Sound") then return fireVal end
+        end
+    end
+    return nil
+end
+
+local function applyUpgradeModule(skin, level)
+    local module = skin:FindFirstChild("UpgradesModule")
+    if not module or not module:IsA("ModuleScript") then return end
+    local ok, data = pcall(require, module)
+    if not ok or not data then return end
+
+    if data.Weapons then
+        local weaponFolder = skin:FindFirstChild("Weapon")
+        if weaponFolder then
+            for reqLevel, path in pairs(data.Weapons) do
+                if reqLevel <= level then
+                    if type(path) ~= "string" then continue end
+                    local parts = {}
+                    for part in path:gmatch("[^%.]+") do table.insert(parts, part) end
+                    local current = skin
+                    local source = nil
+                    for i, part in ipairs(parts) do
+                        if i == #parts then
+                            source = current:FindFirstChild(part)
+                        else
+                            current = current:FindFirstChild(part)
+                            if not current then break end
+                        end
+                    end
+                    if source then
+                        local existing = weaponFolder:FindFirstChild(source.Name)
+                        if not existing then
+                            local clone = source:Clone()
+                            clone.Parent = weaponFolder
+                            clone.Name = source.Name
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    if data.Transparency then
+        for i, transTable in ipairs(data.Transparency) do
+            local levelIndex = i - 1
+            if levelIndex <= level then
+                for path, _ in pairs(transTable) do
+                    if type(path) ~= "string" then continue end
+                    local parts = {}
+                    for part in path:gmatch("[^%.]+") do table.insert(parts, part) end
+                    local current = skin
+                    local target = nil
+                    for j, part in ipairs(parts) do
+                        if j == #parts then
+                            target = current:FindFirstChild(part)
+                        else
+                            current = current:FindFirstChild(part)
+                            if not current then break end
+                        end
+                    end
+                    if target and target:IsA("BasePart") then
+                        target.Transparency = 0
+                    end
+                end
+            end
+        end
+    end
+
+    if data.Deletions then
+        for i, delTable in ipairs(data.Deletions) do
+            local levelIndex = i - 1
+            if levelIndex <= level then
+                for path, _ in pairs(delTable) do
+                    if type(path) ~= "string" then continue end
+                    local parts = {}
+                    for part in path:gmatch("[^%.]+") do table.insert(parts, part) end
+                    local current = skin
+                    local target = nil
+                    for j, part in ipairs(parts) do
+                        if j == #parts then
+                            target = current:FindFirstChild(part)
+                        else
+                            current = current:FindFirstChild(part)
+                            if not current then break end
+                        end
+                    end
+                    if target and target:IsA("BasePart") then
+                        target.Transparency = 1
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function linkBones(skin, tower)
+    local skinWeapon = skin:FindFirstChild("Weapon")
+    local towerWeapon = tower:FindFirstChild("Weapon")
+    if not skinWeapon or not towerWeapon then return end
+    local skinConfig = skinWeapon:FindFirstChild("Configuration")
+    local towerConfig = towerWeapon:FindFirstChild("Configuration")
+    if not skinConfig or not towerConfig then return end
+    local skinBones = skinConfig:FindFirstChild("Bones")
+    local towerBones = towerConfig:FindFirstChild("Bones")
+    if not towerBones then return end
+    if skinBones then skinBones:Destroy() end
+    local newBones = towerBones:Clone()
+    newBones.Parent = skinConfig
+    newBones.Name = "Bones"
+end
+
+local function requestAndApplySkin(towerName, skinName)
+    if not enabled then return end
+    selectedSkins[towerName] = skinName
+
+    local assets = game:GetService("ReplicatedStorage"):FindFirstChild("Assets")
+    local skinModel = nil
+    if assets then
+        local troops = assets:FindFirstChild("Troops")
+        if troops then
+            local tower = troops:FindFirstChild(towerName)
+            if tower then
+                local skins = tower:FindFirstChild("Skins")
+                if skins then skinModel = skins:FindFirstChild(skinName) end
+            end
+        end
+    end
+
+    if not skinModel then
+        local requestRemote = game:GetService("ReplicatedStorage").Network.AssetStreaming["RE:requestAssets"]
+        if requestRemote then
+            requestRemote:FireServer({ "Troops/" .. towerName .. "/Skins/" .. skinName })
+        else
+            return
+        end
+
+        local streaming = player:WaitForChild("PlayerGui"):WaitForChild("Streaming")
+        for i = 1, 60 do
+            local path = streaming:FindFirstChild("Troops")
+            if path then path = path:FindFirstChild(towerName) end
+            if path then path = path:FindFirstChild("Skins") end
+            if path then skinModel = path:FindFirstChild(skinName) end
+            if skinModel then break end
+            task.wait(0.15)
+        end
+        if not skinModel then
+            warn("Skin not found: " .. skinName .. " for " .. towerName)
+            return
+        end
+        if assets then
+            local troops = assets:FindFirstChild("Troops") or Instance.new("Folder") troops.Name = "Troops" troops.Parent = assets
+            local tower = troops:FindFirstChild(towerName) or Instance.new("Folder") tower.Name = towerName tower.Parent = troops
+            local skins = tower:FindFirstChild("Skins") or Instance.new("Folder") skins.Name = "Skins" skins.Parent = tower
+            local existing = skins:FindFirstChild(skinName)
+            if existing then existing:Destroy() end
+            local copy = skinModel:Clone()
+            copy.Parent = skins
+            copy.Name = skinName
+            skinModel = copy
+        end
+    end
+
+    if not skinModel then return end
+
+    local skinFolder = workspace:FindFirstChild("SkinChanger")
+    if not skinFolder then
+        skinFolder = Instance.new("Folder")
+        skinFolder.Name = "SkinChanger"
+        skinFolder.Parent = workspace
+    end
+
+    local upgradeFolder = skinModel:FindFirstChild("Upgrades")
+    local maxLevel = 0
+    if upgradeFolder then
+        for _, child in ipairs(upgradeFolder:GetChildren()) do
+            local num = tonumber(child.Name)
+            if num and num > maxLevel then maxLevel = num end
+        end
+    end
+
+    local function muteOriginalSounds(tower)
+        for _, sound in ipairs(tower:GetDescendants()) do
+            if sound:IsA("Sound") then
+                sound.Volume = 0
+                sound.Playing = false
+            end
+        end
+    end
+
+    local function hideOriginalParts(tower)
+        for _, part in ipairs(tower:GetDescendants()) do
+            if part:IsA("BasePart") then
                 part.Transparency = 0.999
                 part.CanQuery = true
                 part.CanCollide = false
-            else
-                part.Transparency = 1
-                part.CanQuery = true
-                part.CanCollide = false
             end
         end
     end
-end
 
-local function applyBannedSkin(tower)
-    if not isScoutTower(tower) then return false end
-    local uid = tower:GetAttribute("TowerUID") or tostring(tower)
-    if tracked[uid] then
-        local data = tracked[uid]
-        local skin = data.skin
-        if skin and skin.Parent then
-            local primary = tower.PrimaryPart
-            if primary then
-                skin:PivotTo(primary.CFrame)
-            else
-                skin:PivotTo(tower:GetPivot())
-            end
-            local rep = tower:FindFirstChild("TowerReplicator")
-            if rep then
-                local level = rep:GetAttribute("Upgrade") or 0
-                setUpgradeVisibility(skin, level)
-            end
-        end
-        return false
-    end
+    local tracked = {}
+    local towerContainer = workspace:FindFirstChild("Towers") or workspace
 
-    local skin = bannedCopy:Clone()
-    skin.Name = "Banned"
-    skin.Parent = skinFolder
-    skin:SetAttribute("Skin", "Banned")
-    skin:SetAttribute("SkinClone", true)
-    skin:SetAttribute("Tower", "Scout")
+    local function applySkinToTower(tower)
+        if not enabled then return false end
+        if not tower:IsA("Model") then return false end
+        if getTowerType(tower) ~= towerName then return false end
 
-    local root = skin:FindFirstChild("HumanoidRootPart")
-    if root then skin.PrimaryPart = root end
+        local uid = tower:GetAttribute("TowerUID") or tostring(tower)
 
-    local primary = tower.PrimaryPart
-    if primary then
-        skin:PivotTo(primary.CFrame)
-    else
-        skin:PivotTo(tower:GetPivot())
-    end
+        local newSkin = skinModel:Clone()
+        newSkin.Name = "Skin_" .. skinName
+        newSkin:SetAttribute("Skin", skinName)
+        newSkin:SetAttribute("Tower", towerName)
+        newSkin:SetAttribute("TowerUID", uid)
 
-    for _, part in ipairs(skin:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanQuery = false
-            part.CanCollide = false
-            part.CanTouch = false
-        end
-    end
+        local rootPart = newSkin:FindFirstChild("HumanoidRootPart")
+        if rootPart then newSkin.PrimaryPart = rootPart end
 
-    hideOriginalParts(tower)
-
-    local origHumanoid = tower:FindFirstChildOfClass("Humanoid")
-    local skinHumanoid = skin:FindFirstChildOfClass("Humanoid") or skin:FindFirstChild("AnimationController")
-    if origHumanoid and skinHumanoid then
-        skinHumanoid.WalkSpeed = origHumanoid.WalkSpeed
-        skinHumanoid.JumpPower = origHumanoid.JumpPower
-        skinHumanoid.MaxHealth = origHumanoid.MaxHealth
-        skinHumanoid.Health = origHumanoid.Health
-        skinHumanoid.RigType = origHumanoid.RigType
-    end
-
-    local idleTrack = playIdleAnimation(skin)
-
-    local rep = tower:FindFirstChild("TowerReplicator")
-    local level = 0
-    local totalDamage = 0
-    if rep then
-        level = rep:GetAttribute("Upgrade") or 0
-        totalDamage = rep:GetAttribute("TotalDamage") or 0
-        setUpgradeVisibility(skin, level)
-    end
-
-    tracked[uid] = {
-        tower = tower,
-        skin = skin,
-        rightHand = true,
-        idleTrack = idleTrack,
-        lastTotalDamage = totalDamage
-    }
-    return true
-end
-
-local towerContainer = workspace:FindFirstChild("Towers") or workspace
-
-game:GetService("RunService").Heartbeat:Connect(function()
-    for uid, data in pairs(tracked) do
-        local tower = data.tower
-        local skin = data.skin
-        if not tower or not tower.Parent or not skin or not skin.Parent then
-            if skin then skin:Destroy() end
-            tracked[uid] = nil
+        local primary = tower.PrimaryPart
+        if primary then
+            pcall(function() newSkin:PivotTo(primary.CFrame) end)
         else
-            local primary = tower.PrimaryPart
-            if primary then
-                skin:PivotTo(primary.CFrame)
-            else
-                skin:PivotTo(tower:GetPivot())
+            pcall(function() newSkin:PivotTo(tower:GetPivot()) end)
+        end
+
+        for _, part in ipairs(newSkin:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanQuery = false
+                part.CanCollide = false
+                part.CanTouch = false
             end
+        end
 
-            hideOriginalParts(tower)
+        for _, child in ipairs(skinFolder:GetChildren()) do
+            if child:IsA("Model") and child:GetAttribute("Tower") == towerName and child:GetAttribute("TowerUID") == uid then
+                local animator = child:FindFirstChild("AnimationController") and child.AnimationController:FindFirstChildOfClass("Animator")
+                if animator then stopAllTracks(animator) end
+                safeDestroy(child)
+            end
+        end
+        if tracked[uid] then
+            if tracked[uid].skin then
+                local animator = tracked[uid].skin:FindFirstChild("AnimationController") and tracked[uid].skin.AnimationController:FindFirstChildOfClass("Animator")
+                if animator then stopAllTracks(animator) end
+                safeDestroy(tracked[uid].skin)
+            end
+            if tracked[uid].animConnection then tracked[uid].animConnection:Disconnect() end
+            tracked[uid] = nil
+        end
 
-            local rep = tower:FindFirstChild("TowerReplicator")
-            if rep then
-                local level = rep:GetAttribute("Upgrade") or 0
-                setUpgradeVisibility(skin, level)
+        newSkin.Parent = skinFolder
 
-                local currentDamage = rep:GetAttribute("TotalDamage") or 0
-                if currentDamage > data.lastTotalDamage then
-                    local right = data.rightHand
-                    playFireAnimation(skin, level, right)
-                    data.rightHand = not right
+        hideOriginalParts(tower)
+
+        local rep = tower:FindFirstChild("TowerReplicator")
+        local level = 0
+        if rep then level = rep:GetAttribute("Upgrade") or 0 end
+        local rightHand = true
+        local fireSound = getFireSoundFromSkin(newSkin, level, rightHand)
+        if fireSound then
+            muteOriginalSounds(tower)
+        else
+            for _, sound in ipairs(tower:GetDescendants()) do
+                if sound:IsA("Sound") then
+                    sound.Volume = 1
+                    sound.Playing = true
                 end
-                data.lastTotalDamage = currentDamage
             end
         end
-    end
-end)
 
-local function applyToAll()
-    for _, child in ipairs(towerContainer:GetChildren()) do
-        if child:IsA("Model") then
-            applyBannedSkin(child)
+        local origHumanoid = tower:FindFirstChildOfClass("Humanoid")
+        local skinHumanoid = newSkin:FindFirstChildOfClass("Humanoid")
+        if origHumanoid and skinHumanoid then
+            skinHumanoid.WalkSpeed = origHumanoid.WalkSpeed
+            skinHumanoid.JumpPower = origHumanoid.JumpPower
+            skinHumanoid.MaxHealth = origHumanoid.MaxHealth
+            skinHumanoid.Health = origHumanoid.Health
+            skinHumanoid.RigType = origHumanoid.RigType
         end
+
+        applyUpgradeModule(newSkin, level)
+
+        local upgrades = newSkin:FindFirstChild("Upgrades")
+        if upgrades then
+            for i = 0, maxLevel do
+                local folder = upgrades:FindFirstChild(tostring(i))
+                if folder then
+                    local visible = (i <= level)
+                    for _, part in ipairs(folder:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.Transparency = visible and 0 or 1
+                            part.CanCollide = false
+                            part.CanQuery = false
+                        end
+                    end
+                end
+            end
+        end
+
+        linkBones(newSkin, tower)
+
+        local idleTrack = playIdleOnSkin(newSkin, level)
+
+        local towerAnimator = tower:FindFirstChild("AnimationController") and tower.AnimationController:FindFirstChildOfClass("Animator")
+        local skinAnimator = newSkin:FindFirstChild("AnimationController") and newSkin.AnimationController:FindFirstChildOfClass("Animator")
+        local animConnection
+        local currentFireTrack = nil
+
+        if towerAnimator and skinAnimator then
+            animConnection = towerAnimator.AnimationPlayed:Connect(function(track)
+                if not enabled then return end
+                local anim = track.Animation
+                if not anim then return end
+
+                local fullPath = anim:GetFullName()
+                if string.find(fullPath, "Idle/") or string.find(fullPath, "Idle.") then
+                    return
+                end
+
+                local towerNamePath = tower:GetFullName() .. "."
+                local relativePath = fullPath:sub(#towerNamePath + 1)
+
+                local skinAnim = findAnimationInSkin(newSkin, anim.Name)
+                if skinAnim then
+                    if currentFireTrack then
+                        currentFireTrack:Stop()
+                        currentFireTrack:Destroy()
+                        currentFireTrack = nil
+                    end
+                    local newTrack = skinAnimator:LoadAnimation(skinAnim)
+                    newTrack:Play()
+                    currentFireTrack = newTrack
+                    newTrack.Stopped:Connect(function()
+                        if currentFireTrack == newTrack then currentFireTrack = nil end
+                    end)
+                    if string.find(anim.Name, "Fire") then
+                        local fireSound = getFireSoundFromSkin(newSkin, level, rightHand)
+                        if fireSound and fireSound:IsA("Sound") then
+                            local soundClone = fireSound:Clone()
+                            local rootPart = newSkin:FindFirstChild("HumanoidRootPart")
+                            if rootPart then soundClone.Parent = rootPart else soundClone.Parent = newSkin end
+                            soundClone.RollOffMinDistance = 5
+                            soundClone.MaxDistance = 200
+                            soundClone:Play()
+                            task.spawn(function()
+                                task.wait(soundClone.TimeLength or 0.5)
+                                soundClone:Destroy()
+                            end)
+                        end
+                        if tracked[uid] then tracked[uid].rightHand = not rightHand end
+                    end
+                end
+            end)
+        end
+
+        tracked[uid] = {
+            tower = tower,
+            skin = newSkin,
+            animConnection = animConnection,
+            rightHand = true,
+            level = level,
+            currentFireTrack = currentFireTrack,
+            idleTrack = idleTrack,
+        }
+        return true
+    end
+
+    for _, child in ipairs(towerContainer:GetChildren()) do
+        if child:IsA("Model") then applySkinToTower(child) end
+    end
+
+    towerContainer.ChildAdded:Connect(function(child)
+        task.wait(0.02)
+        if child:IsA("Model") and enabled then applySkinToTower(child) end
+    end)
+
+    activeInjectors[towerName] = {
+        tracked = tracked,
+        maxLevel = maxLevel,
+    }
+
+    local lastLevels = {}
+    spawn(function()
+        while enabled do
+            task.wait(0.2)
+            if not enabled then break end
+            for _, child in ipairs(towerContainer:GetChildren()) do
+                if child:IsA("Model") then
+                    local rep = child:FindFirstChild("TowerReplicator")
+                    if rep then
+                        local currentLevel = rep:GetAttribute("Upgrade") or 0
+                        local uid = child:GetAttribute("TowerUID") or tostring(child)
+                        if lastLevels[uid] ~= currentLevel then
+                            lastLevels[uid] = currentLevel
+                            if enabled then applySkinToTower(child) end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    local heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
+        if not enabled then return end
+        local data = activeInjectors[towerName]
+        if not data then return end
+        local track = data.tracked
+        for uid, info in pairs(track) do
+            local tower = info.tower
+            local skin = info.skin
+            if not tower or not tower.Parent or not skin or not skin.Parent then
+                if skin then
+                    local animator = skin:FindFirstChild("AnimationController") and skin.AnimationController:FindFirstChildOfClass("Animator")
+                    if animator then stopAllTracks(animator) end
+                    safeDestroy(skin)
+                end
+                if info.animConnection then info.animConnection:Disconnect() end
+                track[uid] = nil
+            else
+                local primary = tower.PrimaryPart
+                if primary then
+                    pcall(function() skin:PivotTo(primary.CFrame) end)
+                else
+                    pcall(function() skin:PivotTo(tower:GetPivot()) end)
+                end
+                hideOriginalParts(tower)
+                local rep = tower:FindFirstChild("TowerReplicator")
+                if rep then
+                    local level = rep:GetAttribute("Upgrade") or 0
+                    local fireSound = getFireSoundFromSkin(skin, level, info.rightHand or true)
+                    if fireSound then
+                        for _, sound in ipairs(tower:GetDescendants()) do
+                            if sound:IsA("Sound") then
+                                sound.Volume = 0
+                                sound.Playing = false
+                            end
+                        end
+                    else
+                        for _, sound in ipairs(tower:GetDescendants()) do
+                            if sound:IsA("Sound") then
+                                sound.Volume = 1
+                                sound.Playing = true
+                            end
+                        end
+                    end
+                    if level ~= info.level then
+                        info.level = level
+                        applySkinToTower(tower)
+                    end
+                end
+            end
+        end
+    end)
+    heartbeatConnections[towerName] = heartbeatConn
+end
+
+local towerButtons = {}
+local skinButtons = {}
+
+local function clearSkins()
+    for _, btn in ipairs(skinButtons) do btn:Destroy() end
+    skinButtons = {}
+end
+
+local function showSkins(towerName)
+    clearSkins()
+    local skins = allTowers[towerName] or {}
+    for _, skin in ipairs(skins) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -8, 0, 26)
+        btn.BackgroundColor3 = Color3.fromRGB(65, 65, 65)
+        btn.Text = skin.Name .. " (" .. tostring(skin.Rarity) .. ")"
+        btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+        btn.Font = Enum.Font.GothamMedium
+        btn.TextSize = 12
+        btn.Parent = rightScroll
+        btn.MouseButton1Click:Connect(function()
+            requestAndApplySkin(towerName, skin.Name)
+        end)
+        table.insert(skinButtons, btn)
+    end
+    rightScroll.CanvasSize = UDim2.new(0, 0, 0, #skinButtons * 30)
+end
+
+for _, name in ipairs(towerNames) do
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -8, 0, 26)
+    btn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    btn.Font = Enum.Font.GothamMedium
+    btn.TextSize = 12
+    btn.Parent = leftScroll
+    btn.MouseButton1Click:Connect(function()
+        for _, b in ipairs(towerButtons) do
+            b.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+        showSkins(name)
+    end)
+    table.insert(towerButtons, btn)
+end
+leftScroll.CanvasSize = UDim2.new(0, 0, 0, #towerButtons * 30)
+
+local dragging = false
+local dragStart = nil
+local frameStart = nil
+
+local function onInputBegan(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        frameStart = mainFrame.Position
     end
 end
 
-applyToAll()
-
-towerContainer.ChildAdded:Connect(function(child)
-    task.wait(0.1)
-    if child:IsA("Model") then
-        applyBannedSkin(child)
+local function onInputEnded(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
     end
-end)
+end
 
-spawn(function()
-    while task.wait(0.1) do
-        applyToAll()
+local function onInputChanged(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(frameStart.X.Scale, frameStart.X.Offset + delta.X, frameStart.Y.Scale, frameStart.Y.Offset + delta.Y)
     end
-end)
+end
+
+mainFrame.InputBegan:Connect(onInputBegan)
+mainFrame.InputEnded:Connect(onInputEnded)
+game:GetService("UserInputService").InputChanged:Connect(onInputChanged)
+
+print("Skin Changer v1.0")
