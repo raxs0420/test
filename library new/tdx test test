@@ -33,6 +33,16 @@ local function getCash()
     return cash and cash.Value or 0
 end
 
+local bountyNameBlacklist = {
+    "Skulldrone", "Pilot", "Artemis", "Slow", "Quick", "Normal", "Buzzard", "Jumper",
+    "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drrone",
+    "Rusher", "Jager", "Chariot Turret", "Spawner", "Haste", "Attack Drone", "Rocket Drone",
+    "Multiplier 3", "Multiplier 2", "Multiplier 1", "Multiplier X", "Aerial Juggernaut",
+    "Xcientist", "Shock Head", "Prisoner", "Prisoner Soul", "Contained", "Light Contained",
+    "Heavy Contained", "Resurrected Armored Ranger", "XNader", "Zombie Drop Pod 3", "Zombie Drop Pod 2", "Zombie Drop Pod 1", "Resurrected Slow Ranger", "Resurrected Ranger"
+}
+
+
 local function replaceTower(macroId)
     local data = persistentData[macroId]
     if not data then return end
@@ -600,7 +610,7 @@ end
 local function getClosestEnemy(position, enemies, blacklist)
     local best, bestDist = nil, math.huge
     for _, enemy in ipairs(enemies) do
-        if not blacklist[enemy] then
+        if not blacklist[enemy] and not bountyNameBlacklist[enemy.Name] then
             local dist = (position - enemy.Position).Magnitude
             if dist < bestDist then
                 bestDist = dist
