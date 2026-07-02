@@ -109,7 +109,7 @@ local function performEmptyCycle()
                                 if root then
                                         local dist = (root.Position - landingPos).Magnitude
                                         if dist > 8 then 
-task.wait(2)
+task.wait(1)
                                                 if resetEvent and resetEvent:IsA("RemoteEvent") then
                                                         resetEvent:FireServer()
                                                 end
