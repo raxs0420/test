@@ -168,13 +168,13 @@ task.spawn(function()
             end
         end
         if not selectedTarget then
-            task.wait(1)
+            task.wait(0.5)
             continue
         end
         teleportToLobby()
         task.wait(0.3)
         teleportToSelectedPlayer()
-        task.wait(8)
+        task.wait(3.5)
         if resetEvent and resetEvent:IsA("RemoteEvent") then
             resetEvent:FireServer()
         end
