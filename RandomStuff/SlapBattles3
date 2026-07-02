@@ -1,0 +1,77 @@
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local VirtualInput = game:GetService("VirtualInputManager")
+
+local player = Players.LocalPlayer
+local teleportPart = workspace:FindFirstChild("Lobby") and workspace.Lobby:FindFirstChild("Teleport1")
+local PROXIMITY = 20
+
+local resetRemote = player:FindFirstChild("Reset")
+
+local function resetChar()
+    if resetRemote and resetRemote:IsA("RemoteEvent") then
+        resetRemote:FireServer()
+    end
+end
+
+local function simulateE()
+    VirtualInput:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+    task.wait(0.02)
+    VirtualInput:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+end
+
+local currentTween, isTeleporting, lastTargetPos
+
+local function smoothTeleport(targetPos, duration)
+    if isTeleporting then
+        if currentTween then currentTween:Cancel() currentTween = nil isTeleporting = false else return end
+    end
+    local char = player.Character
+    if not char then return end
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    if lastTargetPos and (root.Position - targetPos).Magnitude < 2 then return end
+    isTeleporting = true
+    lastTargetPos = targetPos
+    local tween = TweenService:Create(root, TweenInfo.new(duration or 0.08, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos)})
+    currentTween = tween
+    tween:Play()
+    tween.Completed:Wait()
+    currentTween = nil
+    isTeleporting = false
+end
+
+local function teleportToPortal()
+    if not teleportPart then return end
+    smoothTeleport(teleportPart.Position + Vector3.new(0, -2, 0), 0.08)
+end
+
+local function cycle()
+    local char = player.Character
+    local root = char and char:FindFirstChild("HumanoidRootPart")
+    if not root or not teleportPart then
+        task.wait(0.1)
+        cycle()
+        return
+    end
+
+    local dist = (root.Position - teleportPart.Position).Magnitude
+
+    if dist < PROXIMITY then
+        teleportToPortal()
+        task.wait(0.05)
+        cycle()
+    else
+        simulateE()
+        task.wait(0.05)
+        resetChar()
+    end
+end
+
+task.wait(0.2)
+cycle()
+
+player.CharacterAdded:Connect(function()
+    task.wait(0.1)
+    cycle()
+end)
