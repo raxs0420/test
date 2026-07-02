@@ -580,4 +580,106 @@ function TDX:Ability(macroId, slot, loop)
     if remote then pcall(function() remote:InvokeServer(actualId, slot) end) end
 end
 
+local bountyBlacklist = {}
+local bountyPauseUntil = {}
+local bountyLoopRunning = false
+local bountyLoopCoroutine = nil
+
+local function getAllEnemyParts()
+    local enemiesFolder = Workspace:FindFirstChild("Game") and Workspace.Game:FindFirstChild("Enemies")
+    if not enemiesFolder then return {} end
+    local list = {}
+    for _, child in ipairs(enemiesFolder:GetChildren()) do
+        if child:IsA("BasePart") and child.Name ~= "Arrow" then
+            table.insert(list, child)
+        end
+    end
+    return list
+end
+
+local function getClosestEnemy(position, enemies, blacklist)
+    local best, bestDist = nil, math.huge
+    for _, enemy in ipairs(enemies) do
+        if not blacklist[enemy] then
+            local dist = (position - enemy.Position).Magnitude
+            if dist < bestDist then
+                bestDist = dist
+                best = enemy
+            end
+        end
+    end
+    return best
+end
+
+local function useBountyWithPosition(macroId, position)
+    local towerId = macroToTowerId[macroId]
+    if not towerId or not towerNameById[towerId] then return false end
+    local remote = getRemote("TowerUseAbilityRequest")
+    if not remote then return false end
+    local success, result = pcall(function()
+        return remote:InvokeServer(towerId, 1, position)
+    end)
+    return success and result == true
+end
+
+local function bountyLoop()
+    while bountyLoopRunning do
+        local enemies = getAllEnemyParts()
+        if #enemies > 0 then
+            local eligible = {}
+            for macroId, data in pairs(persistentData) do
+                if data.name == "Golden Mobster" and data.bottomLevel >= 3 then
+                    local towerId = macroToTowerId[macroId]
+                    if towerId and towerNameById[towerId] then
+                        local pos = towerPositions[towerId]
+                        if pos then
+                            table.insert(eligible, {
+                                macroId = macroId,
+                                towerId = towerId,
+                                position = pos
+                            })
+                        end
+                    end
+                end
+            end
+            if #eligible > 0 then
+                for _, tower in ipairs(eligible) do
+                    if not bountyLoopRunning then break end
+                    local now = tick()
+                    local pauseUntil = bountyPauseUntil[tower.towerId] or 0
+                    if now >= pauseUntil then
+                        local target = getClosestEnemy(tower.position, enemies, bountyBlacklist)
+                        if target then
+                            local success = useBountyWithPosition(tower.macroId, target.Position)
+                            if success then
+                                bountyBlacklist[target] = true
+                                bountyPauseUntil[tower.towerId] = now + 3
+                                task.spawn(function()
+                                    task.wait(5)
+                                    bountyBlacklist[target] = nil
+                                end)
+                            end
+                        end
+                    end
+                    task.wait(0.1)
+                end
+            else
+                task.wait(0.5)
+            end
+        else
+            task.wait(0.2)
+        end
+        task.wait(0.15)
+    end
+end
+
+function TDX:AutoBounty()
+    if bountyLoopRunning then
+        return true
+    end
+    bountyLoopRunning = true
+    bountyLoopCoroutine = task.spawn(bountyLoop)
+    return true
+end
+
 return TDX
