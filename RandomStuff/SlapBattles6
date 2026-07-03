@@ -305,7 +305,7 @@ while true do
         end
 
         for _, server in ipairs(data.data) do
-            if server.id ~= CurrentJobId and server.playing >= 1 and server.playing <= 6 then
+            if server.id ~= CurrentJobId and server.playing >= 3 and server.playing <= 6 then
                 local teleportSuccess, err = pcall(teleportService.TeleportToPlaceInstance, teleportService, PlaceId, server.id, player)
                 if teleportSuccess then
                     found = true
