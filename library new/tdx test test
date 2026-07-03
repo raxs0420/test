@@ -361,7 +361,7 @@ function TDX:Init()
         while not gameOverTriggered do
             if gameOverScreen.Visible then
                 gameOverTriggered = true
-                wait(2)
+                wait(4)
                 pcall(function() TeleportService:Teleport(9503261072) end)
                 break
             end
