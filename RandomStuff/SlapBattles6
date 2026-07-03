@@ -5,7 +5,6 @@ local userInputService = game:GetService("UserInputService")
 
 local SESSION_TIMEOUT = 300
 local SESSION_FILE = "SlapSession.json"
-local STUCK_TIMEOUT = 240
 
 local folder = workspace:FindFirstChild("Arena")
 if folder then folder = folder:FindFirstChild("island5") end
@@ -295,9 +294,6 @@ local function getServers(cursor)
     return httpService:JSONDecode(game:HttpGet(url))
 end
 
-local searchStartTime = os.time()
-local stuck = false
-
 while true do
     local cursor = nil
     local found = false
@@ -309,10 +305,14 @@ while true do
         end
 
         for _, server in ipairs(data.data) do
-            if server.id ~= CurrentJobId and server.playing >= 1 and server.playing <= 7 then
-                teleportService:TeleportToPlaceInstance(PlaceId, server.id, player)
-                found = true
-                break
+            if server.id ~= CurrentJobId and server.playing >= 1 and server.playing <= 6 then
+                local teleportSuccess, err = pcall(teleportService.TeleportToPlaceInstance, teleportService, PlaceId, server.id, player)
+                if teleportSuccess then
+                    found = true
+                    break
+                else
+                    warn("Teleport failed: " .. tostring(err))
+                end
             end
         end
 
@@ -325,14 +325,5 @@ while true do
         break
     end
 
-    if os.time() - searchStartTime >= STUCK_TIMEOUT then
-        stuck = true
-        break
-    end
-
     task.wait(2)
-end
-
-if stuck then
-    teleportService:Teleport(PlaceId, player)
 end
