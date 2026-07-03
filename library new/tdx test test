@@ -340,7 +340,7 @@ function TDX:Init()
         end
     end)
 
-    delay(13, function()
+    delay(25, function()
         local lastCheck = 0
         RunService.Heartbeat:Connect(function(deltaTime)
             lastCheck = lastCheck + deltaTime
