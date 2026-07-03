@@ -274,6 +274,18 @@ saveSession()
 
 updateUI()
 
+local portal = workspace:FindFirstChild("Portal1")
+if portal then
+    local char = player.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then
+            local pos = portal.Position + portal.CFrame.LookVector * 5
+            root.CFrame = CFrame.new(pos)
+        end
+    end
+end
+
 local PlaceId = game.PlaceId
 local CurrentJobId = game.JobId
 
