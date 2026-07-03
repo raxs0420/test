@@ -253,7 +253,7 @@ if sessionData.sessionStart == 0 then
 end
 
 local cyclesDone = 0
-while cyclesDone < 3 do
+while cyclesDone < 1 do
     while not player.Character do task.wait(0.05) end
     local model = models[index]
     if model then teleportToModel(model) end
@@ -321,7 +321,7 @@ while true do
         break
     end
 
-    task.wait(3)
+    task.wait(2)
 end
 
 if stuck then
