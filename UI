@@ -1,28 +1,130 @@
 _G.ClaimRewards = true
 
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/ui%20lib.txt"))()
+local function fetchUrl(url)
+    if syn and syn.request then
+        local success, result = pcall(function()
+            return syn.request({
+                Url = url,
+                Method = "GET"
+            })
+        end)
+        if success and result and result.Body then
+            return result.Body
+        end
+    end
+    
+    if request then
+        local success, result = pcall(function()
+            return request({
+                Url = url,
+                Method = "GET"
+            })
+        end)
+        if success and result and result.Body then
+            return result.Body
+        end
+    end
+
+    if http and http.GetAsync then
+        local success, result = pcall(function()
+            return http:GetAsync(url)
+        end)
+        if success and result then
+            return result
+        end
+    end
+
+    if game and game.HttpGet then
+        local success, result = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if success and result then
+            return result
+        end
+    end
+
+    return nil
+end
+
+local Library = nil
+local libraryUrl = "https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/ui%20lib.txt"
+
+local libContent = fetchUrl(libraryUrl)
+if libContent then
+    local loadSuccess, loadedLib = pcall(loadstring, libContent)
+    if loadSuccess and loadedLib then
+        Library = loadedLib()
+        if Library then
+            print("Lib Y")
+        else
+            warn("Lib N/O")
+        end
+    else
+        warn("Lib F")
+    end
+else
+    warn("Fail")
+end
+
 if not Library then
-    warn("Failed to load UI Library!")
+    warn("CRITICAL: UI Library could not be loaded. Script will stop.")
+    return
+end
+
+if not Library.CreateScreenGui then
+    warn("Library missing CreateScreenGui. Available keys: " .. table.concat(getmetatable(Library) or {}, ", "))
+    return
+end
+if not Library.CreateWindow then
+    warn("Library missing CreateWindow.")
+    return
+end
+if not Library.Colors then
+    warn("Library missing Colors.")
     return
 end
 
 local player = game:GetService("Players").LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+if not player then
+    warn("No LocalPlayer found.")
+    return
+end
+
+local playerGui = player:WaitForChild("PlayerGui", 5)
+if not playerGui then
+    warn("PlayerGui not found within 5 seconds.")
+    return
+end
+
 local UIS = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local UserInputService = game:GetService("UserInputService")
 local Camera = Workspace.CurrentCamera
 local RemoteFunction = ReplicatedStorage:WaitForChild("RemoteFunction")
 local isUpgrading = false
 
 task.wait(1)
 
-local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+local tdsUrl = "https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"
+local tdsContent = fetchUrl(tdsUrl)
+if tdsContent then
+    local loadOk, TDS = pcall(loadstring, tdsContent)
+    if loadOk and TDS then
+        print("TDS UI L")
+    else
+        warn("TDS UI F")
+    end
+else
+    warn("Error TDS UI")
+end
 
 local screenGui = Library:CreateScreenGui("TDS_UI", playerGui)
+if not screenGui then
+    warn("Failed to create ScreenGui!")
+    return
+end
 
 local mainWindow = Library:CreateWindow(
     screenGui,
@@ -30,6 +132,10 @@ local mainWindow = Library:CreateWindow(
     UDim2.new(0, Library:ScaleX(40), 0, Library:ScaleY(57)),
     UDim2.new(0, Library:ScaleX(10), 0, Library:ScaleY(5))
 )
+if not mainWindow then
+    warn("Failed to create main window!")
+    return
+end
 
 if not UIS.TouchEnabled then
     Library:MakeDraggable(mainWindow, mainWindow)
@@ -185,21 +291,23 @@ end
 local function GetEquippedTowers()
     local towers = {}
     local StateReplicators = ReplicatedStorage:FindFirstChild("StateReplicators")
+    
+    if not StateReplicators then return {} end
 
-    if StateReplicators then
-        for _, folder in ipairs(StateReplicators:GetChildren()) do
-            if folder.Name == "PlayerReplicator" and folder:GetAttribute("UserId") == player.UserId then
+    for _, folder in ipairs(StateReplicators:GetChildren()) do
+        if folder and folder.Name == "PlayerReplicator" then
+            local userId = folder:GetAttribute("UserId")
+            if userId == player.UserId then
                 local equipped = folder:GetAttribute("EquippedTowers")
-                if type(equipped) == "string" then
+                if type(equipped) == "string" and equipped ~= "" then
                     local CleanedJson = equipped:match("%[.*%]") 
-                    local success, TowerTable = pcall(function()
-                        return HttpService:JSONDecode(CleanedJson)
-                    end)
-
-                    if success and type(TowerTable) == "table" then
-                        for i = 1, 5 do
-                            if TowerTable[i] then
-                                table.insert(towers, TowerTable[i])
+                    if CleanedJson then
+                        local success, TowerTable = pcall(HttpService.JSONDecode, HttpService, CleanedJson)
+                        if success and type(TowerTable) == "table" then
+                            for i = 1, math.min(5, #TowerTable) do
+                                if TowerTable[i] and TowerTable[i] ~= "None" then
+                                    table.insert(towers, TowerTable[i])
+                                end
                             end
                         end
                     end
@@ -207,7 +315,7 @@ local function GetEquippedTowers()
             end
         end
     end
-    return #towers > 0 and towers or {}
+    return towers
 end
 
 local function AssignEquippedTowersToSlots()
@@ -417,38 +525,38 @@ local isMobile = UIS.TouchEnabled
 local terrain = workspace.Terrain
 
 local function getWorldPositionPrecise(screenPosition)
-    if terrain then
+    if not screenPosition then return nil, nil, nil end
+    
+    if terrain and terrain.GetMousePosition then
         local success, pos = pcall(function()
             return terrain:GetMousePosition(Camera, screenPosition)
         end)
-        if success and pos then
+        if success and pos and type(pos) == "Vector3" then
             return pos.X, pos.Y + 2, pos.Z
         end
     end
 
-    local ray = Camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
+    local ray
+    local success, result = pcall(function()
+        return Camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
+    end)
+    if not success or not result then return nil, nil, nil end
+    ray = result
+    
     local raycastParams = RaycastParams.new()
     raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
     raycastParams.FilterDescendantsInstances = {player.Character, Camera}
     raycastParams.IgnoreWater = true
 
-    local raycastResult = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
-    if raycastResult then
+    local raycastSuccess, raycastResult = pcall(function()
+        return Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+    end)
+    
+    if raycastSuccess and raycastResult then
         local hitPoint = raycastResult.Position
         return hitPoint.X, hitPoint.Y + 2, hitPoint.Z
     end
 
-    local directions = {
-        ray.Direction,
-        Vector3.new(ray.Direction.X, ray.Direction.Y - 0.1, ray.Direction.Z),
-        Vector3.new(ray.Direction.X, ray.Direction.Y + 0.1, ray.Direction.Z)
-    }
-    for _, dir in ipairs(directions) do
-        local fallbackResult = Workspace:Raycast(ray.Origin, dir * 1000, raycastParams)
-        if fallbackResult then
-            return fallbackResult.Position.X, fallbackResult.Position.Y + 2, fallbackResult.Position.Z
-        end
-    end
     return nil, nil, nil
 end
 
@@ -491,6 +599,14 @@ UIS.InputBegan:Connect(function(input, processed)
         end
 
         local mousePos = UIS:GetMouseLocation()
+if not mousePos or (mousePos.X == 0 and mousePos.Y == 0) then
+    local touches = UIS:GetTouchPositions()
+    if touches and #touches > 0 then
+        mousePos = touches[1]
+    else
+        mousePos = Vector2.new(Camera.ViewportSize.X/2, Camera.ViewportSize.Y/2)
+    end
+end
         local x, y, z = getWorldPositionPrecise(mousePos)
         if not x or not z then
             placeToggle.BackgroundColor3 = Library.Colors.Danger
@@ -559,7 +675,7 @@ if isMobile then
         end
     end)
 
-    spawn(function()
+    task.spawn(function()
         while true do
             if activeTouch and touchStartPosition and canPlaceTouch() and placingEnabled then
                 if tick() - touchStartTime >= 0.4 then
@@ -909,6 +1025,7 @@ local function flashButton(button, color, text)
 end
 
 local settingsFilePath = "TDS_Auto_Settings.json"
+
 local function loadSettings()
     local defaultSettings = {
         AutoSkip = false,
@@ -924,12 +1041,14 @@ local function loadSettings()
         MercDistance = 167,
         WaveFS = 40
     }
-    if writefile and readfile then
+    if hasFileFunctions then
         local success, data = pcall(readfile, settingsFilePath)
-        if success and data then
-            local decoded = HttpService:JSONDecode(data)
-            for k, v in pairs(decoded) do
-                defaultSettings[k] = v
+        if success and data and data ~= "" then
+            local decodedSuccess, decoded = pcall(HttpService.JSONDecode, HttpService, data)
+            if decodedSuccess and type(decoded) == "table" then
+                for k, v in pairs(decoded) do
+                    defaultSettings[k] = v
+                end
             end
         end
     end
@@ -939,7 +1058,7 @@ local function loadSettings()
 end
 
 local function saveSettings()
-    if not (writefile and readfile) then return end
+    if not hasFileFunctions then return end
     local settings = {
         AutoSkip = _G.AutoSkip,
         AutoSmartSkip = _G.AutoSmartSkip,
@@ -953,8 +1072,10 @@ local function saveSettings()
         SellFarms = _G.SellFarms,
         WaveFS = _G.WaveFS
     }
-    local json = HttpService:JSONEncode(settings)
-    pcall(writefile, settingsFilePath, json)
+    local jsonSuccess, json = pcall(HttpService.JSONEncode, HttpService, settings)
+    if jsonSuccess then
+        pcall(writefile, settingsFilePath, json)
+    end
 end
 loadSettings()
 
@@ -1386,7 +1507,7 @@ local function extractUUIDsFromTowersSelected(raw)
     end
     local uuids = {}
     local pattern = "([%a%d%-]+%-[%a%d%-]+%-[%a%d%-]+%-[%a%d%-]+%-[%a%d%-]+)"
-    for match in string.gmatch(raw, pattern) do
+    for match in string.gmatch(tostring(raw), pattern) do
         table.insert(uuids, match)
     end
     return uuids
@@ -2130,19 +2251,11 @@ local function createMapsTab()
     end
 
     local function safeRequire(module, timeout)
-        local finished = false
+        if not module then return nil end
         local result = nil
-        local co = coroutine.create(function()
-            local success, res = pcall(require, module)
-            if success then
-                result = res
-            end
-            finished = true
-        end)
-        coroutine.resume(co)
-        local start = tick()
-        while not finished and tick() - start < timeout do
-            task.wait(0.05)
+        local success, res = pcall(require, module)
+        if success then
+            result = res
         end
         return result
     end
@@ -2389,3 +2502,9 @@ mapsTab.MouseButton1Click:Connect(function()
     autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
     mapsTab.BackgroundColor3 = Library.Colors.Accent
 end)
+
+print("Tset")
+
+while true do
+    task.wait(1)
+end
