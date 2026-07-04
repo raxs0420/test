@@ -24,6 +24,7 @@ local positions = {
     {6.332923, 60, 19.444619},
 }
 
+task.wait(1.5)
 TDS:UnlockTimeScale()  
 TDS:TimeScale(2) 
 
