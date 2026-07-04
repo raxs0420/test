@@ -179,7 +179,7 @@ local autoTab = Library:CreateButton(
     Library.Colors.BackgroundLight
 )
 
-local mapsTab = Library:CreateButton(
+local mapsTabButton = Library:CreateButton(
     leftPanel,
     "MAPS",
     UDim2.new(1, -Library:ScaleX(1), 0, tabHeight),
@@ -2469,59 +2469,84 @@ contentFrames["MANAGER"].Visible = false
 contentFrames["AUTOMATION"].Visible = false
 contentFrames["MAPS"].Visible = false
 
-switcherTab.MouseButton1Click:Connect(function()
-    for _, frame in pairs(contentFrames) do
-        frame.Visible = false
-    end
-    contentFrames["SWITCHER"].Visible = true
-    switcherTab.BackgroundColor3 = Library.Colors.Accent
-    managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
-end)
-
-managerTab.MouseButton1Click:Connect(function()
-    for _, frame in pairs(contentFrames) do
-        frame.Visible = false
-    end
-    contentFrames["MANAGER"].Visible = true
-    switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    managerTab.BackgroundColor3 = Library.Colors.Accent
-    autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
-
-    if contentFrames["MANAGER"] then
-        local scrollFrame = contentFrames["MANAGER"]:FindFirstChildOfClass("ScrollingFrame")
-        if scrollFrame then
-            updateTowerButtons(scrollFrame)
+if switcherTab and switcherTab.MouseButton1Click then
+    switcherTab.MouseButton1Click:Connect(function()
+        for _, frame in pairs(contentFrames) do
+            if frame then
+                frame.Visible = false
+            end
         end
-    end
-end)
+        if contentFrames["SWITCHER"] then
+            contentFrames["SWITCHER"].Visible = true
+        end
+        switcherTab.BackgroundColor3 = Library.Colors.Accent
+        managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
+    end)
+end
 
-autoTab.MouseButton1Click:Connect(function()
-    for _, frame in pairs(contentFrames) do
-        frame.Visible = false
-    end
-    contentFrames["AUTOMATION"].Visible = true
-    switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    autoTab.BackgroundColor3 = Library.Colors.Accent
-    mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
-end)
+if managerTab and managerTab.MouseButton1Click then
+    managerTab.MouseButton1Click:Connect(function()
+        for _, frame in pairs(contentFrames) do
+            if frame then
+                frame.Visible = false
+            end
+        end
+        if contentFrames["MANAGER"] then
+            contentFrames["MANAGER"].Visible = true
+        end
+        switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        managerTab.BackgroundColor3 = Library.Colors.Accent
+        autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
 
-mapsTab.MouseButton1Click:Connect(function()
-    for _, frame in pairs(contentFrames) do
-        frame.Visible = false
-    end
-    contentFrames["MAPS"].Visible = true
-    switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
-    mapsTab.BackgroundColor3 = Library.Colors.Accent
-end)
+        if contentFrames["MANAGER"] then
+            local scrollFrame = contentFrames["MANAGER"]:FindFirstChildOfClass("ScrollingFrame")
+            if scrollFrame then
+                updateTowerButtons(scrollFrame)
+            end
+        end
+    end)
+end
 
-print("Tset")
+if autoTab and autoTab.MouseButton1Click then
+    autoTab.MouseButton1Click:Connect(function()
+        for _, frame in pairs(contentFrames) do
+            if frame then
+                frame.Visible = false
+            end
+        end
+        if contentFrames["AUTOMATION"] then
+            contentFrames["AUTOMATION"].Visible = true
+        end
+        switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        autoTab.BackgroundColor3 = Library.Colors.Accent
+        mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
+    end)
+end
+
+if mapsTabButton and mapsTabButton.MouseButton1Click then
+    mapsTabButton.MouseButton1Click:Connect(function()
+        for _, frame in pairs(contentFrames) do
+            if frame then
+                frame.Visible = false
+            end
+        end
+        if contentFrames["MAPS"] then
+            contentFrames["MAPS"].Visible = true
+        end
+        switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+        mapsTabButton.BackgroundColor3 = Library.Colors.Accent
+    end)
+end
+
+print("Test1")
 
 while true do
     task.wait(1)
 end
+ 
