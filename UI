@@ -2242,148 +2242,133 @@ local function createMapsTab()
     end
     local debugging = false 
 
-    local function populateMaps()
-        for _, btn in pairs(mapButtons) do
-            pcall(function() btn:Destroy() end)
-        end
-        mapButtons = {}
-        selectedMapButton = nil
-        selectedMapName = nil
-        loadingLabel.Visible = true
-        loadingLabel.Text = "Loading maps..."
-
-        local mapsFolder = ReplicatedStorage:FindFirstChild("Content") and ReplicatedStorage.Content:FindFirstChild("Maps")
-        if not mapsFolder then
-            loadingLabel.Text = "No Maps folder"
-            return
-        end
-
-        local allModules = {}
-        local descendants = mapsFolder:GetDescendants()
-        for _, obj in ipairs(descendants) do
-            if obj:IsA("ModuleScript") then
-                table.insert(allModules, obj)
-            end
-        end
-
-        local mapDataTable = {}
-        for _, module in ipairs(allModules) do
-            local mapName = nil
-            local parent = module.Parent
-
-            if parent and parent.Name == "Data" then
-                local grandParent = parent.Parent
-                if grandParent and grandParent ~= mapsFolder then
-                    mapName = grandParent.Name
-                end
-            end
-            if not mapName and parent and parent ~= mapsFolder then
-                mapName = parent.Name
-            end
-            if not mapName or mapName == "" then
-                mapName = module.Name
-            end
-
-            local mapData = nil
-            local loadSuccess, loadedData = pcall(require, module)
-            if loadSuccess then
-                mapData = loadedData
-            end
-            local isCommunity = false
-            if mapData and type(mapData) == "table" and CommunityEnumValue then
-                if mapData.MapType == CommunityEnumValue then
-                    isCommunity = true
-                end
-            elseif not CommunityEnumValue then
-                isCommunity = true
-            end
-
-            if mapDataTable[mapName] == nil then
-                mapDataTable[mapName] = isCommunity
-            elseif isCommunity then
-                mapDataTable[mapName] = true
-            end
-        end
-
-        local validMaps = {}
-        for mapName, isCommunity in pairs(mapDataTable) do
-            if debugging then
-                table.insert(validMaps, mapName)
-            else
-                if isCommunity then
-                    table.insert(validMaps, mapName)
-                end
-            end
-        end
-        table.sort(validMaps)
-
-        loadingLabel.Visible = false
-
-        local yPos = Library:ScaleY(1)
-        local btnHeight = Library:ScaleY(4)
-        for i, mapName in ipairs(validMaps) do
-            local mapBtn = Instance.new("TextButton")
-            mapBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeight)
-            mapBtn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPos)
-            local defaultColor = (i % 2 == 0) and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
-            mapBtn.BackgroundColor3 = defaultColor
-            mapBtn.Text = mapName
-            mapBtn.TextColor3 = Library.Colors.Text
-            mapBtn.TextSize = Library:ScaleY(1.1)
-            mapBtn.Font = Enum.Font.Gotham
-            mapBtn.Parent = mapListFrame
-            mapBtn.AutoButtonColor = false
-            mapBtn:SetAttribute("OriginalColor", defaultColor)
-            Library:AddCorner(mapBtn, 3)
-            Library:AddStroke(mapBtn, 1, Library.Colors.Border)
-
-            mapBtn.MouseButton1Click:Connect(function()
-                if selectedMapButton == mapBtn then
-                    selectedMapButton.BackgroundColor3 = selectedMapButton:GetAttribute("OriginalColor")
-                    selectedMapButton = nil
-                    selectedMapName = nil
-                else
-                    if selectedMapButton then
-                        selectedMapButton.BackgroundColor3 = selectedMapButton:GetAttribute("OriginalColor")
-                    end
-                    selectedMapButton = mapBtn
-                    selectedMapName = mapName
-                    mapBtn.BackgroundColor3 = Library.Colors.Success
-                end
-            end)
-
-            mapBtn.MouseEnter:Connect(function()
-                if mapBtn ~= selectedMapButton then
-                    mapBtn.BackgroundColor3 = Library.Colors.BackgroundLight
-                end
-            end)
-            mapBtn.MouseLeave:Connect(function()
-                if mapBtn ~= selectedMapButton then
-                    mapBtn.BackgroundColor3 = mapBtn:GetAttribute("OriginalColor")
-                end
-            end)
-
-            table.insert(mapButtons, mapBtn)
-            yPos = yPos + btnHeight + Library:ScaleY(0.5)
-        end
-
-        if #validMaps == 0 then
-            local noMapsBtn = Instance.new("TextButton")
-            noMapsBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeight)
-            noMapsBtn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPos)
-            noMapsBtn.BackgroundColor3 = Library.Colors.BackgroundLight
-            noMapsBtn.Text = "No Community maps available"
-            noMapsBtn.TextColor3 = Library.Colors.TextDim
-            noMapsBtn.TextSize = Library:ScaleY(1.2)
-            noMapsBtn.Font = Enum.Font.Gotham
-            noMapsBtn.Parent = mapListFrame
-            noMapsBtn.AutoButtonColor = false
-            Library:AddCorner(noMapsBtn, 4)
-            yPos = yPos + btnHeight + Library:ScaleY(0.5)
-        end
-
-        mapListFrame.CanvasSize = UDim2.new(0, 0, 0, yPos + Library:ScaleY(1))
+local function populateMaps()
+    for _, btn in pairs(mapButtons) do
+        pcall(function() btn:Destroy() end)
     end
+    mapButtons = {}
+    selectedMapButton = nil
+    selectedMapName = nil
+    loadingLabel.Visible = true
+    loadingLabel.Text = "Loading maps..."
+
+    local mapsFolder = ReplicatedStorage:FindFirstChild("Content") and ReplicatedStorage.Content:FindFirstChild("Maps")
+    if not mapsFolder then
+        loadingLabel.Text = "No Maps folder"
+        return
+    end
+
+    local mapDataTable = {}
+
+    for _, mapFolder in ipairs(mapsFolder:GetChildren()) do
+        if mapFolder:IsA("Folder") then
+            local dataFolder = mapFolder:FindFirstChild("Data")
+            if dataFolder then
+                local dataModule = dataFolder:FindFirstChildOfClass("ModuleScript")
+                if dataModule then
+                    local mapName = mapFolder.Name
+                    local mapData = nil
+                    local loadSuccess, loadedData = pcall(require, dataModule)
+                    if loadSuccess then
+                        mapData = loadedData
+                    end
+
+                    local isCommunity = false
+                    if mapData and type(mapData) == "table" and CommunityEnumValue then
+                        if mapData.MapType == CommunityEnumValue then
+                            isCommunity = true
+                        end
+                    elseif not CommunityEnumValue then
+                        isCommunity = true 
+                    end
+
+                    if debugging then
+                        mapDataTable[mapName] = isCommunity
+                    else
+                        if isCommunity then
+                            mapDataTable[mapName] = isCommunity
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local validMaps = {}
+    for mapName, isCommunity in pairs(mapDataTable) do
+        if debugging or isCommunity then
+            table.insert(validMaps, mapName)
+        end
+    end
+    table.sort(validMaps)
+
+    loadingLabel.Visible = false
+
+    local yPos = Library:ScaleY(1)
+    local btnHeight = Library:ScaleY(4)
+    for i, mapName in ipairs(validMaps) do
+        local mapBtn = Instance.new("TextButton")
+        mapBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeight)
+        mapBtn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPos)
+        local defaultColor = (i % 2 == 0) and Color3.fromRGB(40, 40, 48) or Color3.fromRGB(35, 35, 42)
+        mapBtn.BackgroundColor3 = defaultColor
+        mapBtn.Text = mapName
+        mapBtn.TextColor3 = Library.Colors.Text
+        mapBtn.TextSize = Library:ScaleY(1.1)
+        mapBtn.Font = Enum.Font.Gotham
+        mapBtn.Parent = mapListFrame
+        mapBtn.AutoButtonColor = false
+        mapBtn:SetAttribute("OriginalColor", defaultColor)
+        Library:AddCorner(mapBtn, 3)
+        Library:AddStroke(mapBtn, 1, Library.Colors.Border)
+
+        mapBtn.MouseButton1Click:Connect(function()
+            if selectedMapButton == mapBtn then
+                selectedMapButton.BackgroundColor3 = selectedMapButton:GetAttribute("OriginalColor")
+                selectedMapButton = nil
+                selectedMapName = nil
+            else
+                if selectedMapButton then
+                    selectedMapButton.BackgroundColor3 = selectedMapButton:GetAttribute("OriginalColor")
+                end
+                selectedMapButton = mapBtn
+                selectedMapName = mapName
+                mapBtn.BackgroundColor3 = Library.Colors.Success
+            end
+        end)
+
+        mapBtn.MouseEnter:Connect(function()
+            if mapBtn ~= selectedMapButton then
+                mapBtn.BackgroundColor3 = Library.Colors.BackgroundLight
+            end
+        end)
+        mapBtn.MouseLeave:Connect(function()
+            if mapBtn ~= selectedMapButton then
+                mapBtn.BackgroundColor3 = mapBtn:GetAttribute("OriginalColor")
+            end
+        end)
+
+        table.insert(mapButtons, mapBtn)
+        yPos = yPos + btnHeight + Library:ScaleY(0.5)
+    end
+
+    if #validMaps == 0 then
+        local noMapsBtn = Instance.new("TextButton")
+        noMapsBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeight)
+        noMapsBtn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPos)
+        noMapsBtn.BackgroundColor3 = Library.Colors.BackgroundLight
+        noMapsBtn.Text = "No Community maps available"
+        noMapsBtn.TextColor3 = Library.Colors.TextDim
+        noMapsBtn.TextSize = Library:ScaleY(1.2)
+        noMapsBtn.Font = Enum.Font.Gotham
+        noMapsBtn.Parent = mapListFrame
+        noMapsBtn.AutoButtonColor = false
+        Library:AddCorner(noMapsBtn, 4)
+        yPos = yPos + btnHeight + Library:ScaleY(0.5)
+    end
+
+    mapListFrame.CanvasSize = UDim2.new(0, 0, 0, yPos + Library:ScaleY(1))
+end
 
     task.spawn(populateMaps)
 
@@ -2520,7 +2505,7 @@ mapsTabButton.MouseButton1Click:Connect(function()
     mapsTabButton.BackgroundColor3 = Library.Colors.Accent
 end)
 
-print("Test")
+print("Test0")
 
 while true do
     task.wait(1)
