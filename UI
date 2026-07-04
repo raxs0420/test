@@ -2389,4 +2389,3 @@ mapsTab.MouseButton1Click:Connect(function()
     autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
     mapsTab.BackgroundColor3 = Library.Colors.Accent
 end)
-
