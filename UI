@@ -1,4 +1,21 @@
-_G.ClaimRewards = true
+local Settings = {
+    ClaimRewards = true,
+    AutoSkip = false,
+    AutoSmartSkip = false,
+    AutoNecro = false,
+    AutoUber = false,
+    AutoDJ = false,
+    AutoSupport = false,
+    AutoChain = false,
+    AutoPickups = false,
+    AutoMercenary = false,
+    SellFarms = false,
+    MercDistance = 167,
+    WaveFS = 40
+}
+
+local http = game:GetService("HttpService")
+local hasFileFunctions = type(writefile) == "function" and type(readfile) == "function"
 
 local function fetchUrl(url)
     if syn and syn.request then
@@ -1027,52 +1044,24 @@ end
 local settingsFilePath = "TDS_Auto_Settings.json"
 
 local function loadSettings()
-    local defaultSettings = {
-        AutoSkip = false,
-        AutoSmartSkip = false,
-        AutoNecro = false,
-        AutoUber = false,
-        AutoDJ = false,
-        AutoSupport = false,
-        AutoChain = false,
-        AutoPickups = false,
-        AutoMercenary = false,
-        SellFarms = false,
-        MercDistance = 167,
-        WaveFS = 40
-    }
     if hasFileFunctions then
         local success, data = pcall(readfile, settingsFilePath)
         if success and data and data ~= "" then
             local decodedSuccess, decoded = pcall(HttpService.JSONDecode, HttpService, data)
             if decodedSuccess and type(decoded) == "table" then
                 for k, v in pairs(decoded) do
-                    defaultSettings[k] = v
+                    if Settings[k] ~= nil then
+                        Settings[k] = v
+                    end
                 end
             end
         end
-    end
-    for k, v in pairs(defaultSettings) do
-        _G[k] = v
     end
 end
 
 local function saveSettings()
     if not hasFileFunctions then return end
-    local settings = {
-        AutoSkip = _G.AutoSkip,
-        AutoSmartSkip = _G.AutoSmartSkip,
-        AutoNecro = _G.AutoNecro,
-        AutoUber = _G.AutoUber,
-        AutoDJ = _G.AutoDJ,
-        AutoSupport = _G.AutoSupport,
-        AutoChain = _G.AutoChain,
-        AutoPickups = _G.AutoPickups,
-        AutoMercenary = _G.AutoMercenary,
-        SellFarms = _G.SellFarms,
-        WaveFS = _G.WaveFS
-    }
-    local jsonSuccess, json = pcall(HttpService.JSONEncode, HttpService, settings)
+    local jsonSuccess, json = pcall(HttpService.JSONEncode, HttpService, Settings)
     if jsonSuccess then
         pcall(writefile, settingsFilePath, json)
     end
@@ -1656,8 +1645,8 @@ local function createAutomationTab()
             btn.Size = UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(5))
         end
         btn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
-        btn.BackgroundColor3 = _G[settingName] and Library.Colors.Success or Library.Colors.Accent
-        btn.Text = _G[settingName] and (text .. ": ON") or (text .. ": OFF")
+        btn.BackgroundColor3 = Settings[settingName] and Library.Colors.Success or Library.Colors.Accent
+        btn.Text = Settings[settingName] and (text .. ": ON") or (text .. ": OFF")
         btn.TextColor3 = Library.Colors.Text
         btn.Font = Library.Fonts.Bold
         btn.TextSize = Library:ScaleY(1.3)
@@ -1667,9 +1656,9 @@ local function createAutomationTab()
         Library:AddStroke(btn, 1, Library.Colors.Border)
 
         btn.MouseButton1Click:Connect(function()
-            _G[settingName] = not _G[settingName]
-            btn.BackgroundColor3 = _G[settingName] and Library.Colors.Success or Library.Colors.Accent
-            btn.Text = _G[settingName] and (text .. ": ON") or (text .. ": OFF")
+            Settings[settingName] = not Settings[settingName]
+            btn.BackgroundColor3 = Settings[settingName] and Library.Colors.Success or Library.Colors.Accent
+            btn.Text = Settings[settingName] and (text .. ": ON") or (text .. ": OFF")
             saveSettings()
             local origColor = btn.BackgroundColor3
             btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -1708,7 +1697,7 @@ local function createAutomationTab()
     sliderLabel.TextColor3 = Library.Colors.Text
     sliderLabel.TextSize = Library:ScaleY(1.1)
     sliderLabel.Font = Library.Fonts.Bold
-    sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(_G.MercDistance)) .. " studs"
+    sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(Settings.MercDistance)) .. " studs"
     sliderLabel.Parent = scrollFrame
     yPos = yPos + Library:ScaleY(3) + Library:ScaleY(0.5)
 
@@ -1774,7 +1763,7 @@ local function createAutomationTab()
         UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
     )
     waveBox.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
-    waveBox.Text = tostring(_G.WaveFS or 40)
+    waveBox.Text = tostring(Settings.WaveFS or 40)
     yPos = yPos + Library:ScaleY(3.5) + Library:ScaleY(0.5)
 
     createToggleButton(scrollFrame, yPos, "Auto Sell Farms", "SellFarms", false)
@@ -2002,15 +1991,15 @@ local function createAutomationTab()
         local maxWave = getMaxWaveFromGUI()
         if maxWave and maxWave > 0 then
             waveBox.PlaceholderText = "Wave to Sell Farms (Max: " .. maxWave .. ")"
-            if maxWave > (_G.WaveFS or 40) then
-                _G.WaveFS = maxWave
+            if maxWave > (Settings.WaveFS or 40) then
+                Settings.WaveFS = maxWave
                 waveBox.Text = tostring(maxWave)
                 saveSettings()
             else
                 local currentValue = tonumber(waveBox.Text)
                 if currentValue and currentValue > maxWave then
                     waveBox.Text = tostring(maxWave)
-                    _G.WaveFS = maxWave
+                    Settings.WaveFS = maxWave
                     saveSettings()
                 end
             end
@@ -2032,11 +2021,11 @@ local function createAutomationTab()
         local wave = tonumber(string.match(tostring(waveBox.Text), "%d+"))
         if wave then
             wave = math.clamp(wave, 1, maxWave)
-            _G.WaveFS = wave
+            Settings.WaveFS = wave
             waveBox.Text = tostring(wave)
         else
-            local safeWave = math.clamp(_G.WaveFS or 40, 1, maxWave)
-            _G.WaveFS = safeWave
+            local safeWave = math.clamp(Settings.WaveFS or 40, 1, maxWave)
+            Settings.WaveFS = safeWave
             waveBox.Text = tostring(safeWave)
         end
         saveSettings()
@@ -2066,12 +2055,12 @@ local function createAutomationTab()
     end
 
     local function StartSellFarm()
-        if SellFarmsRunning or not _G.SellFarms then return end
+        if SellFarmsRunning or not Settings.SellFarms then return end
         SellFarmsRunning = true
         task.spawn(function()
-            while _G.SellFarms do
+            while Settings.SellFarms do
                 local CurrentWave = get_current_wave()
-                local sellAtWave = _G.WaveFS or 40
+                local sellAtWave = Settings.WaveFS or 40
                 if CurrentWave >= sellAtWave and CurrentWave > 0 then
                     local TowersFolder = Workspace:FindFirstChild("Towers")
                     if TowersFolder then
@@ -2096,7 +2085,7 @@ local function createAutomationTab()
         end)
     end
 
-    if _G.SellFarms then StartSellFarm() end
+    if Settings.SellFarms then StartSellFarm() end
 
     local autoGatlingBtn = Instance.new("TextButton")
     autoGatlingBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(5))
@@ -2131,9 +2120,9 @@ local function createAutomationTab()
     local function updateSliderMax()
         currentMaxDistance = GetPathMaxDistance()
         if currentMaxDistance < 1 then currentMaxDistance = 250 end
-        if _G.MercDistance > currentMaxDistance then _G.MercDistance = currentMaxDistance end
-        sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(_G.MercDistance)) .. " / " .. math.floor(currentMaxDistance) .. " studs"
-        local percent = math.clamp(_G.MercDistance / currentMaxDistance, 0, 1)
+        if Settings.MercDistance > currentMaxDistance then Settings.MercDistance = currentMaxDistance end
+        sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(Settings.MercDistance)) .. " / " .. math.floor(currentMaxDistance) .. " studs"
+        local percent = math.clamp(Settings.MercDistance / currentMaxDistance, 0, 1)
         sliderFill.Size = UDim2.new(percent, 0, 1, 0)
         task.wait()
         if sliderFrame.AbsoluteSize.X > 0 then
@@ -2164,19 +2153,19 @@ local function createAutomationTab()
         local percent = relativeX / sliderFrame.AbsoluteSize.X
         local newDist = percent * currentMaxDistance
         newDist = math.clamp(newDist, 1, currentMaxDistance)
-        if math.abs(_G.MercDistance - newDist) > 0.5 then
-            _G.MercDistance = newDist
+        if math.abs(Settings.MercDistance - newDist) > 0.5 then
+            Settings.MercDistance = newDist
             updateSliderMax()
         end
     end
     RunService.RenderStepped:Connect(updateSliderFromInput)
 
     minusBtn.MouseButton1Click:Connect(function()
-        _G.MercDistance = math.max(1, _G.MercDistance - 5)
+        Settings.MercDistance = math.max(1, Settings.MercDistance - 5)
         updateSliderMax()
     end)
     plusBtn.MouseButton1Click:Connect(function()
-        _G.MercDistance = math.min(currentMaxDistance, _G.MercDistance + 5)
+        Settings.MercDistance = math.min(currentMaxDistance, Settings.MercDistance + 5)
         updateSliderMax()
     end)
 
@@ -2544,9 +2533,8 @@ if mapsTabButton and mapsTabButton.MouseButton1Click then
     end)
 end
 
-print("Test1")
+print("Test2")
 
 while true do
     task.wait(1)
 end
- 
