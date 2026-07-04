@@ -137,7 +137,11 @@ else
     warn("Error TDS UI")
 end
 
-local screenGui = Library:CreateScreenGui("TDS_UI", playerGui)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "TDS_UI"
+screenGui.Parent = playerGui
+screenGui.ResetOnSpawn = false
+
 if not screenGui then
     warn("Failed to create ScreenGui!")
     return
@@ -172,37 +176,28 @@ local tabHeight = Library:ScaleY(5)
 local tabSpacing = Library:ScaleY(1.5)
 local startY = Library:ScaleY(1)
 
-local switcherTab = Library:CreateButton(
-    leftPanel,
-    "SWITCHER",
-    UDim2.new(1, -Library:ScaleX(1), 0, tabHeight),
-    UDim2.new(0, Library:ScaleX(0.5), 0, startY),
-    Library.Colors.Accent
-)
+local function createTabButton(parent, text, position)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -Library:ScaleX(1), 0, tabHeight)
+    btn.Position = position
+    btn.BackgroundColor3 = Library.Colors.BackgroundLight
+    btn.Text = text
+    btn.TextColor3 = Library.Colors.Text
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = Library:ScaleY(1)
+    btn.Parent = parent
+    btn.AutoButtonColor = false
+    Library:AddCorner(btn, 4)
+    Library:AddStroke(btn, 1, Library.Colors.Border)
+    return btn
+end
 
-local managerTab = Library:CreateButton(
-    leftPanel,
-    "MANAGER",
-    UDim2.new(1, -Library:ScaleX(1), 0, tabHeight),
-    UDim2.new(0, Library:ScaleX(0.5), 0, startY + tabHeight + tabSpacing),
-    Library.Colors.BackgroundLight
-)
+local switcherTab = createTabButton(leftPanel, "SWITCHER", UDim2.new(0, Library:ScaleX(0.5), 0, startY))
+local managerTab = createTabButton(leftPanel, "MANAGER", UDim2.new(0, Library:ScaleX(0.5), 0, startY + tabHeight + tabSpacing))
+local autoTab = createTabButton(leftPanel, "AUTOMATION", UDim2.new(0, Library:ScaleX(0.5), 0, startY + (tabHeight + tabSpacing) * 2))
+local mapsTabButton = createTabButton(leftPanel, "MAPS", UDim2.new(0, Library:ScaleX(0.5), 0, startY + (tabHeight + tabSpacing) * 3))
 
-local autoTab = Library:CreateButton(
-    leftPanel,
-    "AUTOMATION",
-    UDim2.new(1, -Library:ScaleX(1), 0, tabHeight),
-    UDim2.new(0, Library:ScaleX(0.5), 0, startY + (tabHeight + tabSpacing) * 2),
-    Library.Colors.BackgroundLight
-)
-
-local mapsTabButton = Library:CreateButton(
-    leftPanel,
-    "MAPS",
-    UDim2.new(1, -Library:ScaleX(1), 0, tabHeight),
-    UDim2.new(0, Library:ScaleX(0.5), 0, startY + (tabHeight + tabSpacing) * 3),
-    Library.Colors.BackgroundLight
-)
+switcherTab.BackgroundColor3 = Library.Colors.Accent
 
 local rightPanel = Library:CreateFrame(
     mainWindow,
@@ -242,7 +237,7 @@ for i = 1, 3 do
     slotBtn.BackgroundColor3 = Library.Colors.BackgroundLight
     slotBtn.Text = "[EMPTY]"
     slotBtn.TextColor3 = Library.Colors.TextDim
-    slotBtn.Font = Library.Fonts.Bold
+    slotBtn.Font = Enum.Font.GothamBold
     slotBtn.TextSize = Library:ScaleY(0.9)
     slotBtn.TextScaled = false
     slotBtn.TextWrapped = true
@@ -279,7 +274,7 @@ for i = 4, 5 do
     slotBtn.BackgroundColor3 = Library.Colors.BackgroundLight
     slotBtn.Text = "[EMPTY]"
     slotBtn.TextColor3 = Library.Colors.TextDim
-    slotBtn.Font = Library.Fonts.Bold
+    slotBtn.Font = Enum.Font.GothamBold
     slotBtn.TextSize = Library:ScaleY(0.9)
     slotBtn.TextScaled = false
     slotBtn.TextWrapped = true
@@ -401,7 +396,7 @@ loadoutBtn.Position = UDim2.new(0, buttonStartX, 0, buttonStartY)
 loadoutBtn.BackgroundColor3 = Library.Colors.Accent
 loadoutBtn.Text = "LOADOUT"
 loadoutBtn.TextColor3 = Library.Colors.Text
-loadoutBtn.Font = Library.Fonts.Bold
+loadoutBtn.Font = Enum.Font.GothamBold
 loadoutBtn.TextSize = Library:ScaleY(1.3)
 loadoutBtn.Parent = slotsPanel
 loadoutBtn.AutoButtonColor = false
@@ -529,7 +524,7 @@ placeToggle.Position = UDim2.new(0, buttonStartX, 0, buttonStartY + buttonHeight
 placeToggle.BackgroundColor3 = Library.Colors.Success
 placeToggle.Text = "PLACE ON"
 placeToggle.TextColor3 = Library.Colors.Text
-placeToggle.Font = Library.Fonts.Bold
+placeToggle.Font = Enum.Font.GothamBold
 placeToggle.TextSize = Library:ScaleY(1.3)
 placeToggle.Parent = slotsPanel
 placeToggle.AutoButtonColor = false
@@ -885,7 +880,7 @@ local function updateTowerButtons(container)
 
         towerBtn.TextColor3 = Library.Colors.Text
         towerBtn.TextSize = Library:ScaleY(1.2)
-        towerBtn.Font = Library.Fonts.Normal
+        towerBtn.Font = Enum.Font.Gotham
         towerBtn.Parent = container
         towerBtn.AutoButtonColor = false
 
@@ -952,7 +947,7 @@ local function updateTowerButtons(container)
         noTowersBtn.Text = "No towers found"
         noTowersBtn.TextColor3 = Library.Colors.TextDim
         noTowersBtn.TextSize = Library:ScaleY(1.2)
-        noTowersBtn.Font = Library.Fonts.Normal
+        noTowersBtn.Font = Enum.Font.Gotham
         noTowersBtn.Parent = container
         noTowersBtn.AutoButtonColor = false
         Library:AddCorner(noTowersBtn, 4)
@@ -1201,7 +1196,7 @@ local function populateTowers(searchText)
         towerBtn.Text = towerName
         towerBtn.TextColor3 = Library.Colors.Text
         towerBtn.TextSize = Library:ScaleY(1.2)
-        towerBtn.Font = Library.Fonts.Normal
+        towerBtn.Font = Enum.Font.Gotham
         towerBtn.Parent = towerListFrame
         towerBtn.AutoButtonColor = false
 
@@ -1276,7 +1271,7 @@ local function createManagerTab()
     sellBtn.BackgroundColor3 = Library.Colors.Danger
     sellBtn.Text = "SELL"
     sellBtn.TextColor3 = Library.Colors.Text
-    sellBtn.Font = Library.Fonts.Bold
+    sellBtn.Font = Enum.Font.GothamBold
     sellBtn.TextSize = Library:ScaleY(1.2)
     sellBtn.Parent = buttonContainer
     sellBtn.AutoButtonColor = false
@@ -1289,7 +1284,7 @@ local function createManagerTab()
     upgradeBtn.BackgroundColor3 = Library.Colors.Success
     upgradeBtn.Text = "UPGRADE"
     upgradeBtn.TextColor3 = Library.Colors.Text
-    upgradeBtn.Font = Library.Fonts.Bold
+    upgradeBtn.Font = Enum.Font.GothamBold
     upgradeBtn.TextSize = Library:ScaleY(1.2)
     upgradeBtn.Parent = buttonContainer
     upgradeBtn.AutoButtonColor = false
@@ -1305,7 +1300,7 @@ local function createManagerTab()
     targetBtn.BackgroundColor3 = Library.Colors.Accent
     targetBtn.Text = "▼ " .. currentTarget .. " ▼"
     targetBtn.TextColor3 = Library.Colors.Text
-    targetBtn.Font = Library.Fonts.Bold
+    targetBtn.Font = Enum.Font.GothamBold
     targetBtn.TextSize = Library:ScaleY(1.2)
     targetBtn.Parent = buttonContainer
     targetBtn.AutoButtonColor = false
@@ -1339,7 +1334,7 @@ local function createManagerTab()
         optionBtn.Text = option
         optionBtn.TextColor3 = Library.Colors.Text
         optionBtn.TextSize = Library:ScaleY(1.1)
-        optionBtn.Font = Library.Fonts.Normal
+        optionBtn.Font = Enum.Font.Gotham
         optionBtn.Parent = targetDropdown
         optionBtn.AutoButtonColor = false
         optionBtn.ZIndex = 11
@@ -1648,7 +1643,7 @@ local function createAutomationTab()
         btn.BackgroundColor3 = Settings[settingName] and Library.Colors.Success or Library.Colors.Accent
         btn.Text = Settings[settingName] and (text .. ": ON") or (text .. ": OFF")
         btn.TextColor3 = Library.Colors.Text
-        btn.Font = Library.Fonts.Bold
+        btn.Font = Enum.Font.GothamBold
         btn.TextSize = Library:ScaleY(1.3)
         btn.Parent = parent
         btn.AutoButtonColor = false
@@ -1696,7 +1691,7 @@ local function createAutomationTab()
     sliderLabel.BackgroundTransparency = 1
     sliderLabel.TextColor3 = Library.Colors.Text
     sliderLabel.TextSize = Library:ScaleY(1.1)
-    sliderLabel.Font = Library.Fonts.Bold
+    sliderLabel.Font = Enum.Font.GothamBold
     sliderLabel.Text = "Mercenary Distance: " .. tostring(math.floor(Settings.MercDistance)) .. " studs"
     sliderLabel.Parent = scrollFrame
     yPos = yPos + Library:ScaleY(3) + Library:ScaleY(0.5)
@@ -1733,7 +1728,7 @@ local function createAutomationTab()
     minusBtn.BackgroundColor3 = Library.Colors.BackgroundLight
     minusBtn.Text = "-5"
     minusBtn.TextColor3 = Library.Colors.Text
-    minusBtn.Font = Library.Fonts.Bold
+    minusBtn.Font = Enum.Font.GothamBold
     minusBtn.TextSize = Library:ScaleY(1.2)
     minusBtn.Parent = scrollFrame
     Library:AddCorner(minusBtn, 4)
@@ -1745,7 +1740,7 @@ local function createAutomationTab()
     plusBtn.BackgroundColor3 = Library.Colors.BackgroundLight
     plusBtn.Text = "+5"
     plusBtn.TextColor3 = Library.Colors.Text
-    plusBtn.Font = Library.Fonts.Bold
+    plusBtn.Font = Enum.Font.GothamBold
     plusBtn.TextSize = Library:ScaleY(1.2)
     plusBtn.Parent = scrollFrame
     Library:AddCorner(plusBtn, 4)
@@ -1775,7 +1770,7 @@ local function createAutomationTab()
     medicTargetBtn.BackgroundColor3 = Color3.fromRGB(120, 0, 120)
     medicTargetBtn.Text = "Medic Targeting"
     medicTargetBtn.TextColor3 = Library.Colors.Text
-    medicTargetBtn.Font = Library.Fonts.Bold
+    medicTargetBtn.Font = Enum.Font.GothamBold
     medicTargetBtn.TextSize = Library:ScaleY(1.3)
     medicTargetBtn.Parent = scrollFrame
     medicTargetBtn.AutoButtonColor = false
@@ -1807,7 +1802,7 @@ local function createAutomationTab()
     titleLabel.BackgroundTransparency = 1
     titleLabel.Text = "Select towers to target"
     titleLabel.TextColor3 = Library.Colors.Text
-    titleLabel.Font = Library.Fonts.Bold
+    titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = Library:ScaleY(1.2)
     titleLabel.Parent = titleBar
 
@@ -1817,7 +1812,7 @@ local function createAutomationTab()
     closeBtn.BackgroundColor3 = Library.Colors.Danger
     closeBtn.Text = "X"
     closeBtn.TextColor3 = Library.Colors.Text
-    closeBtn.Font = Library.Fonts.Bold
+    closeBtn.Font = Enum.Font.GothamBold
     closeBtn.TextSize = Library:ScaleY(1.5)
     closeBtn.BorderSizePixel = 0
     closeBtn.Parent = medicDropdownFrame
@@ -1909,7 +1904,7 @@ local function createAutomationTab()
             btn.Text = string.format("[ ] L%d. %s", tower.level, tower.name)
             btn.TextColor3 = Library.Colors.Text
             btn.TextXAlignment = Enum.TextXAlignment.Left
-            btn.Font = Library.Fonts.Normal
+            btn.Font = Enum.Font.Gotham
             btn.TextSize = Library:ScaleY(1.1)
             btn.Parent = medicScroll
             btn.AutoButtonColor = false
@@ -2093,7 +2088,7 @@ local function createAutomationTab()
     autoGatlingBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
     autoGatlingBtn.Text = "Auto Gatling Gun"
     autoGatlingBtn.TextColor3 = Library.Colors.Text
-    autoGatlingBtn.Font = Library.Fonts.Bold
+    autoGatlingBtn.Font = Enum.Font.GothamBold
     autoGatlingBtn.TextSize = Library:ScaleY(1.3)
     autoGatlingBtn.Parent = scrollFrame
     autoGatlingBtn.AutoButtonColor = false
@@ -2208,7 +2203,7 @@ local function createMapsTab()
     loadingLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     loadingLabel.TextColor3 = Library.Colors.TextDim
     loadingLabel.TextSize = Library:ScaleY(1.2)
-    loadingLabel.Font = Library.Fonts.Bold
+    loadingLabel.Font = Enum.Font.GothamBold
     loadingLabel.Text = "Loading maps..."
     loadingLabel.Parent = mapListFrame
     loadingLabel.ZIndex = 10
@@ -2219,7 +2214,7 @@ local function createMapsTab()
     chooseBtn.BackgroundColor3 = Library.Colors.Accent
     chooseBtn.Text = "CHOOSE"
     chooseBtn.TextColor3 = Library.Colors.Text
-    chooseBtn.Font = Library.Fonts.Bold
+    chooseBtn.Font = Enum.Font.GothamBold
     chooseBtn.TextSize = Library:ScaleY(1.3)
     chooseBtn.Parent = contentFrame
     chooseBtn.AutoButtonColor = false
@@ -2335,7 +2330,7 @@ local function createMapsTab()
             mapBtn.Text = mapName
             mapBtn.TextColor3 = Library.Colors.Text
             mapBtn.TextSize = Library:ScaleY(1.1)
-            mapBtn.Font = Library.Fonts.Normal
+            mapBtn.Font = Enum.Font.Gotham
             mapBtn.Parent = mapListFrame
             mapBtn.AutoButtonColor = false
             mapBtn:SetAttribute("OriginalColor", defaultColor)
@@ -2380,7 +2375,7 @@ local function createMapsTab()
             noMapsBtn.Text = "No Community maps available"
             noMapsBtn.TextColor3 = Library.Colors.TextDim
             noMapsBtn.TextSize = Library:ScaleY(1.2)
-            noMapsBtn.Font = Library.Fonts.Normal
+            noMapsBtn.Font = Enum.Font.Gotham
             noMapsBtn.Parent = mapListFrame
             noMapsBtn.AutoButtonColor = false
             Library:AddCorner(noMapsBtn, 4)
@@ -2446,7 +2441,7 @@ else
     label.Text = "Maps tab unavailable on this executor"
     label.TextColor3 = Library.Colors.TextDim
     label.TextSize = Library:ScaleY(1.5)
-    label.Font = Library.Fonts.Bold
+    label.Font = Enum.Font.GothamBold
     label.Parent = dummyFrame
     contentFrames["MAPS"] = dummyFrame
 end
@@ -2458,82 +2453,74 @@ contentFrames["MANAGER"].Visible = false
 contentFrames["AUTOMATION"].Visible = false
 contentFrames["MAPS"].Visible = false
 
-if switcherTab and switcherTab.MouseButton1Click then
-    switcherTab.MouseButton1Click:Connect(function()
-        for _, frame in pairs(contentFrames) do
-            if frame then
-                frame.Visible = false
-            end
+switcherTab.MouseButton1Click:Connect(function()
+    for _, frame in pairs(contentFrames) do
+        if frame then
+            frame.Visible = false
         end
-        if contentFrames["SWITCHER"] then
-            contentFrames["SWITCHER"].Visible = true
-        end
-        switcherTab.BackgroundColor3 = Library.Colors.Accent
-        managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
-    end)
-end
+    end
+    if contentFrames["SWITCHER"] then
+        contentFrames["SWITCHER"].Visible = true
+    end
+    switcherTab.BackgroundColor3 = Library.Colors.Accent
+    managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
+end)
 
-if managerTab and managerTab.MouseButton1Click then
-    managerTab.MouseButton1Click:Connect(function()
-        for _, frame in pairs(contentFrames) do
-            if frame then
-                frame.Visible = false
-            end
+managerTab.MouseButton1Click:Connect(function()
+    for _, frame in pairs(contentFrames) do
+        if frame then
+            frame.Visible = false
         end
-        if contentFrames["MANAGER"] then
-            contentFrames["MANAGER"].Visible = true
-        end
-        switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        managerTab.BackgroundColor3 = Library.Colors.Accent
-        autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
+    end
+    if contentFrames["MANAGER"] then
+        contentFrames["MANAGER"].Visible = true
+    end
+    switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    managerTab.BackgroundColor3 = Library.Colors.Accent
+    autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
 
-        if contentFrames["MANAGER"] then
-            local scrollFrame = contentFrames["MANAGER"]:FindFirstChildOfClass("ScrollingFrame")
-            if scrollFrame then
-                updateTowerButtons(scrollFrame)
-            end
+    if contentFrames["MANAGER"] then
+        local scrollFrame = contentFrames["MANAGER"]:FindFirstChildOfClass("ScrollingFrame")
+        if scrollFrame then
+            updateTowerButtons(scrollFrame)
         end
-    end)
-end
+    end
+end)
 
-if autoTab and autoTab.MouseButton1Click then
-    autoTab.MouseButton1Click:Connect(function()
-        for _, frame in pairs(contentFrames) do
-            if frame then
-                frame.Visible = false
-            end
+autoTab.MouseButton1Click:Connect(function()
+    for _, frame in pairs(contentFrames) do
+        if frame then
+            frame.Visible = false
         end
-        if contentFrames["AUTOMATION"] then
-            contentFrames["AUTOMATION"].Visible = true
-        end
-        switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        autoTab.BackgroundColor3 = Library.Colors.Accent
-        mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
-    end)
-end
+    end
+    if contentFrames["AUTOMATION"] then
+        contentFrames["AUTOMATION"].Visible = true
+    end
+    switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    autoTab.BackgroundColor3 = Library.Colors.Accent
+    mapsTabButton.BackgroundColor3 = Library.Colors.BackgroundLight
+end)
 
-if mapsTabButton and mapsTabButton.MouseButton1Click then
-    mapsTabButton.MouseButton1Click:Connect(function()
-        for _, frame in pairs(contentFrames) do
-            if frame then
-                frame.Visible = false
-            end
+mapsTabButton.MouseButton1Click:Connect(function()
+    for _, frame in pairs(contentFrames) do
+        if frame then
+            frame.Visible = false
         end
-        if contentFrames["MAPS"] then
-            contentFrames["MAPS"].Visible = true
-        end
-        switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
-        mapsTabButton.BackgroundColor3 = Library.Colors.Accent
-    end)
-end
+    end
+    if contentFrames["MAPS"] then
+        contentFrames["MAPS"].Visible = true
+    end
+    switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    mapsTabButton.BackgroundColor3 = Library.Colors.Accent
+end)
 
-print("Test2")
+print("Test")
 
 while true do
     task.wait(1)
