@@ -2241,25 +2241,21 @@ local function createMapsTab()
     local selectedMapButton = nil
     local mapButtons = {}
 
-    local EnumModule = ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("Modules") and ReplicatedStorage.Shared.Modules:FindFirstChild("Enum")
     local CommunityEnumValue = nil
-    if EnumModule then
-        local success, enum = pcall(require, EnumModule)
-        if success and enum and enum.MapType then
-            CommunityEnumValue = enum.MapType.Community
+    pcall(function()
+        if Enum.MapType and Enum.MapType.Community then
+            CommunityEnumValue = Enum.MapType.Community
+        end
+    end)
+    if not CommunityEnumValue then
+        local EnumModule = ReplicatedStorage:FindFirstChild("Shared") and ReplicatedStorage.Shared:FindFirstChild("Modules") and ReplicatedStorage.Shared.Modules:FindFirstChild("Enum")
+        if EnumModule then
+            local success, enum = pcall(require, EnumModule)
+            if success and enum and enum.MapType then
+                CommunityEnumValue = enum.MapType.Community
+            end
         end
     end
-
-    local function safeRequire(module, timeout)
-        if not module then return nil end
-        local result = nil
-        local success, res = pcall(require, module)
-        if success then
-            result = res
-        end
-        return result
-    end
-
     local debugging = false 
 
     local function populateMaps()
@@ -2304,12 +2300,18 @@ local function createMapsTab()
                 mapName = module.Name
             end
 
-            local mapData = safeRequire(module, 1.5)
+            local mapData = nil
+            local loadSuccess, loadedData = pcall(require, module)
+            if loadSuccess then
+                mapData = loadedData
+            end
             local isCommunity = false
             if mapData and type(mapData) == "table" and CommunityEnumValue then
                 if mapData.MapType == CommunityEnumValue then
                     isCommunity = true
                 end
+            elseif not CommunityEnumValue then
+                isCommunity = true
             end
 
             if mapDataTable[mapName] == nil then
@@ -2443,7 +2445,22 @@ end
 contentFrames["SWITCHER"] = createSwitcherTab()
 contentFrames["MANAGER"] = createManagerTab()
 contentFrames["AUTOMATION"] = createAutomationTab()
-contentFrames["MAPS"] = createMapsTab()
+local mapsSuccess, mapsTab = pcall(createMapsTab)
+if mapsSuccess and mapsTab then
+    contentFrames["MAPS"] = mapsTab
+else
+    warn("Failed to create Maps tab: " .. tostring(mapsSuccess))
+    local dummyFrame = Library:CreateFrame(rightPanel, UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(2)), UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1)), false, Library.Colors.BackgroundDarker)
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1,0,1,0)
+    label.BackgroundTransparency = 1
+    label.Text = "Maps tab unavailable on this executor"
+    label.TextColor3 = Library.Colors.TextDim
+    label.TextSize = Library:ScaleY(1.5)
+    label.Font = Library.Fonts.Bold
+    label.Parent = dummyFrame
+    contentFrames["MAPS"] = dummyFrame
+end
 
 startPeriodicRefresh()
 
