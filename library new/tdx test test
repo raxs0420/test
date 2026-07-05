@@ -501,13 +501,17 @@ function TDX:Loadout(loadoutId)
 end
 
 function TDX:VoteDifficulty(diff)
-    wait(5.5)
-    local vote = getRemote("DifficultyVoteCast")
-    if vote then vote:FireServer(diff) end
-    wait(0.5)
-    local ready = getRemote("DifficultyVoteReady")
-    if ready then ready:FireServer(diff) end
-    wait(1)
+    local playerGui = game:GetService("Players").LocalPlayer.PlayerGui
+    local interface = playerGui:FindFirstChild("Interface")
+    local voteScreen = interface and interface:FindFirstChild("DifficultyVoteScreen")
+    
+    if voteScreen and voteScreen.Visible then
+        wait(1)
+        local vote = getRemote("DifficultyVoteCast")
+        if vote then vote:FireServer(diff) end
+        local ready = getRemote("DifficultyVoteReady")
+        if ready then ready:FireServer(diff) end
+    end
 end
 
 function TDX:TimeScale(speed)
