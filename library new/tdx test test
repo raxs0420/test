@@ -509,7 +509,9 @@ function TDX:VoteDifficulty(diff)
         local visible = voteScreen.Visible
         local absPos = voteScreen.AbsolutePosition
         local absSize = voteScreen.AbsoluteSize
-        local viewportSize = game:GetService("GuiService"):GetViewportSize()
+        
+        local camera = workspace.CurrentCamera
+        local viewportSize = camera and camera.ViewportSize or Vector2.new(0, 0)
         local onScreen = (absPos.X + absSize.X > 0 and absPos.X < viewportSize.X and
                           absPos.Y + absSize.Y > 0 and absPos.Y < viewportSize.Y)
         
