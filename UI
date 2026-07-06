@@ -417,39 +417,67 @@ local isMobile = UIS.TouchEnabled
 local terrain = workspace.Terrain
 
 local function getWorldPositionPrecise(screenPosition)
-    if terrain then
-        local success, pos = pcall(function()
-            return terrain:GetMousePosition(Camera, screenPosition)
-        end)
-        if success and pos then
-            return pos.X, pos.Y + 2, pos.Z
+    if isMobile then
+        if terrain then
+            local success, pos = pcall(function()
+                return terrain:GetMousePosition(Camera, screenPosition)
+            end)
+            if success and pos then
+                return pos.X, pos.Y + 2, pos.Z
+            end
         end
-    end
 
-    local ray = Camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
-    local raycastParams = RaycastParams.new()
-    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-    raycastParams.FilterDescendantsInstances = {player.Character, Camera}
-    raycastParams.IgnoreWater = true
+        local ray = Camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        raycastParams.FilterDescendantsInstances = {player.Character, Camera}
+        raycastParams.IgnoreWater = true
 
-    local raycastResult = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
-    if raycastResult then
-        local hitPoint = raycastResult.Position
-        return hitPoint.X, hitPoint.Y + 2, hitPoint.Z
-    end
-
-    local directions = {
-        ray.Direction,
-        Vector3.new(ray.Direction.X, ray.Direction.Y - 0.1, ray.Direction.Z),
-        Vector3.new(ray.Direction.X, ray.Direction.Y + 0.1, ray.Direction.Z)
-    }
-    for _, dir in ipairs(directions) do
-        local fallbackResult = Workspace:Raycast(ray.Origin, dir * 1000, raycastParams)
-        if fallbackResult then
-            return fallbackResult.Position.X, fallbackResult.Position.Y + 2, fallbackResult.Position.Z
+        local raycastResult = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+        if raycastResult then
+            local hitPoint = raycastResult.Position
+            return hitPoint.X, hitPoint.Y + 2, hitPoint.Z
         end
+
+        local directions = {
+            ray.Direction,
+            Vector3.new(ray.Direction.X, ray.Direction.Y - 0.1, ray.Direction.Z),
+            Vector3.new(ray.Direction.X, ray.Direction.Y + 0.1, ray.Direction.Z)
+        }
+        for _, dir in ipairs(directions) do
+            local fallbackResult = Workspace:Raycast(ray.Origin, dir * 1000, raycastParams)
+            if fallbackResult then
+                return fallbackResult.Position.X, fallbackResult.Position.Y + 2, fallbackResult.Position.Z
+            end
+        end
+        return nil, nil, nil
+    else
+-- PC
+        local ray = Camera:ViewportPointToRay(screenPosition.X, screenPosition.Y)
+        local raycastParams = RaycastParams.new()
+        raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+        raycastParams.FilterDescendantsInstances = {player.Character, Camera}
+        raycastParams.IgnoreWater = true
+
+        local raycastResult = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+        if raycastResult then
+            local hitPoint = raycastResult.Position
+            return hitPoint.X, hitPoint.Y + 5, hitPoint.Z
+        end
+
+        local directions = {
+            ray.Direction,
+            Vector3.new(ray.Direction.X, ray.Direction.Y - 0.05, ray.Direction.Z),
+            Vector3.new(ray.Direction.X, ray.Direction.Y + 0.05, ray.Direction.Z)
+        }
+        for _, dir in ipairs(directions) do
+            local fallbackResult = Workspace:Raycast(ray.Origin, dir * 1000, raycastParams)
+            if fallbackResult then
+                return fallbackResult.Position.X, fallbackResult.Position.Y + 5, fallbackResult.Position.Z
+            end
+        end
+        return nil, nil, nil
     end
-    return nil, nil, nil
 end
 
 local function placeTowerAtPosition(towerName, x, y, z)
