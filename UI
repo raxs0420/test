@@ -642,44 +642,24 @@ local periodicRefreshEnabled = true
 local currentManagerScrollFrame = nil
 
 local function check_res_ok(res)
-    if type(res) == "table" then
-        return res.success == true or res.Success == true
-    elseif type(res) == "boolean" then
-        return res == true
+    if type(res) == "table" and res.success then
+        return true
     end
     return false
 end
 
 local function do_upgrade_tower(t_obj)
-    while true do
-        local ok, res = pcall(function()
-            return RemoteFunction:InvokeServer("Troops", "Upgrade", "Set", {
-                Troop = t_obj,
-                Path = 1
-            })
-        end)
-        if ok and check_res_ok(res) then
-            refreshManagerUI()
-            return true
-        end
-        task.wait(0.25)
+    local ok, res = pcall(function()
+        return RemoteFunction:InvokeServer("Troops", "Upgrade", "Set", {
+            Troop = t_obj,
+            Path = 1
+        })
+    end)
+    if ok and check_res_ok(res) then
+        refreshManagerUI()
+        return true
     end
-end
-
-local function do_upgrade_tower_path(t_obj, path)
-    while true do
-        local ok, res = pcall(function()
-            return RemoteFunction:InvokeServer("Troops", "Upgrade", "Set", {
-                Troop = t_obj,
-                Path = path
-            })
-        end)
-        if ok and check_res_ok(res) then
-            refreshManagerUI()
-            return true
-        end
-        task.wait(0.25)
-    end
+    return false
 end
 
 local function do_sell_tower(t_obj)
