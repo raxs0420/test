@@ -2434,42 +2434,18 @@ mapsTab.MouseButton1Click:Connect(function()
 end)
 
 local function getMaxLevelForTower(towerModel)
-    local upgradesModule = nil
-    local attempts = 0
-    while not upgradesModule and attempts < 60 do
-        upgradesModule = towerModel:FindFirstChild("UpgradesModule", true)
-        if not upgradesModule then
-            task.wait(0.1)
-            attempts = attempts + 1
-        end
-    end
-    if not upgradesModule or not upgradesModule:IsA("ModuleScript") then
-        return nil
-    end
-    local success, data = pcall(require, upgradesModule)
-    if not success or type(data) ~= "table" then
+    local upgradesFolder = towerModel:FindFirstChild("Upgrades")
+    if not upgradesFolder then
         return nil
     end
     local maxLevel = 0
-    local function recursiveScan(tbl)
-        if type(tbl) ~= "table" then return end
-        for k, v in pairs(tbl) do
-            local num
-            if type(k) == "number" then
-                num = k
-            elseif type(k) == "string" then
-                num = tonumber(k:match("^%d+"))
-            end
-            if num and num > maxLevel then
-                maxLevel = num
-            end
-            if type(v) == "table" then
-                recursiveScan(v)
-            end
+    for _, child in ipairs(upgradesFolder:GetChildren()) do
+        local num = tonumber(child.Name)
+        if num and num > maxLevel then
+            maxLevel = num
         end
     end
-    recursiveScan(data)
-    return maxLevel
+    return maxLevel > 0 and maxLevel or nil
 end
 
 local function setupAutoUpgradeListener()
