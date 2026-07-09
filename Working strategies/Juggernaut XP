@@ -14,8 +14,7 @@ TDS:GameInfo("Summer Castle", {
     Limitation = true, 
     HiddenEnemies = true,
     Committed = true,
-    ExplodingEnemies = true,
-    Glass = true
+    ExplodingEnemies = true
 })
 
 TDS:Place("Cowboy", 11.729564666748047, 60, 24.119956970214844)
