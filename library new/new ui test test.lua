@@ -455,7 +455,7 @@ local function match_ready_up()
     local player_gui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     local remote_func = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
     local remote_event = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvent")
-    
+
     local ui_success = false
     local ui_attempts = 0
     while ui_attempts < 15 and not ui_success do
@@ -488,7 +488,7 @@ local function match_ready_up()
         ui_attempts = ui_attempts + 1
         task.wait(0.5)
     end
-    
+
     if not ui_success then
         for i = 1, 5 do
             pcall(function()
@@ -1651,60 +1651,57 @@ local function start_auto_chain()
         return groups
     end
 
-    local function run_group(group)
-        local idx = 1
-        while _G.AutoChain do
-            local current_commander = group[idx]
-            local replicator = current_commander:FindFirstChild("TowerReplicator")
-            local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
-            if upgrade_level >= 4 and _G.SupportCaravan then
-                remote_func:InvokeServer(
-                    "Troops",
-                    "Abilities",
-                    "Activate",
-                    { Troop = current_commander, Name = "Support Caravan", Data = {} }
-                )
-                task.wait(0.1)
+    local function run_one_cycle(group)
+        for _, commander in ipairs(group) do
+            if not (_G.AutoChain and auto_chain_running) then break end
+
+            local success = pcall(function()
+                remote_func:InvokeServer("Troops", "Abilities", "Activate", {
+                    Troop = commander,
+                    Name = "Call Of Arms",
+                    Data = {}
+                })
+            end)
+
+            if not success then
+                task.wait(0.5)
             end
-            local response = remote_func:InvokeServer(
-                "Troops",
-                "Abilities",
-                "Activate",
-                { Troop = current_commander, Name = "Call Of Arms", Data = {} }
-            )
-            if response then
-                idx = idx % #group + 1
-                local hotbar = player_gui:FindFirstChild("ReactUniversalHotbar")
-                local timescale = hotbar and hotbar:FindFirstChild("Frame") and hotbar.Frame:FindFirstChild("timescale")
-                if timescale and timescale.Visible then
-                    if timescale:FindFirstChild("Lock") then
-                        task.wait(10.3)
-                    else
-                        task.wait(5.25)
-                    end
-                else
+
+            local hotbar = player_gui:FindFirstChild("ReactUniversalHotbar")
+            local timescale = hotbar and hotbar:FindFirstChild("Frame") and hotbar.Frame:FindFirstChild("timescale")
+            if timescale and timescale.Visible then
+                if timescale:FindFirstChild("Lock") then
                     task.wait(10.3)
+                else
+                    task.wait(5.25)
                 end
             else
-                task.wait(0.5)
+                task.wait(10.3)
             end
         end
         active_group_counter = active_group_counter - 1
-        if active_group_counter == 0 then
-            auto_chain_running = false
+    end
+
+    while _G.AutoChain and auto_chain_running do
+        local commanders_with_pos = get_commanders_with_pos()
+        local groups = form_groups_of_three(commanders_with_pos)
+
+        if #groups == 0 then
+            task.wait(1)
+        else
+            active_group_counter = 0
+            for _, group in ipairs(groups) do
+                active_group_counter = active_group_counter + 1
+                task.spawn(run_one_cycle, group)
+            end
+
+            while active_group_counter > 0 do
+                task.wait(0.5)
+            end
         end
     end
 
-    local commanders_with_pos = get_commanders_with_pos()
-    local groups = form_groups_of_three(commanders_with_pos)
-    local active_group_counter = 0
-    for i = 1, math.min(2, #groups) do
-        active_group_counter = active_group_counter + 1
-        task.spawn(run_group, groups[i])
-    end
-    if active_group_counter == 0 then
-        auto_chain_running = false
-    end
+    auto_chain_running = false
 end
 
 local function start_auto_support()
