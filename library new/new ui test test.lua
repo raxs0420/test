@@ -1433,18 +1433,6 @@ local function start_auto_chain()
                         if not (_G.AutoChain and auto_chain_running) then break end
 
                         local success = pcall(function()
-                            local replicator = commander:FindFirstChild("TowerReplicator")
-                            local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
-
-                            if upgrade_level >= 4 and _G.SupportCaravan then
-                                remote_func:InvokeServer("Troops", "Abilities", "Activate", {
-                                    Troop = commander,
-                                    Name = "Support Caravan",
-                                    Data = {}
-                                })
-                                task.wait(0.1)
-                            end
-
                             remote_func:InvokeServer("Troops", "Abilities", "Activate", {
                                 Troop = commander,
                                 Name = "Call Of Arms",
@@ -1472,6 +1460,36 @@ local function start_auto_chain()
             end
         end
         auto_chain_running = false
+    end)
+end
+
+local function start_auto_support()
+    if auto_support_running or not _G.AutoSupport then return end
+    auto_support_running = true
+
+    task.spawn(function()
+        while _G.AutoSupport do
+            local towers_folder = workspace:FindFirstChild("Towers")
+            if towers_folder then
+                for _, towers in ipairs(towers_folder:GetDescendants()) do
+                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
+                    and towers:GetAttribute("Name") == "Commander"
+                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
+                    and (towers:GetAttribute("Upgrade") or 0) >= 4 then
+                        local commander = towers.Parent
+                        remote_func:InvokeServer(
+                            "Troops",
+                            "Abilities",
+                            "Activate",
+                            { Troop = commander, Name = "Support Caravan", Data = {} }
+                        )
+                        task.wait(0.5)
+                    end
+                end
+            end
+            task.wait(0.2)
+        end
+        auto_support_running = false
     end)
 end
 
