@@ -308,7 +308,6 @@ local function match_ready_up()
                         pcall(function()
                             remote_func:InvokeServer("Voting", "Skip")
                         end)
-                        log_match_start()
                         if TDS.pending_strategy then
                             task.spawn(TDS.pending_strategy)
                             TDS.pending_strategy = nil
@@ -333,7 +332,6 @@ local function match_ready_up()
             end)
             task.wait(0.5)
         end
-        log_match_start()
         if TDS.pending_strategy then
             task.spawn(TDS.pending_strategy)
             TDS.pending_strategy = nil
@@ -615,73 +613,62 @@ local function waitUntilUnstunned(tower)
     end
 end
 
-function TDS:ClearSessionData()
-    self.placed_towers = {}
-    upgrade_history = {}
-    self.PlacedTraps = nil
-    self.MapInteractions = nil
-    self.current_map = nil
-    self.current_strategy = nil
-    if self.ReplayCallback then
-        self.ReplayCallback = nil
-    end
-end
-
-function TDS:WaitForMatchStatus()
+function TDS:HandleGameEnd()
     while true do
-        local success, status = pcall(function()
-            local uiRoot = player_gui:FindFirstChild("ReactGameNewRewards")
-            if not uiRoot then return nil end
+        local uiRoot = player_gui:FindFirstChild("ReactGameNewRewards")
+        if uiRoot then
             local mainFrame = uiRoot:FindFirstChild("Frame")
-            if not mainFrame or not mainFrame.Visible then return nil end
-            local gameOver = mainFrame:FindFirstChild("gameOver")
-            if not gameOver or not gameOver.Visible then return nil end
-            local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
-            if not rewardsScreen or not rewardsScreen.Visible then return nil end
-            local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
-            if not topBanner then return nil end
-            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
-            if not label then return nil end
-            local txt = label.Text:upper()
-            if txt == "" then return nil end
-            if txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") then
-                return "WIN"
-            elseif txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL") then
-                return "LOSS"
+            if mainFrame and mainFrame.Visible then
+                local gameOver = mainFrame:FindFirstChild("gameOver")
+                if gameOver and gameOver.Visible then
+                    local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+                    if rewardsScreen and rewardsScreen.Visible then
+                        local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
+                        if topBanner then
+                            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
+                            if label then
+                                local txt = label.Text:upper()
+                                if txt ~= "" then
+                                    local isLoss = false
+                                    if txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL") then
+                                        isLoss = true
+                                    elseif txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") then
+                                        isLoss = false
+                                    end
+
+                                    if isLoss then
+                                        task.wait(0.2)
+                                        self.placed_towers = {}
+                                        upgrade_history = {}
+                                        self.PlacedTraps = nil
+                                        self.MapInteractions = nil
+                                        self.current_map = nil
+                                        self.current_strategy = nil
+                                        if self.ReplayCallback then
+                                            self.ReplayCallback = nil
+                                        end
+                                    end
+
+                                    local found_section = false
+                                    repeat
+                                        task.wait(0.1)
+                                        local f = uiRoot:FindFirstChild("Frame")
+                                        local g = f and f:FindFirstChild("gameOver")
+                                        local s = g and g:FindFirstChild("RewardsScreen")
+                                        if s and s:FindFirstChild("RewardsSection") then
+                                            found_section = true
+                                        end
+                                    until found_section
+                                    run_vote_skip() 
+                                    return 
+                                end
+                            end
+                        end
+                    end
+                end
             end
-            return nil
-        end)
-        if success and status then
-            return status
         end
-        task.wait(0.5)
-    end
-end
-
-function TDS:RestartGame()
-    local ui_root = player_gui:WaitForChild("ReactGameNewRewards")
-    local found_section = false
-    repeat
-        task.wait(0.3)
-        local f = ui_root:FindFirstChild("Frame")
-        local g = f and f:FindFirstChild("gameOver")
-        local s = g and g:FindFirstChild("RewardsScreen")
-        if s and s:FindFirstChild("RewardsSection") then
-            found_section = true
-        end
-    until found_section
-    run_vote_skip()
-end
-
-function TDS:GameStatse()
-    while true do
-        local status = self:WaitForMatchStatus()
-        print(status)
-        if status == "LOSS" or status == "WIN" then
-            self:ClearSessionData()
-            self:RestartGame()
-        end
-        task.wait(1)
+        task.wait(0.1)  
     end
 end
 
