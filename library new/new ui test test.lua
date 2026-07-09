@@ -303,7 +303,7 @@ local function start_auto_rejoin_monitor()
                                                             found_section = true
                                                         end
                                                     until found_section
-                                                    task.wait(4)
+                                                    task.wait(2)
                                                     if _G.AutoRejoin then
                                                         rejoin_match()
                                                     end
