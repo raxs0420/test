@@ -55,6 +55,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
 
+local auto_rejoin_monitor_running = false
 local auto_pickups_running = false
 local auto_skip_running = false
 local anti_lag_running = false
@@ -266,6 +267,63 @@ local function rejoin_match()
     until success
     return res
 end
+
+local function start_auto_rejoin_monitor()
+    if auto_rejoin_monitor_running then return end
+    auto_rejoin_monitor_running = true
+
+    task.spawn(function()
+        while true do
+            if _G.AutoRejoin then
+                local playerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+                if playerGui then
+                    local isInGame = playerGui:FindFirstChild("ReactUniversalHotbar") ~= nil
+                    if isInGame then
+                        local uiRoot = playerGui:FindFirstChild("ReactGameNewRewards")
+                        if uiRoot then
+                            local mainFrame = uiRoot:FindFirstChild("Frame")
+                            if mainFrame and mainFrame.Visible then
+                                local gameOver = mainFrame:FindFirstChild("gameOver")
+                                if gameOver and gameOver.Visible then
+                                    local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+                                    if rewardsScreen and rewardsScreen.Visible then
+                                        local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
+                                        if topBanner then
+                                            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
+                                            if label then
+                                                local txt = label.Text:upper()
+                                                if txt ~= "" then
+                                                    local found_section = false
+                                                    repeat
+                                                        task.wait(0.1)
+                                                        local f = uiRoot:FindFirstChild("Frame")
+                                                        local g = f and f:FindFirstChild("gameOver")
+                                                        local s = g and g:FindFirstChild("RewardsScreen")
+                                                        if s and s:FindFirstChild("RewardsSection") then
+                                                            found_section = true
+                                                        end
+                                                    until found_section
+                                                    task.wait(4)
+                                                    if _G.AutoRejoin then
+                                                        rejoin_match()
+                                                    end
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            else
+                task.wait(1)
+            end
+            task.wait(0.2)
+        end
+    end)
+end
+start_auto_rejoin_monitor()
 
 local function getTowerPosition(towerModel)
     local primary = towerModel:FindFirstChild("PrimaryPart") or towerModel:FindFirstChild("Head") or towerModel:FindFirstChildWhichIsA("BasePart")
