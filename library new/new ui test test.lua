@@ -1419,92 +1419,59 @@ local function start_auto_chain()
         return groups
     end
 
-    local function run_group(group)
-        local idx = 1
-        while _G.AutoChain do
-            local current_commander = group[idx]
-            local replicator = current_commander:FindFirstChild("TowerReplicator")
-            local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
-            if upgrade_level >= 4 and _G.SupportCaravan then
-                remote_func:InvokeServer(
-                    "Troops",
-                    "Abilities",
-                    "Activate",
-                    { Troop = current_commander, Name = "Support Caravan", Data = {} }
-                )
-                task.wait(0.1)
-            end
-            local response = remote_func:InvokeServer(
-                "Troops",
-                "Abilities",
-                "Activate",
-                { Troop = current_commander, Name = "Call Of Arms", Data = {} }
-            )
-            if response then
-                idx = idx % #group + 1
-                local hotbar = player_gui:FindFirstChild("ReactUniversalHotbar")
-                local timescale = hotbar and hotbar:FindFirstChild("Frame") and hotbar.Frame:FindFirstChild("timescale")
-                if timescale and timescale.Visible then
-                    if timescale:FindFirstChild("Lock") then
-                        task.wait(10.3)
-                    else
-                        task.wait(5.25)
-                    end
-                else
-                    task.wait(10.3)
-                end
-            else
-                task.wait(0.5)
-            end
-        end
-        active_group_counter = active_group_counter - 1
-        if active_group_counter == 0 then
-            auto_chain_running = false
-        end
-    end
-
-    local commanders_with_pos = get_commanders_with_pos()
-    local groups = form_groups_of_three(commanders_with_pos)
-    local active_group_counter = 0
-    for i = 1, math.min(2, #groups) do
-        active_group_counter = active_group_counter + 1
-        task.spawn(run_group, groups[i])
-    end
-    if active_group_counter == 0 then
-        auto_chain_running = false
-    end
-end
-
-local function start_auto_support()
-    if auto_support_running or not _G.AutoSupport then return end
-    auto_support_running = true
-
     task.spawn(function()
-        while _G.AutoSupport do
-            local towers_folder = workspace:FindFirstChild("Towers")
+        while _G.AutoChain and auto_chain_running do
+            local commanders_with_pos = get_commanders_with_pos()
+            local groups = form_groups_of_three(commanders_with_pos)
 
-            if towers_folder then
-                for _, towers in ipairs(towers_folder:GetDescendants()) do
-                    if towers:IsA("Folder") and towers.Name == "TowerReplicator"
-                    and towers:GetAttribute("Name") == "Commander"
-                    and towers:GetAttribute("OwnerId") == game.Players.LocalPlayer.UserId
-                    and (towers:GetAttribute("Upgrade") or 0) >= 4 then
-                        local commander = towers.Parent
-                        remote_func:InvokeServer(
-                            "Troops",
-                            "Abilities",
-                            "Activate",
-                            { Troop = commander, Name = "Support Caravan", Data = {} }
-                        )
-                        task.wait(0.5)
+            if #groups == 0 then
+                task.wait(5)
+            else
+                for _, group in ipairs(groups) do
+                    if not (_G.AutoChain and auto_chain_running) then break end
+                    for _, commander in ipairs(group) do
+                        if not (_G.AutoChain and auto_chain_running) then break end
+
+                        local success = pcall(function()
+                            local replicator = commander:FindFirstChild("TowerReplicator")
+                            local upgrade_level = replicator and replicator:GetAttribute("Upgrade") or 0
+
+                            if upgrade_level >= 4 and _G.SupportCaravan then
+                                remote_func:InvokeServer("Troops", "Abilities", "Activate", {
+                                    Troop = commander,
+                                    Name = "Support Caravan",
+                                    Data = {}
+                                })
+                                task.wait(0.1)
+                            end
+
+                            remote_func:InvokeServer("Troops", "Abilities", "Activate", {
+                                Troop = commander,
+                                Name = "Call Of Arms",
+                                Data = {}
+                            })
+                        end)
+
+                        if not success then
+                            task.wait(0.5)
+                        end
+
+                        local hotbar = player_gui:FindFirstChild("ReactUniversalHotbar")
+                        local timescale = hotbar and hotbar:FindFirstChild("Frame") and hotbar.Frame:FindFirstChild("timescale")
+                        if timescale and timescale.Visible then
+                            if timescale:FindFirstChild("Lock") then
+                                task.wait(10.3)
+                            else
+                                task.wait(5.25)
+                            end
+                        else
+                            task.wait(10.3)
+                        end
                     end
                 end
             end
-
-            task.wait(0.2)
         end
-
-        auto_support_running = false
+        auto_chain_running = false
     end)
 end
 
