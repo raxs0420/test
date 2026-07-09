@@ -248,7 +248,7 @@ local function rejoin_match()
                 local ok, result = pcall(function()
                     local payload
                     local rawMode = DisplayName
-                    local modeToUse = string.gsub(rawMode, " ", "") -- Remove all spaces
+                    local modeToUse = string.gsub(rawMode, " ", "") 
                     if modeToUse == "PizzaParty" then
                         payload = { mode = "halloween", count = 1 }
                     elseif modeToUse == "Hardcore" then
@@ -1651,57 +1651,56 @@ local function start_auto_chain()
         return groups
     end
 
-    local function run_one_cycle(group)
-        for _, commander in ipairs(group) do
-            if not (_G.AutoChain and auto_chain_running) then break end
+    task.spawn(function()
+        while _G.AutoChain and auto_chain_running do
+            local commanders_with_pos = get_commanders_with_pos()
+            local groups = form_groups_of_three(commanders_with_pos)
 
-            local success = pcall(function()
-                remote_func:InvokeServer("Troops", "Abilities", "Activate", {
-                    Troop = commander,
-                    Name = "Call Of Arms",
-                    Data = {}
-                })
-            end)
-
-            if not success then
-                task.wait(0.5)
-            end
-
-            local hotbar = player_gui:FindFirstChild("ReactUniversalHotbar")
-            local timescale = hotbar and hotbar:FindFirstChild("Frame") and hotbar.Frame:FindFirstChild("timescale")
-            if timescale and timescale.Visible then
-                if timescale:FindFirstChild("Lock") then
-                    task.wait(10.3)
-                else
-                    task.wait(5.25)
-                end
+            if #groups == 0 then
+                task.wait(1)
             else
-                task.wait(10.3)
+                local group_counter = 0
+                for _, group in ipairs(groups) do
+                    group_counter = group_counter + 1
+                    task.spawn(function()
+                        for _, commander in ipairs(group) do
+                            if not (_G.AutoChain and auto_chain_running) then break end
+
+                            local success = pcall(function()
+                                remote_func:InvokeServer("Troops", "Abilities", "Activate", {
+                                    Troop = commander,
+                                    Name = "Call Of Arms",
+                                    Data = {}
+                                })
+                            end)
+
+                            if not success then
+                                task.wait(0.5)
+                            end
+
+                            local hotbar = player_gui:FindFirstChild("ReactUniversalHotbar")
+                            local timescale = hotbar and hotbar:FindFirstChild("Frame") and hotbar.Frame:FindFirstChild("timescale")
+                            if timescale and timescale.Visible then
+                                if timescale:FindFirstChild("Lock") then
+                                    task.wait(10.3)
+                                else
+                                    task.wait(5.25)
+                                end
+                            else
+                                task.wait(10.3)
+                            end
+                        end
+                        group_counter = group_counter - 1
+                    end)
+                end
+
+                while group_counter > 0 do
+                    task.wait(0.5)
+                end
             end
         end
-        active_group_counter = active_group_counter - 1
-    end
-
-    while _G.AutoChain and auto_chain_running do
-        local commanders_with_pos = get_commanders_with_pos()
-        local groups = form_groups_of_three(commanders_with_pos)
-
-        if #groups == 0 then
-            task.wait(1)
-        else
-            active_group_counter = 0
-            for _, group in ipairs(groups) do
-                active_group_counter = active_group_counter + 1
-                task.spawn(run_one_cycle, group)
-            end
-
-            while active_group_counter > 0 do
-                task.wait(0.5)
-            end
-        end
-    end
-
-    auto_chain_running = false
+        auto_chain_running = false
+    end)
 end
 
 local function start_auto_support()
