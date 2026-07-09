@@ -66,7 +66,6 @@ local auto_mercenary_running = false
 local auto_uber_running = false
 local auto_claim_rewards = false
 local auto_chain_running = false
-local auto_dj_running = false
 local auto_support_running = false
 local active_group_counter = 0
 
