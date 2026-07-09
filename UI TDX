@@ -7,6 +7,52 @@ local TeleportService = game:GetService("TeleportService")
 
 if LocalPlayer.PlayerGui:FindFirstChild("TDXAuto") then return end
 
+local debugEnabled = true
+local debugLogs = {}
+local maxDebugLogs = 150
+local debugLogFrameRef = nil
+local debugLogLayoutRef = nil
+local abilityUsedQueue = {}
+
+local function addDebugLog(message)
+    if not debugEnabled then return end
+    local timestamp = os.date("%H:%M:%S")
+    local logEntry = string.format("[%s] %s", timestamp, message)
+    table.insert(debugLogs, logEntry)
+    if #debugLogs > maxDebugLogs then
+        table.remove(debugLogs, 1)
+    end
+    task.spawn(function()
+        if debugLogFrameRef and debugLogLayoutRef then
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -10, 0, 16)
+            label.Text = logEntry
+            label.TextColor3 = Color3.fromRGB(200,200,200)
+            label.TextSize = 10
+            label.BackgroundTransparency = 1
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.TextWrapped = true
+            label.Parent = debugLogFrameRef
+            local children = debugLogFrameRef:GetChildren()
+            local textChildren = {}
+            for _, c in ipairs(children) do
+                if c:IsA("TextLabel") then table.insert(textChildren, c) end
+            end
+            while #textChildren > 50 do
+                textChildren[1]:Destroy()
+                table.remove(textChildren, 1)
+            end
+            debugLogFrameRef.CanvasSize = UDim2.new(0, 0, 0, debugLogLayoutRef.AbsoluteContentSize.Y + 10)
+            debugLogFrameRef.CanvasPosition = Vector2.new(0, debugLogFrameRef.CanvasSize.Y.Offset)
+        end
+    end)
+end
+
+local function debugPrint(message, level)
+    level = level or "INFO"
+    addDebugLog(string.format("[%s] %s", level, message))
+end
+
 local enemyBlocklist = {
     "Skulldrone", "Pilot", "Artemis", "Slow", "Quick", "Normal", "Buzzard", "Jumper",
     "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drrone",
@@ -132,26 +178,19 @@ debugFrame.BackgroundTransparency = 1
 debugFrame.Visible = false
 debugFrame.Parent = frame
 
-local towersFrame = Instance.new("Frame")
-towersFrame.Size = UDim2.new(1, -20, 1, -65)
-towersFrame.Position = UDim2.new(0, 10, 0, 58)
-towersFrame.BackgroundTransparency = 1
-towersFrame.Visible = false
-towersFrame.Parent = frame
+debugLogFrameRef = Instance.new("ScrollingFrame")
+debugLogFrameRef.Size = UDim2.new(1, -10, 1, -10)
+debugLogFrameRef.Position = UDim2.new(0, 5, 0, 5)
+debugLogFrameRef.BackgroundColor3 = Color3.fromRGB(40,40,40)
+debugLogFrameRef.BorderSizePixel = 0
+debugLogFrameRef.ScrollBarThickness = 6
+debugLogFrameRef.Parent = debugFrame
+Instance.new("UICorner", debugLogFrameRef)
 
-local debugLogFrame = Instance.new("ScrollingFrame")
-debugLogFrame.Size = UDim2.new(1, -10, 1, -10)
-debugLogFrame.Position = UDim2.new(0, 5, 0, 5)
-debugLogFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
-debugLogFrame.BorderSizePixel = 0
-debugLogFrame.ScrollBarThickness = 6
-debugLogFrame.Parent = debugFrame
-Instance.new("UICorner", debugLogFrame)
-
-local debugLogLayout = Instance.new("UIListLayout", debugLogFrame)
-debugLogLayout.Padding = UDim.new(0, 2)
-debugLogLayout.SortOrder = Enum.SortOrder.LayoutOrder
-debugLogLayout.FillDirection = Enum.FillDirection.Vertical
+debugLogLayoutRef = Instance.new("UIListLayout", debugLogFrameRef)
+debugLogLayoutRef.Padding = UDim.new(0, 2)
+debugLogLayoutRef.SortOrder = Enum.SortOrder.LayoutOrder
+debugLogLayoutRef.FillDirection = Enum.FillDirection.Vertical
 
 local clearDebugBtn = Instance.new("TextButton")
 clearDebugBtn.Size = UDim2.new(1, -10, 0, 30)
@@ -162,6 +201,13 @@ clearDebugBtn.TextColor3 = Color3.fromRGB(255,255,255)
 clearDebugBtn.TextSize = 10
 clearDebugBtn.Parent = debugFrame
 Instance.new("UICorner", clearDebugBtn)
+
+local towersFrame = Instance.new("Frame")
+towersFrame.Size = UDim2.new(1, -20, 1, -65)
+towersFrame.Position = UDim2.new(0, 10, 0, 58)
+towersFrame.BackgroundTransparency = 1
+towersFrame.Visible = false
+towersFrame.Parent = frame
 
 local towersScroll = Instance.new("ScrollingFrame")
 towersScroll.Size = UDim2.new(1, -10, 1, -10)
@@ -178,21 +224,6 @@ towersLayout.Padding = UDim.new(0, 4)
 towersLayout.SortOrder = Enum.SortOrder.LayoutOrder
 towersLayout.FillDirection = Enum.FillDirection.Vertical
 towersLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
-
-local abilitiesFrame = Instance.new("ScrollingFrame")
-abilitiesFrame.Size = UDim2.new(1, -10, 0, frameHeight - 240)
-abilitiesFrame.Position = UDim2.new(0, 5, 0, 178)
-abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
-abilitiesFrame.BorderSizePixel = 0
-abilitiesFrame.ScrollBarThickness = 6
-abilitiesFrame.Parent = mainFrame
-Instance.new("UICorner", abilitiesFrame)
-
-local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
-abilitiesLayout.Padding = UDim.new(0, 6)
-abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
-abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
-abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local topBtn = Instance.new("TextButton")
 topBtn.Size = UDim2.new(0, 165, 0, 30)
@@ -265,69 +296,24 @@ abilityLabel.Font = Enum.Font.GothamBold
 abilityLabel.TextXAlignment = Enum.TextXAlignment.Left
 abilityLabel.Parent = mainFrame
 
-local function updateDebugCanvas()
-    task.defer(function()
-        if debugLogFrame and debugLogLayout then
-            debugLogFrame.CanvasSize = UDim2.new(0, 0, 0, debugLogLayout.AbsoluteContentSize.Y + 10)
-        end
-    end)
-end
+local abilitiesFrame = Instance.new("ScrollingFrame")
+abilitiesFrame.Size = UDim2.new(1, -10, 0, frameHeight - 240)
+abilitiesFrame.Position = UDim2.new(0, 5, 0, 178)
+abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
+abilitiesFrame.BorderSizePixel = 0
+abilitiesFrame.ScrollBarThickness = 6
+abilitiesFrame.Parent = mainFrame
+Instance.new("UICorner", abilitiesFrame)
 
-local function addDebugLog(message)
-    local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -10, 0, 16)
-    label.Text = message
-    label.TextColor3 = Color3.fromRGB(200,200,200)
-    label.TextSize = 10
-    label.BackgroundTransparency = 1
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Parent = debugLogFrame
-    local children = debugLogFrame:GetChildren()
-    local textChildren = {}
-    for _, c in ipairs(children) do
-        if c:IsA("TextLabel") then table.insert(textChildren, c) end
-    end
-    while #textChildren > 50 do
-        textChildren[1]:Destroy()
-        table.remove(textChildren, 1)
-    end
-    updateDebugCanvas()
-end
+local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
+abilitiesLayout.Padding = UDim.new(0, 6)
+abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
+abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-clearDebugBtn.MouseButton1Click:Connect(function()
-    for _, child in ipairs(debugLogFrame:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
-    end
-    updateDebugCanvas()
-end)
-
-tabMainBtn.MouseButton1Click:Connect(function()
-    mainFrame.Visible = true
-    debugFrame.Visible = false
-    towersFrame.Visible = false
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-end)
-
-tabDebugBtn.MouseButton1Click:Connect(function()
-    mainFrame.Visible = false
-    debugFrame.Visible = true
-    towersFrame.Visible = false
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-end)
-
-tabTowersBtn.MouseButton1Click:Connect(function()
-    mainFrame.Visible = false
-    debugFrame.Visible = false
-    towersFrame.Visible = true
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    updateTowersList()
-end)
+addDebugLog("=== TDX Auto Initialized ===")
+addDebugLog("Debug loaded")
+addDebugLog("Looking for towers.....")
 
 local towers = {}
 local globalHitBlacklist = {}
@@ -348,17 +334,29 @@ local function updateTowersList()
             table.insert(ownedTowers, {part = part, data = data})
         end
     end
-    table.sort(ownedTowers, function(a,b) return a.data.name < b.data.name end)
-    for _, entry in ipairs(ownedTowers) do
-        local data = entry.data
+    if #ownedTowers == 0 then
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(1, -10, 0, 20)
-        label.Text = string.format("%s | Hash: %d | Top: %d | Bottom: %d", data.name, data.hash, data.topCount or 0, data.bottomCount or 0)
+        label.Text = "No owned towers detected yet"
         label.TextColor3 = Color3.fromRGB(200,200,200)
         label.TextSize = 11
-        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.TextXAlignment = Enum.TextXAlignment.Center
         label.BackgroundTransparency = 1
         label.Parent = towersScroll
+    else
+        table.sort(ownedTowers, function(a,b) return a.data.name < b.data.name end)
+        for _, entry in ipairs(ownedTowers) do
+            local data = entry.data
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -10, 0, 20)
+            label.Text = string.format("%s | Hash: %d | Top: %d | Bottom: %d", 
+                data.name, data.hash or 0, data.topCount or 0, data.bottomCount or 0)
+            label.TextColor3 = Color3.fromRGB(200,200,200)
+            label.TextSize = 11
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.BackgroundTransparency = 1
+            label.Parent = towersScroll
+        end
     end
     task.defer(function()
         if towersScroll then
@@ -368,7 +366,10 @@ local function updateTowersList()
 end
 
 local function isTowerDead(part)
-    return not part or not part.Parent or (part.Parent and part.Parent.Name ~= "Towers")
+    if not part then return true end
+    if not part.Parent then return true end
+    if part.Parent.Name ~= "Towers" then return true end
+    return false
 end
 
 local function addTower(part)
@@ -380,14 +381,16 @@ local function addTower(part)
         hash = nil,
         topCount = 0,
         bottomCount = 0,
-        currentLevel = 0
+        currentLevel = 0,
+        position = part.Position
     }
-    addDebugLog(string.format("Tower placed: %s", part.Name))
+    addDebugLog(string.format("Tower added: %s", part.Name))
+    updateTowersList()
 end
 
 local function removeTower(part)
     if towers[part] then
-        addDebugLog(string.format("Tower removed: %s (hash %s)", towers[part].name, tostring(towers[part].hash)))
+        addDebugLog(string.format("Tower removed: %s", towers[part].name))
         towers[part] = nil
         updateTowersList()
     end
@@ -395,7 +398,7 @@ end
 
 local function cleanupDeadTowers()
     local changed = false
-    for part, _ in pairs(towers) do
+    for part, data in pairs(towers) do
         if isTowerDead(part) then
             towers[part] = nil
             changed = true
@@ -406,35 +409,34 @@ local function cleanupDeadTowers()
     end
 end
 
-local function getNumericLevel(part)
-    if not part then return 0 end
-    for _, child in ipairs(part:GetChildren()) do
-        local num = tonumber(child.Name)
-        if num then return num end
-        if child:IsA("Model") then
-            for _, sub in ipairs(child:GetChildren()) do
-                local subNum = tonumber(sub.Name)
-                if subNum then return subNum end
-            end
+local function scanForTowers()
+    local gameFolder = workspace:FindFirstChild("Game")
+    if not gameFolder then return end
+    local towersFolder = gameFolder:FindFirstChild("Towers")
+    if not towersFolder then return end
+    for _, part in ipairs(towersFolder:GetChildren()) do
+        if part:IsA("BasePart") then
+            addTower(part)
         end
     end
-    return 0
 end
 
 local function onNumericAdded(child, part)
+    if not part or not part.Parent then return end
     local num = tonumber(child.Name)
     if not num then return end
-    if not towers[part] then return end
-    local old = towers[part].currentLevel
+    local data = towers[part]
+    if not data then return end
+    local old = data.currentLevel
     if num > old then
-        towers[part].currentLevel = num
+        data.currentLevel = num
         addDebugLog(string.format("Level increase for %s: %d -> %d", part.Name, old, num))
-        if pendingHash and pendingPlacements[pendingHash] and not towers[part].owned then
-            towers[part].owned = true
-            towers[part].hash = pendingHash
-            towers[part].topCount = pendingTop
-            towers[part].bottomCount = pendingBottom
-            addDebugLog(string.format("Assigned hash %d to %s (level %d) top=%d bottom=%d", pendingHash, part.Name, num, pendingTop, pendingBottom))
+        if pendingHash and pendingPlacements and pendingPlacements[pendingHash] and not data.owned then
+            data.owned = true
+            data.hash = pendingHash
+            data.topCount = pendingTop
+            data.bottomCount = pendingBottom
+            addDebugLog(string.format("Assigned hash %d to %s", pendingHash, part.Name))
             updateTowersList()
             pendingHash = nil
             pendingTop = 0
@@ -445,6 +447,7 @@ local function onNumericAdded(child, part)
 end
 
 local function watchTower(part)
+    if not part or not part.Parent then return end
     local function checkExisting()
         for _, child in ipairs(part:GetChildren()) do
             if tonumber(child.Name) then
@@ -474,97 +477,44 @@ local function watchTower(part)
     checkExisting()
 end
 
-local function setupUpgradeListener()
+local function getTowerUseAbilityRequest()
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-    if not remotes then
-        addDebugLog("Remotes folder not found")
-        return
+    if remotes then
+        return remotes:FindFirstChild("TowerUseAbilityRequest")
     end
-    local factoryRemote = remotes:FindFirstChild("TowerFactoryQueueUpdated")
-    if factoryRemote then
-        factoryRemote.OnClientEvent:Connect(function(...)
-            local args = {...}
-            local events = (type(args[1]) == "table" and #args[1] > 0) and args[1] or args
-            for _, ev in ipairs(events) do
-                if type(ev) ~= "table" then continue end
-                if ev.Creation == false then
-                    local towerId = ev.Data
-                    if type(towerId) == "table" then towerId = towerId[1] end
-                    if type(towerId) == "number" then
-                        pendingPlacements[towerId] = nil
-                        for part, data in pairs(towers) do
-                            if data.hash == towerId then
-                                removeTower(part)
-                                break
-                            end
-                        end
-                    end
-                else
-                    local towerInfo = ev.Data
-                    if type(towerInfo) == "table" and towerInfo[1] and type(towerInfo[1]) == "table" then
-                        towerInfo = towerInfo[1]
-                    end
-                    if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
-                        local towerId = towerInfo[1]
-                        local towerName = towerInfo[2]
-                        local playerName = towerInfo[7]
-                        if tostring(playerName) == LocalPlayer.Name then
-                            pendingPlacements[towerId] = {name = towerName, time = tick()}
-                            addDebugLog(string.format("Tower placed (local): %s, hash=%d", towerName, towerId))
-                        else
-                            addDebugLog(string.format("Tower placed (other): %s, hash=%d, player=%s", towerName, towerId, tostring(playerName)))
-                        end
-                    end
-                end
-            end
+    return nil
+end
+
+local function sendAbilityWithPosition(part, slot, position)
+    local data = towers[part]
+    if not data or not data.hash then return nil end
+    local req = getTowerUseAbilityRequest()
+    if req then
+        local success, response = pcall(function() 
+            return req:InvokeServer(data.hash, slot, position) 
         end)
-        addDebugLog("TowerFactoryQueueUpdated listener ready")
-    else
-        addDebugLog("TowerFactoryQueueUpdated not found")
+        if success then return response end
     end
-    local upgradeRemote = remotes:FindFirstChild("TowerUpgradeQueueUpdated")
-    if upgradeRemote then
-        upgradeRemote.OnClientEvent:Connect(function(data)
-            if type(data) ~= "table" then return end
-            local entries = (#data > 0) and data or {data}
-            for _, entry in ipairs(entries) do
-                local hash = entry.Hash or entry.hash or entry.Id or entry.id
-                if not hash then continue end
-                if type(hash) == "string" then hash = tonumber(hash) end
-                if not hash then continue end
-                if not pendingPlacements[hash] then continue end
-                local top = 0
-                local bottom = 0
-                if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
-                    top = entry.LevelReplicationData[1] or 0
-                    bottom = entry.LevelReplicationData[2] or 0
-                end
-                addDebugLog(string.format("Upgrade event (local): hash=%d top=%d bottom=%d", hash, top, bottom))
-                pendingHash = hash
-                pendingTop = top
-                pendingBottom = bottom
-                for part, data in pairs(towers) do
-                    if data.hash == hash then
-                        data.topCount = top
-                        data.bottomCount = bottom
-                        addDebugLog(string.format("Updated %s (hash %d) top/bottom: %d/%d", part.Name, hash, top, bottom))
-                        updateTowersList()
-                        pendingHash = nil
-                        pendingTop = 0
-                        pendingBottom = 0
-                        break
-                    end
-                end
-            end
+    return nil
+end
+
+local function sendAbilityNoPosition(part, slot)
+    local data = towers[part]
+    if not data or not data.hash then return nil end
+    local req = getTowerUseAbilityRequest()
+    if req then
+        local success, response = pcall(function() 
+            return req:InvokeServer(data.hash, slot) 
         end)
-        addDebugLog("TowerUpgradeQueueUpdated listener ready")
-    else
-        addDebugLog("TowerUpgradeQueueUpdated not found")
+        if success then return response end
     end
+    return nil
 end
 
 local function getAllEnemies()
-    local enemiesFolder = workspace.Game:FindFirstChild("Enemies")
+    local gameFolder = workspace:FindFirstChild("Game")
+    if not gameFolder then return {} end
+    local enemiesFolder = gameFolder:FindFirstChild("Enemies")
     if not enemiesFolder then return {} end
     local enemies = {}
     for _, child in ipairs(enemiesFolder:GetChildren()) do
@@ -605,38 +555,9 @@ local function getClosestEnemy(position, enemies, blacklist)
     return best
 end
 
-local function sendAbilityWithPosition(part, slot, position)
-    local data = towers[part]
-    if not data or not data.hash then return nil end
-    local remote = ReplicatedStorage:FindFirstChild("Remotes")
-    if remote then
-        local req = remote:FindFirstChild("TowerUseAbilityRequest")
-        if req then
-            local success, response = pcall(function() return req:InvokeServer(data.hash, slot, position) end)
-            if success then return response else return nil end
-        end
-    end
-    return nil
-end
-
-local function sendAbilityNoPosition(part, slot)
-    local data = towers[part]
-    if not data or not data.hash then return nil end
-    local remote = ReplicatedStorage:FindFirstChild("Remotes")
-    if remote then
-        local req = remote:FindFirstChild("TowerUseAbilityRequest")
-        if req then
-            local success, response = pcall(function() return req:InvokeServer(data.hash, slot) end)
-            if success then return response else return nil end
-        end
-    end
-    return nil
-end
-
 local function makeFastSpamLoop(abilityName, towerName, requiredPath, pathLevel, slot)
     return function()
         while settings.activeAbilities[abilityName] do
-            local targets = {}
             for part, data in pairs(towers) do
                 if data.owned and data.name == towerName and data.hash and part.Parent then
                     local meets = false
@@ -648,47 +569,18 @@ local function makeFastSpamLoop(abilityName, towerName, requiredPath, pathLevel,
                         meets = data.topCount >= pathLevel or data.bottomCount >= pathLevel
                     end
                     if meets then
-                        table.insert(targets, part)
+                        task.spawn(function()
+                            sendAbilityNoPosition(part, slot)
+                        end)
                     end
                 end
             end
-            if #targets > 0 then
-                for _, part in ipairs(targets) do
-                    if not settings.activeAbilities[abilityName] then break end
-                    sendAbilityNoPosition(part, slot)
-                    task.wait(0.05)
-                end
-            else
-                task.wait(0.1)
-            end
+            task.wait(0.05)
         end
     end
 end
 
-local function runOperatorHumvee()
-    while settings.activeAbilities["HUMVEE"] do
-        local targets = {}
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Operator" and data.hash and data.bottomCount >= 3 and part.Parent then
-                table.insert(targets, part)
-            end
-        end
-        if #targets > 0 then
-            for _, part in ipairs(targets) do
-                if not settings.activeAbilities["HUMVEE"] then break end
-                local data = towers[part]
-                sendAbilityNoPosition(part, 1)
-                task.wait(0.05)
-                if data.bottomCount >= 4 then
-                    sendAbilityNoPosition(part, 2)
-                    task.wait(0.05)
-                end
-            end
-        else
-            task.wait(0.1)
-        end
-    end
-end
+local bountyTimeout = 2
 
 local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerName)
     return function()
@@ -702,77 +594,110 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
                     end
                 end
             end
-            if #validParts == 0 then task.wait(0.4) continue end
+            if #validParts == 0 then task.wait(0.1) continue end
+
             local enemies = getAllEnemies()
             if #enemies == 0 then task.wait(0.1) continue end
+
             for _, part in ipairs(validParts) do
                 if not settings.activeAbilities[abilityName] then break end
+
                 local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist)
                 if not target then task.wait(0.1) continue end
-                local response = sendAbilityWithPosition(part, slot, target.Position)
-                if response == true then
-                    globalHitBlacklist[target] = true
-                    towerPauseUntil[part] = tick() + 3
+
+                local hash = towers[part].hash
+                if not hash then continue end
+
+                abilityUsedQueue[hash] = nil
+
+                task.spawn(function()
+                    sendAbilityWithPosition(part, slot, target.Position)
+                end)
+
+                local start = tick()
+                local confirmed = false
+                while tick() - start < bountyTimeout do
+                    if abilityUsedQueue[hash] then
+                        confirmed = true
+                        abilityUsedQueue[hash] = nil
+                        break
+                    end
+                    task.wait(0.01)
                 end
-                task.wait(0.15)
+
+                if confirmed then
+                    globalHitBlacklist[target] = true
+                    towerPauseUntil[part] = tick() + 5
+                end
+
+                task.wait(0.01)
             end
             task.wait(0.2)
         end
     end
 end
 
-local sniperFlareCooldowns = {}
-local lastFlareUseTime = 0
+local function runOperatorHumvee()
+    while settings.activeAbilities["HUMVEE"] do
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Operator" and data.hash and data.bottomCount >= 3 and part.Parent then
+                task.spawn(function()
+                    sendAbilityNoPosition(part, 1)
+                    if data.bottomCount >= 4 then
+                        sendAbilityNoPosition(part, 2)
+                    end
+                end)
+            end
+        end
+        task.wait(0.05)
+    end
+end
+
 local function runSniperFlare()
+    local sniperFlareCooldowns = {}
+    local lastFlareUseTime = 0
     while settings.activeAbilities["FLARE"] do
         local now = tick()
         if now - lastFlareUseTime >= 5 then
-            local snipers = {}
             for part, data in pairs(towers) do
                 if data.owned and data.name == "Sniper" and data.hash and data.bottomCount >= 4 and part.Parent then
                     local cooldownUntil = sniperFlareCooldowns[part] or 0
                     if now >= cooldownUntil then
-                        table.insert(snipers, part)
+                        task.spawn(function()
+                            local response = sendAbilityNoPosition(part, 1)
+                            if response == true then
+                                sniperFlareCooldowns[part] = now + 10
+                            end
+                        end)
                     end
                 end
             end
-            if #snipers > 0 then
-                local selected = snipers[1]
-                sendAbilityNoPosition(selected, 1)
-                sniperFlareCooldowns[selected] = now + 10
-                lastFlareUseTime = now
-                addDebugLog("[Flare] Used on Sniper")
-            end
+            lastFlareUseTime = now
         end
         task.wait(0.5)
     end
 end
 
-local laserBurstCooldowns = {}
-local lastBurstUseTime = 0
-local laserBurstIndex = 1
 local function runStealthSensor()
+    local laserBurstCooldowns = {}
+    local lastBurstUseTime = 0
     while settings.activeAbilities["STEALTH_SENSOR"] do
         local now = tick()
         if now - lastBurstUseTime >= 4 then
-            local gunners = {}
             for part, data in pairs(towers) do
                 if data.owned and data.name == "Laser Gunner" and data.hash and data.bottomCount >= 3 and part.Parent then
                     local cooldownUntil = laserBurstCooldowns[part] or 0
                     if now >= cooldownUntil then
-                        table.insert(gunners, part)
+                        task.spawn(function()
+                            local response = sendAbilityNoPosition(part, 1)
+                            if response == true then
+                                laserBurstCooldowns[part] = now + 4
+                            end
+                        end)
                     end
                 end
             end
-            if #gunners > 0 then
-                if laserBurstIndex > #gunners then laserBurstIndex = 1 end
-                local selected = gunners[laserBurstIndex]
-                sendAbilityNoPosition(selected, 1)
-                laserBurstCooldowns[selected] = now + 4
-                lastBurstUseTime = now
-                laserBurstIndex = laserBurstIndex + 1
-                addDebugLog("[Stealth Sensor] Used on Laser Gunner")
-            end
+            lastBurstUseTime = now
         end
         task.wait(0.5)
     end
@@ -780,16 +705,9 @@ end
 
 local function runGoldenRanger()
     while settings.activeAbilities["GOLDEN_RANGER"] do
-        local rangers = {}
+        local enemies = getAllEnemies()
         for part, data in pairs(towers) do
             if data.owned and data.name == "Golden Ranger" and data.hash and data.bottomCount >= 5 and part.Parent then
-                table.insert(rangers, part)
-            end
-        end
-        if #rangers > 0 then
-            local enemies = getAllEnemies()
-            for _, part in ipairs(rangers) do
-                if not settings.activeAbilities["GOLDEN_RANGER"] then break end
                 local enemyInRange = false
                 for _, enemy in ipairs(enemies) do
                     if (part.Position - enemy.Position).Magnitude <= 23 then
@@ -798,68 +716,52 @@ local function runGoldenRanger()
                     end
                 end
                 if enemyInRange then
-                    sendAbilityNoPosition(part, 1)
-                    task.wait(0.05)
+                    task.spawn(function()
+                        sendAbilityNoPosition(part, 1)
+                    end)
                 end
             end
-        else
-            task.wait(0.2)
         end
-        task.wait(0.1)
+        task.wait(0.05)
     end
 end
 
 local function runWarship()
     while settings.activeAbilities["WARSHIP"] do
-        local warships = {}
         for part, data in pairs(towers) do
             if data.owned and data.name == "Warship" and data.hash and (data.topCount >= 3 or data.bottomCount >= 3) and part.Parent then
-                table.insert(warships, part)
+                task.spawn(function()
+                    sendAbilityNoPosition(part, 1)
+                    sendAbilityNoPosition(part, 2)
+                end)
             end
         end
-        if #warships > 0 then
-            for _, part in ipairs(warships) do
-                if not settings.activeAbilities["WARSHIP"] then break end
-                sendAbilityNoPosition(part, 1)
-                task.wait(0.05)
-                sendAbilityNoPosition(part, 2)
-                task.wait(0.05)
-            end
-        else
-            task.wait(0.2)
-        end
+        task.wait(0.05)
     end
 end
 
-local slammerGrandSlamCooldown = {}
-local grandSlamLoop = nil
 local function runGrandSlamSequential()
+    local slammerGrandSlamCooldown = {}
     while settings.activeAbilities["GRAND_SLAM"] do
-        local slammers = {}
+        local enemies = getAllEnemies()
         for part, data in pairs(towers) do
             if data.owned and data.name == "Slammer" and data.hash and data.topCount >= 5 and part.Parent then
                 local cooldownUntil = slammerGrandSlamCooldown[part] or 0
                 if tick() >= cooldownUntil then
-                    table.insert(slammers, part)
-                end
-            end
-        end
-        if #slammers > 0 then
-            local enemies = getAllEnemies()
-            for _, slammerPart in ipairs(slammers) do
-                if not settings.activeAbilities["GRAND_SLAM"] then break end
-                local enemyInRange = false
-                for _, enemy in ipairs(enemies) do
-                    if (slammerPart.Position - enemy.Position).Magnitude <= 5.5 then
-                        enemyInRange = true
-                        break
+                    local enemyInRange = false
+                    for _, enemy in ipairs(enemies) do
+                        if (part.Position - enemy.Position).Magnitude <= 5.5 then
+                            enemyInRange = true
+                            break
+                        end
                     end
-                end
-                if enemyInRange then
-                    local response = sendAbilityNoPosition(slammerPart, 1)
-                    if response == true then
-                        slammerGrandSlamCooldown[slammerPart] = tick() + 3
-                        addDebugLog(string.format("[Grand Slam] Used on Slammer hash %d", towers[slammerPart].hash))
+                    if enemyInRange then
+                        task.spawn(function()
+                            local response = sendAbilityNoPosition(part, 1)
+                            if response == true then
+                                slammerGrandSlamCooldown[part] = tick() + 5
+                            end
+                        end)
                     end
                 end
             end
@@ -868,56 +770,41 @@ local function runGrandSlamSequential()
     end
 end
 
-local overloadLoop = nil
 local function runOverloadSequential()
     while settings.activeAbilities["OVERLOAD"] do
-        local mobsters = {}
         for part, data in pairs(towers) do
             if data.owned and data.name == "Golden Mobster" and data.hash and data.topCount >= 4 and part.Parent then
-                table.insert(mobsters, part)
+                task.spawn(function()
+                    sendAbilityNoPosition(part, 1)
+                end)
             end
         end
-        if #mobsters > 0 then
-            for _, part in ipairs(mobsters) do
-                if not settings.activeAbilities["OVERLOAD"] then break end
-                sendAbilityNoPosition(part, 1)
-                task.wait(0.05)
-            end
-        else
-            task.wait(0.2)
-        end
+        task.wait(0.05)
     end
 end
 
-local johnAxeCooldown = {}
-local axeLoop = nil
 local function runAxeSequential()
+    local johnAxeCooldown = {}
     while settings.activeAbilities["AXE"] do
-        local johns = {}
+        local enemies = getAllEnemies()
         for part, data in pairs(towers) do
             if data.owned and data.name == "John" and data.hash and data.bottomCount >= 5 and part.Parent then
                 local cooldownUntil = johnAxeCooldown[part] or 0
                 if tick() >= cooldownUntil then
-                    table.insert(johns, part)
-                end
-            end
-        end
-        if #johns > 0 then
-            local enemies = getAllEnemies()
-            for _, johnPart in ipairs(johns) do
-                if not settings.activeAbilities["AXE"] then break end
-                local nearby = 0
-                for _, enemy in ipairs(enemies) do
-                    if (johnPart.Position - enemy.Position).Magnitude <= 6.5 then
-                        nearby = nearby + 1
-                        if nearby > 3 then break end
+                    local nearby = 0
+                    for _, enemy in ipairs(enemies) do
+                        if (part.Position - enemy.Position).Magnitude <= 6.5 then
+                            nearby = nearby + 1
+                            if nearby > 3 then break end
+                        end
                     end
-                end
-                if nearby > 3 then
-                    local response = sendAbilityNoPosition(johnPart, 1)
-                    if response == true then
-                        johnAxeCooldown[johnPart] = tick() + 6
-                        addDebugLog(string.format("[Axe] Used on John hash %d", towers[johnPart].hash))
+                    if nearby > 3 then
+                        task.spawn(function()
+                            local response = sendAbilityNoPosition(part, 1)
+                            if response == true then
+                                johnAxeCooldown[part] = tick() + 5
+                            end
+                        end)
                     end
                 end
             end
@@ -944,42 +831,43 @@ local function runClusterCooldownAbility(abilityName, towerName, requiredPath, p
                     end
                 end
             end
-            local clusters = {}
-            local visited = {}
-            for i, tower in ipairs(eligible) do
-                if not visited[i] then
-                    local cluster = {tower}
-                    visited[i] = true
-                    for j, other in ipairs(eligible) do
-                        if not visited[j] and (tower.pos - other.pos).Magnitude <= clusterRadius then
-                            table.insert(cluster, other)
-                            visited[j] = true
+            if #eligible > 0 then
+                local clusters = {}
+                local visited = {}
+                for i, tower in ipairs(eligible) do
+                    if not visited[i] then
+                        local cluster = {tower}
+                        visited[i] = true
+                        for j, other in ipairs(eligible) do
+                            if not visited[j] and (tower.pos - other.pos).Magnitude <= clusterRadius then
+                                table.insert(cluster, other)
+                                visited[j] = true
+                            end
                         end
+                        table.insert(clusters, cluster)
                     end
-                    table.insert(clusters, cluster)
                 end
-            end
-            for _, cluster in ipairs(clusters) do
-                local clusterKey = ""
-                for _, t in ipairs(cluster) do
-                    clusterKey = clusterKey .. t.hash .. "_"
-                end
-                local state = clusterStates[clusterKey]
-                local now = tick()
-                if not state then
-                    state = { lastUse = 0, nextIndex = 1 }
-                    clusterStates[clusterKey] = state
-                end
-                if now - state.lastUse >= 8 then
-                    local target = cluster[state.nextIndex]
-                    if target then
-                        local response = sendAbilityNoPosition(target.part, slot)
-                        if response == true then
-                            state.lastUse = now
-                            state.nextIndex = (state.nextIndex % #cluster) + 1
-                            addDebugLog(string.format("[%s] Used on %s hash %d", abilityName, towerName, target.hash))
-                        else
-                            task.wait(0.2)
+                for _, cluster in ipairs(clusters) do
+                    local clusterKey = ""
+                    for _, t in ipairs(cluster) do
+                        clusterKey = clusterKey .. t.hash .. "_"
+                    end
+                    local state = clusterStates[clusterKey]
+                    local now = tick()
+                    if not state then
+                        state = { lastUse = 0, nextIndex = 1 }
+                        clusterStates[clusterKey] = state
+                    end
+                    if now - state.lastUse >= 8 then
+                        local target = cluster[state.nextIndex]
+                        if target then
+                            task.spawn(function()
+                                local response = sendAbilityNoPosition(target.part, slot)
+                                if response == true then
+                                    state.lastUse = now
+                                    state.nextIndex = (state.nextIndex % #cluster) + 1
+                                end
+                            end)
                         end
                     end
                 end
@@ -997,6 +885,7 @@ local medicDroneIgnoreTowers = {
     ["XWM Turret"] = true, ["Patrol Boat"] = true, ["Troll Tower"] = true,
 }
 local towerWeights = { ["Refractor"] = 5, ["Golden Mobster"] = 3, ["Golden Juggernaut"] = 3 }
+
 local function getBestMedicDronePosition(towerPositions, radius)
     local bestPos = nil
     local bestWeightedSum = -1
@@ -1036,7 +925,7 @@ local function getBestMedicDronePosition(towerPositions, radius)
     end
     return bestPos, bestWeightedSum
 end
-local medicDroneLoop = nil
+
 local function runMedicDroneSequential(slot)
     local recentDronePositions = {}
     local function isPositionAllowed(pos)
@@ -1056,51 +945,51 @@ local function runMedicDroneSequential(slot)
                 end
             end
         end
-        if #medicParts == 0 then task.wait(0.5) continue end
-        local eligiblePositions = {}
-        for part, data in pairs(towers) do
-            if data.owned and part.Parent and not medicDroneIgnoreTowers[data.name] then
-                table.insert(eligiblePositions, part.Position)
-            end
-        end
-        if #eligiblePositions < 2 then task.wait(0.5) continue end
-        for _, part in ipairs(medicParts) do
-            if not settings.activeAbilities["MEDIC_DRONE"] then break end
-            local bestPos, bestWeight = getBestMedicDronePosition(eligiblePositions, 12)
-            if not bestPos or not isPositionAllowed(bestPos) then task.wait(0.5) continue end
-            if sendAbilityWithPosition(part, slot, bestPos) == true then
-                table.insert(recentDronePositions, {position = bestPos, time = tick()})
-                addDebugLog(string.format("[Medic Drone] Placed at weight %.1f", bestWeight))
-                local startTime = tick()
-                while tick() - startTime < 20 and settings.activeAbilities["MEDIC_DRONE"] do
-                    local freshPositions = {}
-                    for p, d in pairs(towers) do
-                        if d.owned and p.Parent and not medicDroneIgnoreTowers[d.name] then
-                            table.insert(freshPositions, p.Position)
-                        end
-                    end
-                    if #freshPositions >= 2 then
-                        local secondBestPos, secondBestWeight = getBestMedicDronePosition(freshPositions, 12)
-                        if secondBestPos and isPositionAllowed(secondBestPos) and (secondBestPos - bestPos).Magnitude > 5 then
-                            if sendAbilityWithPosition(part, slot, secondBestPos) == true then
-                                table.insert(recentDronePositions, {position = secondBestPos, time = tick()})
-                                addDebugLog(string.format("[Medic Drone] Second drone at weight %.1f", secondBestWeight))
-                                break
-                            end
-                        end
-                    end
-                    task.wait(0.5)
+        if #medicParts > 0 then
+            local eligiblePositions = {}
+            for part, data in pairs(towers) do
+                if data.owned and part.Parent and not medicDroneIgnoreTowers[data.name] then
+                    table.insert(eligiblePositions, part.Position)
                 end
-                towerPauseUntil[part] = tick() + 10
-            else
-                task.wait(0.5)
+            end
+            if #eligiblePositions >= 2 then
+                for _, part in ipairs(medicParts) do
+                    if not settings.activeAbilities["MEDIC_DRONE"] then break end
+                    local bestPos, bestWeight = getBestMedicDronePosition(eligiblePositions, 12)
+                    if bestPos and isPositionAllowed(bestPos) then
+                        task.spawn(function()
+                            if sendAbilityWithPosition(part, slot, bestPos) == true then
+                                table.insert(recentDronePositions, {position = bestPos, time = tick()})
+                                local startTime = tick()
+                                while tick() - startTime < 20 and settings.activeAbilities["MEDIC_DRONE"] do
+                                    local freshPositions = {}
+                                    for p, d in pairs(towers) do
+                                        if d.owned and p.Parent and not medicDroneIgnoreTowers[d.name] then
+                                            table.insert(freshPositions, p.Position)
+                                        end
+                                    end
+                                    if #freshPositions >= 2 then
+                                        local secondBestPos, secondBestWeight = getBestMedicDronePosition(freshPositions, 12)
+                                        if secondBestPos and isPositionAllowed(secondBestPos) and (secondBestPos - bestPos).Magnitude > 5 then
+                                            if sendAbilityWithPosition(part, slot, secondBestPos) == true then
+                                                table.insert(recentDronePositions, {position = secondBestPos, time = tick()})
+                                                break
+                                            end
+                                        end
+                                    end
+                                    task.wait(0.5)
+                                end
+                                towerPauseUntil[part] = tick() + 10
+                            end
+                        end)
+                    end
+                end
             end
         end
-        task.wait(0.3)
+        task.wait(0.1)
     end
 end
 
-local callToArmsLoop = nil
 local function runCallToArmsSequential()
     local clusterStates = {}
     while settings.activeAbilities["CALL_TO_ARMS"] do
@@ -1110,44 +999,45 @@ local function runCallToArmsSequential()
                 table.insert(commanders, {part = part, pos = part.Position, hash = data.hash})
             end
         end
-        local clusters = {}
-        local visited = {}
-        for i, cmd in ipairs(commanders) do
-            if not visited[i] then
-                local cluster = {cmd}
-                visited[i] = true
-                for j, other in ipairs(commanders) do
-                    if not visited[j] and (cmd.pos - other.pos).Magnitude <= 5 then
-                        table.insert(cluster, other)
-                        visited[j] = true
+        if #commanders > 0 then
+            local clusters = {}
+            local visited = {}
+            for i, cmd in ipairs(commanders) do
+                if not visited[i] then
+                    local cluster = {cmd}
+                    visited[i] = true
+                    for j, other in ipairs(commanders) do
+                        if not visited[j] and (cmd.pos - other.pos).Magnitude <= 5 then
+                            table.insert(cluster, other)
+                            visited[j] = true
+                        end
                     end
+                    table.insert(clusters, cluster)
                 end
-                table.insert(clusters, cluster)
             end
-        end
-        for _, cluster in ipairs(clusters) do
-            local size = #cluster
-            if size >= 2 then
-                local clusterKey = ""
-                for _, cmd in ipairs(cluster) do
-                    clusterKey = clusterKey .. cmd.hash .. "_"
-                end
-                local state = clusterStates[clusterKey]
-                local now = tick()
-                local interval = (size == 2) and 21 or 13
-                if not state then
-                    state = { lastUse = 0, nextIndex = 1 }
-                    clusterStates[clusterKey] = state
-                end
-                if now - state.lastUse >= interval then
-                    local targetCmd = cluster[state.nextIndex]
-                    local response = sendAbilityNoPosition(targetCmd.part, 1)
-                    if response == true then
-                        state.lastUse = now
-                        state.nextIndex = (state.nextIndex % size) + 1
-                        addDebugLog(string.format("[Call to Arms] Used on Commander hash %d", targetCmd.hash))
-                    else
-                        task.wait(0.2)
+            for _, cluster in ipairs(clusters) do
+                local size = #cluster
+                if size >= 2 then
+                    local clusterKey = ""
+                    for _, cmd in ipairs(cluster) do
+                        clusterKey = clusterKey .. cmd.hash .. "_"
+                    end
+                    local state = clusterStates[clusterKey]
+                    local now = tick()
+                    local interval = (size == 2) and 21 or 13
+                    if not state then
+                        state = { lastUse = 0, nextIndex = 1 }
+                        clusterStates[clusterKey] = state
+                    end
+                    if now - state.lastUse >= interval then
+                        local targetCmd = cluster[state.nextIndex]
+                        task.spawn(function()
+                            local response = sendAbilityNoPosition(targetCmd.part, 1)
+                            if response == true then
+                                state.lastUse = now
+                                state.nextIndex = (state.nextIndex % size) + 1
+                            end
+                        end)
                     end
                 end
             end
@@ -1156,53 +1046,64 @@ local function runCallToArmsSequential()
     end
 end
 
-local spawnApcLoop = nil
 local function runSpawnApcSequential()
     while settings.activeAbilities["SPAWN_APC"] do
-        local commanders = {}
         for part, data in pairs(towers) do
             if data.owned and data.name == "Commander" and data.hash and data.topCount >= 4 and part.Parent then
-                table.insert(commanders, part)
+                task.spawn(function()
+                    sendAbilityNoPosition(part, 2)
+                end)
             end
         end
-        if #commanders > 0 then
-            for _, part in ipairs(commanders) do
-                if not settings.activeAbilities["SPAWN_APC"] then break end
-                sendAbilityNoPosition(part, 2)
-                task.wait(0.05)
-            end
-        else
-            task.wait(0.2)
-        end
+        task.wait(0.05)
     end
 end
-
-local abilityLoops = {}
 
 local abilityLoopMap = {
     GRENADE = makeFastSpamLoop("GRENADE", "Ranger", "bottom", 4, 1),
     UNSTUN_HEALTH = makeFastSpamLoop("UNSTUN_HEALTH", "Shotgunner", "bottom", 5, 1),
     HEALTH_PACK = makeFastSpamLoop("HEALTH_PACK", "Shotgunner", "top", 5, 1),
-    HUMVEE = runOperatorHumvee,
-    FLARE = runSniperFlare,
-    ENCORE = runClusterCooldownAbility("ENCORE", "EDJ", "top", 3, 1, 10),
     SHOCK_ROUNDS = makeFastSpamLoop("SHOCK_ROUNDS", "Laser Gunner", "top", 4, 1),
-    STEALTH_SENSOR = runStealthSensor,
     AP_ROUNDS = makeFastSpamLoop("AP_ROUNDS", "Mobster", "top", 4, 1),
     N_BOUNTY = runBountyTargeted("N_BOUNTY", 1, 3, "Mobster"),
     G_BOUNTY = runBountyTargeted("G_BOUNTY", 1, 3, "Golden Mobster"),
-    OVERLOAD = runOverloadSequential,
+    HUMVEE = runOperatorHumvee,
+    FLARE = runSniperFlare,
+    STEALTH_SENSOR = runStealthSensor,
     GOLDEN_RANGER = runGoldenRanger,
     WARSHIP = runWarship,
     GRAND_SLAM = runGrandSlamSequential,
-    RAGE = runClusterCooldownAbility("RAGE", "John", "top", 5, 1, 10),
+    OVERLOAD = runOverloadSequential,
     AXE = runAxeSequential,
     MEDIC_DRONE = function() runMedicDroneSequential(1) end,
-    CALL_TO_ARMS = runCallToArmsSequential,
     SPAWN_APC = runSpawnApcSequential,
+    CALL_TO_ARMS = runCallToArmsSequential,
+    ENCORE = runClusterCooldownAbility("ENCORE", "EDJ", "top", 3, 1, 10),
+    RAGE = runClusterCooldownAbility("RAGE", "John", "top", 5, 1, 10),
 }
 
-local activeAbilities = settings.activeAbilities
+local abilityDisplayNames = {
+    GRENADE = "Grenade (Ranger Bot 4+)",
+    UNSTUN_HEALTH = "UnStun (Shotgunner Bot 5)",
+    HEALTH_PACK = "Health Pack (Shotgunner Top 5)",
+    HUMVEE = "Humvee (Operator Bot 3+)",
+    FLARE = "Flare (Sniper Bot 4+)",
+    ENCORE = "Encore (EDJ Top 3+)",
+    SHOCK_ROUNDS = "Shock Rounds (Laser Gunner Top 4+)",
+    STEALTH_SENSOR = "Stealth Sensor (Laser Gunner Bot 3+)",
+    AP_ROUNDS = "AP Rounds (Mobster Top 4+)",
+    N_BOUNTY = "N Bounty (Mobster Bot 3+)",
+    G_BOUNTY = "G Bounty (Golden Mobster Bot 3+)",
+    OVERLOAD = "Overload (Golden Mobster Top 4+)",
+    GOLDEN_RANGER = "Golden Ranger (Golden Ranger Bot 5)",
+    WARSHIP = "Warship (Warship)",
+    GRAND_SLAM = "Grand Slam (Slammer Top 5)",
+    RAGE = "Rage (John Top 5+)",
+    AXE = "Axe (John Bot 5)",
+    MEDIC_DRONE = "Medic Drone (Combat Medic Bot 3+)",
+    CALL_TO_ARMS = "Call to Arms (Commander Top 3+)",
+    SPAWN_APC = "Spawn APC (Commander Top 4+)",
+}
 
 local abilityOrder = {
     "GRENADE", "UNSTUN_HEALTH", "HEALTH_PACK", "HUMVEE", "FLARE", "ENCORE",
@@ -1210,61 +1111,11 @@ local abilityOrder = {
     "GOLDEN_RANGER", "WARSHIP", "GRAND_SLAM", "RAGE", "AXE", "MEDIC_DRONE", "CALL_TO_ARMS", "SPAWN_APC"
 }
 
-local abilityDisplayNames = {
-    GRENADE = "Grenade (Bot 4+)",
-    UNSTUN_HEALTH = "UnStun (Bot 5)",
-    HEALTH_PACK = "Health Pack (Top 5)",
-    HUMVEE = "Humvee (Bot 3+)",
-    FLARE = "Flare (Bot 4+)",
-    ENCORE = "Encore (Top 3+)",
-    SHOCK_ROUNDS = "Shock Rounds (Top 4+)",
-    STEALTH_SENSOR = "Stealth Sensor (Bot 3+)",
-    AP_ROUNDS = "AP Rounds (Top 4+)",
-    N_BOUNTY = "N Bounty (Bot 3+)",
-    G_BOUNTY = "G Bounty (Bot 3+)",
-    OVERLOAD = "Overload (Top 4+)",
-    GOLDEN_RANGER = "Golden Ranger (Bot 5)",
-    WARSHIP = "Warship",
-    GRAND_SLAM = "Grand Slam (Top 5)",
-    RAGE = "Rage (Top 5+)",
-    AXE = "Axe (Bot 5)",
-    MEDIC_DRONE = "Medic Drone (Bot 3+)",
-    CALL_TO_ARMS = "Call to Arms (Top 3+)",
-    SPAWN_APC = "Spawn APC (Top 4+)"
-}
-
-local towerAbilities = {
-    Ranger = {{ability = "GRENADE", slot = 1}},
-    Shotgunner = {{ability = "UNSTUN_HEALTH", slot = 1}, {ability = "HEALTH_PACK", slot = 1}},
-    Operator = {{ability = "HUMVEE", slot = 1}},
-    Sniper = {{ability = "FLARE", slot = 1}},
-    EDJ = {{ability = "ENCORE", slot = 1}},
-    ["Laser Gunner"] = {{ability = "SHOCK_ROUNDS", slot = 1}, {ability = "STEALTH_SENSOR", slot = 1}},
-    Mobster = {{ability = "AP_ROUNDS", slot = 1}, {ability = "N_BOUNTY", slot = 1}},
-    ["Golden Mobster"] = {{ability = "G_BOUNTY", slot = 1}, {ability = "OVERLOAD", slot = 1}},
-    ["Golden Ranger"] = {{ability = "GOLDEN_RANGER", slot = 1}},
-    Warship = {{ability = "WARSHIP", slot = 1}},
-    Slammer = {{ability = "GRAND_SLAM", slot = 1}},
-    John = {{ability = "RAGE", slot = 1}, {ability = "AXE", slot = 1}},
-    ["Combat Medic"] = {{ability = "MEDIC_DRONE", slot = 1}},
-    Commander = {{ability = "CALL_TO_ARMS", slot = 1}, {ability = "SPAWN_APC", slot = 2}}
-}
-
-local abilityTargets = {}
-for towerName, abilityList in pairs(towerAbilities) do
-    for _, ab in ipairs(abilityList) do
-        local abilityName = ab.ability
-        if not abilityTargets[abilityName] then
-            abilityTargets[abilityName] = {towers = {}, slot = ab.slot}
-        end
-        table.insert(abilityTargets[abilityName].towers, towerName)
-    end
-end
-
 local rowFrame = nil
 local buttonsInRow = 0
+
 for _, abilityName in ipairs(abilityOrder) do
-    if abilityTargets[abilityName] then
+    if abilityLoopMap[abilityName] then
         if buttonsInRow == 0 then
             rowFrame = Instance.new("Frame")
             rowFrame.Size = UDim2.new(1, -10, 0, 34)
@@ -1273,10 +1124,9 @@ for _, abilityName in ipairs(abilityOrder) do
             rowFrame.LayoutOrder = 1
         end
         local btn = Instance.new("TextButton")
-        local displayName = abilityDisplayNames[abilityName] or abilityName
         btn.Size = UDim2.new(0, 150, 0, 28)
-        btn.Text = displayName
-        btn.BackgroundColor3 = activeAbilities[abilityName] and Color3.fromRGB(70,150,70) or Color3.fromRGB(60,60,60)
+        btn.Text = abilityDisplayNames[abilityName] or abilityName
+        btn.BackgroundColor3 = settings.activeAbilities[abilityName] and Color3.fromRGB(70,150,70) or Color3.fromRGB(60,60,60)
         btn.TextColor3 = Color3.fromRGB(255,255,255)
         btn.TextSize = 10
         btn.Font = Enum.Font.GothamSemibold
@@ -1290,31 +1140,55 @@ for _, abilityName in ipairs(abilityOrder) do
             buttonsInRow = 0
         end
         btn.MouseButton1Click:Connect(function()
-            if activeAbilities[abilityName] then
-                activeAbilities[abilityName] = false
+            if settings.activeAbilities[abilityName] then
+                settings.activeAbilities[abilityName] = false
                 btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-                if abilityLoops[abilityName] then
-                    task.cancel(abilityLoops[abilityName])
-                    abilityLoops[abilityName] = nil
-                end
             else
-                activeAbilities[abilityName] = true
+                settings.activeAbilities[abilityName] = true
                 btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
                 local loopFunc = abilityLoopMap[abilityName]
                 if loopFunc then
-                    abilityLoops[abilityName] = task.spawn(loopFunc)
-                else
-                    addDebugLog("No loop defined for " .. abilityName)
+                    task.spawn(loopFunc)
                 end
             end
             saveSettings()
         end)
     end
 end
+
 abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 40 + 10)
+
+tabMainBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = true
+    debugFrame.Visible = false
+    towersFrame.Visible = false
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+end)
+
+tabDebugBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    debugFrame.Visible = true
+    towersFrame.Visible = false
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+end)
+
+tabTowersBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    debugFrame.Visible = false
+    towersFrame.Visible = true
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    updateTowersList()
+end)
 
 local autoSkip = settings.autoSkip
 local skipLoop = nil
+
 local function startSkipLoop()
     if skipLoop then task.cancel(skipLoop) end
     skipLoop = task.spawn(function()
@@ -1329,11 +1203,13 @@ local function startSkipLoop()
         skipLoop = nil
     end)
 end
+
 if autoSkip then
     skipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
     skipBtn.Text = "Auto Skip: ON"
     startSkipLoop()
 end
+
 skipBtn.MouseButton1Click:Connect(function()
     autoSkip = not autoSkip
     settings.autoSkip = autoSkip
@@ -1351,6 +1227,7 @@ end)
 
 local emoteSpam = settings.emoteSpam
 local emoteLoop = nil
+
 local function startEmoteSpam()
     if emoteLoop then task.cancel(emoteLoop) end
     emoteLoop = task.spawn(function()
@@ -1362,11 +1239,13 @@ local function startEmoteSpam()
         emoteLoop = nil
     end)
 end
+
 if emoteSpam then
     emoteBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
     emoteBtn.Text = "Spam Emote: ON"
     startEmoteSpam()
 end
+
 emoteBtn.MouseButton1Click:Connect(function()
     emoteSpam = not emoteSpam
     settings.emoteSpam = emoteSpam
@@ -1387,9 +1266,11 @@ if not antiLagEnabled then
     antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     antiLagBtn.Text = "Anti Lag: OFF"
 end
+
 local function trackCreation(instance)
     if not instance:GetAttribute("_created") then instance:SetAttribute("_created", tick()) end
 end
+
 local function removeFolders()
     local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
     if tdxShared then
@@ -1428,6 +1309,7 @@ local function removeFolders()
         end
     end
 end
+
 antiLagBtn.MouseButton1Click:Connect(function()
     antiLagEnabled = not antiLagEnabled
     settings.antiLagEnabled = antiLagEnabled
@@ -1440,6 +1322,7 @@ antiLagBtn.MouseButton1Click:Connect(function()
         antiLagBtn.Text = "Anti Lag: OFF"
     end
 end)
+
 task.delay(13, function()
     local lastCheck = 0
     RunService.Heartbeat:Connect(function(deltaTime)
@@ -1472,24 +1355,129 @@ local function startCoinCollector()
 end
 startCoinCollector()
 
-pcall(function()
-    local TowersFolder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Towers")
-    if not TowersFolder then return end
-    TowersFolder.ChildAdded:Connect(function(part) if part:IsA("BasePart") then addTower(part) watchTower(part) end end)
-    TowersFolder.ChildRemoved:Connect(function(part) if part:IsA("BasePart") then removeTower(part) end end)
-    task.spawn(function() while true do cleanupDeadTowers() task.wait(0.1) end end)
-    for _, part in ipairs(TowersFolder:GetChildren()) do
-        if part:IsA("BasePart") then
-            addTower(part)
-            watchTower(part)
-        end
+local function setupUpgradeListener()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if not remotes then
+        return
     end
-end)
+    local factoryRemote = remotes:FindFirstChild("TowerFactoryQueueUpdated")
+    if factoryRemote then
+        factoryRemote.OnClientEvent:Connect(function(...)
+            local args = {...}
+            local events = (type(args[1]) == "table" and #args[1] > 0) and args[1] or args
+            for _, ev in ipairs(events) do
+                if type(ev) ~= "table" then continue end
+                if ev.Creation == false then
+                    local towerId = ev.Data
+                    if type(towerId) == "table" then towerId = towerId[1] end
+                    if type(towerId) == "number" then
+                        pendingPlacements[towerId] = nil
+                        for part, data in pairs(towers) do
+                            if data.hash == towerId then
+                                removeTower(part)
+                                break
+                            end
+                        end
+                    end
+                else
+                    local towerInfo = ev.Data
+                    if type(towerInfo) == "table" and towerInfo[1] and type(towerInfo[1]) == "table" then
+                        towerInfo = towerInfo[1]
+                    end
+                    if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
+                        local towerId = towerInfo[1]
+                        local towerName = towerInfo[2]
+                        local playerName = towerInfo[7]
+                        if tostring(playerName) == LocalPlayer.Name then
+                            pendingPlacements[towerId] = {name = towerName, time = tick()}
+                            scanForTowers()
+                        else
+                            addDebugLog(string.format("Tower placed (other): %s, hash=%d", towerName, towerId))
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    local upgradeRemote = remotes:FindFirstChild("TowerUpgradeQueueUpdated")
+    if upgradeRemote then
+        upgradeRemote.OnClientEvent:Connect(function(data)
+            if type(data) ~= "table" then return end
+            local entries = (#data > 0) and data or {data}
+            for _, entry in ipairs(entries) do
+                local hash = entry.Hash or entry.hash or entry.Id or entry.id
+                if not hash then continue end
+                if type(hash) == "string" then hash = tonumber(hash) end
+                if not hash then continue end
+                if not pendingPlacements[hash] then continue end
+                local top = 0
+                local bottom = 0
+                if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
+                    top = entry.LevelReplicationData[1] or 0
+                    bottom = entry.LevelReplicationData[2] or 0
+                end
+                addDebugLog(string.format("Upgrade event: hash=%d top=%d bottom=%d", hash, top, bottom))
+                pendingHash = hash
+                pendingTop = top
+                pendingBottom = bottom
+                for part, data in pairs(towers) do
+                    if data.hash == hash then
+                        data.topCount = top
+                        data.bottomCount = bottom
+                        addDebugLog(string.format("Updated %s (hash %d)", part.Name, hash))
+                        updateTowersList()
+                        pendingHash = nil
+                        pendingTop = 0
+                        pendingBottom = 0
+                        break
+                    end
+                end
+            end
+        end)
+    end
+end
 
-for abilityName, isActive in pairs(activeAbilities) do
-    if isActive and abilityLoopMap[abilityName] then
-        abilityLoops[abilityName] = task.spawn(abilityLoopMap[abilityName])
+local function setupAbilityListener()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if not remotes then
+        return
     end
+    local ev = remotes:FindFirstChild("TowerAbilityUsed")
+    if not ev then
+        return
+    end
+    ev.OnClientEvent:Connect(function(...)
+        local args = {...}
+        local data = args[1]
+        if type(data) == "table" and type(data[1]) == "table" then
+            local hash = data[1][1]
+            if type(hash) == "number" then
+                abilityUsedQueue[hash] = true
+            end
+        end
+    end)
+end
+
+local function startTowerTracking()
+    local gameFolder = workspace:FindFirstChild("Game")
+    if gameFolder then
+        local towersFolder = gameFolder:FindFirstChild("Towers")
+        if towersFolder then
+            towersFolder.ChildAdded:Connect(function(part) if part:IsA("BasePart") then addTower(part) watchTower(part) end end)
+            towersFolder.ChildRemoved:Connect(function(part) if part:IsA("BasePart") then removeTower(part) end end)
+        else
+            task.wait(2)
+            startTowerTracking()
+            return
+        end
+    else
+        task.wait(2)
+        startTowerTracking()
+        return
+    end
+    scanForTowers()
+    for part, _ in pairs(towers) do watchTower(part) end
+    task.spawn(function() while true do cleanupDeadTowers() task.wait(1) end end)
 end
 
 teleportBtn.MouseButton1Click:Connect(function()
@@ -1550,13 +1538,38 @@ anchorBtn.Font = Enum.Font.GothamBold
 anchorBtn.Visible = false
 anchorBtn.Parent = gui
 Instance.new("UICorner", anchorBtn)
+
 local isMinimized = false
 local function toggleMinimize()
     isMinimized = not isMinimized
     frame.Visible = not isMinimized
     anchorBtn.Visible = isMinimized
 end
+
 minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
 anchorBtn.MouseButton1Click:Connect(toggleMinimize)
 
+clearDebugBtn.MouseButton1Click:Connect(function()
+    for _, child in ipairs(debugLogFrameRef:GetChildren()) do
+        if child:IsA("TextLabel") then child:Destroy() end
+    end
+    debugLogFrameRef.CanvasSize = UDim2.new(0, 0, 0, 0)
+    debugLogs = {}
+    addDebugLog("=== Logs Cleared ===")
+    addDebugLog("Debug system ready")
+end)
+
+task.wait(1)
+startTowerTracking()
 setupUpgradeListener()
+setupAbilityListener()
+
+addDebugLog("=== Ready ===")
+addDebugLog(string.format("Loaded %d abilities", #abilityOrder))
+
+for abilityName, isActive in pairs(settings.activeAbilities) do
+    if isActive and abilityLoopMap[abilityName] then
+        addDebugLog(string.format("Auto-starting %s on all towers", abilityName))
+        task.spawn(abilityLoopMap[abilityName])
+    end
+end
