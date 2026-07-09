@@ -55,35 +55,17 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local localPlayer = Players.LocalPlayer
 
-local back_to_lobby_running = false
 local auto_pickups_running = false
 local auto_skip_running = false
 local anti_lag_running = false
-local hasSentLobbyWebhook = false
-local hasSentMatchStartWebhook = false
 local auto_smart_skip_running = false
 local auto_mercenary_running = false
 local auto_uber_running = false
-
-local ItemNames = {
-    ["17447507910"] = "Timescale Ticket(s)",
-    ["17438486690"] = "Range Flag(s)",
-    ["17438486138"] = "Damage Flag(s)",
-    ["17438487774"] = "Cooldown Flag(s)",
-    ["17429537022"] = "Blizzard(s)",
-    ["17448596749"] = "Napalm Strike(s)",
-    ["18493073533"] = "Spin Ticket(s)",
-    ["17429548305"] = "Supply Drop(s)",
-    ["18443277308"] = "Low Grade Consumable Crate(s)",
-    ["136180382135048"] = "Santa Radio(s)",
-    ["18443277106"] = "Mid Grade Consumable Crate(s)",
-    ["18443277591"] = "High Grade Consumable Crate(s)",
-    ["132155797622156"] = "Christmas Tree(s)",
-    ["124065875200929"] = "Fruit Cake(s)",
-    ["17429541513"] = "Barricade(s)",
-    ["110415073436604"] = "Holy Hand Grenade(s)",
-    ["139414922355803"] = "Present Clusters(s)"
-}
+local auto_chain_running = false
+local auto_dj_running = false
+local auto_support_running = false
+local auto_necro_running = false
+local auto_claim_rewards = false
 
 local TDS = {
     placed_towers = {},
@@ -293,154 +275,6 @@ local function getTowerPosition(towerModel)
     return nil
 end
 
-local function handle_post_match()
-    if not _G.AutoRejoin then return end
-    local ui_root
-    repeat
-        task.wait(1.5)
-        local root = player_gui:FindFirstChild("ReactGameNewRewards")
-        local frame = root and root:FindFirstChild("Frame")
-        local gameOver = frame and frame:FindFirstChild("gameOver")
-        local rewards_screen = gameOver and gameOver:FindFirstChild("RewardsScreen")
-        ui_root = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
-    until ui_root
-    if not ui_root then
-        if _G.sent_to_lobby then send_to_lobby() else rejoin_match() end
-        return
-    end
-    if not _G.SendWebhook then
-        if _G.sent_to_lobby then send_to_lobby() else rejoin_match() end
-        return
-    end
-    task.wait(1.5)
-    local match = get_all_rewards()
-    current_total_coins = current_total_coins + match.Coins
-    current_total_gems = current_total_gems + match.Gems
-    local bonus_string = ""
-    if #match.Others > 0 then
-        for _, res in ipairs(match.Others) do
-            bonus_string = bonus_string .. "🎁 **" .. res.Amount .. " " .. res.Name .. "**\n"
-        end
-    else
-        bonus_string = "_No bonus rewards found._"
-    end
-    local post_data = {
-        username = "TDS AutoStrat",
-        embeds = {{
-            title = (match.Status == "WIN" and "🏆 TRIUMPH" or "💀 DEFEAT"),
-            color = (match.Status == "WIN" and 0x2ecc71 or 0xe74c3c),
-            description = "### 📋 Match Overview\n" .. "> **Status:** `" .. match.Status .. "`\n" .. "> **Time:** `" .. match.Time .. "`\n" .. "> **Current Level:** `" .. match.Level .. "`\n" .. "> **Wave:** `" .. match.Wave .. "`\n",
-            fields = {
-                { name = "✨ Rewards", value = "```ansi\n[2;33mCoins:[0m +" .. match.Coins .. "\n[2;34mGems: [0m +" .. match.Gems .. "\n[2;32mXP:   [0m +" .. match.XP .. "```", inline = false },
-                { name = "🎁 Bonus Items", value = bonus_string, inline = true },
-                { name = "📊 Session Totals", value = "```py\n# Total Amount\nCoins: " .. current_total_coins .. "\nGems:  " .. current_total_gems .. "```", inline = true }
-            },
-            footer = { text = "Logged for " .. local_player.Name .. " • TDS AutoStrat" },
-            timestamp = DateTime.now():ToIsoDate()
-        }}
-    }
-    pcall(function()
-        send_request({
-            Url = _G.WebhookURL,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = game:GetService("HttpService"):JSONEncode(post_data)
-        })
-    end)
-    task.wait(1.5)
-    send_to_lobby()
-end
-
-local function log_match_start()
-    if hasSentMatchStartWebhook then return end
-    if not _G.SendWebhook then return end
-    if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
-    if _G.Webhook:find("YOUR%-WEBHOOK") then return end
-    hasSentMatchStartWebhook = true
-    local start_payload = {
-        username = "TDS AutoStrat",
-        embeds = {{
-            title = "🚀 **Match Started**",
-            description = "Game loaded successfully",
-            color = 3447003,
-            fields = {
-                { name = " Starting Coins", value = "```" .. tostring(start_coins) .. " Coins```", inline = true },
-                { name = "💎 Starting Gems", value = "```" .. tostring(start_gems) .. " Gems```", inline = true },
-                { name = "Status", value = "🟢 Running Script", inline = false }
-            },
-            footer = { text = "Logged for " .. local_player.Name .. " • Tower Defense Simulator" },
-            timestamp = DateTime.now():ToIsoDate()
-        }}
-    }
-    pcall(function()
-        send_request({
-            Url = _G.Webhook,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = game:GetService("HttpService"):JSONEncode(start_payload)
-        })
-    end)
-end
-
-local function send_lobby_webhook()
-    if hasSentLobbyWebhook then return end
-    if not _G.SendWebhook then return end
-    if type(_G.Webhook) ~= "string" or _G.Webhook == "" then return end
-    if _G.Webhook:find("YOUR%-WEBHOOK") then return end
-    hasSentLobbyWebhook = true
-    local maxAttempts = 10
-    local battlepassLevel = "0"
-    for attempt = 1, maxAttempts do
-        local success, result = pcall(function()
-            local gui = local_player.PlayerGui:WaitForChild("ReactLobbyBattlepass", 2)
-            local frame = gui:WaitForChild("Frame", 1)
-            local scaled = frame:WaitForChild("scaled", 1)
-            local battlepass = scaled:WaitForChild("battlepass", 1)
-            local content = battlepass:WaitForChild("content", 1)
-            local progress = content:WaitForChild("progress", 1)
-            local levelObj = progress:WaitForChild("level", 1)
-            if levelObj:IsA("TextLabel") or levelObj:IsA("TextButton") or levelObj:IsA("TextBox") then
-                return levelObj.Text
-            else
-                return tostring(levelObj.Value)
-            end
-        end)
-        if success and result and result ~= "" and result ~= "0" then
-            battlepassLevel = result
-            break
-        end
-        task.wait(1)
-    end
-    local lobby_payload = {
-        username = "TDS AutoStrat",
-        embeds = {{
-            title = "📋 **Inside Lobby**",
-            description = "Script loaded successfully.",
-            color = 16776960,
-            fields = {
-                { name = "📊 Battlepass Level", value = "```Level " .. battlepassLevel .. "```", inline = false },
-                { name = "🎮 Game Status", value = "🟡 **In Lobby** - Ready to start match", inline = false }
-            },
-            footer = { text = "Player: " .. local_player.Name },
-            timestamp = DateTime.now():ToIsoDate()
-        }}
-    }
-    pcall(function()
-        send_request({
-            Url = _G.Webhook,
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = game:GetService("HttpService"):JSONEncode(lobby_payload)
-        })
-    end)
-end
-
-if game_state == "LOBBY" then
-    send_lobby_webhook()
-elseif game_state == "GAME" then
-    log_match_start()
-end
-
 local function run_vote_skip()
     while true do
         local success = pcall(function()
@@ -517,10 +351,6 @@ local function lobby_ready_up()
     pcall(function()
         remote_event:FireServer("LobbyVoting", "Ready")
     end)
-end
-
-function TDS:TeleportToLobby()
-    send_to_lobby()
 end
 
 local function select_map_override(map_id, ...)
@@ -1465,20 +1295,6 @@ local function start_claim_rewards()
     auto_claim_rewards = false
 end
 
-local function start_back_to_lobby()
-    if back_to_lobby_running then return end
-    back_to_lobby_running = true
-    task.spawn(function()
-        while true do
-            pcall(function()
-                handle_post_match()
-            end)
-            task.wait(5)
-        end
-        back_to_lobby_running = false
-    end)
-end
-
 local function start_anti_lag()
     if anti_lag_running then return end
     anti_lag_running = true
@@ -1931,7 +1747,6 @@ if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
 
-start_back_to_lobby()
 start_rejoin_on_disconnect()
 
 local function create_buttons()
