@@ -142,76 +142,6 @@ local function check_res_ok(data)
     return false
 end
 
-local function get_all_rewards()
-    local results = {
-        Coins = 0,
-        Gems = 0,
-        XP = 0,
-        Wave = 0,
-        Level = 0,
-        Time = "00:00",
-        Status = "UNKNOWN",
-        Others = {}
-    }
-    local ui_root = player_gui:FindFirstChild("ReactGameNewRewards")
-    local main_frame = ui_root and ui_root:FindFirstChild("Frame")
-    local game_over = main_frame and main_frame:FindFirstChild("gameOver")
-    local rewards_screen = game_over and game_over:FindFirstChild("RewardsScreen")
-    local game_stats = rewards_screen and rewards_screen:FindFirstChild("gameStats")
-    local stats_list = game_stats and game_stats:FindFirstChild("stats")
-    if stats_list then
-        for _, frame in ipairs(stats_list:GetChildren()) do
-            local l1 = frame:FindFirstChild("textLabel")
-            local l2 = frame:FindFirstChild("textLabel2")
-            if l1 and l2 and l1.Text:find("Time Completed:") then
-                results.Time = l2.Text
-                break
-            end
-        end
-    end
-    local top_banner = rewards_screen and rewards_screen:FindFirstChild("RewardBanner")
-    if top_banner and top_banner:FindFirstChild("textLabel") then
-        local txt = top_banner.textLabel.Text:upper()
-        results.Status = txt:find("TRIUMPH") and "WIN" or (txt:find("LOST") and "LOSS" or "UNKNOWN")
-    end
-    local level_value = local_player.Level
-    if level_value then
-        results.Level = level_value.Value or 0
-    end
-    local label = player_gui:WaitForChild("ReactGameTopGameDisplay").Frame.wave.container.value
-    local wave_num = label.Text:match("^(%d+)")
-    if wave_num then
-        results.Wave = tonumber(wave_num) or 0
-    end
-    local section_rewards = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
-    if section_rewards then
-        for _, item in ipairs(section_rewards:GetChildren()) do
-            if tonumber(item.Name) then
-                local icon_id = "0"
-                local img = item:FindFirstChildWhichIsA("ImageLabel", true)
-                if img then icon_id = img.Image:match("%d+") or "0" end
-                for _, child in ipairs(item:GetDescendants()) do
-                    if child:IsA("TextLabel") then
-                        local text = child.Text
-                        local amt = tonumber(text:match("(%d+)")) or 0
-                        if text:find("Coins") then
-                            results.Coins = amt
-                        elseif text:find("Gems") then
-                            results.Gems = amt
-                        elseif text:find("XP") then
-                            results.XP = amt
-                        elseif text:lower():find("x%d+") then
-                            local displayName = ItemNames[icon_id] or "Unknown Item (" .. icon_id .. ")"
-                            table.insert(results.Others, {Amount = text:match("x%d+"), Name = displayName})
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return results
-end
-
 local function SmartTeleportToLobby()
     if not _G.AutoRejoin then return end
     local lobbyId = 3260590327
@@ -332,7 +262,6 @@ local function match_ready_up()
                         pcall(function()
                             remote_func:InvokeServer("Voting", "Skip")
                         end)
-                        log_match_start()
                         if TDS.pending_strategy then
                             task.spawn(TDS.pending_strategy)
                             TDS.pending_strategy = nil
@@ -357,7 +286,6 @@ local function match_ready_up()
             end)
             task.wait(0.5)
         end
-        log_match_start()
         if TDS.pending_strategy then
             task.spawn(TDS.pending_strategy)
             TDS.pending_strategy = nil
@@ -375,10 +303,6 @@ local function lobby_ready_up()
     pcall(function()
         remote_event:FireServer("LobbyVoting", "Ready")
     end)
-end
-
-function TDS:TeleportToLobby()
-    send_to_lobby()
 end
 
 local function select_map_override(map_id, ...)
