@@ -1318,20 +1318,6 @@ local function start_claim_rewards()
     auto_claim_rewards = false
 end
 
-local function start_back_to_lobby()
-    if back_to_lobby_running then return end
-    back_to_lobby_running = true
-    task.spawn(function()
-        while true do
-            pcall(function()
-                handle_post_match()
-            end)
-            task.wait(5)
-        end
-        back_to_lobby_running = false
-    end)
-end
-
 local function start_anti_lag()
     if anti_lag_running then return end
     anti_lag_running = true
@@ -1788,7 +1774,6 @@ if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
 
-start_back_to_lobby()
 start_rejoin_on_disconnect()
 
 local function create_buttons()
