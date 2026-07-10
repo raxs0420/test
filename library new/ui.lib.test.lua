@@ -44,7 +44,7 @@ end
 function Library:CreateWindow(opts)
     opts = opts or {}
     local title = opts.Title or "Window"
-    local size = opts.Size or UDim2.new(0, 400, 0, 500)
+    local size = opts.Size or UDim2.new(0, 500, 0, 580)
     local position = opts.Position or UDim2.new(0.5, -size.X.Offset/2, 0.5, -size.Y.Offset/2)
     if opts.Theme then Library:setTheme(opts.Theme) end
 
@@ -82,28 +82,33 @@ function Library:CreateWindow(opts)
     minimizeBtn.BackgroundColor3 = currentTheme.Button
     minimizeBtn.Parent = frame
     Instance.new("UICorner", minimizeBtn)
+    minimizeBtn.Name = "MinimizeButton"
 
     local isMinimized = false
-    minimizeBtn.MouseButton1Click:Connect(function()
+    local function toggleMinimize()
         isMinimized = not isMinimized
         frame.Visible = not isMinimized
-    end)
+    end
+    minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
 
     local tabContainer = Instance.new("Frame")
-    tabContainer.Size = UDim2.new(1, -10, 0, 28)
+    tabContainer.Size = UDim2.new(0, 80, 1, -65)  -- left side
     tabContainer.Position = UDim2.new(0, 5, 0, 32)
     tabContainer.BackgroundTransparency = 1
     tabContainer.Parent = frame
+    tabContainer.Name = "TabContainer"
+
     local tabLayout = Instance.new("UIListLayout", tabContainer)
-    tabLayout.FillDirection = Enum.FillDirection.Horizontal
+    tabLayout.FillDirection = Enum.FillDirection.Vertical
     tabLayout.Padding = UDim.new(0, 5)
-    tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+    tabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
     local contentFrame = Instance.new("Frame")
-    contentFrame.Size = UDim2.new(1, -10, 1, -70)
-    contentFrame.Position = UDim2.new(0, 5, 0, 65)
+    contentFrame.Size = UDim2.new(1, -95, 1, -70)
+    contentFrame.Position = UDim2.new(0, 85, 0, 65)
     contentFrame.BackgroundTransparency = 1
     contentFrame.Parent = frame
+    contentFrame.Name = "ContentFrame"
 
     local window = {}
     window.frame = frame
@@ -147,7 +152,7 @@ function Library:CreateWindow(opts)
 
         function tab:CreateSection(sectionTitle)
             local section = Instance.new("Frame")
-            section.Size = UDim2.new(1, -10, 0, 30)
+            section.Size = UDim2.new(1, -10, 0, 0) 
             section.BackgroundTransparency = 1
             section.Parent = page
 
@@ -167,12 +172,18 @@ function Library:CreateWindow(opts)
             sectionContent.Position = UDim2.new(0, 0, 0, 22)
             sectionContent.BackgroundTransparency = 1
             sectionContent.Parent = section
+            sectionContent.Name = "Content"
 
             local contentLayout = Instance.new("UIListLayout", sectionContent)
             contentLayout.Padding = UDim.new(0, 4)
             contentLayout.SortOrder = Enum.SortOrder.LayoutOrder
             contentLayout.FillDirection = Enum.FillDirection.Vertical
             contentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+
+            contentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+                local totalHeight = 22 + contentLayout.AbsoluteContentSize.Y + 6
+                section.Size = UDim2.new(1, -10, 0, totalHeight)
+            end)
 
             local sectionObj = {}
             sectionObj.container = sectionContent
@@ -254,7 +265,6 @@ function Library:CreateWindow(opts)
                 layout.FillDirection = Enum.FillDirection.Vertical
                 layout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
-                scroller.CanvasSize = UDim2.new(0, 0, 0, 0)
                 layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
                     scroller.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 10)
                 end)
