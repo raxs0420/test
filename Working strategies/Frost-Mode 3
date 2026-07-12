@@ -14,9 +14,6 @@ local function startMatch()
         
         TDS:Place("Trapper", 3.636083, 250, 226.444791)
         
-        TDS:UnlockTimeScale()  
-        TDS:TimeScale(2) 
-        
         TDS:Place("Trapper", 3.636083, 250, 226.444791)
         TDS:Place("Trapper", 3.636083, 250, 226.444791)
         TDS:Place("Trapper", 3.636083, 250, 226.444791)
