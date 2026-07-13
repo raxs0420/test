@@ -1,0 +1,89 @@
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoSmartSkip = true
+_G.AutoDJ = true
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("Gatling Gun", "Hacker", "Engineer", "DJ Booth", "Cowboy")
+
+for i = 1, 4 do
+    TDS:Place("Cowboy", -7.435402, 60, 3.406567)
+    TDS:Upgrade(i) 
+    TDS:Upgrade(i)  
+end
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
+
+TDS:Place("Gatling Gun", 11.341541, 60, 7.067796)
+TDS:Upgrade(5)
+
+for i = 6, 13 do
+    TDS:Place("Cowboy", -7.435402, 60, 3.406567)
+    TDS:Upgrade(i) 
+    TDS:Upgrade(i)  
+end
+
+TDS:Place("DJ Booth", 0.617996, 60, 3.884943)
+TDS:SetOption(14, "Track", "Green")
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+
+TDS:Upgrade(5)
+
+TDS:Place("Hacker", -26.122967, 60, -0.169357)
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Place("Hacker", -2.034219, 60, 9.439716)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+
+for i = 1, 4 do
+    TDS:Upgrade(i) 
+end
+for i = 6, 13 do
+    TDS:Upgrade(i) 
+end
+
+TDS:Upgrade(5)
+
+TDS:Upgrade(14)
+TDS:Upgrade(14)
+
+for i = 1, 4 do
+    TDS:Upgrade(i) 
+    TDS:Upgrade(i)  
+end
+for i = 6, 13 do
+    TDS:Upgrade(i) 
+    TDS:Upgrade(i)  
+end
+
+TDS:Upgrade(15)
+TDS:Upgrade(15)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+
+TDS:Upgrade(5)
+
+TDS:Upgrade(15, 2)
+TDS:Upgrade(16, 2)
+
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+
+for i = 17, 22 do
+    TDS:Place("Engineer", -7.843940, 60, -3.736371)
+    TDS:Upgrade(i) 
+    TDS:Upgrade(i)
+    TDS:Upgrade(i) 
+    TDS:Upgrade(i)  
+    TDS:Upgrade(i) 
+    TDS:Upgrade(i)    
+end
+
+TDS:SetOption(14, "Track", "Red")
+
+TDS:Ability(15, "Hologram Tower", { towerToClone = 5, towerPosition = Vector3.new(5.937041, 60, 10.340638) }, true)
