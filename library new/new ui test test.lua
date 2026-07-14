@@ -256,7 +256,7 @@ local function rejoin_match()
                     success = true
                     res = result
                 else
-                    task.wait(0.5)
+                    task.wait(1.5)
                 end
             else
                 task.wait(1)
