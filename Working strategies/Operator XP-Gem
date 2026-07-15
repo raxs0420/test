@@ -20,8 +20,6 @@ local function Strategy()
             TDS:Place("EvolvedOperator", -0.393338, 60, -31.526705)
             TDS:Upgrade(i)
             TDS:Upgrade(i)
-        end
-        for i = 1, 10 do
             TDS:SetTarget(i, "Random")
         end
 end
