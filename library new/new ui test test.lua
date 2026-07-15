@@ -1371,30 +1371,24 @@ local function start_anti_lag()
     end)
 end
 
-task.spawn(function()
-    while _G.AutoReady do
-        local replicated_storage = game:GetService("ReplicatedStorage")
-        local vote_replicator = replicated_storage:FindFirstChild("StateReplicators") and replicated_storage.StateReplicators:FindFirstChild("VoteReplicator")
-
-        if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
-            local title = vote_replicator:GetAttribute("Title")
-            if title == "Ready?" or title == "Skip Cutscene?" then
-                if title == "Skip Cutscene?" then
-                    task.wait(1)
+local function autoReadyLoop()
+    while true do
+        if _G.AutoReady then
+            local replicated_storage = game:GetService("ReplicatedStorage")
+            local vote_replicator = replicated_storage:FindFirstChild("StateReplicators") and replicated_storage.StateReplicators:FindFirstChild("VoteReplicator")
+            if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
+                local title = vote_replicator:GetAttribute("Title")
+                if title == "Ready?" then
+                    pcall(match_ready_up)
+                    repeat
+                        task.wait(0.1)
+                    until vote_replicator:GetAttribute("Enabled") == false
                 end
-                pcall(function()
-                    match_ready_up()
-                    run_vote_skip()
-                end)
-
-                repeat
-                    task.wait(0.2)
-                until vote_replicator:GetAttribute("Enabled") == false
             end
         end
         task.wait(0.1)
     end
-end)
+end
 
 local function start_rejoin_on_disconnect()
     task.spawn(function()
@@ -1792,6 +1786,7 @@ if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
 
+autoReadyLoop()
 start_rejoin_on_disconnect()
 
 local function create_buttons()
