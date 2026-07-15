@@ -717,8 +717,27 @@ function TDS:HandleGameEnd()
                                             found_section = true
                                         end
                                     until found_section
-                                    run_vote_skip() 
-                                    return 
+
+                                    while true do
+                                        local uiStillPresent = false
+                                        local u2 = player_gui:FindFirstChild("ReactGameNewRewards")
+                                        if u2 then
+                                            local f2 = u2:FindFirstChild("Frame")
+                                            if f2 and f2.Visible then
+                                                local g2 = f2:FindFirstChild("gameOver")
+                                                if g2 and g2.Visible then
+                                                    local s2 = g2:FindFirstChild("RewardsScreen")
+                                                    if s2 and s2.Visible then
+                                                        uiStillPresent = true
+                                                    end
+                                                end
+                                            end
+                                        end
+                                        if not uiStillPresent then break end
+                                        run_vote_skip()
+                                        task.wait(0.1)
+                                    end
+                                    return
                                 end
                             end
                         end
@@ -726,7 +745,7 @@ function TDS:HandleGameEnd()
                 end
             end
         end
-        task.wait(0.1)  
+        task.wait(0.1)
     end
 end
 
