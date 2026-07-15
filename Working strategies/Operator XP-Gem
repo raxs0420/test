@@ -1,0 +1,29 @@
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoSkip = true
+_G.AutoReady = true
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("EvolvedOperator", "", "", "", "")
+TDS:Mode("Hardcore")
+TDS:GameInfo("Wretched Front", {})
+
+local function Strategy()
+        for i = 1, 10 do
+            TDS:Place("EvolvedOperator", -0.393338, 60, -31.526705)
+            TDS:Upgrade(i)
+            TDS:Upgrade(i)
+        end
+        for i = 1, 10 do
+            TDS:SetTarget(i, "Random")
+        end
+end
+
+task.spawn(function()
+    while true do
+        Strategy()
+        TDS:HandleGameEnd() 
+    end
+end)
