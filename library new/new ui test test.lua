@@ -1390,6 +1390,8 @@ local function autoReadyLoop()
     end
 end
 
+autoReadyLoop()
+
 local function start_rejoin_on_disconnect()
     task.spawn(function()
         game.Players.PlayerRemoving:connect(function (plr)
@@ -1786,7 +1788,6 @@ if _G.ClaimRewards and not auto_claim_rewards then
     start_claim_rewards()
 end
 
-autoReadyLoop()
 start_rejoin_on_disconnect()
 
 local function create_buttons()
