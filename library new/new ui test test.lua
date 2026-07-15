@@ -1375,13 +1375,14 @@ local function autoReadyLoop()
     while true do
         if _G.AutoReady then
             local replicated_storage = game:GetService("ReplicatedStorage")
-            local vote_replicator = replicated_storage:FindFirstChild("StateReplicators") and replicated_storage.StateReplicators:FindFirstChild("VoteReplicator")
+            local vote_replicator = replicated_storage:FindFirstChild("StateReplicators")
+                and replicated_storage.StateReplicators:FindFirstChild("VoteReplicator")
             if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
                 local title = vote_replicator:GetAttribute("Title")
                 if title == "Ready?" then
-                    pcall(run_vote_skip)
+                    pcall(match_ready_up)
                     repeat
-                        task.wait(0.1)
+                        task.wait(0.2)
                     until vote_replicator:GetAttribute("Enabled") == false
                 end
             end
@@ -1390,7 +1391,7 @@ local function autoReadyLoop()
     end
 end
 
-autoReadyLoop()
+task.spawn(autoReadyLoop)
 
 local function start_rejoin_on_disconnect()
     task.spawn(function()
