@@ -1379,7 +1379,7 @@ local function autoReadyLoop()
             if vote_replicator and vote_replicator:GetAttribute("Enabled") == true then
                 local title = vote_replicator:GetAttribute("Title")
                 if title == "Ready?" then
-                    pcall(match_ready_up)
+                    pcall(run_vote_skip)
                     repeat
                         task.wait(0.1)
                     until vote_replicator:GetAttribute("Enabled") == false
