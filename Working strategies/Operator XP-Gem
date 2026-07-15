@@ -11,10 +11,12 @@ TDS:Mode("Hardcore")
 TDS:GameInfo("Wretched Front", {})
 
 local function Strategy()
-        task.wait(1)
+        TDS:Place("EvolvedOperator", -0.393338, 60, -31.526705)
+        TDS:Upgrade(1)
+        TDS:Upgrade(1)
         TDS:UnlockTimeScale()  
         TDS:TimeScale(2) 
-        for i = 1, 10 do
+        for i = 2, 10 do
             TDS:Place("EvolvedOperator", -0.393338, 60, -31.526705)
             TDS:Upgrade(i)
             TDS:Upgrade(i)
