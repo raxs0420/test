@@ -87,6 +87,14 @@ local mapsTab = Library:CreateButton(
     Library.Colors.BackgroundLight
 )
 
+local selectionTab = Library:CreateButton(
+    leftPanel,
+    "SELECTION",
+    UDim2.new(1, -Library:ScaleX(1), 0, tabHeight),
+    UDim2.new(0, Library:ScaleX(0.5), 0, startY + (tabHeight + tabSpacing) * 4),
+    Library.Colors.BackgroundLight
+)
+
 local rightPanel = Library:CreateFrame(
     mainWindow,
     UDim2.new(1, -Library:ScaleX(15), 1, -Library:ScaleY(10)),
@@ -1550,6 +1558,362 @@ local function toggleTower(targetFolder)
     return false
 end
 
+local selectionState = {
+    mercenary = {},
+    biologist = {},
+    dj = {},
+    trapper = {}
+}
+
+local function getTowerReplicator(towerFolder)
+    return towerFolder:FindFirstChild("TowerReplicator")
+end
+
+local function getTowerName(towerFolder)
+    local rep = getTowerReplicator(towerFolder)
+    if rep then return rep:GetAttribute("Name") end
+    return nil
+end
+
+local function getTowerLevel(towerFolder)
+    local rep = getTowerReplicator(towerFolder)
+    if rep then return rep:GetAttribute("Upgrade") or 0 end
+    return 0
+end
+
+local function getTowerOwner(towerFolder)
+    local rep = getTowerReplicator(towerFolder)
+    if rep then return rep:GetAttribute("OwnerId") end
+    return nil
+end
+
+local function isOwnedByPlayer(towerFolder)
+    local owner = getTowerOwner(towerFolder)
+    return owner and tostring(owner) == tostring(player.UserId)
+end
+
+local function getMercenaryUnit(towerFolder, slot)
+    local rep = getTowerReplicator(towerFolder)
+    if rep then
+        local attr = rep:GetAttribute("Unit " .. slot)
+        if attr and attr ~= "" then return attr end
+    end
+    return nil
+end
+
+local function getBiologistFlower(towerFolder, slot)
+    local rep = getTowerReplicator(towerFolder)
+    if rep then
+        local attr = rep:GetAttribute("Flower " .. slot)
+        if attr and attr ~= "" then return attr end
+    end
+    return nil
+end
+
+local function getDJColor(towerFolder)
+    local rep = getTowerReplicator(towerFolder)
+    if rep then
+        local attr = rep:GetAttribute("Track")
+        if attr and attr ~= "" then return attr end
+    end
+    return nil
+end
+
+local function getTrapperTrap(towerFolder)
+    local rep = getTowerReplicator(towerFolder)
+    if rep then
+        local attr = rep:GetAttribute("Trap")
+        if attr and attr ~= "" then return attr end
+    end
+    return nil
+end
+
+local function createSelectionTab()
+    local contentFrame = Library:CreateFrame(
+        rightPanel,
+        UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(2)),
+        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1)),
+        false,
+        Library.Colors.BackgroundDarker
+    )
+
+    local scrollFrame = Library:CreateScrollingFrame(
+        contentFrame,
+        UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(2)),
+        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1)),
+        Library.Colors.BackgroundDark
+    )
+    Library:AddCorner(scrollFrame, 6)
+    scrollFrame.ScrollBarThickness = 8
+
+    local mercDisplayToFull = {
+        ["Rifle"] = "Rifleman",
+        ["Granade"] = "Grenadier",
+        ["Guard"] = "Riot Guard",
+        ["Medic"] = "Field Medic"
+    }
+    local mercFullToDisplay = {}
+    for display, full in pairs(mercDisplayToFull) do
+        mercFullToDisplay[full] = display
+    end
+
+    local function getMercDisplay(unitFull)
+        return mercFullToDisplay[unitFull] or unitFull
+    end
+
+    local function getMercFull(display)
+        return mercDisplayToFull[display] or display
+    end
+
+    local function buildSelectionUI()
+        for _, child in ipairs(scrollFrame:GetChildren()) do
+            child:Destroy()
+        end
+
+        local towersFolder = Workspace:FindFirstChild("Towers")
+        if not towersFolder then
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -Library:ScaleX(2), 0, Library:ScaleY(4))
+            label.Position = UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
+            label.BackgroundTransparency = 1
+            label.TextColor3 = Library.Colors.TextDim
+            label.TextSize = Library:ScaleY(1.2)
+            label.Font = Library.Fonts.Bold
+            label.Text = "No towers folder found"
+            label.Parent = scrollFrame
+            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, Library:ScaleY(6))
+            return
+        end
+
+        local ownedTowers = {}
+        for _, folder in ipairs(towersFolder:GetChildren()) do
+            local name = getTowerName(folder)
+            if name and (name == "Mercenary Base" or name == "Biologist" or name == "DJ Booth" or name == "Trapper") and isOwnedByPlayer(folder) then
+                table.insert(ownedTowers, folder)
+            end
+        end
+
+        if #ownedTowers == 0 then
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -Library:ScaleX(2), 0, Library:ScaleY(4))
+            label.Position = UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
+            label.BackgroundTransparency = 1
+            label.TextColor3 = Library.Colors.TextDim
+            label.TextSize = Library:ScaleY(1.2)
+            label.Font = Library.Fonts.Bold
+            label.Text = "No selectable towers found"
+            label.Parent = scrollFrame
+            scrollFrame.CanvasSize = UDim2.new(0, 0, 0, Library:ScaleY(6))
+            return
+        end
+
+        local yPos = Library:ScaleY(1)
+        local sectionSpacing = Library:ScaleY(0.5)
+        local marginX = 0.05
+        local innerWidth = 1 - 2 * marginX
+
+        for _, folder in ipairs(ownedTowers) do
+            local name = getTowerName(folder)
+            local level = getTowerLevel(folder)
+
+            local numRows = 0
+            local optionColumns = 0
+            local displayOptions = {}
+
+            if name == "Mercenary Base" then
+                displayOptions = {"Rifle", "Granade", "Guard", "Medic"}
+                numRows = 3
+                optionColumns = 4
+            elseif name == "Biologist" then
+                displayOptions = {"Sunflower", "Ivy", "Nightshade"}
+                numRows = 3
+                optionColumns = 3
+            elseif name == "DJ Booth" then
+                displayOptions = {"Blue", "Green", "Red"}
+                numRows = 1
+                optionColumns = 3
+            elseif name == "Trapper" then
+                displayOptions = {"Spike", "Landmine", "Bear trap"}
+                numRows = 1
+                optionColumns = 3
+            else
+                continue
+            end
+
+            local sectionFrame = Instance.new("Frame")
+            sectionFrame.Size = UDim2.new(1, -Library:ScaleX(2), 0, Library:ScaleY(1))
+            sectionFrame.Position = UDim2.new(0, Library:ScaleX(1), 0, yPos)
+            sectionFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+            sectionFrame.Parent = scrollFrame
+            Library:AddCorner(sectionFrame, 4)
+
+            local rowHeightPx = Library:ScaleY(4.0)
+            local gapPx = Library:ScaleY(0.2)
+            local topMargin = Library:ScaleY(0.5)
+            local bottomMargin = Library:ScaleY(0.5)
+            local totalHeightPx = topMargin + numRows * rowHeightPx + (numRows - 1) * gapPx + bottomMargin
+            sectionFrame.Size = UDim2.new(1, -Library:ScaleX(2), 0, totalHeightPx)
+
+            local yPosRow = topMargin
+            for slot = 1, numRows do
+                local currentValue = nil
+                local onSelect = nil
+
+                if name == "Mercenary Base" then
+                    currentValue = selectionState.mercenary[folder] and selectionState.mercenary[folder][slot] or getMercenaryUnit(folder, slot) or nil
+                    currentValue = currentValue and getMercDisplay(currentValue) or nil
+                    onSelect = function(displayOption)
+                        if not selectionState.mercenary[folder] then selectionState.mercenary[folder] = {nil,nil,nil} end
+                        local fullOpt = getMercFull(displayOption)
+                        if selectionState.mercenary[folder][slot] == fullOpt then
+                            selectionState.mercenary[folder][slot] = nil
+                            fullOpt = ""
+                        else
+                            selectionState.mercenary[folder][slot] = fullOpt
+                        end
+                        pcall(function()
+                            RemoteFunction:InvokeServer("Troops", "Option", "Set", {
+                                Troop = folder,
+                                Name = "Unit " .. slot,
+                                Value = fullOpt
+                            })
+                        end)
+                    end
+                elseif name == "Biologist" then
+                    currentValue = selectionState.biologist[folder] and selectionState.biologist[folder][slot] or getBiologistFlower(folder, slot) or nil
+                    onSelect = function(option)
+                        if not selectionState.biologist[folder] then selectionState.biologist[folder] = {nil,nil,nil} end
+                        if selectionState.biologist[folder][slot] == option then
+                            selectionState.biologist[folder][slot] = nil
+                            option = ""
+                        else
+                            selectionState.biologist[folder][slot] = option
+                        end
+                        pcall(function()
+                            RemoteFunction:InvokeServer("Troops", "Option", "Set", {
+                                Troop = folder,
+                                Name = "Flower " .. slot,
+                                Value = option
+                            })
+                        end)
+                    end
+                elseif name == "DJ Booth" then
+                    currentValue = selectionState.dj[folder] or getDJColor(folder) or nil
+                    onSelect = function(option)
+                        if selectionState.dj[folder] == option then
+                            selectionState.dj[folder] = nil
+                            option = ""
+                        else
+                            selectionState.dj[folder] = option
+                        end
+                        pcall(function()
+                            RemoteFunction:InvokeServer("Troops", "Option", "Set", {
+                                Troop = folder,
+                                Name = "Track",
+                                Value = option
+                            })
+                        end)
+                    end
+                elseif name == "Trapper" then
+                    currentValue = selectionState.trapper[folder] or getTrapperTrap(folder) or nil
+                    onSelect = function(option)
+                        if selectionState.trapper[folder] == option then
+                            selectionState.trapper[folder] = nil
+                            option = ""
+                        else
+                            selectionState.trapper[folder] = option
+                        end
+                        pcall(function()
+                            RemoteFunction:InvokeServer("Troops", "Option", "Set", {
+                                Troop = folder,
+                                Name = "Trap",
+                                Value = option
+                            })
+                        end)
+                    end
+                end
+
+                local rowFrame = Instance.new("Frame")
+                rowFrame.Size = UDim2.new(innerWidth, 0, 0, rowHeightPx)
+                rowFrame.Position = UDim2.new(marginX, 0, 0, yPosRow)
+                rowFrame.BackgroundTransparency = 1
+                rowFrame.Parent = sectionFrame
+
+                local numCols = optionColumns
+                local btnGap = 0.02
+                local btnWidthScale = (1 - (numCols - 1) * btnGap) / numCols
+
+                for i, opt in ipairs(displayOptions) do
+                    local btn = Instance.new("TextButton")
+                    btn.Size = UDim2.new(btnWidthScale, 0, 1, 0)
+                    btn.Position = UDim2.new(
+                        (i-1) * (btnWidthScale + btnGap) + btnGap/2,
+                        0,
+                        0, 0
+                    )
+                    local isSelected = (currentValue == opt)
+                    btn.BackgroundColor3 = isSelected and Library.Colors.Success or Library.Colors.BackgroundLight
+                    btn.Text = opt
+                    btn.TextColor3 = Library.Colors.Text
+                    btn.TextSize = Library:ScaleY(1.1)
+                    btn.Font = Enum.Font.SourceSansBold
+                    btn.Parent = rowFrame
+                    btn.AutoButtonColor = false
+                    Library:AddCorner(btn, 4)
+                    Library:AddStroke(btn, 1, Library.Colors.Border)
+
+                    btn.MouseButton1Click:Connect(function()
+                        onSelect(opt)
+                        buildSelectionUI()
+                    end)
+                end
+
+                yPosRow = yPosRow + rowHeightPx + gapPx
+            end
+
+            yPos = yPos + totalHeightPx + sectionSpacing
+        end
+
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yPos + Library:ScaleY(1))
+    end
+
+    local refreshDebounce = false
+    local function safeRefresh()
+        if not refreshDebounce then
+            refreshDebounce = true
+            task.spawn(function()
+                buildSelectionUI()
+                task.wait(0.1)
+                refreshDebounce = false
+            end)
+        end
+    end
+
+    buildSelectionUI()
+
+    local towersFolder = Workspace:FindFirstChild("Towers")
+    if towersFolder then
+        local function refreshOnChange()
+            if contentFrames["SELECTION"] and contentFrames["SELECTION"].Visible then
+                safeRefresh()
+            end
+        end
+        towersFolder.ChildAdded:Connect(refreshOnChange)
+        towersFolder.ChildRemoved:Connect(refreshOnChange)
+    end
+
+    task.spawn(function()
+        while true do
+            task.wait(1.5)
+            if contentFrames["SELECTION"] and contentFrames["SELECTION"].Visible then
+                safeRefresh()
+            end
+        end
+    end)
+
+    return contentFrame
+end
+
 local function createAutomationTab()
     local contentFrame = Library:CreateFrame(
         rightPanel,
@@ -1694,7 +2058,7 @@ local function createAutomationTab()
     mercFrame.Parent = scrollFrame
 
     local mercToggle = Instance.new("TextButton")
-    mercToggle.Size = UDim2.new(0.65, -Library:ScaleX(0.5), 1, 0)
+    mercToggle.Size = UDim2.new(1, 0, 1, 0)
     mercToggle.Position = UDim2.new(0, 0, 0, 0)
     mercToggle.BackgroundColor3 = _G.AutoMercenary and Library.Colors.Success or Library.Colors.Accent
     mercToggle.Text = _G.AutoMercenary and "Auto Mercenary: ON" or "Auto Mercenary: OFF"
@@ -1705,19 +2069,6 @@ local function createAutomationTab()
     mercToggle.AutoButtonColor = false
     Library:AddCorner(mercToggle, 4)
     Library:AddStroke(mercToggle, 1, Library.Colors.Border)
-
-    local gearBtn = Instance.new("TextButton")
-    gearBtn.Size = UDim2.new(0.35, -Library:ScaleX(0.5), 1, 0)
-    gearBtn.Position = UDim2.new(0.65, Library:ScaleX(0.5), 0, 0)
-    gearBtn.BackgroundColor3 = Library.Colors.BackgroundLight
-    gearBtn.Text = "⚙️"
-    gearBtn.TextColor3 = Library.Colors.Text
-    gearBtn.Font = Library.Fonts.Bold
-    gearBtn.TextSize = Library:ScaleY(1.8)
-    gearBtn.Parent = mercFrame
-    gearBtn.AutoButtonColor = false
-    Library:AddCorner(gearBtn, 4)
-    Library:AddStroke(gearBtn, 1, Library.Colors.Border)
 
     mercToggle.MouseButton1Click:Connect(function()
         _G.AutoMercenary = not _G.AutoMercenary
@@ -2147,375 +2498,6 @@ local function createAutomationTab()
 
     updateSliderMax()
 
-    local baseDropdown = Library:CreateFrame(
-        screenGui,
-        UDim2.new(0, Library:ScaleX(25), 0, Library:ScaleY(30)),
-        UDim2.new(0, 0, 0, 0),
-        false,
-        Library.Colors.BackgroundDarker
-    )
-    baseDropdown.Visible = false
-    baseDropdown.ZIndex = 500
-    Library:AddCorner(baseDropdown, 8)
-    Library:AddStroke(baseDropdown, 2, Library.Colors.BorderLight)
-
-    local baseScroll = Library:CreateScrollingFrame(
-        baseDropdown,
-        UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(4)),
-        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(4.5)),
-        Library.Colors.BackgroundDark
-    )
-    baseScroll.ScrollBarThickness = 8
-    Library:AddCorner(baseScroll, 6)
-
-    local baseTitleBar = Library:CreateFrame(
-        baseDropdown,
-        UDim2.new(1, 0, 0, Library:ScaleY(4)),
-        UDim2.new(0, 0, 0, 0),
-        false,
-        Library.Colors.Accent
-    )
-    Library:AddCorner(baseTitleBar, 8)
-    local baseTitleLabel = Instance.new("TextLabel")
-    baseTitleLabel.Size = UDim2.new(1, -Library:ScaleX(5), 1, 0)
-    baseTitleLabel.Position = UDim2.new(0, Library:ScaleX(1), 0, 0)
-    baseTitleLabel.BackgroundTransparency = 1
-    baseTitleLabel.Text = "Mercenary Bases"
-    baseTitleLabel.TextColor3 = Library.Colors.Text
-    baseTitleLabel.Font = Library.Fonts.Bold
-    baseTitleLabel.TextSize = Library:ScaleY(1.2)
-    baseTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    baseTitleLabel.Parent = baseTitleBar
-
-    local closeBaseBtn = Instance.new("TextButton")
-    closeBaseBtn.Size = UDim2.new(0, Library:ScaleX(4), 0, Library:ScaleY(4))
-    closeBaseBtn.Position = UDim2.new(1, -Library:ScaleX(4.5), 0, Library:ScaleY(0.5))
-    closeBaseBtn.BackgroundColor3 = Library.Colors.Danger
-    closeBaseBtn.Text = "X"
-    closeBaseBtn.TextColor3 = Library.Colors.Text
-    closeBaseBtn.Font = Library.Fonts.Bold
-    closeBaseBtn.TextSize = Library:ScaleY(1.5)
-    closeBaseBtn.BorderSizePixel = 0
-    closeBaseBtn.Parent = baseDropdown
-    Library:AddCorner(closeBaseBtn, 4)
-    closeBaseBtn.ZIndex = 60
-    closeBaseBtn.MouseButton1Click:Connect(function()
-        baseDropdown.Visible = false
-        if baseRefreshLoop then
-            baseRefreshLoop = nil
-        end
-    end)
-
-    makeDraggable(baseDropdown, baseTitleBar)
-
-    local overlay = Library:CreateFrame(
-        screenGui,
-        UDim2.new(1, 0, 1, 0),
-        UDim2.new(0, 0, 0, 0),
-        false,
-        Color3.fromRGB(0,0,0)
-    )
-    overlay.BackgroundTransparency = 0.6
-    overlay.Visible = false
-    overlay.ZIndex = 600
-
-    local unitPopup = Library:CreateFrame(
-        screenGui,
-        UDim2.new(0, Library:ScaleX(50), 0, Library:ScaleY(40)),
-        UDim2.new(0.5, -Library:ScaleX(25), 0.5, -Library:ScaleY(20)),
-        false,
-        Library.Colors.BackgroundDarker
-    )
-    unitPopup.Visible = false
-    unitPopup.ZIndex = 601
-    Library:AddCorner(unitPopup, 8)
-    Library:AddStroke(unitPopup, 2, Library.Colors.BorderLight)
-
-    local unitTitleBar = Library:CreateFrame(
-        unitPopup,
-        UDim2.new(1, 0, 0, Library:ScaleY(4)),
-        UDim2.new(0, 0, 0, 0),
-        false,
-        Library.Colors.Accent
-    )
-    Library:AddCorner(unitTitleBar, 8)
-    local unitTitleLabel = Instance.new("TextLabel")
-    unitTitleLabel.Size = UDim2.new(1, -Library:ScaleX(5), 1, 0)
-    unitTitleLabel.Position = UDim2.new(0, Library:ScaleX(1), 0, 0)
-    unitTitleLabel.BackgroundTransparency = 1
-    unitTitleLabel.Text = "Configure Units"
-    unitTitleLabel.TextColor3 = Library.Colors.Text
-    unitTitleLabel.Font = Library.Fonts.Bold
-    unitTitleLabel.TextSize = Library:ScaleY(1.2)
-    unitTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-    unitTitleLabel.Parent = unitTitleBar
-
-    local closeUnitBtn = Instance.new("TextButton")
-    closeUnitBtn.Size = UDim2.new(0, Library:ScaleX(4), 0, Library:ScaleY(4))
-    closeUnitBtn.Position = UDim2.new(1, -Library:ScaleX(4.5), 0, Library:ScaleY(0.5))
-    closeUnitBtn.BackgroundColor3 = Library.Colors.Danger
-    closeUnitBtn.Text = "X"
-    closeUnitBtn.TextColor3 = Library.Colors.Text
-    closeUnitBtn.Font = Library.Fonts.Bold
-    closeUnitBtn.TextSize = Library:ScaleY(1.5)
-    closeUnitBtn.BorderSizePixel = 0
-    closeUnitBtn.Parent = unitPopup
-    Library:AddCorner(closeUnitBtn, 4)
-    closeUnitBtn.ZIndex = 602
-    closeUnitBtn.MouseButton1Click:Connect(function()
-        unitPopup.Visible = false
-        overlay.Visible = false
-    end)
-
-    makeDraggable(unitPopup, unitTitleBar)
-
-    local unitContainer = Library:CreateFrame(
-        unitPopup,
-        UDim2.new(1, -Library:ScaleX(2), 1, -Library:ScaleY(4) - Library:ScaleY(1)),
-        UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(5)),
-        false,
-        Library.Colors.BackgroundDark
-    )
-    Library:AddCorner(unitContainer, 6)
-
-    local unitSelections = {}
-    local unitTypes = {"Rifleman", "Grenadier", "Riot Guard", "Field Medic"}
-
-    local function openUnitPopup(baseFolder)
-        print("[openUnitPopup] Called with baseFolder:", baseFolder)
-        if not baseFolder then
-            warn("[openUnitPopup] baseFolder is nil")
-            return
-        end
-        if not overlay or not unitPopup or not unitContainer then
-            warn("[openUnitPopup] UI elements missing, aborting.")
-            return
-        end
-        overlay.Visible = true
-        unitPopup.Visible = true
-
-        for _, child in ipairs(unitContainer:GetChildren()) do
-            child:Destroy()
-        end
-
-        local baseId = baseFolder
-        if not unitSelections[baseId] then
-            unitSelections[baseId] = {nil, nil, nil}
-        end
-        local selections = unitSelections[baseId]
-
-        task.wait(0.05)
-
-        local containerWidth = unitContainer.AbsoluteSize.X
-        local containerHeight = unitContainer.AbsoluteSize.Y
-        if containerWidth == 0 or containerHeight == 0 then
-            containerWidth = 400
-            containerHeight = 300
-        end
-
-        local padding = 10
-        local spacing = 5
-        local rowHeight = (containerHeight - padding * 2 - spacing * 2) / 3
-        local btnWidth = (containerWidth - padding * 2 - spacing * 3) / 4
-        local btnHeight = rowHeight - 15
-        if btnWidth < 1 or btnHeight < 1 then
-            btnWidth = 60
-            btnHeight = 25
-        end
-
-        for slot = 1, 3 do
-            local rowY = padding + (slot - 1) * (rowHeight + spacing)
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(0, containerWidth - padding * 2, 0, 15)
-            label.Position = UDim2.new(0, padding, 0, rowY)
-            label.BackgroundTransparency = 1
-            label.TextColor3 = Color3.fromRGB(255, 255, 255)
-            label.Font = Enum.Font.SourceSansBold
-            label.TextSize = 14
-            label.Text = "Slot " .. slot
-            label.Parent = unitContainer
-
-            local btnY = rowY + 15 + spacing * 0.5
-            for col, unitType in ipairs(unitTypes) do
-                local btnX = padding + (col - 1) * (btnWidth + spacing)
-                local unitBtn = Instance.new("TextButton")
-                unitBtn.Size = UDim2.new(0, btnWidth, 0, btnHeight)
-                unitBtn.Position = UDim2.new(0, btnX, 0, btnY)
-                local isSelected = (selections[slot] == unitType)
-                unitBtn.BackgroundColor3 = isSelected and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 55)
-                unitBtn.Text = unitType
-                unitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-                unitBtn.Font = Enum.Font.SourceSans
-                unitBtn.TextSize = 12
-                unitBtn.Parent = unitContainer
-                unitBtn.AutoButtonColor = false
-
-                local corner = Instance.new("UICorner")
-                corner.CornerRadius = UDim.new(0, 4)
-                corner.Parent = unitBtn
-
-                unitBtn.MouseButton1Click:Connect(function()
-                    if selections[slot] == unitType then
-                        selections[slot] = nil
-                    else
-                        selections[slot] = unitType
-                    end
-                    openUnitPopup(baseFolder)
-                    local unitToSend = selections[slot] or ""
-                    pcall(function()
-                        if RemoteFunction then
-                            RemoteFunction:InvokeServer("Troops", "Option", "Set", {
-                                Troop = baseFolder,
-                                Name = "Unit " .. slot,
-                                Value = unitToSend
-                            })
-                        end
-                    end)
-                end)
-            end
-        end
-        print("[openUnitPopup] UI built successfully.")
-    end
-
-    local baseButtons = {}
-    local baseRefreshLoop = nil
-
-    local function populateBaseDropdown()
-        for _, btn in pairs(baseButtons) do
-            pcall(function() btn:Destroy() end)
-        end
-        baseButtons = {}
-
-        local towersFolder = Workspace:FindFirstChild("Towers")
-        local bases = {}
-        if towersFolder then
-            for _, folder in ipairs(towersFolder:GetChildren()) do
-                local rep = folder:FindFirstChild("TowerReplicator")
-                if rep and rep:GetAttribute("Name") == "Mercenary Base" and rep:GetAttribute("OwnerId") == player.UserId then
-                    local level = rep:GetAttribute("Upgrade") or 0
-                    table.insert(bases, {folder = folder, level = level})
-                end
-            end
-        end
-
-        if #bases == 0 then
-            local noBtn = Instance.new("TextButton")
-            noBtn.Size = UDim2.new(1, -Library:ScaleX(2), 0, Library:ScaleY(4))
-            noBtn.Position = UDim2.new(0, Library:ScaleX(1), 0, Library:ScaleY(1))
-            noBtn.BackgroundColor3 = Library.Colors.BackgroundLight
-            noBtn.Text = "No Mercenary Bases found"
-            noBtn.TextColor3 = Library.Colors.TextDim
-            noBtn.Font = Library.Fonts.Normal
-            noBtn.TextSize = Library:ScaleY(1.2)
-            noBtn.Parent = baseScroll
-            noBtn.AutoButtonColor = false
-            Library:AddCorner(noBtn, 4)
-            table.insert(baseButtons, noBtn)
-            baseScroll.CanvasSize = UDim2.new(0, 0, 0, Library:ScaleY(4) + Library:ScaleY(2))
-            return
-        end
-
-        local yPosB = Library:ScaleY(1)
-        local btnHeightB = Library:ScaleY(4)
-        for i, base in ipairs(bases) do
-            local btn = Instance.new("TextButton")
-            btn.Size = UDim2.new(1, -Library:ScaleX(2), 0, btnHeightB)
-            btn.Position = UDim2.new(0, Library:ScaleX(1), 0, yPosB)
-            btn.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(40,40,48) or Color3.fromRGB(35,35,42)
-            btn.Text = string.format("L%d. Merc Base", base.level)
-            btn.TextColor3 = Library.Colors.Text
-            btn.Font = Library.Fonts.Normal
-            btn.TextSize = Library:ScaleY(1.1)
-            btn.Parent = baseScroll
-            btn.AutoButtonColor = false
-            Library:AddCorner(btn, 3)
-            Library:AddStroke(btn, 1, Library.Colors.Border)
-
-            btn.MouseButton1Click:Connect(function()
-                if not openUnitPopup then
-                    warn("openUnitPopup is nil!")
-                    return
-                end
-                local success, err = pcall(function()
-                    openUnitPopup(base.folder)
-                end)
-                if not success then
-                    warn("Error opening unit popup: ", err)
-                    local origText = btn.Text
-                    btn.Text = "ERROR"
-                    btn.BackgroundColor3 = Library.Colors.Danger
-                    task.wait(0.5)
-                    btn.Text = origText
-                    btn.BackgroundColor3 = (i % 2 == 0) and Color3.fromRGB(40,40,48) or Color3.fromRGB(35,35,42)
-                end
-            end)
-
-            table.insert(baseButtons, btn)
-            yPosB = yPosB + btnHeightB + Library:ScaleY(0.5)
-        end
-        baseScroll.CanvasSize = UDim2.new(0, 0, 0, yPosB + Library:ScaleY(2))
-    end
-
-    gearBtn.MouseButton1Click:Connect(function()
-        if baseDropdown.Visible then
-            baseDropdown.Visible = false
-            if baseRefreshLoop then
-                baseRefreshLoop = nil
-            end
-        else
-            populateBaseDropdown()
-            local gearPos = gearBtn.AbsolutePosition
-            local gearSize = gearBtn.AbsoluteSize
-            local dropdownWidth = Library:ScaleX(25)
-            local dropdownHeight = Library:ScaleY(30)
-            local x = gearPos.X + gearSize.X/2 - dropdownWidth/2
-            local y = gearPos.Y + gearSize.Y + 2
-            if y + dropdownHeight > screenGui.AbsoluteSize.Y then
-                y = gearPos.Y - dropdownHeight - 2
-            end
-            if x + dropdownWidth > screenGui.AbsoluteSize.X then
-                x = screenGui.AbsoluteSize.X - dropdownWidth - 2
-            end
-            if x < 2 then x = 2 end
-            baseDropdown.Position = UDim2.new(0, x, 0, y)
-            baseDropdown.Size = UDim2.new(0, dropdownWidth, 0, dropdownHeight)
-            baseDropdown.Visible = true
-            baseDropdown.ZIndex = 500
-
-            if not baseRefreshLoop then
-                baseRefreshLoop = task.spawn(function()
-                    while baseDropdown.Visible do
-                        task.wait(1)
-                        populateBaseDropdown()
-                    end
-                    baseRefreshLoop = nil
-                end)
-            end
-        end
-    end)
-
-    UIS.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            task.wait()
-            if baseDropdown.Visible then
-                local mousePos = UIS:GetMouseLocation()
-                local dPos = baseDropdown.AbsolutePosition
-                local dSize = baseDropdown.AbsoluteSize
-                local gPos = gearBtn.AbsolutePosition
-                local gSize = gearBtn.AbsoluteSize
-                if not (mousePos.X >= dPos.X and mousePos.X <= dPos.X + dSize.X and
-                        mousePos.Y >= dPos.Y and mousePos.Y <= dPos.Y + dSize.Y) and
-                   not (mousePos.X >= gPos.X and mousePos.X <= gPos.X + gSize.X and
-                        mousePos.Y >= gPos.Y and mousePos.Y <= gPos.Y + gSize.Y) then
-                    baseDropdown.Visible = false
-                    if baseRefreshLoop then
-                        baseRefreshLoop = nil
-                    end
-                end
-            end
-        end
-    end)
-
     return contentFrame
 end
 
@@ -2786,6 +2768,7 @@ contentFrames["SWITCHER"] = createSwitcherTab()
 contentFrames["MANAGER"] = createManagerTab()
 contentFrames["AUTOMATION"] = createAutomationTab()
 contentFrames["MAPS"] = createMapsTab()
+contentFrames["SELECTION"] = createSelectionTab()
 
 startPeriodicRefresh()
 
@@ -2793,6 +2776,7 @@ contentFrames["SWITCHER"].Visible = true
 contentFrames["MANAGER"].Visible = false
 contentFrames["AUTOMATION"].Visible = false
 contentFrames["MAPS"].Visible = false
+contentFrames["SELECTION"].Visible = false
 
 switcherTab.MouseButton1Click:Connect(function()
     for _, frame in pairs(contentFrames) do
@@ -2803,6 +2787,7 @@ switcherTab.MouseButton1Click:Connect(function()
     managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
     autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
     mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    selectionTab.BackgroundColor3 = Library.Colors.BackgroundLight
 end)
 
 managerTab.MouseButton1Click:Connect(function()
@@ -2814,6 +2799,7 @@ managerTab.MouseButton1Click:Connect(function()
     managerTab.BackgroundColor3 = Library.Colors.Accent
     autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
     mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    selectionTab.BackgroundColor3 = Library.Colors.BackgroundLight
 
     if contentFrames["MANAGER"] then
         local scrollFrame = contentFrames["MANAGER"]:FindFirstChildOfClass("ScrollingFrame")
@@ -2832,6 +2818,7 @@ autoTab.MouseButton1Click:Connect(function()
     managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
     autoTab.BackgroundColor3 = Library.Colors.Accent
     mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    selectionTab.BackgroundColor3 = Library.Colors.BackgroundLight
 end)
 
 mapsTab.MouseButton1Click:Connect(function()
@@ -2843,6 +2830,19 @@ mapsTab.MouseButton1Click:Connect(function()
     managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
     autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
     mapsTab.BackgroundColor3 = Library.Colors.Accent
+    selectionTab.BackgroundColor3 = Library.Colors.BackgroundLight
+end)
+
+selectionTab.MouseButton1Click:Connect(function()
+    for _, frame in pairs(contentFrames) do
+        frame.Visible = false
+    end
+    contentFrames["SELECTION"].Visible = true
+    switcherTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    managerTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    autoTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    mapsTab.BackgroundColor3 = Library.Colors.BackgroundLight
+    selectionTab.BackgroundColor3 = Library.Colors.Accent
 end)
 
 local function getMaxLevelForTower(towerModel)
