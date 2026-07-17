@@ -11,7 +11,12 @@ TDS:Mode("Hardcore")
 TDS:GameInfo("Wretched Front", {})
 
 local function Strategy()
-        for i = 1, 7 do
+TDS:Place("Scout", -1.439609, 60, -31.376158)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:UnlockTimeScale()
+TDS:TimeScale(2) 
+        for i = 2, 7 do
             TDS:Place("Scout", -1.439609, 60, -31.376158)
             TDS:Upgrade(i)
             TDS:Upgrade(i)
