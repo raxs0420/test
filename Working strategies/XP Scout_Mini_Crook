@@ -1,0 +1,30 @@
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoSkip = true
+_G.AutoReady = true
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("Crook Boss", "Minigunner", "Scout", "", "")
+TDS:Mode("Hardcore")
+TDS:GameInfo("Wretched Front", {})
+
+local function Strategy()
+        for i = 1, 7 do
+            TDS:Place("Scout", -1.439609, 60, -31.376158)
+            TDS:Upgrade(i)
+            TDS:Upgrade(i)
+        end
+TDS:Place("Crook Boss", -1.089815, 60, -24.921052)
+TDS:Upgrade(8)
+TDS:Place("Minigunner", -1.120044, 60, -24.433111)
+TDS:Upgrade(9)
+end
+
+task.spawn(function()
+    while true do
+        Strategy()
+        TDS:HandleGameEnd() 
+    end
+end)
