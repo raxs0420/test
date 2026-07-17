@@ -762,7 +762,7 @@ copy_btn.MouseButton1Click:Connect(function()
                 add_log("No towers equipped")
             end
             
-            local full_script = "_G.AutoPickups = false\n_G.AntiLag = false\n_G.ClaimRewards = false\n_G.AutoRejoin = false\n_G.AutoSmartSkip = false\n_G.SendWebhook = false\n_G.Webhook = \"\"\n\nlocal TDS = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua\"))()\n\n" .. loadout_string .. "\n\n" .. content
+            local full_script = "_G.AutoPickups = true\n_G.AntiLag = false\n_G.ClaimRewards = true\n_G.AutoRejoin = false\n_G.AutoSmartSkip = false\n_G.SendWebhook = false\n_G.AutoSupport = true\n_G.AutoNecro = true\n_G.Webhook = \"\"\n\nlocal TDS = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua\"))()\n\n" .. loadout_string .. "\n\n" .. content
             
             if setclipboard then
                 setclipboard(full_script)
