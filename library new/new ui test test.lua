@@ -1758,12 +1758,11 @@ local bountyModeConfigs = {
 }
 local defaultBountyThreshold = 5000
 local defaultBountyPriority = 20000
-
 local auto_bounty_running = false
 
 local function getBountyThresholds()
     local mode = nil
-    local stateReplicator = ReplicatedStorage:FindFirstChild("StateReplicators")
+    local stateReplicator = replicated_storage:FindFirstChild("StateReplicators")
     if stateReplicator then
         local gameState = stateReplicator:FindFirstChild("GameStateReplicator")
         if gameState then
@@ -1779,12 +1778,12 @@ end
 
 local function getEnemyPosition(enemyFolder)
     local name = enemyFolder.Name
-    local model = Workspace:FindFirstChild(name)
+    local model = workspace:FindFirstChild(name)
     if model then
         local primary = model:FindFirstChild("PrimaryPart") or model:FindFirstChild("Head") or model:FindFirstChildWhichIsA("BasePart")
         if primary then return primary.Position end
     end
-    for _, part in ipairs(Workspace:GetDescendants()) do
+    for _, part in ipairs(workspace:GetDescendants()) do
         if part.Name == name and part:IsA("BasePart") then
             return part.Position
         end
@@ -1800,7 +1799,7 @@ end
 
 local function getEligibleEnemies(threshold, priorityThreshold)
     local enemies = { priority = {}, normal = {} }
-    local stateReplicators = ReplicatedStorage:FindFirstChild("StateReplicators")
+    local stateReplicators = replicated_storage:FindFirstChild("StateReplicators")
     if not stateReplicators then return enemies end
     for _, folder in ipairs(stateReplicators:GetChildren()) do
         if folder:IsA("Folder") and folder:GetAttribute("MaxHealth") then
@@ -1822,7 +1821,7 @@ end
 
 local function getOwnedKingpins()
     local list = {}
-    local towers = Workspace:FindFirstChild("Towers")
+    local towers = workspace:FindFirstChild("Towers")
     if not towers then return list end
     for _, folder in ipairs(towers:GetChildren()) do
         local rep = folder:FindFirstChild("TowerReplicator")
@@ -1830,7 +1829,7 @@ local function getOwnedKingpins()
             local name = rep:GetAttribute("Name")
             if name and string.lower(name):find("kingpin") then
                 local owner = rep:GetAttribute("OwnerId")
-                if owner and tostring(owner) == tostring(player.UserId) then
+                if owner and tostring(owner) == tostring(local_player.UserId) then
                     table.insert(list, folder)
                 end
             end
@@ -1840,9 +1839,9 @@ local function getOwnedKingpins()
 end
 
 local function useBountyOnEnemy(tower, enemyFolder)
-    if not RemoteFunction or not tower or not enemyFolder then return false end
+    if not remote_func or not tower or not enemyFolder then return false end
     local ok, result = pcall(function()
-        return RemoteFunction:InvokeServer("Troops", "Abilities", "Activate", {
+        return remote_func:InvokeServer("Troops", "Abilities", "Activate", {
             Troop = tower,
             Name = "Bounty",
             Data = { ReplicatorFolder = enemyFolder }
