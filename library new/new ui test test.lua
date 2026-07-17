@@ -60,6 +60,7 @@ local auto_pickups_running = false
 local auto_skip_running = false
 local anti_lag_running = false
 local auto_smart_skip_running = false
+local auto_bounty_running = false
 local auto_mercenary_running = false
 local auto_uber_running = false
 local auto_chain_running = false
@@ -1752,7 +1753,6 @@ if _G.AutoSmartSkip then
     task.spawn(start_smart_auto_skip)
 end
 
-local auto_bounty_running = false
 local bountyModeConfigs = {
     Frost = { threshold = 7000, priorityThreshold = 50000 },
 }
