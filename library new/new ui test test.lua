@@ -1759,6 +1759,8 @@ local bountyModeConfigs = {
 local defaultBountyThreshold = 5000
 local defaultBountyPriority = 20000
 
+local auto_bounty_running = false
+
 local function getBountyThresholds()
     local mode = nil
     local stateReplicator = ReplicatedStorage:FindFirstChild("StateReplicators")
