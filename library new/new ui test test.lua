@@ -1752,6 +1752,176 @@ if _G.AutoSmartSkip then
     task.spawn(start_smart_auto_skip)
 end
 
+local auto_bounty_running = false
+local bountyModeConfigs = {
+    Frost = { threshold = 7000, priorityThreshold = 50000 },
+}
+local defaultBountyThreshold = 5000
+local defaultBountyPriority = 20000
+
+local function getBountyThresholds()
+    local mode = nil
+    local stateReplicator = ReplicatedStorage:FindFirstChild("StateReplicators")
+    if stateReplicator then
+        local gameState = stateReplicator:FindFirstChild("GameStateReplicator")
+        if gameState then
+            mode = gameState:GetAttribute("DifficultyDisplayName") or gameState:GetAttribute("GameMode")
+        end
+    end
+    local config = bountyModeConfigs[mode]
+    if config then
+        return config.threshold, config.priorityThreshold
+    end
+    return defaultBountyThreshold, defaultBountyPriority
+end
+
+local function getEnemyPosition(enemyFolder)
+    local name = enemyFolder.Name
+    local model = Workspace:FindFirstChild(name)
+    if model then
+        local primary = model:FindFirstChild("PrimaryPart") or model:FindFirstChild("Head") or model:FindFirstChildWhichIsA("BasePart")
+        if primary then return primary.Position end
+    end
+    for _, part in ipairs(Workspace:GetDescendants()) do
+        if part.Name == name and part:IsA("BasePart") then
+            return part.Position
+        end
+    end
+    return nil
+end
+
+local function getTowerPosition(towerFolder)
+    local primary = towerFolder:FindFirstChild("PrimaryPart") or towerFolder:FindFirstChild("Head") or towerFolder:FindFirstChildWhichIsA("BasePart")
+    if primary then return primary.Position end
+    return nil
+end
+
+local function getEligibleEnemies(threshold, priorityThreshold)
+    local enemies = { priority = {}, normal = {} }
+    local stateReplicators = ReplicatedStorage:FindFirstChild("StateReplicators")
+    if not stateReplicators then return enemies end
+    for _, folder in ipairs(stateReplicators:GetChildren()) do
+        if folder:IsA("Folder") and folder:GetAttribute("MaxHealth") then
+            local hp = folder:GetAttribute("MaxHealth")
+            if hp and hp >= threshold then
+                local pos = getEnemyPosition(folder)
+                local entry = { folder = folder, hp = hp, pos = pos }
+                if hp >= priorityThreshold then
+                    table.insert(enemies.priority, entry)
+                else
+                    table.insert(enemies.normal, entry)
+                end
+            end
+        end
+    end
+    table.sort(enemies.priority, function(a,b) return a.hp > b.hp end)
+    return enemies
+end
+
+local function getOwnedKingpins()
+    local list = {}
+    local towers = Workspace:FindFirstChild("Towers")
+    if not towers then return list end
+    for _, folder in ipairs(towers:GetChildren()) do
+        local rep = folder:FindFirstChild("TowerReplicator")
+        if rep then
+            local name = rep:GetAttribute("Name")
+            if name and string.lower(name):find("kingpin") then
+                local owner = rep:GetAttribute("OwnerId")
+                if owner and tostring(owner) == tostring(player.UserId) then
+                    table.insert(list, folder)
+                end
+            end
+        end
+    end
+    return list
+end
+
+local function useBountyOnEnemy(tower, enemyFolder)
+    if not RemoteFunction or not tower or not enemyFolder then return false end
+    local ok, result = pcall(function()
+        return RemoteFunction:InvokeServer("Troops", "Abilities", "Activate", {
+            Troop = tower,
+            Name = "Bounty",
+            Data = { ReplicatorFolder = enemyFolder }
+        })
+    end)
+    return ok and result == true
+end
+
+local function start_auto_bounty()
+    if auto_bounty_running or not _G.AutoBounty then return end
+    auto_bounty_running = true
+    task.spawn(function()
+        while _G.AutoBounty do
+            local threshold, priorityThreshold = getBountyThresholds()
+            local enemies = getEligibleEnemies(threshold, priorityThreshold)
+            local kingpins = getOwnedKingpins()
+            if #kingpins == 0 then
+                task.wait(0.5)
+                continue
+            end
+            if #enemies.priority == 0 and #enemies.normal == 0 then
+                task.wait(0.5)
+                continue
+            end
+            local usedEnemies = {}
+            local targetedCount = 0
+            for _, king in ipairs(kingpins) do
+                local chosen = nil
+                local kingPos = getTowerPosition(king)
+                for _, e in ipairs(enemies.priority) do
+                    if not usedEnemies[e.folder] then
+                        chosen = e
+                        break
+                    end
+                end
+                if not chosen and #enemies.normal > 0 then
+                    if kingPos then
+                        table.sort(enemies.normal, function(a,b)
+                            local distA = a.pos and (a.pos - kingPos).Magnitude or math.huge
+                            local distB = b.pos and (b.pos - kingPos).Magnitude or math.huge
+                            return distA < distB
+                        end)
+                    else
+                        table.sort(enemies.normal, function(a,b) return a.hp > b.hp end)
+                    end
+                    for _, e in ipairs(enemies.normal) do
+                        if not usedEnemies[e.folder] then
+                            chosen = e
+                            break
+                        end
+                    end
+                end
+                if not chosen then
+                    break
+                end
+                local success = useBountyOnEnemy(king, chosen.folder)
+                if success then
+                    usedEnemies[chosen.folder] = true
+                    targetedCount = targetedCount + 1
+                end
+                task.wait(1)
+            end
+            if targetedCount == 0 then
+                task.wait(1)
+            else
+                task.wait(0.2)
+            end
+        end
+        auto_bounty_running = false
+    end)
+end
+
+function TDS:AutoBounty(state)
+    _G.AutoBounty = state == true or state == "T" or state == "t"
+    start_auto_bounty()
+end
+
+if _G.AutoBounty then
+    task.spawn(start_auto_bounty)
+end
+
 function TDS:MedicSelect(idx, val)
     local t = self.placed_towers[idx]
     local target = self.placed_towers[val]
