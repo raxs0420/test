@@ -965,6 +965,7 @@ local function loadSettings()
         MercDistance = 167,
         WaveFS = 40,
         AutoUpgradeEnabled = false,
+        AutoBounty = false,
         AutoUpgradeConfig = {
             ["Pursuit"] = {{path = 1, count = 3}},
             ["Hacker"] = {{path = 1, count = 4}},
@@ -993,6 +994,7 @@ local function saveSettings()
         AutoNecro = _G.AutoNecro,
         AutoUber = _G.AutoUber,
         AutoDJ = _G.AutoDJ,
+        AutoBounty = _G.AutoBounty,
         AutoSupport = _G.AutoSupport,
         AutoChain = _G.AutoChain,
         AutoPickups = _G.AutoPickups,
@@ -2440,6 +2442,23 @@ local function createAutomationTab()
     end)
 
     yPos = yPos + Library:ScaleY(5) + Library:ScaleY(2)
+    
+    local bountyBtn = Library:CreateButton(
+    scrollFrame,
+    "Auto Bounty",
+    UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(5)),
+    UDim2.new(0, Library:ScaleX(2), 0, yPos),
+    _G.AutoBounty and Library.Colors.Success or Library.Colors.Accent
+    )
+    bountyBtn.Text = _G.AutoBounty and "Auto Bounty: ON" or "Auto Bounty: OFF"
+    bountyBtn.MouseButton1Click:Connect(function()
+        _G.AutoBounty = not _G.AutoBounty
+        bountyBtn.BackgroundColor3 = _G.AutoBounty and Library.Colors.Success or Library.Colors.Accent
+        bountyBtn.Text = _G.AutoBounty and "Auto Bounty: ON" or "Auto Bounty: OFF"
+        TDS:AutoBounty(_G.AutoBounty)
+        saveSettings()
+    end)
+    yPos = yPos + Library:ScaleY(5) + Library:ScaleY(1)
 
     scrollFrame.CanvasSize = UDim2.new(0, 0, 0, yPos + Library:ScaleY(2))
 
