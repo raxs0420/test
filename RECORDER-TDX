@@ -71,60 +71,6 @@ local realIdToMacroId = {}
 local macroIdToRealId = {}     
 local pendingUpgrade = nil
 
-local function getTowerCost(towerName)
-    local towersBar = LocalPlayer.PlayerGui:FindFirstChild("Interface"):FindFirstChild("BottomBar"):FindFirstChild("TowersBar")
-    if towersBar then
-        local towerFolder = towersBar:FindFirstChild(towerName)
-        if towerFolder then
-            local costFrame = towerFolder:FindFirstChild("CostFrame")
-            if costFrame then
-                local costText = costFrame:FindFirstChild("CostText")
-                if costText and costText:IsA("TextLabel") then
-                    local costStr = costText.Text:gsub("[^%d]", "")
-                    return tonumber(costStr) or 0
-                end
-            end
-        end
-    end
-    return 0
-end
-
-local function getUpgradeCostForPath(path)
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-    if playerGui then
-        local interface = playerGui:FindFirstChild("Interface")
-        if interface then
-            local towerUI = interface:FindFirstChild("TowerUI")
-            if towerUI and towerUI.Visible then
-                local buttonName = (path == 1) and "Path1Button" or "Path2Button"
-                local pathButton = towerUI:FindFirstChild(buttonName)
-                if pathButton then
-                    local costText = pathButton:FindFirstChild("CostText")
-                    if costText and costText:IsA("TextLabel") then
-                        local costStr = costText.Text:gsub("[^%d]", "")
-                        return tonumber(costStr) or 0
-                    end
-                end
-            end
-        end
-    end
-    return 0
-end
-
-local function allocateRealId()
-    if #freeRealIds > 0 then
-        return table.remove(freeRealIds)  
-    else
-        local id = nextRealId
-        nextRealId = nextRealId + 1
-        return id
-    end
-end
-
-local function freeRealId(id)
-    table.insert(freeRealIds, id)  
-end
-
 local function addLog(msg, color)
     local label = Instance.new("TextLabel", logBox)
     label.Size = UDim2.new(1, -10, 0, 14)
@@ -140,18 +86,29 @@ local function addLog(msg, color)
     return label
 end
 
+local function allocateRealId()
+    if #freeRealIds > 0 then
+        return table.remove(freeRealIds)
+    else
+        local id = nextRealId
+        nextRealId = nextRealId + 1
+        return id
+    end
+end
+
+local function freeRealId(id)
+    table.insert(freeRealIds, id)
+end
+
 local function monitorUpgrades()
     task.spawn(function()
         while recording do
             task.wait(0.01)
             if pendingUpgrade then
-                local cost = getUpgradeCostForPath(pendingUpgrade.path)
-                if cost > 0 then
-                    local cmd = string.format('TDX:Upgrade(%d, %d, 1, %d)', pendingUpgrade.macroId, pendingUpgrade.path, cost)
-                    table.insert(actions, cmd)
-                    addLog(cmd, Color3.fromRGB(150, 255, 150))
-                    pendingUpgrade = nil
-                end
+                local cmd = string.format('TDX:Upgrade(%d, %s, %d)', pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
+                table.insert(actions, cmd)
+                addLog(cmd, Color3.fromRGB(150, 255, 150))
+                pendingUpgrade = nil
             end
         end
     end)
@@ -175,8 +132,7 @@ if TowersFolder then
         realIdToMacroId[realId] = macroId
         macroIdToRealId[macroId] = realId
 
-        local cost = getTowerCost(name)
-        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, 0, %d, %d)', name, pos.X, pos.Y, pos.Z, cost, macroId)
+        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, %d)', name, pos.X, pos.Y, pos.Z, macroId)
         table.insert(actions, cmd)
         addLog(cmd, Color3.fromRGB(100, 255, 100))
         addLog(string.format("  → Real ID: %d → Macro ID: %d", realId, macroId), Color3.fromRGB(150, 150, 150))
@@ -192,9 +148,10 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
         if self.Name == "TowerUpgradeRequest" then
             local realId = args[1]
             local path = args[2] or 1
+            local level = args[3] or 1
             local macroId = realIdToMacroId[realId]
             if macroId then
-                pendingUpgrade = {macroId = macroId, path = path}
+                pendingUpgrade = {macroId = macroId, path = path, level = level}
             end
 
         elseif self.Name == "SellTower" then
@@ -215,26 +172,10 @@ oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
 end)
 
 local function generateScript()
-    local towerNames = {}
-    for _, cmd in ipairs(actions) do
-        local name = string.match(cmd, 'TDX:Place%"([^"]+)"')
-        if name and not towerNames[name] then
-            towerNames[name] = true
-        end
-    end
-
-    local towerList = {}
-    for name in pairs(towerNames) do
-        table.insert(towerList, string.format('"%s"', name))
-    end
-
     local lines = {
-        "local TDX = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/tdx%20test\"))()",
-        "",
-        string.format("TDX:Equip({%s})", table.concat(towerList, ", ")),
-        "TDX:TimeScale(1.5)",
-        "",
-        "",
+        "local TDX = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/tdx%20test%20test\"))()",
+        "TDX:SetupUpgradeListener()",
+        "task.wait(2)",
         ""
     }
     for _, cmd in ipairs(actions) do
@@ -298,4 +239,3 @@ closeBtn.MouseButton1Click:Connect(function()
 end)
 
 addLog("=== READY ===", Color3.fromRGB(100, 255, 100))
-addLog("Click START RECORDING, then play normally", Color3.fromRGB(255, 200, 100))
