@@ -31,5 +31,6 @@ task.spawn(function()
     while true do
         Strategy()
         TDS:HandleGameEnd() 
+        task.wait(1)
     end
 end)
