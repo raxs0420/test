@@ -1,0 +1,36 @@
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoSkip = true
+_G.AutoReady = true
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("EvolvedOperator", "EvolvedKingpin", "EvolvedJuggernaut", "", "")
+TDS:Mode("Hardcore")
+TDS:GameInfo("Wretched Front", {})
+
+local function Strategy()
+TDS:Place("EvolvedOperator", -1.501445, 60, -31.536382)
+TDS:UnlockTimeScale()
+TDS:TimeScale(2)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:SetTarget(1, "Random")
+        for i = 2, 5 do
+            TDS:Place("EvolvedOperator", -1.049457, 60, -31.662131)
+            TDS:Upgrade(i)
+            TDS:Upgrade(i)
+            TDS:SetTarget(i, "Random")
+        end
+TDS:Place("EvolvedKingpin", -1.427492, 60, -23.539819)
+TDS:Place("EvolvedJuggernaut", -0.619744, 60, -22.047895)
+end
+
+task.spawn(function()
+    while true do
+        Strategy()
+        TDS:HandleGameEnd() 
+        task.wait(1)
+    end
+end)
