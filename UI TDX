@@ -165,6 +165,16 @@ tabTowersBtn.TextSize = 12
 tabTowersBtn.Parent = frame
 Instance.new("UICorner", tabTowersBtn)
 
+local tabGameInfoBtn = Instance.new("TextButton")
+tabGameInfoBtn.Size = UDim2.new(0, 70, 0, 22)
+tabGameInfoBtn.Position = UDim2.new(0, 235, 0, 32)
+tabGameInfoBtn.Text = "Game Info"
+tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+tabGameInfoBtn.TextColor3 = Color3.fromRGB(255,255,255)
+tabGameInfoBtn.TextSize = 12
+tabGameInfoBtn.Parent = frame
+Instance.new("UICorner", tabGameInfoBtn)
+
 local mainFrame = Instance.new("Frame")
 mainFrame.Size = UDim2.new(1, -20, 1, -65)
 mainFrame.Position = UDim2.new(0, 10, 0, 58)
@@ -225,6 +235,29 @@ towersLayout.SortOrder = Enum.SortOrder.LayoutOrder
 towersLayout.FillDirection = Enum.FillDirection.Vertical
 towersLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
+local gameInfoFrame = Instance.new("Frame")
+gameInfoFrame.Size = UDim2.new(1, -20, 1, -65)
+gameInfoFrame.Position = UDim2.new(0, 10, 0, 58)
+gameInfoFrame.BackgroundTransparency = 1
+gameInfoFrame.Visible = false
+gameInfoFrame.Parent = frame
+
+local gameInfoScroll = Instance.new("ScrollingFrame")
+gameInfoScroll.Size = UDim2.new(1, -10, 1, -10)
+gameInfoScroll.Position = UDim2.new(0, 5, 0, 5)
+gameInfoScroll.BackgroundColor3 = Color3.fromRGB(40,40,40)
+gameInfoScroll.BorderSizePixel = 0
+gameInfoScroll.ScrollBarThickness = 8
+gameInfoScroll.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
+gameInfoScroll.Parent = gameInfoFrame
+Instance.new("UICorner", gameInfoScroll)
+
+local gameInfoLayout = Instance.new("UIListLayout", gameInfoScroll)
+gameInfoLayout.Padding = UDim.new(0, 4)
+gameInfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
+gameInfoLayout.FillDirection = Enum.FillDirection.Vertical
+gameInfoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+
 local topBtn = Instance.new("TextButton")
 topBtn.Size = UDim2.new(0, 165, 0, 30)
 topBtn.Position = UDim2.new(0, 5, 0, 5)
@@ -244,16 +277,6 @@ bottomBtn.TextColor3 = Color3.fromRGB(100,255,100)
 bottomBtn.TextSize = 10
 bottomBtn.Parent = mainFrame
 Instance.new("UICorner", bottomBtn)
-
-local skipBtn = Instance.new("TextButton")
-skipBtn.Size = UDim2.new(0, 165, 0, 30)
-skipBtn.Position = UDim2.new(0, 5, 0, 42)
-skipBtn.Text = "Auto Skip: OFF"
-skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-skipBtn.TextColor3 = Color3.fromRGB(100,255,100)
-skipBtn.TextSize = 10
-skipBtn.Parent = mainFrame
-Instance.new("UICorner", skipBtn)
 
 local emoteBtn = Instance.new("TextButton")
 emoteBtn.Size = UDim2.new(0, 165, 0, 30)
@@ -580,7 +603,7 @@ local function makeFastSpamLoop(abilityName, towerName, requiredPath, pathLevel,
     end
 end
 
-local bountyTimeout = 2
+local bountyTimeout = 0.5
 
 local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerName)
     return function()
@@ -594,16 +617,26 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
                     end
                 end
             end
-            if #validParts == 0 then task.wait(0.1) continue end
 
-            local enemies = getAllEnemies()
-            if #enemies == 0 then task.wait(0.1) continue end
-
+            if #validParts == 0 then
+                task.wait(0.05)  
+                continue
+            end
+            
             for _, part in ipairs(validParts) do
                 if not settings.activeAbilities[abilityName] then break end
 
+                local enemies = getAllEnemies()
+                if #enemies == 0 then
+                    task.wait(0.01)   
+                    continue
+                end
+
                 local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist)
-                if not target then task.wait(0.1) continue end
+                if not target then
+                    task.wait(0.01)  
+                    continue
+                end
 
                 local hash = towers[part].hash
                 if not hash then continue end
@@ -622,17 +655,18 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
                         abilityUsedQueue[hash] = nil
                         break
                     end
-                    task.wait(0.01)
+                    task.wait(0.01)  
                 end
 
                 if confirmed then
                     globalHitBlacklist[target] = true
-                    towerPauseUntil[part] = tick() + 5
+                    towerPauseUntil[part] = tick() + 6
                 end
 
-                task.wait(0.01)
+                task.wait(0.15)   
             end
-            task.wait(0.2)
+
+            task.wait(0.1)
         end
     end
 end
@@ -1162,67 +1196,45 @@ tabMainBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = true
     debugFrame.Visible = false
     towersFrame.Visible = false
+    gameInfoFrame.Visible = false
     tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
     tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 end)
 
 tabDebugBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
     debugFrame.Visible = true
     towersFrame.Visible = false
+    gameInfoFrame.Visible = false
     tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
     tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
 end)
 
 tabTowersBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
     debugFrame.Visible = false
     towersFrame.Visible = true
+    gameInfoFrame.Visible = false
     tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
     updateTowersList()
 end)
 
-local autoSkip = settings.autoSkip
-local skipLoop = nil
-
-local function startSkipLoop()
-    if skipLoop then task.cancel(skipLoop) end
-    skipLoop = task.spawn(function()
-        while autoSkip do
-            local remote = ReplicatedStorage:FindFirstChild("Remotes")
-            if remote then
-                local skip = remote:FindFirstChild("SkipWaveVoteCast")
-                if skip then pcall(function() skip:FireServer(true) end) end
-            end
-            task.wait(0.1)
-        end
-        skipLoop = nil
-    end)
-end
-
-if autoSkip then
-    skipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    skipBtn.Text = "Auto Skip: ON"
-    startSkipLoop()
-end
-
-skipBtn.MouseButton1Click:Connect(function()
-    autoSkip = not autoSkip
-    settings.autoSkip = autoSkip
-    saveSettings()
-    if autoSkip then
-        skipBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-        skipBtn.Text = "Auto Skip: ON"
-        startSkipLoop()
-    else
-        skipBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-        skipBtn.Text = "Auto Skip: OFF"
-        if skipLoop then task.cancel(skipLoop) skipLoop = nil end
-    end
+tabGameInfoBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    debugFrame.Visible = false
+    towersFrame.Visible = false
+    gameInfoFrame.Visible = true
+    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
 end)
 
 local emoteSpam = settings.emoteSpam
@@ -1573,3 +1585,93 @@ for abilityName, isActive in pairs(settings.activeAbilities) do
         task.spawn(abilityLoopMap[abilityName])
     end
 end
+
+task.spawn(function()
+    while true do
+        for _, player in ipairs(Players:GetPlayers()) do
+            player:SetAttribute("VIP", true)
+        end
+        task.wait(5)
+    end
+end)
+
+local function setupGameInfo()
+    local remote = ReplicatedStorage:FindFirstChild("Remotes")
+        and ReplicatedStorage.Remotes:FindFirstChild("TowerToEquippedCountMapChanged")
+    if not remote then
+        addDebugLog("Game Info: remote not found")
+        return
+    end
+
+    local configs = ReplicatedStorage:FindFirstChild("TDX_Shared")
+        and ReplicatedStorage.TDX_Shared:FindFirstChild("Common")
+        and ReplicatedStorage.TDX_Shared.Common:FindFirstChild("Resources")
+        and ReplicatedStorage.TDX_Shared.Common.Resources:FindFirstChild("Towers")
+        and ReplicatedStorage.TDX_Shared.Common.Resources.Towers:FindFirstChild("Configs")
+    if not configs then
+        addDebugLog("Game Info: configs folder not found")
+        return
+    end
+
+    local function updateGameInfoUI(towerCounts)
+        for _, child in ipairs(gameInfoScroll:GetChildren()) do
+            if child:IsA("TextLabel") then child:Destroy() end
+        end
+
+        local names = {}
+        for name in pairs(towerCounts) do
+            table.insert(names, name)
+        end
+        table.sort(names)
+
+        local labelCount = 0
+        for _, towerName in ipairs(names) do
+            local count = towerCounts[towerName]
+            local limitStr = ""
+            local module = configs:FindFirstChild(towerName)
+            if module then
+                local success, config = pcall(require, module)
+                if success and type(config) == "table" then
+                    local limitMap = config.LimitMap
+                    if limitMap and #limitMap > 0 then
+                        local index = math.min(count, #limitMap)
+                        local limit = limitMap[index]
+                        if limit then
+                            limitStr = " (personal limit " .. tostring(limit) .. ")"
+                        end
+                    end
+                end
+            end
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -10, 0, 18)
+            label.Text = towerName .. " = " .. tostring(count) .. limitStr
+            label.TextColor3 = Color3.fromRGB(200,200,200)
+            label.TextSize = 11
+            label.TextXAlignment = Enum.TextXAlignment.Left
+            label.BackgroundTransparency = 1
+            label.Parent = gameInfoScroll
+            labelCount = labelCount + 1
+        end
+
+        if labelCount == 0 then
+            local label = Instance.new("TextLabel")
+            label.Size = UDim2.new(1, -10, 0, 20)
+            label.Text = "No tower data received yet"
+            label.TextColor3 = Color3.fromRGB(200,200,200)
+            label.TextSize = 11
+            label.TextXAlignment = Enum.TextXAlignment.Center
+            label.BackgroundTransparency = 1
+            label.Parent = gameInfoScroll
+        end
+
+        gameInfoScroll.CanvasSize = UDim2.new(0, 0, 0, gameInfoLayout.AbsoluteContentSize.Y + 10)
+    end
+
+    remote.OnClientEvent:Connect(function(towerCounts)
+        updateGameInfoUI(towerCounts)
+    end)
+
+    addDebugLog("Game Info: listener ready")
+end
+
+task.spawn(setupGameInfo)
