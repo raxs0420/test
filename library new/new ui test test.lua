@@ -1754,7 +1754,7 @@ if _G.AutoSmartSkip then
 end
 
 local bountyModeConfigs = {
-    Frost = { threshold = 7000, priorityThreshold = 50000 },
+    Frost = { threshold = 10000, priorityThreshold = 60000 },
 }
 local defaultBountyThreshold = 5000
 local defaultBountyPriority = 20000
