@@ -25,13 +25,14 @@ local function addDebugLog(message)
     task.spawn(function()
         if debugLogFrameRef and debugLogLayoutRef then
             local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, -10, 0, 16)
+            label.Size = UDim2.new(1, -14, 0, 16)
             label.Text = logEntry
-            label.TextColor3 = Color3.fromRGB(200,200,200)
+            label.TextColor3 = Color3.fromRGB(170, 170, 175)
             label.TextSize = 10
             label.BackgroundTransparency = 1
             label.TextXAlignment = Enum.TextXAlignment.Left
             label.TextWrapped = true
+            label.Font = Enum.Font.Gotham
             label.Parent = debugLogFrameRef
             local children = debugLogFrameRef:GetChildren()
             local textChildren = {}
@@ -94,8 +95,8 @@ end
 loadSettings()
 
 local screenSize = workspace.CurrentCamera.ViewportSize
-local frameWidth = 450
-local frameHeight = screenSize.Y * 0.75
+local frameWidth = 520
+local frameHeight = screenSize.Y * 0.78
 local frameX = (screenSize.X - frameWidth) / 2
 local frameY = (screenSize.Y - frameHeight) / 2
 
@@ -108,126 +109,187 @@ gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 local frame = Instance.new("Frame")
 frame.Size = UDim2.new(0, frameWidth, 0, frameHeight)
 frame.Position = UDim2.new(0, frameX, 0, frameY)
-frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
+frame.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
 frame.BackgroundTransparency = 0
+frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 frame.Parent = gui
-Instance.new("UICorner", frame)
 
-local minimizeBtn = Instance.new("TextButton")
-minimizeBtn.Size = UDim2.new(0, 25, 0, 25)
-minimizeBtn.Position = UDim2.new(1, -30, 0, 5)
-minimizeBtn.Text = "_"
-minimizeBtn.TextColor3 = Color3.fromRGB(255,255,255)
-minimizeBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
-minimizeBtn.Parent = frame
-Instance.new("UICorner", minimizeBtn)
+local frameCorner = Instance.new("UICorner", frame)
+frameCorner.CornerRadius = UDim.new(0, 14)
+
+local frameStroke = Instance.new("UIStroke", frame)
+frameStroke.Color = Color3.fromRGB(45, 45, 50)
+frameStroke.Thickness = 1.5
+
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 44)
+topBar.Position = UDim2.new(0, 0, 0, 0)
+topBar.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+topBar.BorderSizePixel = 0
+topBar.Parent = frame
+
+local topBarCorner = Instance.new("UICorner", topBar)
+topBarCorner.CornerRadius = UDim.new(0, 14)
+
+local topBarFix = Instance.new("Frame")
+topBarFix.Size = UDim2.new(1, 0, 0, 20)
+topBarFix.Position = UDim2.new(0, 0, 1, -20)
+topBarFix.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+topBarFix.BorderSizePixel = 0
+topBarFix.Parent = topBar
 
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, -40, 0, 25)
-title.Position = UDim2.new(0, 10, 0, 5)
+title.Size = UDim2.new(1, -80, 0, 44)
+title.Position = UDim2.new(0, 18, 0, 0)
 title.Text = "TDX Auto"
-title.TextColor3 = Color3.new(1,1,1)
+title.TextColor3 = Color3.fromRGB(230, 230, 235)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
-title.TextSize = 16
+title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = frame
 
-local tabMainBtn = Instance.new("TextButton")
-tabMainBtn.Size = UDim2.new(0, 70, 0, 22)
-tabMainBtn.Position = UDim2.new(0, 10, 0, 32)
-tabMainBtn.Text = "Main"
-tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-tabMainBtn.TextColor3 = Color3.fromRGB(255,255,255)
-tabMainBtn.TextSize = 12
-tabMainBtn.Parent = frame
-Instance.new("UICorner", tabMainBtn)
+local minimizeBtn = Instance.new("TextButton")
+minimizeBtn.Size = UDim2.new(0, 32, 0, 32)
+minimizeBtn.Position = UDim2.new(1, -42, 0, 6)
+minimizeBtn.Text = "−"
+minimizeBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
+minimizeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.TextSize = 18
+minimizeBtn.AutoButtonColor = false
+minimizeBtn.Parent = frame
 
-local tabDebugBtn = Instance.new("TextButton")
-tabDebugBtn.Size = UDim2.new(0, 70, 0, 22)
-tabDebugBtn.Position = UDim2.new(0, 85, 0, 32)
-tabDebugBtn.Text = "Debug"
-tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-tabDebugBtn.TextColor3 = Color3.fromRGB(255,255,255)
-tabDebugBtn.TextSize = 12
-tabDebugBtn.Parent = frame
-Instance.new("UICorner", tabDebugBtn)
+local minimizeCorner = Instance.new("UICorner", minimizeBtn)
+minimizeCorner.CornerRadius = UDim.new(0, 8)
+
+local minimizeStroke = Instance.new("UIStroke", minimizeBtn)
+minimizeStroke.Color = Color3.fromRGB(55, 55, 60)
+minimizeStroke.Thickness = 1
+
+local tabContainer = Instance.new("Frame")
+tabContainer.Size = UDim2.new(1, -24, 0, 34)
+tabContainer.Position = UDim2.new(0, 12, 0, 50)
+tabContainer.BackgroundTransparency = 1
+tabContainer.Parent = frame
+
+local tabMainBtn = Instance.new("TextButton")
+tabMainBtn.Size = UDim2.new(0, 84, 0, 28)
+tabMainBtn.Position = UDim2.new(0, 0, 0, 3)
+tabMainBtn.Text = "Main"
+tabMainBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+tabMainBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
+tabMainBtn.TextSize = 12
+tabMainBtn.Font = Enum.Font.GothamSemibold
+tabMainBtn.AutoButtonColor = false
+tabMainBtn.Parent = tabContainer
+Instance.new("UICorner", tabMainBtn).CornerRadius = UDim.new(0, 8)
+
+local tabAbilitiesBtn = Instance.new("TextButton")
+tabAbilitiesBtn.Size = UDim2.new(0, 84, 0, 28)
+tabAbilitiesBtn.Position = UDim2.new(0, 90, 0, 3)
+tabAbilitiesBtn.Text = "Abilities"
+tabAbilitiesBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+tabAbilitiesBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
+tabAbilitiesBtn.TextSize = 12
+tabAbilitiesBtn.Font = Enum.Font.GothamSemibold
+tabAbilitiesBtn.AutoButtonColor = false
+tabAbilitiesBtn.Parent = tabContainer
+Instance.new("UICorner", tabAbilitiesBtn).CornerRadius = UDim.new(0, 8)
 
 local tabTowersBtn = Instance.new("TextButton")
-tabTowersBtn.Size = UDim2.new(0, 70, 0, 22)
-tabTowersBtn.Position = UDim2.new(0, 160, 0, 32)
+tabTowersBtn.Size = UDim2.new(0, 84, 0, 28)
+tabTowersBtn.Position = UDim2.new(0, 180, 0, 3)
 tabTowersBtn.Text = "Towers"
-tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-tabTowersBtn.TextColor3 = Color3.fromRGB(255,255,255)
+tabTowersBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+tabTowersBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
 tabTowersBtn.TextSize = 12
-tabTowersBtn.Parent = frame
-Instance.new("UICorner", tabTowersBtn)
+tabTowersBtn.Font = Enum.Font.GothamSemibold
+tabTowersBtn.AutoButtonColor = false
+tabTowersBtn.Parent = tabContainer
+Instance.new("UICorner", tabTowersBtn).CornerRadius = UDim.new(0, 8)
 
 local tabGameInfoBtn = Instance.new("TextButton")
-tabGameInfoBtn.Size = UDim2.new(0, 70, 0, 22)
-tabGameInfoBtn.Position = UDim2.new(0, 235, 0, 32)
+tabGameInfoBtn.Size = UDim2.new(0, 84, 0, 28)
+tabGameInfoBtn.Position = UDim2.new(0, 270, 0, 3)
 tabGameInfoBtn.Text = "Game Info"
-tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-tabGameInfoBtn.TextColor3 = Color3.fromRGB(255,255,255)
+tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+tabGameInfoBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
 tabGameInfoBtn.TextSize = 12
-tabGameInfoBtn.Parent = frame
-Instance.new("UICorner", tabGameInfoBtn)
+tabGameInfoBtn.Font = Enum.Font.GothamSemibold
+tabGameInfoBtn.AutoButtonColor = false
+tabGameInfoBtn.Parent = tabContainer
+Instance.new("UICorner", tabGameInfoBtn).CornerRadius = UDim.new(0, 8)
+
+local tabDebugBtn = Instance.new("TextButton")
+tabDebugBtn.Size = UDim2.new(0, 84, 0, 28)
+tabDebugBtn.Position = UDim2.new(0, 360, 0, 3)
+tabDebugBtn.Text = "Debug"
+tabDebugBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+tabDebugBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
+tabDebugBtn.TextSize = 12
+tabDebugBtn.Font = Enum.Font.GothamSemibold
+tabDebugBtn.AutoButtonColor = false
+tabDebugBtn.Parent = tabContainer
+Instance.new("UICorner", tabDebugBtn).CornerRadius = UDim.new(0, 8)
+
+local contentFrame = Instance.new("Frame")
+contentFrame.Size = UDim2.new(1, -24, 1, -96)
+contentFrame.Position = UDim2.new(0, 12, 0, 88)
+contentFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
+contentFrame.BorderSizePixel = 0
+contentFrame.Parent = frame
+
+local contentCorner = Instance.new("UICorner", contentFrame)
+contentCorner.CornerRadius = UDim.new(0, 12)
 
 local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(1, -20, 1, -65)
-mainFrame.Position = UDim2.new(0, 10, 0, 58)
+mainFrame.Size = UDim2.new(1, -16, 1, -16)
+mainFrame.Position = UDim2.new(0, 8, 0, 8)
 mainFrame.BackgroundTransparency = 1
-mainFrame.Parent = frame
+mainFrame.Parent = contentFrame
 
-local debugFrame = Instance.new("Frame")
-debugFrame.Size = UDim2.new(1, -20, 1, -65)
-debugFrame.Position = UDim2.new(0, 10, 0, 58)
-debugFrame.BackgroundTransparency = 1
-debugFrame.Visible = false
-debugFrame.Parent = frame
+local abilitiesTabFrame = Instance.new("Frame")
+abilitiesTabFrame.Size = UDim2.new(1, -16, 1, -16)
+abilitiesTabFrame.Position = UDim2.new(0, 8, 0, 8)
+abilitiesTabFrame.BackgroundTransparency = 1
+abilitiesTabFrame.Visible = false
+abilitiesTabFrame.Parent = contentFrame
 
-debugLogFrameRef = Instance.new("ScrollingFrame")
-debugLogFrameRef.Size = UDim2.new(1, -10, 1, -10)
-debugLogFrameRef.Position = UDim2.new(0, 5, 0, 5)
-debugLogFrameRef.BackgroundColor3 = Color3.fromRGB(40,40,40)
-debugLogFrameRef.BorderSizePixel = 0
-debugLogFrameRef.ScrollBarThickness = 6
-debugLogFrameRef.Parent = debugFrame
-Instance.new("UICorner", debugLogFrameRef)
+local abilitiesFrame = Instance.new("ScrollingFrame")
+abilitiesFrame.Size = UDim2.new(1, 0, 1, 0)
+abilitiesFrame.Position = UDim2.new(0, 0, 0, 0)
+abilitiesFrame.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+abilitiesFrame.BorderSizePixel = 0
+abilitiesFrame.ScrollBarThickness = 5
+abilitiesFrame.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+abilitiesFrame.Parent = abilitiesTabFrame
+Instance.new("UICorner", abilitiesFrame).CornerRadius = UDim.new(0, 10)
 
-debugLogLayoutRef = Instance.new("UIListLayout", debugLogFrameRef)
-debugLogLayoutRef.Padding = UDim.new(0, 2)
-debugLogLayoutRef.SortOrder = Enum.SortOrder.LayoutOrder
-debugLogLayoutRef.FillDirection = Enum.FillDirection.Vertical
-
-local clearDebugBtn = Instance.new("TextButton")
-clearDebugBtn.Size = UDim2.new(1, -10, 0, 30)
-clearDebugBtn.Position = UDim2.new(0, 5, 1, -35)
-clearDebugBtn.Text = "Clear Logs"
-clearDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-clearDebugBtn.TextColor3 = Color3.fromRGB(255,255,255)
-clearDebugBtn.TextSize = 10
-clearDebugBtn.Parent = debugFrame
-Instance.new("UICorner", clearDebugBtn)
+local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
+abilitiesLayout.Padding = UDim.new(0, 6)
+abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
+abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
+abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local towersFrame = Instance.new("Frame")
-towersFrame.Size = UDim2.new(1, -20, 1, -65)
-towersFrame.Position = UDim2.new(0, 10, 0, 58)
+towersFrame.Size = UDim2.new(1, -16, 1, -16)
+towersFrame.Position = UDim2.new(0, 8, 0, 8)
 towersFrame.BackgroundTransparency = 1
 towersFrame.Visible = false
-towersFrame.Parent = frame
+towersFrame.Parent = contentFrame
 
 local towersScroll = Instance.new("ScrollingFrame")
-towersScroll.Size = UDim2.new(1, -10, 1, -10)
-towersScroll.Position = UDim2.new(0, 5, 0, 5)
-towersScroll.BackgroundColor3 = Color3.fromRGB(40,40,40)
+towersScroll.Size = UDim2.new(1, 0, 1, 0)
+towersScroll.Position = UDim2.new(0, 0, 0, 0)
+towersScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
 towersScroll.BorderSizePixel = 0
-towersScroll.ScrollBarThickness = 8
-towersScroll.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
+towersScroll.ScrollBarThickness = 5
+towersScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
 towersScroll.Parent = towersFrame
-Instance.new("UICorner", towersScroll)
+Instance.new("UICorner", towersScroll).CornerRadius = UDim.new(0, 10)
 
 local towersLayout = Instance.new("UIListLayout", towersScroll)
 towersLayout.Padding = UDim.new(0, 4)
@@ -236,21 +298,21 @@ towersLayout.FillDirection = Enum.FillDirection.Vertical
 towersLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
 local gameInfoFrame = Instance.new("Frame")
-gameInfoFrame.Size = UDim2.new(1, -20, 1, -65)
-gameInfoFrame.Position = UDim2.new(0, 10, 0, 58)
+gameInfoFrame.Size = UDim2.new(1, -16, 1, -16)
+gameInfoFrame.Position = UDim2.new(0, 8, 0, 8)
 gameInfoFrame.BackgroundTransparency = 1
 gameInfoFrame.Visible = false
-gameInfoFrame.Parent = frame
+gameInfoFrame.Parent = contentFrame
 
 local gameInfoScroll = Instance.new("ScrollingFrame")
-gameInfoScroll.Size = UDim2.new(1, -10, 1, -10)
-gameInfoScroll.Position = UDim2.new(0, 5, 0, 5)
-gameInfoScroll.BackgroundColor3 = Color3.fromRGB(40,40,40)
+gameInfoScroll.Size = UDim2.new(1, 0, 1, 0)
+gameInfoScroll.Position = UDim2.new(0, 0, 0, 0)
+gameInfoScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
 gameInfoScroll.BorderSizePixel = 0
-gameInfoScroll.ScrollBarThickness = 8
-gameInfoScroll.ScrollBarImageColor3 = Color3.fromRGB(100,100,100)
+gameInfoScroll.ScrollBarThickness = 5
+gameInfoScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
 gameInfoScroll.Parent = gameInfoFrame
-Instance.new("UICorner", gameInfoScroll)
+Instance.new("UICorner", gameInfoScroll).CornerRadius = UDim.new(0, 10)
 
 local gameInfoLayout = Instance.new("UIListLayout", gameInfoScroll)
 gameInfoLayout.Padding = UDim.new(0, 4)
@@ -258,82 +320,115 @@ gameInfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
 gameInfoLayout.FillDirection = Enum.FillDirection.Vertical
 gameInfoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
+local debugFrame = Instance.new("Frame")
+debugFrame.Size = UDim2.new(1, -16, 1, -16)
+debugFrame.Position = UDim2.new(0, 8, 0, 8)
+debugFrame.BackgroundTransparency = 1
+debugFrame.Visible = false
+debugFrame.Parent = contentFrame
+
+debugLogFrameRef = Instance.new("ScrollingFrame")
+debugLogFrameRef.Size = UDim2.new(1, 0, 1, -44)
+debugLogFrameRef.Position = UDim2.new(0, 0, 0, 0)
+debugLogFrameRef.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+debugLogFrameRef.BorderSizePixel = 0
+debugLogFrameRef.ScrollBarThickness = 5
+debugLogFrameRef.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+debugLogFrameRef.Parent = debugFrame
+Instance.new("UICorner", debugLogFrameRef).CornerRadius = UDim.new(0, 10)
+
+debugLogLayoutRef = Instance.new("UIListLayout", debugLogFrameRef)
+debugLogLayoutRef.Padding = UDim.new(0, 2)
+debugLogLayoutRef.SortOrder = Enum.SortOrder.LayoutOrder
+debugLogLayoutRef.FillDirection = Enum.FillDirection.Vertical
+
+local clearDebugBtn = Instance.new("TextButton")
+clearDebugBtn.Size = UDim2.new(1, 0, 0, 34)
+clearDebugBtn.Position = UDim2.new(0, 0, 1, -38)
+clearDebugBtn.Text = "Clear Logs"
+clearDebugBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+clearDebugBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
+clearDebugBtn.TextSize = 11
+clearDebugBtn.Font = Enum.Font.GothamSemibold
+clearDebugBtn.AutoButtonColor = false
+clearDebugBtn.Parent = debugFrame
+Instance.new("UICorner", clearDebugBtn).CornerRadius = UDim.new(0, 8)
+
+local clearDebugStroke = Instance.new("UIStroke", clearDebugBtn)
+clearDebugStroke.Color = Color3.fromRGB(50, 50, 55)
+clearDebugStroke.Thickness = 1
+
+local function styleButton(btn, accent)
+    btn.AutoButtonColor = false
+    btn.Font = Enum.Font.GothamSemibold
+    local corner = Instance.new("UICorner", btn)
+    corner.CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Color = Color3.fromRGB(50, 50, 55)
+    stroke.Thickness = 1
+    btn.MouseEnter:Connect(function()
+        btn.BackgroundColor3 = Color3.fromRGB(55, 55, 62)
+    end)
+    btn.MouseLeave:Connect(function()
+        if accent and btn.TextColor3 == Color3.fromRGB(130, 220, 130) then
+            btn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+        elseif accent and btn.TextColor3 == Color3.fromRGB(220, 180, 100) then
+            btn.BackgroundColor3 = Color3.fromRGB(100, 80, 35)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+        end
+    end)
+end
+
 local topBtn = Instance.new("TextButton")
-topBtn.Size = UDim2.new(0, 165, 0, 30)
-topBtn.Position = UDim2.new(0, 5, 0, 5)
+topBtn.Size = UDim2.new(0.48, -4, 0, 36)
+topBtn.Position = UDim2.new(0, 0, 0, 0)
 topBtn.Text = "Auto Max Top"
-topBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-topBtn.TextColor3 = Color3.fromRGB(100,255,100)
-topBtn.TextSize = 10
+topBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+topBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
+topBtn.TextSize = 11
 topBtn.Parent = mainFrame
-Instance.new("UICorner", topBtn)
+styleButton(topBtn, true)
 
 local bottomBtn = Instance.new("TextButton")
-bottomBtn.Size = UDim2.new(0, 165, 0, 30)
-bottomBtn.Position = UDim2.new(1, -170, 0, 5)
+bottomBtn.Size = UDim2.new(0.48, -4, 0, 36)
+bottomBtn.Position = UDim2.new(0.52, 0, 0, 0)
 bottomBtn.Text = "Auto Max Bottom"
-bottomBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-bottomBtn.TextColor3 = Color3.fromRGB(100,255,100)
-bottomBtn.TextSize = 10
+bottomBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+bottomBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
+bottomBtn.TextSize = 11
 bottomBtn.Parent = mainFrame
-Instance.new("UICorner", bottomBtn)
+styleButton(bottomBtn, true)
 
 local emoteBtn = Instance.new("TextButton")
-emoteBtn.Size = UDim2.new(0, 165, 0, 30)
-emoteBtn.Position = UDim2.new(1, -170, 0, 42)
+emoteBtn.Size = UDim2.new(1, 0, 0, 36)
+emoteBtn.Position = UDim2.new(0, 0, 0, 44)
 emoteBtn.Text = "Spam Emote: OFF"
-emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-emoteBtn.TextColor3 = Color3.fromRGB(100,255,100)
-emoteBtn.TextSize = 10
+emoteBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+emoteBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
+emoteBtn.TextSize = 11
 emoteBtn.Parent = mainFrame
-Instance.new("UICorner", emoteBtn)
+styleButton(emoteBtn, false)
 
 local teleportBtn = Instance.new("TextButton")
-teleportBtn.Size = UDim2.new(1, -10, 0, 30)
-teleportBtn.Position = UDim2.new(0, 5, 0, 80)
+teleportBtn.Size = UDim2.new(1, 0, 0, 36)
+teleportBtn.Position = UDim2.new(0, 0, 0, 86)
 teleportBtn.Text = "Teleport to Lobby"
-teleportBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-teleportBtn.TextColor3 = Color3.fromRGB(255,200,100)
-teleportBtn.TextSize = 10
+teleportBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+teleportBtn.TextColor3 = Color3.fromRGB(220, 180, 100)
+teleportBtn.TextSize = 11
 teleportBtn.Parent = mainFrame
-Instance.new("UICorner", teleportBtn)
+styleButton(teleportBtn, true)
 
 local antiLagBtn = Instance.new("TextButton")
-antiLagBtn.Size = UDim2.new(1, -10, 0, 30)
-antiLagBtn.Position = UDim2.new(0, 5, 0, 118)
+antiLagBtn.Size = UDim2.new(1, 0, 0, 36)
+antiLagBtn.Position = UDim2.new(0, 0, 0, 128)
 antiLagBtn.Text = "Anti Lag: ON"
-antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-antiLagBtn.TextColor3 = Color3.fromRGB(255,255,100)
-antiLagBtn.TextSize = 10
+antiLagBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+antiLagBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
+antiLagBtn.TextSize = 11
 antiLagBtn.Parent = mainFrame
-Instance.new("UICorner", antiLagBtn)
-
-local abilityLabel = Instance.new("TextLabel")
-abilityLabel.Size = UDim2.new(1, -10, 0, 16)
-abilityLabel.Position = UDim2.new(0, 5, 0, 158)
-abilityLabel.Text = "Abilities (click to toggle)"
-abilityLabel.TextColor3 = Color3.fromRGB(200,200,200)
-abilityLabel.TextSize = 10
-abilityLabel.BackgroundTransparency = 1
-abilityLabel.Font = Enum.Font.GothamBold
-abilityLabel.TextXAlignment = Enum.TextXAlignment.Left
-abilityLabel.Parent = mainFrame
-
-local abilitiesFrame = Instance.new("ScrollingFrame")
-abilitiesFrame.Size = UDim2.new(1, -10, 0, frameHeight - 240)
-abilitiesFrame.Position = UDim2.new(0, 5, 0, 178)
-abilitiesFrame.BackgroundColor3 = Color3.fromRGB(40,40,40)
-abilitiesFrame.BorderSizePixel = 0
-abilitiesFrame.ScrollBarThickness = 6
-abilitiesFrame.Parent = mainFrame
-Instance.new("UICorner", abilitiesFrame)
-
-local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
-abilitiesLayout.Padding = UDim.new(0, 6)
-abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
-abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
-abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
+styleButton(antiLagBtn, true)
 addDebugLog("=== TDX Auto Initialized ===")
 addDebugLog("Debug loaded")
 addDebugLog("Looking for towers.....")
@@ -359,25 +454,27 @@ local function updateTowersList()
     end
     if #ownedTowers == 0 then
         local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -10, 0, 20)
+        label.Size = UDim2.new(1, -14, 0, 22)
         label.Text = "No owned towers detected yet"
-        label.TextColor3 = Color3.fromRGB(200,200,200)
+        label.TextColor3 = Color3.fromRGB(140, 140, 145)
         label.TextSize = 11
         label.TextXAlignment = Enum.TextXAlignment.Center
         label.BackgroundTransparency = 1
+        label.Font = Enum.Font.Gotham
         label.Parent = towersScroll
     else
         table.sort(ownedTowers, function(a,b) return a.data.name < b.data.name end)
         for _, entry in ipairs(ownedTowers) do
             local data = entry.data
             local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, -10, 0, 20)
+            label.Size = UDim2.new(1, -14, 0, 22)
             label.Text = string.format("%s | Hash: %d | Top: %d | Bottom: %d", 
                 data.name, data.hash or 0, data.topCount or 0, data.bottomCount or 0)
-            label.TextColor3 = Color3.fromRGB(200,200,200)
+            label.TextColor3 = Color3.fromRGB(180, 180, 185)
             label.TextSize = 11
             label.TextXAlignment = Enum.TextXAlignment.Left
             label.BackgroundTransparency = 1
+            label.Font = Enum.Font.Gotham
             label.Parent = towersScroll
         end
     end
@@ -1152,34 +1249,53 @@ for _, abilityName in ipairs(abilityOrder) do
     if abilityLoopMap[abilityName] then
         if buttonsInRow == 0 then
             rowFrame = Instance.new("Frame")
-            rowFrame.Size = UDim2.new(1, -10, 0, 34)
+            rowFrame.Size = UDim2.new(1, -12, 0, 38)
             rowFrame.BackgroundTransparency = 1
             rowFrame.Parent = abilitiesFrame
             rowFrame.LayoutOrder = 1
         end
         local btn = Instance.new("TextButton")
-        btn.Size = UDim2.new(0, 150, 0, 28)
+        btn.Size = UDim2.new(0, 174, 0, 32)
         btn.Text = abilityDisplayNames[abilityName] or abilityName
-        btn.BackgroundColor3 = settings.activeAbilities[abilityName] and Color3.fromRGB(70,150,70) or Color3.fromRGB(60,60,60)
-        btn.TextColor3 = Color3.fromRGB(255,255,255)
+        btn.BackgroundColor3 = settings.activeAbilities[abilityName] and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(35, 35, 40)
+        btn.TextColor3 = settings.activeAbilities[abilityName] and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(180, 180, 185)
         btn.TextSize = 10
         btn.Font = Enum.Font.GothamSemibold
+        btn.AutoButtonColor = false
         btn.Parent = rowFrame
-        Instance.new("UICorner", btn)
+        local btnCorner = Instance.new("UICorner", btn)
+        btnCorner.CornerRadius = UDim.new(0, 8)
+        local btnStroke = Instance.new("UIStroke", btn)
+        btnStroke.Color = settings.activeAbilities[abilityName] and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(50, 50, 55)
+        btnStroke.Thickness = 1
         if buttonsInRow == 0 then
-            btn.Position = UDim2.new(0, 5, 0, 3)
+            btn.Position = UDim2.new(0, 6, 0, 3)
             buttonsInRow = 1
         else
-            btn.Position = UDim2.new(1, -155, 0, 3)
+            btn.Position = UDim2.new(1, -180, 0, 3)
             buttonsInRow = 0
         end
+        btn.MouseEnter:Connect(function()
+            if not settings.activeAbilities[abilityName] then
+                btn.BackgroundColor3 = Color3.fromRGB(48, 48, 55)
+            end
+        end)
+        btn.MouseLeave:Connect(function()
+            if not settings.activeAbilities[abilityName] then
+                btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+            end
+        end)
         btn.MouseButton1Click:Connect(function()
             if settings.activeAbilities[abilityName] then
                 settings.activeAbilities[abilityName] = false
-                btn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+                btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+                btn.TextColor3 = Color3.fromRGB(180, 180, 185)
+                btnStroke.Color = Color3.fromRGB(50, 50, 55)
             else
                 settings.activeAbilities[abilityName] = true
-                btn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+                btn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+                btn.TextColor3 = Color3.fromRGB(130, 220, 130)
+                btnStroke.Color = Color3.fromRGB(60, 130, 70)
                 local loopFunc = abilityLoopMap[abilityName]
                 if loopFunc then
                     task.spawn(loopFunc)
@@ -1190,51 +1306,64 @@ for _, abilityName in ipairs(abilityOrder) do
     end
 end
 
-abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 40 + 10)
+abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 42 + 10)
+
+local function setActiveTab(activeBtn)
+    for _, btn in ipairs({tabMainBtn, tabAbilitiesBtn, tabTowersBtn, tabGameInfoBtn, tabDebugBtn}) do
+        if btn == activeBtn then
+            btn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+            btn.TextColor3 = Color3.fromRGB(220, 220, 225)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+            btn.TextColor3 = Color3.fromRGB(140, 140, 145)
+        end
+    end
+end
 
 tabMainBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = true
+    abilitiesTabFrame.Visible = false
     debugFrame.Visible = false
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    setActiveTab(tabMainBtn)
 end)
 
-tabDebugBtn.MouseButton1Click:Connect(function()
+tabAbilitiesBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
-    debugFrame.Visible = true
+    abilitiesTabFrame.Visible = true
+    debugFrame.Visible = false
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    setActiveTab(tabAbilitiesBtn)
 end)
 
 tabTowersBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
+    abilitiesTabFrame.Visible = false
     debugFrame.Visible = false
     towersFrame.Visible = true
     gameInfoFrame.Visible = false
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
-    tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    setActiveTab(tabTowersBtn)
     updateTowersList()
 end)
 
 tabGameInfoBtn.MouseButton1Click:Connect(function()
     mainFrame.Visible = false
+    abilitiesTabFrame.Visible = false
     debugFrame.Visible = false
     towersFrame.Visible = false
     gameInfoFrame.Visible = true
-    tabMainBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabDebugBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabTowersBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
-    tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    setActiveTab(tabGameInfoBtn)
+end)
+
+tabDebugBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    abilitiesTabFrame.Visible = false
+    debugFrame.Visible = true
+    towersFrame.Visible = false
+    gameInfoFrame.Visible = false
+    setActiveTab(tabDebugBtn)
 end)
 
 local emoteSpam = settings.emoteSpam
@@ -1253,7 +1382,8 @@ local function startEmoteSpam()
 end
 
 if emoteSpam then
-    emoteBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    emoteBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+    emoteBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
     emoteBtn.Text = "Spam Emote: ON"
     startEmoteSpam()
 end
@@ -1263,11 +1393,13 @@ emoteBtn.MouseButton1Click:Connect(function()
     settings.emoteSpam = emoteSpam
     saveSettings()
     if emoteSpam then
-        emoteBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+        emoteBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+        emoteBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
         emoteBtn.Text = "Spam Emote: ON"
         startEmoteSpam()
     else
-        emoteBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+        emoteBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+        emoteBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
         emoteBtn.Text = "Spam Emote: OFF"
         if emoteLoop then task.cancel(emoteLoop) emoteLoop = nil end
     end
@@ -1275,7 +1407,8 @@ end)
 
 local antiLagEnabled = settings.antiLagEnabled
 if not antiLagEnabled then
-    antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+    antiLagBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+    antiLagBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
     antiLagBtn.Text = "Anti Lag: OFF"
 end
 
@@ -1327,10 +1460,12 @@ antiLagBtn.MouseButton1Click:Connect(function()
     settings.antiLagEnabled = antiLagEnabled
     saveSettings()
     if antiLagEnabled then
-        antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+        antiLagBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+        antiLagBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
         antiLagBtn.Text = "Anti Lag: ON"
     else
-        antiLagBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+        antiLagBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+        antiLagBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
         antiLagBtn.Text = "Anti Lag: OFF"
     end
 end)
@@ -1499,37 +1634,55 @@ teleportBtn.MouseButton1Click:Connect(function()
     local overlay = Instance.new("Frame")
     overlay.Size = UDim2.new(1,0,1,0)
     overlay.BackgroundColor3 = Color3.new(0,0,0)
-    overlay.BackgroundTransparency = 0.5
+    overlay.BackgroundTransparency = 0.45
     overlay.Parent = confirmGui
     local confirmFrame = Instance.new("Frame")
-    confirmFrame.Size = UDim2.new(0, 260, 0, 120)
-    confirmFrame.Position = UDim2.new(0.5, -130, 0.5, -60)
-    confirmFrame.BackgroundColor3 = Color3.fromRGB(50,50,50)
+    confirmFrame.Size = UDim2.new(0, 280, 0, 130)
+    confirmFrame.Position = UDim2.new(0.5, -140, 0.5, -65)
+    confirmFrame.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+    confirmFrame.BorderSizePixel = 0
     confirmFrame.Parent = overlay
-    Instance.new("UICorner", confirmFrame)
+    Instance.new("UICorner", confirmFrame).CornerRadius = UDim.new(0, 14)
+    local confirmStroke = Instance.new("UIStroke", confirmFrame)
+    confirmStroke.Color = Color3.fromRGB(50, 50, 55)
+    confirmStroke.Thickness = 1.5
     local text = Instance.new("TextLabel")
-    text.Size = UDim2.new(1,0,0,40)
-    text.Position = UDim2.new(0,0,0,15)
+    text.Size = UDim2.new(1, 0, 0, 50)
+    text.Position = UDim2.new(0, 0, 0, 18)
     text.Text = "Teleport to lobby?"
-    text.TextColor3 = Color3.new(1,1,1)
+    text.TextColor3 = Color3.fromRGB(220, 220, 225)
     text.BackgroundTransparency = 1
     text.Font = Enum.Font.GothamBold
-    text.TextSize = 16
+    text.TextSize = 17
     text.Parent = confirmFrame
     local yesBtn = Instance.new("TextButton")
-    yesBtn.Size = UDim2.new(0, 90, 0, 32)
-    yesBtn.Position = UDim2.new(0.25, -45, 1, -40)
+    yesBtn.Size = UDim2.new(0, 100, 0, 36)
+    yesBtn.Position = UDim2.new(0.25, -50, 1, -52)
     yesBtn.Text = "Yes"
-    yesBtn.BackgroundColor3 = Color3.fromRGB(70,150,70)
+    yesBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+    yesBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
+    yesBtn.Font = Enum.Font.GothamSemibold
+    yesBtn.TextSize = 13
+    yesBtn.AutoButtonColor = false
     yesBtn.Parent = confirmFrame
-    Instance.new("UICorner", yesBtn)
+    Instance.new("UICorner", yesBtn).CornerRadius = UDim.new(0, 10)
+    local yesStroke = Instance.new("UIStroke", yesBtn)
+    yesStroke.Color = Color3.fromRGB(60, 130, 70)
+    yesStroke.Thickness = 1
     local noBtn = Instance.new("TextButton")
-    noBtn.Size = UDim2.new(0, 90, 0, 32)
-    noBtn.Position = UDim2.new(0.75, -45, 1, -40)
+    noBtn.Size = UDim2.new(0, 100, 0, 36)
+    noBtn.Position = UDim2.new(0.75, -50, 1, -52)
     noBtn.Text = "No"
-    noBtn.BackgroundColor3 = Color3.fromRGB(150,70,70)
+    noBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
+    noBtn.TextColor3 = Color3.fromRGB(220, 130, 130)
+    noBtn.Font = Enum.Font.GothamSemibold
+    noBtn.TextSize = 13
+    noBtn.AutoButtonColor = false
     noBtn.Parent = confirmFrame
-    Instance.new("UICorner", noBtn)
+    Instance.new("UICorner", noBtn).CornerRadius = UDim.new(0, 10)
+    local noStroke = Instance.new("UIStroke", noBtn)
+    noStroke.Color = Color3.fromRGB(130, 60, 60)
+    noStroke.Thickness = 1
     yesBtn.MouseButton1Click:Connect(function()
         pcall(function() TeleportService:Teleport(9503261072) end)
         confirmGui:Destroy()
@@ -1540,16 +1693,21 @@ teleportBtn.MouseButton1Click:Connect(function()
 end)
 
 local anchorBtn = Instance.new("TextButton")
-anchorBtn.Size = UDim2.new(0, 45, 0, 45)
-anchorBtn.Position = UDim2.new(0, 10, 0, 10)
+anchorBtn.Size = UDim2.new(0, 48, 0, 48)
+anchorBtn.Position = UDim2.new(0, 12, 0, 12)
 anchorBtn.Text = "TDX"
-anchorBtn.TextColor3 = Color3.fromRGB(255,255,255)
-anchorBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-anchorBtn.TextSize = 12
+anchorBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
+anchorBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+anchorBtn.TextSize = 13
 anchorBtn.Font = Enum.Font.GothamBold
 anchorBtn.Visible = false
+anchorBtn.AutoButtonColor = false
 anchorBtn.Parent = gui
-Instance.new("UICorner", anchorBtn)
+local anchorCorner = Instance.new("UICorner", anchorBtn)
+anchorCorner.CornerRadius = UDim.new(0, 12)
+local anchorStroke = Instance.new("UIStroke", anchorBtn)
+anchorStroke.Color = Color3.fromRGB(55, 55, 60)
+anchorStroke.Thickness = 1.5
 
 local isMinimized = false
 local function toggleMinimize()
@@ -1643,24 +1801,26 @@ local function setupGameInfo()
                 end
             end
             local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, -10, 0, 18)
+            label.Size = UDim2.new(1, -14, 0, 20)
             label.Text = towerName .. " = " .. tostring(count) .. limitStr
-            label.TextColor3 = Color3.fromRGB(200,200,200)
+            label.TextColor3 = Color3.fromRGB(180, 180, 185)
             label.TextSize = 11
             label.TextXAlignment = Enum.TextXAlignment.Left
             label.BackgroundTransparency = 1
+            label.Font = Enum.Font.Gotham
             label.Parent = gameInfoScroll
             labelCount = labelCount + 1
         end
 
         if labelCount == 0 then
             local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, -10, 0, 20)
+            label.Size = UDim2.new(1, -14, 0, 22)
             label.Text = "No tower data received yet"
-            label.TextColor3 = Color3.fromRGB(200,200,200)
+            label.TextColor3 = Color3.fromRGB(140, 140, 145)
             label.TextSize = 11
             label.TextXAlignment = Enum.TextXAlignment.Center
             label.BackgroundTransparency = 1
+            label.Font = Enum.Font.Gotham
             label.Parent = gameInfoScroll
         end
 
