@@ -4,6 +4,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
+local Lighting = game:GetService("Lighting")
+local UserInputService = game:GetService("UserInputService")
 
 if LocalPlayer.PlayerGui:FindFirstChild("TDXAuto") then return end
 
@@ -72,7 +74,24 @@ local enemyWhitelist = {
 }
 
 local SettingsFile = "TDXAuto_Settings.json"
-local defaultSettings = { autoTargetMode = nil, autoSkip = false, emoteSpam = false, antiLagEnabled = true, activeAbilities = {} }
+local defaultSettings = { 
+    autoTargetMode = nil, 
+    autoSkip = false, 
+    antiLagEnabled = true, 
+    activeAbilities = {},
+    antiLagRemoveFog = true,
+    antiLagRemoveShadows = true,
+    antiLagReduceTextures = true,
+    antiLagDisableEffects = true,
+    antiLagEnemyLimit = 100,
+    antiLagDisableParticles = true,
+    antiLagDisableDecals = true,
+    antiLagDisableTrails = true,
+    antiLagDisableLightingEffects = true,
+    antiLagReduceWater = true,
+    antiLagDisableCastShadows = true,
+    antiLagMaterialOverride = true
+}
 local settings = {}
 
 local function loadSettings()
@@ -83,7 +102,8 @@ local function loadSettings()
         settings = decoded
         settings.activeAbilities = settings.activeAbilities or {}
     else
-        settings = { autoTargetMode = nil, autoSkip = false, emoteSpam = false, antiLagEnabled = true, activeAbilities = {} }
+        settings = {}
+        for k, v in pairs(defaultSettings) do settings[k] = v end
     end
 end
 
@@ -380,39 +400,9 @@ local function styleButton(btn, accent)
     end)
 end
 
-local topBtn = Instance.new("TextButton")
-topBtn.Size = UDim2.new(0.48, -4, 0, 36)
-topBtn.Position = UDim2.new(0, 0, 0, 0)
-topBtn.Text = "Auto Max Top"
-topBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-topBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
-topBtn.TextSize = 11
-topBtn.Parent = mainFrame
-styleButton(topBtn, true)
-
-local bottomBtn = Instance.new("TextButton")
-bottomBtn.Size = UDim2.new(0.48, -4, 0, 36)
-bottomBtn.Position = UDim2.new(0.52, 0, 0, 0)
-bottomBtn.Text = "Auto Max Bottom"
-bottomBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-bottomBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
-bottomBtn.TextSize = 11
-bottomBtn.Parent = mainFrame
-styleButton(bottomBtn, true)
-
-local emoteBtn = Instance.new("TextButton")
-emoteBtn.Size = UDim2.new(1, 0, 0, 36)
-emoteBtn.Position = UDim2.new(0, 0, 0, 44)
-emoteBtn.Text = "Spam Emote: OFF"
-emoteBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-emoteBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
-emoteBtn.TextSize = 11
-emoteBtn.Parent = mainFrame
-styleButton(emoteBtn, false)
-
 local teleportBtn = Instance.new("TextButton")
 teleportBtn.Size = UDim2.new(1, 0, 0, 36)
-teleportBtn.Position = UDim2.new(0, 0, 0, 86)
+teleportBtn.Position = UDim2.new(0, 0, 0, 0)
 teleportBtn.Text = "Teleport to Lobby"
 teleportBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
 teleportBtn.TextColor3 = Color3.fromRGB(220, 180, 100)
@@ -421,14 +411,37 @@ teleportBtn.Parent = mainFrame
 styleButton(teleportBtn, true)
 
 local antiLagBtn = Instance.new("TextButton")
-antiLagBtn.Size = UDim2.new(1, 0, 0, 36)
-antiLagBtn.Position = UDim2.new(0, 0, 0, 128)
+antiLagBtn.Size = UDim2.new(0.78, -4, 0, 36)
+antiLagBtn.Position = UDim2.new(0, 0, 0, 44)
 antiLagBtn.Text = "Anti Lag: ON"
 antiLagBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
 antiLagBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
 antiLagBtn.TextSize = 11
 antiLagBtn.Parent = mainFrame
 styleButton(antiLagBtn, true)
+
+local antiLagSettingsBtn = Instance.new("TextButton")
+antiLagSettingsBtn.Size = UDim2.new(0.2, -4, 0, 36)
+antiLagSettingsBtn.Position = UDim2.new(0.8, 0, 0, 44)
+antiLagSettingsBtn.Text = "⚙️"
+antiLagSettingsBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+antiLagSettingsBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
+antiLagSettingsBtn.TextSize = 16
+antiLagSettingsBtn.Font = Enum.Font.GothamBold
+antiLagSettingsBtn.AutoButtonColor = false
+antiLagSettingsBtn.Parent = mainFrame
+local alsCorner = Instance.new("UICorner", antiLagSettingsBtn)
+alsCorner.CornerRadius = UDim.new(0, 8)
+local alsStroke = Instance.new("UIStroke", antiLagSettingsBtn)
+alsStroke.Color = Color3.fromRGB(50, 50, 55)
+alsStroke.Thickness = 1
+antiLagSettingsBtn.MouseEnter:Connect(function()
+    antiLagSettingsBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 62)
+end)
+antiLagSettingsBtn.MouseLeave:Connect(function()
+    antiLagSettingsBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+end)
+
 addDebugLog("=== TDX Auto Initialized ===")
 addDebugLog("Debug loaded")
 addDebugLog("Looking for towers.....")
@@ -716,22 +729,22 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
             end
 
             if #validParts == 0 then
-                task.wait(0.05)  
+                task.wait(0.05)
                 continue
             end
-            
+
             for _, part in ipairs(validParts) do
                 if not settings.activeAbilities[abilityName] then break end
 
                 local enemies = getAllEnemies()
                 if #enemies == 0 then
-                    task.wait(0.01)   
+                    task.wait(0.01)
                     continue
                 end
 
                 local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist)
                 if not target then
-                    task.wait(0.01)  
+                    task.wait(0.01)
                     continue
                 end
 
@@ -752,7 +765,7 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
                         abilityUsedQueue[hash] = nil
                         break
                     end
-                    task.wait(0.01)  
+                    task.wait(0.01)
                 end
 
                 if confirmed then
@@ -760,7 +773,7 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
                     towerPauseUntil[part] = tick() + 6
                 end
 
-                task.wait(0.15)   
+                task.wait(0.15)
             end
 
             task.wait(0.1)
@@ -785,22 +798,15 @@ local function runOperatorHumvee()
 end
 
 local function runSniperFlare()
-    local sniperFlareCooldowns = {}
     local lastFlareUseTime = 0
     while settings.activeAbilities["FLARE"] do
         local now = tick()
         if now - lastFlareUseTime >= 5 then
             for part, data in pairs(towers) do
                 if data.owned and data.name == "Sniper" and data.hash and data.bottomCount >= 4 and part.Parent then
-                    local cooldownUntil = sniperFlareCooldowns[part] or 0
-                    if now >= cooldownUntil then
-                        task.spawn(function()
-                            local response = sendAbilityNoPosition(part, 1)
-                            if response == true then
-                                sniperFlareCooldowns[part] = now + 10
-                            end
-                        end)
-                    end
+                    task.spawn(function()
+                        sendAbilityNoPosition(part, 1)
+                    end)
                 end
             end
             lastFlareUseTime = now
@@ -810,22 +816,15 @@ local function runSniperFlare()
 end
 
 local function runStealthSensor()
-    local laserBurstCooldowns = {}
     local lastBurstUseTime = 0
     while settings.activeAbilities["STEALTH_SENSOR"] do
         local now = tick()
         if now - lastBurstUseTime >= 4 then
             for part, data in pairs(towers) do
                 if data.owned and data.name == "Laser Gunner" and data.hash and data.bottomCount >= 3 and part.Parent then
-                    local cooldownUntil = laserBurstCooldowns[part] or 0
-                    if now >= cooldownUntil then
-                        task.spawn(function()
-                            local response = sendAbilityNoPosition(part, 1)
-                            if response == true then
-                                laserBurstCooldowns[part] = now + 4
-                            end
-                        end)
-                    end
+                    task.spawn(function()
+                        sendAbilityNoPosition(part, 1)
+                    end)
                 end
             end
             lastBurstUseTime = now
@@ -872,28 +871,21 @@ local function runWarship()
 end
 
 local function runGrandSlamSequential()
-    local slammerGrandSlamCooldown = {}
     while settings.activeAbilities["GRAND_SLAM"] do
         local enemies = getAllEnemies()
         for part, data in pairs(towers) do
             if data.owned and data.name == "Slammer" and data.hash and data.topCount >= 5 and part.Parent then
-                local cooldownUntil = slammerGrandSlamCooldown[part] or 0
-                if tick() >= cooldownUntil then
-                    local enemyInRange = false
-                    for _, enemy in ipairs(enemies) do
-                        if (part.Position - enemy.Position).Magnitude <= 5.5 then
-                            enemyInRange = true
-                            break
-                        end
+                local enemyInRange = false
+                for _, enemy in ipairs(enemies) do
+                    if (part.Position - enemy.Position).Magnitude <= 5.5 then
+                        enemyInRange = true
+                        break
                     end
-                    if enemyInRange then
-                        task.spawn(function()
-                            local response = sendAbilityNoPosition(part, 1)
-                            if response == true then
-                                slammerGrandSlamCooldown[part] = tick() + 5
-                            end
-                        end)
-                    end
+                end
+                if enemyInRange then
+                    task.spawn(function()
+                        sendAbilityNoPosition(part, 1)
+                    end)
                 end
             end
         end
@@ -915,28 +907,21 @@ local function runOverloadSequential()
 end
 
 local function runAxeSequential()
-    local johnAxeCooldown = {}
     while settings.activeAbilities["AXE"] do
         local enemies = getAllEnemies()
         for part, data in pairs(towers) do
             if data.owned and data.name == "John" and data.hash and data.bottomCount >= 5 and part.Parent then
-                local cooldownUntil = johnAxeCooldown[part] or 0
-                if tick() >= cooldownUntil then
-                    local nearby = 0
-                    for _, enemy in ipairs(enemies) do
-                        if (part.Position - enemy.Position).Magnitude <= 6.5 then
-                            nearby = nearby + 1
-                            if nearby > 3 then break end
-                        end
+                local nearby = 0
+                for _, enemy in ipairs(enemies) do
+                    if (part.Position - enemy.Position).Magnitude <= 6.5 then
+                        nearby = nearby + 1
+                        if nearby > 3 then break end
                     end
-                    if nearby > 3 then
-                        task.spawn(function()
-                            local response = sendAbilityNoPosition(part, 1)
-                            if response == true then
-                                johnAxeCooldown[part] = tick() + 5
-                            end
-                        end)
-                    end
+                end
+                if nearby > 3 then
+                    task.spawn(function()
+                        sendAbilityNoPosition(part, 1)
+                    end)
                 end
             end
         end
@@ -993,11 +978,9 @@ local function runClusterCooldownAbility(abilityName, towerName, requiredPath, p
                         local target = cluster[state.nextIndex]
                         if target then
                             task.spawn(function()
-                                local response = sendAbilityNoPosition(target.part, slot)
-                                if response == true then
-                                    state.lastUse = now
-                                    state.nextIndex = (state.nextIndex % #cluster) + 1
-                                end
+                                sendAbilityNoPosition(target.part, slot)
+                                state.lastUse = now
+                                state.nextIndex = (state.nextIndex % #cluster) + 1
                             end)
                         end
                     end
@@ -1163,11 +1146,9 @@ local function runCallToArmsSequential()
                     if now - state.lastUse >= interval then
                         local targetCmd = cluster[state.nextIndex]
                         task.spawn(function()
-                            local response = sendAbilityNoPosition(targetCmd.part, 1)
-                            if response == true then
-                                state.lastUse = now
-                                state.nextIndex = (state.nextIndex % size) + 1
-                            end
+                            sendAbilityNoPosition(targetCmd.part, 1)
+                            state.lastUse = now
+                            state.nextIndex = (state.nextIndex % size) + 1
                         end)
                     end
                 end
@@ -1366,54 +1347,232 @@ tabDebugBtn.MouseButton1Click:Connect(function()
     setActiveTab(tabDebugBtn)
 end)
 
-local emoteSpam = settings.emoteSpam
-local emoteLoop = nil
+local antiLagEnabled = settings.antiLagEnabled
+local originalSettings = {}
+local antiLagApplied = false
+local antiLagConnections = {}
 
-local function startEmoteSpam()
-    if emoteLoop then task.cancel(emoteLoop) end
-    emoteLoop = task.spawn(function()
-        local emoteEvent = ReplicatedStorage:FindFirstChild("EmoteEvent")
-        while emoteSpam and emoteEvent do
-            pcall(function() emoteEvent:FireServer("KeyframeEvent", "Bunny Plush", "PlaySqueak") end)
-            task.wait(0.1)
+local function storeOriginalSettings()
+    pcall(function()
+        originalSettings.globalShadows = Lighting.GlobalShadows
+        originalSettings.fogStart = Lighting.FogStart
+        originalSettings.fogEnd = Lighting.FogEnd
+        originalSettings.fogColor = Lighting.FogColor
+        originalSettings.brightness = Lighting.Brightness
+        originalSettings.outdoorAmbient = Lighting.OutdoorAmbient
+        originalSettings.ambient = Lighting.Ambient
+    end)
+
+    local terrain = workspace:FindFirstChildOfClass("Terrain")
+    if terrain then
+        pcall(function()
+            originalSettings.terrainWaterWaveSize = terrain.WaterWaveSize
+            originalSettings.terrainWaterWaveSpeed = terrain.WaterWaveSpeed
+            originalSettings.terrainWaterReflectance = terrain.WaterReflectance
+            originalSettings.terrainWaterTransparency = terrain.WaterTransparency
+        end)
+    end
+end
+
+local function safeSetProperty(obj, prop, value)
+    pcall(function() obj[prop] = value end)
+end
+
+local function isEnemyPart(v)
+    local parent = v
+    while parent do
+        if parent.Name == "Enemies" then
+            local gameFolder = workspace:FindFirstChild("Game")
+            if gameFolder and parent.Parent == gameFolder then
+                return true
+            end
         end
-        emoteLoop = nil
+        parent = parent.Parent
+    end
+    return false
+end
+
+local function processPart(v)
+    if not v or not v.Parent then return end
+    if isEnemyPart(v) then return end
+    pcall(function()
+        if v:IsA("BasePart") or v:IsA("UnionOperation") or v:IsA("MeshPart") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") then
+            if not v:GetAttribute("_al_origMat") then
+                v:SetAttribute("_al_origMat", tostring(v.Material))
+            end
+            if settings.antiLagMaterialOverride then
+                if v.Material ~= Enum.Material.SmoothPlastic and v.Material ~= Enum.Material.Neon and v.Material ~= Enum.Material.ForceField then
+                    v.Material = Enum.Material.Plastic
+                end
+                v.Reflectance = 0
+            end
+            if settings.antiLagDisableCastShadows then
+                v.CastShadow = false
+            end
+        end
+        if (v:IsA("Decal") or v:IsA("Texture")) and settings.antiLagDisableDecals then
+            if not v:GetAttribute("_al_origTrans") then
+                v:SetAttribute("_al_origTrans", v.Transparency)
+            end
+            v.Transparency = 1
+        end
+        if (v:IsA("ParticleEmitter") or v:IsA("Trail")) and settings.antiLagDisableParticles then
+            if not v:GetAttribute("_al_origEnabled") then
+                v:SetAttribute("_al_origEnabled", v.Enabled)
+            end
+            v.Enabled = false
+        end
+        if v:IsA("Trail") and settings.antiLagDisableTrails then
+            if not v:GetAttribute("_al_origEnabled") then
+                v:SetAttribute("_al_origEnabled", v.Enabled)
+            end
+            v.Enabled = false
+        end
     end)
 end
 
-if emoteSpam then
-    emoteBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
-    emoteBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
-    emoteBtn.Text = "Spam Emote: ON"
-    startEmoteSpam()
-end
+local function applyAntiLagOnce()
+    if antiLagApplied then return end
+    antiLagApplied = true
 
-emoteBtn.MouseButton1Click:Connect(function()
-    emoteSpam = not emoteSpam
-    settings.emoteSpam = emoteSpam
-    saveSettings()
-    if emoteSpam then
-        emoteBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
-        emoteBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
-        emoteBtn.Text = "Spam Emote: ON"
-        startEmoteSpam()
-    else
-        emoteBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-        emoteBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
-        emoteBtn.Text = "Spam Emote: OFF"
-        if emoteLoop then task.cancel(emoteLoop) emoteLoop = nil end
+    if settings.antiLagRemoveFog then
+        safeSetProperty(Lighting, "FogStart", 0)
+        safeSetProperty(Lighting, "FogEnd", 9e9)
+        safeSetProperty(Lighting, "FogColor", Color3.fromRGB(180, 180, 180))
     end
-end)
 
-local antiLagEnabled = settings.antiLagEnabled
-if not antiLagEnabled then
-    antiLagBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-    antiLagBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
-    antiLagBtn.Text = "Anti Lag: OFF"
+    if settings.antiLagRemoveShadows then
+        safeSetProperty(Lighting, "GlobalShadows", false)
+    end
+
+    if settings.antiLagReduceTextures then
+        pcall(function() settings().Rendering.QualityLevel = 1 end)
+    end
+
+    if settings.antiLagReduceWater then
+        local terrain = workspace:FindFirstChildOfClass("Terrain")
+        if terrain then
+            pcall(function()
+                terrain.WaterWaveSize = 0
+                terrain.WaterWaveSpeed = 0
+                terrain.WaterReflectance = 0
+                terrain.WaterTransparency = 0
+            end)
+        end
+    end
+
+    if settings.antiLagDisableLightingEffects then
+        for _, v in ipairs(Lighting:GetDescendants()) do
+            pcall(function()
+                if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
+                    if not v:GetAttribute("_al_origEnabled") then
+                        v:SetAttribute("_al_origEnabled", v.Enabled)
+                    end
+                    v.Enabled = false
+                end
+            end)
+        end
+    end
+
+    task.spawn(function()
+        local descendants = workspace:GetDescendants()
+        local batchSize = 200
+        for i = 1, #descendants, batchSize do
+            for j = i, math.min(i + batchSize - 1, #descendants) do
+                if not isEnemyPart(descendants[j]) then
+                    processPart(descendants[j])
+                end
+            end
+            task.wait(0.05)
+        end
+    end)
 end
 
-local function trackCreation(instance)
-    if not instance:GetAttribute("_created") then instance:SetAttribute("_created", tick()) end
+local function setupAntiLagConnections()
+    for _, conn in ipairs(antiLagConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    antiLagConnections = {}
+
+    table.insert(antiLagConnections, workspace.DescendantAdded:Connect(function(v)
+        task.wait(0.1)
+        if antiLagEnabled and not isEnemyPart(v) then
+            processPart(v)
+        end
+    end))
+
+    table.insert(antiLagConnections, Lighting.DescendantAdded:Connect(function(v)
+        task.wait(0.1)
+        if antiLagEnabled and settings.antiLagDisableLightingEffects then
+            pcall(function()
+                if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
+                    if not v:GetAttribute("_al_origEnabled") then
+                        v:SetAttribute("_al_origEnabled", v.Enabled)
+                    end
+                    v.Enabled = false
+                end
+            end)
+        end
+    end))
+end
+
+local function restoreOriginalSettings()
+    pcall(function()
+        if originalSettings.globalShadows ~= nil then Lighting.GlobalShadows = originalSettings.globalShadows end
+        if originalSettings.fogStart ~= nil then Lighting.FogStart = originalSettings.fogStart end
+        if originalSettings.fogEnd ~= nil then Lighting.FogEnd = originalSettings.fogEnd end
+        if originalSettings.fogColor ~= nil then Lighting.FogColor = originalSettings.fogColor end
+        if originalSettings.brightness ~= nil then Lighting.Brightness = originalSettings.brightness end
+    end)
+
+    pcall(function() settings().Rendering.QualityLevel = 10 end)
+
+    local terrain = workspace:FindFirstChildOfClass("Terrain")
+    if terrain then
+        pcall(function()
+            if originalSettings.terrainWaterWaveSize ~= nil then terrain.WaterWaveSize = originalSettings.terrainWaterWaveSize end
+            if originalSettings.terrainWaterWaveSpeed ~= nil then terrain.WaterWaveSpeed = originalSettings.terrainWaterWaveSpeed end
+            if originalSettings.terrainWaterReflectance ~= nil then terrain.WaterReflectance = originalSettings.terrainWaterReflectance end
+            if originalSettings.terrainWaterTransparency ~= nil then terrain.WaterTransparency = originalSettings.terrainWaterTransparency end
+        end)   
+    end
+
+    task.spawn(function()
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if isEnemyPart(v) then continue end
+            pcall(function()
+                if v:IsA("BasePart") or v:IsA("UnionOperation") or v:IsA("MeshPart") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") then
+                    local origMat = v:GetAttribute("_al_origMat")
+                    if origMat then
+                        local success, mat = pcall(function() return Enum.Material[origMat] end)
+                        if success then v.Material = mat end
+                    end
+                end
+                if v:IsA("Decal") or v:IsA("Texture") then
+                    local origTrans = v:GetAttribute("_al_origTrans")
+                    if origTrans ~= nil then v.Transparency = origTrans end
+                end
+                if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                    local origEnabled = v:GetAttribute("_al_origEnabled")
+                    if origEnabled ~= nil then v.Enabled = origEnabled end
+                end
+            end)
+        end
+        for _, v in ipairs(Lighting:GetDescendants()) do
+            pcall(function()
+                if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
+                    local origEnabled = v:GetAttribute("_al_origEnabled")
+                    if origEnabled ~= nil then v.Enabled = origEnabled end
+                end
+            end) 
+        end
+    end)  
+
+    for _, conn in ipairs(antiLagConnections) do
+        pcall(function() conn:Disconnect() end)
+    end
+    antiLagConnections = {}
+    antiLagApplied = false
 end
 
 local function removeFolders()
@@ -1436,9 +1595,12 @@ local function removeFolders()
             local enemies = gameFolder:FindFirstChild("Enemies")
             if enemies then
                 local enemyParts = enemies:GetChildren()
-                for _, part in ipairs(enemyParts) do trackCreation(part) end
-                if #enemyParts > 100 then
-                    local excess = #enemyParts - 100
+                for _, part in ipairs(enemyParts) do
+                    if not part:GetAttribute("_created") then part:SetAttribute("_created", tick()) end
+                end
+                local limit = settings.antiLagEnemyLimit or 100
+                if #enemyParts > limit then
+                    local excess = #enemyParts - limit
                     table.sort(enemyParts, function(a,b) return (a:GetAttribute("_created") or 0) < (b:GetAttribute("_created") or 0) end)
                     for i = 1, excess do enemyParts[i]:Destroy() end
                 end
@@ -1463,13 +1625,412 @@ antiLagBtn.MouseButton1Click:Connect(function()
         antiLagBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
         antiLagBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
         antiLagBtn.Text = "Anti Lag: ON"
+        storeOriginalSettings()
+        applyAntiLagOnce()
+        setupAntiLagConnections()
+        addDebugLog("Anti-Lag enabled")
     else
         antiLagBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
         antiLagBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
         antiLagBtn.Text = "Anti Lag: OFF"
+        restoreOriginalSettings()
+        addDebugLog("Anti-Lag disabled")
     end
 end)
 
+if not antiLagEnabled then
+    antiLagBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+    antiLagBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
+    antiLagBtn.Text = "Anti Lag: OFF"
+else
+    storeOriginalSettings()
+    applyAntiLagOnce()
+    setupAntiLagConnections()
+end
+
+local antiLagSettingsOpen = false
+local antiLagSettingsGui = nil
+
+local function createAntiLagSettingsUI()
+    if antiLagSettingsGui then
+        pcall(function() antiLagSettingsGui:Destroy() end)
+        antiLagSettingsGui = nil
+    end
+
+    antiLagSettingsGui = Instance.new("ScreenGui")
+    antiLagSettingsGui.Name = "TDXAntiLagSettings"
+    antiLagSettingsGui.ResetOnSpawn = false
+    antiLagSettingsGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    antiLagSettingsGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    local overlay = Instance.new("Frame")
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
+    overlay.BackgroundTransparency = 0.5
+    overlay.Parent = antiLagSettingsGui
+    overlay.ZIndex = 100
+
+    local settingsFrame = Instance.new("Frame")
+    settingsFrame.Size = UDim2.new(0, 380, 0, 520)
+    settingsFrame.Position = UDim2.new(0.5, -190, 0.5, -260)
+    settingsFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
+    settingsFrame.BorderSizePixel = 0
+    settingsFrame.Parent = overlay
+    settingsFrame.ZIndex = 101
+    settingsFrame.Active = true
+
+    local sfCorner = Instance.new("UICorner", settingsFrame)
+    sfCorner.CornerRadius = UDim.new(0, 14)
+
+    local sfStroke = Instance.new("UIStroke", settingsFrame)
+    sfStroke.Color = Color3.fromRGB(45, 45, 50)
+    sfStroke.Thickness = 1.5
+
+    local sfTopBar = Instance.new("Frame")
+    sfTopBar.Size = UDim2.new(1, 0, 0, 44)
+    sfTopBar.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+    sfTopBar.BorderSizePixel = 0
+    sfTopBar.Parent = settingsFrame
+    sfTopBar.ZIndex = 102
+
+    local sfTopBarCorner = Instance.new("UICorner", sfTopBar)
+    sfTopBarCorner.CornerRadius = UDim.new(0, 14)
+
+    local sfTopBarFix = Instance.new("Frame")
+    sfTopBarFix.Size = UDim2.new(1, 0, 0, 20)
+    sfTopBarFix.Position = UDim2.new(0, 0, 1, -20)
+    sfTopBarFix.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+    sfTopBarFix.BorderSizePixel = 0
+    sfTopBarFix.Parent = sfTopBar
+    sfTopBarFix.ZIndex = 102
+
+    local sfTitle = Instance.new("TextLabel")
+    sfTitle.Size = UDim2.new(1, -60, 0, 44)
+    sfTitle.Position = UDim2.new(0, 18, 0, 0)
+    sfTitle.Text = "Anti-Lag Settings"
+    sfTitle.TextColor3 = Color3.fromRGB(230, 230, 235)
+    sfTitle.BackgroundTransparency = 1
+    sfTitle.Font = Enum.Font.GothamBold
+    sfTitle.TextSize = 16
+    sfTitle.TextXAlignment = Enum.TextXAlignment.Left
+    sfTitle.Parent = settingsFrame
+    sfTitle.ZIndex = 103
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 32, 0, 32)
+    closeBtn.Position = UDim2.new(1, -38, 0, 6)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.fromRGB(220, 130, 130)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 14
+    closeBtn.AutoButtonColor = false
+    closeBtn.Parent = settingsFrame
+    closeBtn.ZIndex = 103
+    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+    local closeStroke = Instance.new("UIStroke", closeBtn)
+    closeStroke.Color = Color3.fromRGB(130, 60, 60)
+    closeStroke.Thickness = 1
+
+    local scrollFrame = Instance.new("ScrollingFrame")
+    scrollFrame.Size = UDim2.new(1, -24, 1, -90)
+    scrollFrame.Position = UDim2.new(0, 12, 0, 54)
+    scrollFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
+    scrollFrame.BorderSizePixel = 0
+    scrollFrame.ScrollBarThickness = 5
+    scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+    scrollFrame.Parent = settingsFrame
+    scrollFrame.ZIndex = 102
+    Instance.new("UICorner", scrollFrame).CornerRadius = UDim.new(0, 10)
+
+    local scrollLayout = Instance.new("UIListLayout", scrollFrame)
+    scrollLayout.Padding = UDim.new(0, 8)
+    scrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    scrollLayout.FillDirection = Enum.FillDirection.Vertical
+    scrollLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    local function createToggle(parent, text, settingKey, defaultValue)
+        local toggleFrame = Instance.new("Frame")
+        toggleFrame.Size = UDim2.new(1, -16, 0, 36)
+        toggleFrame.BackgroundTransparency = 1
+        toggleFrame.Parent = parent
+        toggleFrame.ZIndex = 103
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.7, 0, 1, 0)
+        label.Position = UDim2.new(0, 8, 0, 0)
+        label.Text = text
+        label.TextColor3 = Color3.fromRGB(200, 200, 205)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamSemibold
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = toggleFrame
+        label.ZIndex = 104
+
+        local toggleBtn = Instance.new("TextButton")
+        toggleBtn.Size = UDim2.new(0, 50, 0, 26)
+        toggleBtn.Position = UDim2.new(1, -58, 0.5, -13)
+        toggleBtn.Text = ""
+        toggleBtn.AutoButtonColor = false
+        toggleBtn.Parent = toggleFrame
+        toggleBtn.ZIndex = 104
+
+        local toggleCorner = Instance.new("UICorner", toggleBtn)
+        toggleCorner.CornerRadius = UDim.new(0, 13)
+
+        local toggleStroke = Instance.new("UIStroke", toggleBtn)
+        toggleStroke.Thickness = 1
+
+        local circle = Instance.new("Frame")
+        circle.Size = UDim2.new(0, 20, 0, 20)
+        circle.Position = UDim2.new(0, 3, 0.5, -10)
+        circle.BackgroundColor3 = Color3.fromRGB(220, 220, 225)
+        circle.BorderSizePixel = 0
+        circle.Parent = toggleBtn
+        circle.ZIndex = 105
+        Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+        local currentValue = settings[settingKey]
+        if currentValue == nil then currentValue = defaultValue end
+
+        local function updateToggleVisual()
+            if currentValue then
+                toggleBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+                toggleStroke.Color = Color3.fromRGB(60, 130, 70)
+                circle.Position = UDim2.new(1, -23, 0.5, -10)
+            else
+                toggleBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
+                toggleStroke.Color = Color3.fromRGB(70, 70, 75)
+                circle.Position = UDim2.new(0, 3, 0.5, -10)
+            end
+        end
+
+        updateToggleVisual()
+
+        toggleBtn.MouseButton1Click:Connect(function()
+            currentValue = not currentValue
+            settings[settingKey] = currentValue
+            saveSettings()
+            updateToggleVisual()
+            if antiLagEnabled then
+                restoreOriginalSettings()
+                storeOriginalSettings()
+                applyAntiLagOnce()
+            end
+            addDebugLog(string.format("Anti-Lag setting '%s' set to %s", settingKey, tostring(currentValue)))
+        end)
+
+        return toggleFrame
+    end
+
+    local function createInputBox(parent, text, settingKey, defaultValue)
+        local inputFrame = Instance.new("Frame")
+        inputFrame.Size = UDim2.new(1, -16, 0, 50)
+        inputFrame.BackgroundTransparency = 1
+        inputFrame.Parent = parent
+        inputFrame.ZIndex = 103
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(1, -16, 0, 20)
+        label.Position = UDim2.new(0, 8, 0, 0)
+        label.Text = text
+        label.TextColor3 = Color3.fromRGB(200, 200, 205)
+        label.BackgroundTransparency = 1
+        label.Font = Enum.Font.GothamSemibold
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = inputFrame
+        label.ZIndex = 104
+
+        local inputBox = Instance.new("TextBox")
+        inputBox.Size = UDim2.new(0, 80, 0, 26)
+        inputBox.Position = UDim2.new(0, 8, 0, 22)
+        inputBox.Text = tostring(settings[settingKey] or defaultValue)
+        inputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+        inputBox.TextColor3 = Color3.fromRGB(220, 220, 225)
+        inputBox.Font = Enum.Font.GothamSemibold
+        inputBox.TextSize = 12
+        inputBox.ClearTextOnFocus = false
+        inputBox.Parent = inputFrame
+        inputBox.ZIndex = 104
+        Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 6)
+        local inputStroke = Instance.new("UIStroke", inputBox)
+        inputStroke.Color = Color3.fromRGB(50, 50, 55)
+        inputStroke.Thickness = 1
+
+        inputBox.FocusLost:Connect(function()
+            local num = tonumber(inputBox.Text)
+            if num then
+                num = math.clamp(math.floor(num), 10, 500)
+                settings[settingKey] = num
+                saveSettings()
+                inputBox.Text = tostring(num)
+                addDebugLog(string.format("Anti-Lag enemy limit set to %d", num))
+            else
+                inputBox.Text = tostring(settings[settingKey] or defaultValue)
+            end
+        end)
+
+        return inputFrame
+    end
+
+    local sectionLabel = Instance.new("TextLabel")
+    sectionLabel.Size = UDim2.new(1, -16, 0, 22)
+    sectionLabel.Text = "Visual Optimizations"
+    sectionLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
+    sectionLabel.BackgroundTransparency = 1
+    sectionLabel.Font = Enum.Font.GothamBold
+    sectionLabel.TextSize = 13
+    sectionLabel.TextXAlignment = Enum.TextXAlignment.Left
+    sectionLabel.Parent = scrollFrame
+    sectionLabel.ZIndex = 104
+
+    createToggle(scrollFrame, "Remove Fog", "antiLagRemoveFog", true)
+    createToggle(scrollFrame, "Remove Shadows (Global)", "antiLagRemoveShadows", true)
+    createToggle(scrollFrame, "Disable Part Cast Shadows", "antiLagDisableCastShadows", true)
+    createToggle(scrollFrame, "Reduce Textures (Low Quality)", "antiLagReduceTextures", true)
+    createToggle(scrollFrame, "Override Materials to Plastic", "antiLagMaterialOverride", true)
+    createToggle(scrollFrame, "Disable Decals / Textures", "antiLagDisableDecals", true)
+    createToggle(scrollFrame, "Disable Particles", "antiLagDisableParticles", true)
+    createToggle(scrollFrame, "Disable Trails", "antiLagDisableTrails", true)
+    createToggle(scrollFrame, "Disable Lighting Effects (Bloom, etc.)", "antiLagDisableLightingEffects", true)
+    createToggle(scrollFrame, "Reduce Water Effects", "antiLagReduceWater", true)
+
+    local sectionLabel2 = Instance.new("TextLabel")
+    sectionLabel2.Size = UDim2.new(1, -16, 0, 22)
+    sectionLabel2.Text = "Enemy Management"
+    sectionLabel2.TextColor3 = Color3.fromRGB(130, 220, 130)
+    sectionLabel2.BackgroundTransparency = 1
+    sectionLabel2.Font = Enum.Font.GothamBold
+    sectionLabel2.TextSize = 13
+    sectionLabel2.TextXAlignment = Enum.TextXAlignment.Left
+    sectionLabel2.Parent = scrollFrame
+    sectionLabel2.ZIndex = 104
+
+    createInputBox(scrollFrame, "Max Enemy Count (10-500)", "antiLagEnemyLimit", 100)
+
+    local sectionLabel3 = Instance.new("TextLabel")
+    sectionLabel3.Size = UDim2.new(1, -16, 0, 22)
+    sectionLabel3.Text = "Actions"
+    sectionLabel3.TextColor3 = Color3.fromRGB(130, 220, 130)
+    sectionLabel3.BackgroundTransparency = 1
+    sectionLabel3.Font = Enum.Font.GothamBold
+    sectionLabel3.TextSize = 13
+    sectionLabel3.TextXAlignment = Enum.TextXAlignment.Left
+    sectionLabel3.Parent = scrollFrame
+    sectionLabel3.ZIndex = 104
+
+    local resetBtn = Instance.new("TextButton")
+    resetBtn.Size = UDim2.new(1, -16, 0, 34)
+    resetBtn.Text = "Reset to Defaults"
+    resetBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
+    resetBtn.TextColor3 = Color3.fromRGB(220, 130, 130)
+    resetBtn.Font = Enum.Font.GothamSemibold
+    resetBtn.TextSize = 12
+    resetBtn.AutoButtonColor = false
+    resetBtn.Parent = scrollFrame
+    resetBtn.ZIndex = 104
+    Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 8)
+    local resetStroke = Instance.new("UIStroke", resetBtn)
+    resetStroke.Color = Color3.fromRGB(130, 60, 60)
+    resetStroke.Thickness = 1
+
+    resetBtn.MouseEnter:Connect(function()
+        resetBtn.BackgroundColor3 = Color3.fromRGB(120, 55, 55)
+    end)
+    resetBtn.MouseLeave:Connect(function()
+        resetBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
+    end)
+
+    resetBtn.MouseButton1Click:Connect(function()
+        settings.antiLagRemoveFog = true
+        settings.antiLagRemoveShadows = true
+        settings.antiLagReduceTextures = true
+        settings.antiLagDisableEffects = true
+        settings.antiLagEnemyLimit = 100
+        settings.antiLagDisableParticles = true
+        settings.antiLagDisableDecals = true
+        settings.antiLagDisableTrails = true
+        settings.antiLagDisableLightingEffects = true
+        settings.antiLagReduceWater = true
+        settings.antiLagDisableCastShadows = true
+        settings.antiLagMaterialOverride = true
+        saveSettings()
+        pcall(function() antiLagSettingsGui:Destroy() end)
+        antiLagSettingsGui = nil
+        antiLagSettingsOpen = false
+        createAntiLagSettingsUI()
+        addDebugLog("Anti-Lag settings reset to defaults")
+    end)
+
+    task.defer(function()
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLayout.AbsoluteContentSize.Y + 20)
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        pcall(function() antiLagSettingsGui:Destroy() end)
+        antiLagSettingsGui = nil
+        antiLagSettingsOpen = false
+    end)
+
+    overlay.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            local pos = input.Position
+            local framePos = settingsFrame.AbsolutePosition
+            local frameSize = settingsFrame.AbsoluteSize
+            if pos.X < framePos.X or pos.X > framePos.X + frameSize.X or pos.Y < framePos.Y or pos.Y > framePos.Y + frameSize.Y then
+                pcall(function() antiLagSettingsGui:Destroy() end)
+                antiLagSettingsGui = nil
+                antiLagSettingsOpen = false
+            end
+        end
+    end)
+end
+
+antiLagSettingsBtn.MouseButton1Click:Connect(function()
+    if antiLagSettingsOpen then
+        if antiLagSettingsGui then
+            pcall(function() antiLagSettingsGui:Destroy() end)
+            antiLagSettingsGui = nil
+        end
+        antiLagSettingsOpen = false
+    else
+        createAntiLagSettingsUI()
+        antiLagSettingsOpen = true
+        addDebugLog("Anti-Lag settings UI opened")
+    end 
+end) 
+
+local anchorBtn = Instance.new("TextButton")
+anchorBtn.Size = UDim2.new(0, 48, 0, 48)
+anchorBtn.Position = UDim2.new(0, 12, 0, 12)
+anchorBtn.Text = "TDX"
+anchorBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
+anchorBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+anchorBtn.TextSize = 13
+anchorBtn.Font = Enum.Font.GothamBold
+anchorBtn.Visible = false
+anchorBtn.AutoButtonColor = false
+anchorBtn.Parent = gui
+local anchorCorner = Instance.new("UICorner", anchorBtn)
+anchorCorner.CornerRadius = UDim.new(0, 12)
+local anchorStroke = Instance.new("UIStroke", anchorBtn)
+anchorStroke.Color = Color3.fromRGB(55, 55, 60)
+anchorStroke.Thickness = 1.5
+
+local isMinimized = false
+
+local function toggleMinimize()
+    isMinimized = not isMinimized
+    frame.Visible = not isMinimized
+    anchorBtn.Visible = isMinimized
+    addDebugLog(isMinimized and "UI minimized" or "UI restored")
+end
+
+minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
+anchorBtn.MouseButton1Click:Connect(toggleMinimize)
+ 
 task.delay(13, function()
     local lastCheck = 0
     RunService.Heartbeat:Connect(function(deltaTime)
@@ -1691,33 +2252,6 @@ teleportBtn.MouseButton1Click:Connect(function()
         confirmGui:Destroy()
     end)
 end)
-
-local anchorBtn = Instance.new("TextButton")
-anchorBtn.Size = UDim2.new(0, 48, 0, 48)
-anchorBtn.Position = UDim2.new(0, 12, 0, 12)
-anchorBtn.Text = "TDX"
-anchorBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
-anchorBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
-anchorBtn.TextSize = 13
-anchorBtn.Font = Enum.Font.GothamBold
-anchorBtn.Visible = false
-anchorBtn.AutoButtonColor = false
-anchorBtn.Parent = gui
-local anchorCorner = Instance.new("UICorner", anchorBtn)
-anchorCorner.CornerRadius = UDim.new(0, 12)
-local anchorStroke = Instance.new("UIStroke", anchorBtn)
-anchorStroke.Color = Color3.fromRGB(55, 55, 60)
-anchorStroke.Thickness = 1.5
-
-local isMinimized = false
-local function toggleMinimize()
-    isMinimized = not isMinimized
-    frame.Visible = not isMinimized
-    anchorBtn.Visible = isMinimized
-end
-
-minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
-anchorBtn.MouseButton1Click:Connect(toggleMinimize)
 
 clearDebugBtn.MouseButton1Click:Connect(function()
     for _, child in ipairs(debugLogFrameRef:GetChildren()) do
