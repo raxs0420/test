@@ -118,8 +118,15 @@ local function format_number(n)
     return s
 end
 
+local function get_player_gui()
+    local lp = game:GetService("Players").LocalPlayer
+    return lp and lp:FindFirstChild("PlayerGui")
+end
+
 local function tds_get_rewards_section()
-    local root = player_gui:FindFirstChild("ReactGameNewRewards")
+    local pg = get_player_gui()
+    if not pg then return end
+    local root = pg:FindFirstChild("ReactGameNewRewards")
     if not root then return end
     local frame = root:FindFirstChild("Frame")
     if not frame then return end
@@ -131,7 +138,9 @@ local function tds_get_rewards_section()
 end
 
 local function tds_get_stats_container()
-    local root = player_gui:FindFirstChild("ReactGameNewRewards")
+    local pg = get_player_gui()
+    if not pg then return end
+    local root = pg:FindFirstChild("ReactGameNewRewards")
     if not root then return end
     local frame = root:FindFirstChild("Frame")
     if not frame then return end
@@ -145,7 +154,9 @@ local function tds_get_stats_container()
 end
 
 local function tds_get_wave()
-    local top = player_gui:FindFirstChild("ReactGameTopGameDisplay")
+    local pg = get_player_gui()
+    if not pg then return "0" end
+    local top = pg:FindFirstChild("ReactGameTopGameDisplay")
     if not top then return "0" end
     local frame = top:FindFirstChild("Frame")
     if not frame then return "0" end
@@ -283,19 +294,22 @@ local function tds_collect()
     local section = tds_get_rewards_section()
     if not section then return nil end
     local banner_text = ""
-    local root = player_gui:FindFirstChild("ReactGameNewRewards")
-    if root then
-        local frame = root:FindFirstChild("Frame")
-        if frame then
-            local gameOver = frame:FindFirstChild("gameOver")
-            if gameOver then
-                local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
-                if rewardsScreen then
-                    local rewardBanner = rewardsScreen:FindFirstChild("RewardBanner")
-                    if rewardBanner then
-                        local label = rewardBanner:FindFirstChild("textLabel") or rewardBanner:FindFirstChildOfClass("TextLabel")
-                        if label and label:IsA("TextLabel") then
-                            banner_text = label.Text or ""
+    local pg = get_player_gui()
+    if pg then
+        local root = pg:FindFirstChild("ReactGameNewRewards")
+        if root then
+            local frame = root:FindFirstChild("Frame")
+            if frame then
+                local gameOver = frame:FindFirstChild("gameOver")
+                if gameOver then
+                    local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+                    if rewardsScreen then
+                        local rewardBanner = rewardsScreen:FindFirstChild("RewardBanner")
+                        if rewardBanner then
+                            local label = rewardBanner:FindFirstChild("textLabel") or rewardBanner:FindFirstChildOfClass("TextLabel")
+                            if label and label:IsA("TextLabel") then
+                                banner_text = label.Text or ""
+                            end
                         end
                     end
                 end
@@ -340,7 +354,6 @@ local function tds_collect()
         items = items,
     }
 end
-
 
 local function format_category_items(items, category)
     local lines = {}
