@@ -282,7 +282,6 @@ end
 local function tds_collect()
     local section = tds_get_rewards_section()
     if not section then return nil end
-    task.wait(0.5)
     local banner_text = ""
     local root = player_gui:FindFirstChild("ReactGameNewRewards")
     if root then
@@ -341,6 +340,7 @@ local function tds_collect()
         items = items,
     }
 end
+
 
 local function format_category_items(items, category)
     local lines = {}
@@ -623,20 +623,19 @@ local function start_auto_rejoin_monitor()
                                                         end
                                                     until found_section
 
-                                                    webhook_sent = false
-                                                    local data = tds_collect()
-                                                    if data then
-                                                        send_embed(data, "TDS")
-                                                        webhook_sent = true
+                                                    if not webhook_sent then
+                                                        local data = tds_collect()
+                                                        if data then
+                                                            send_embed(data, "TDS")
+                                                            webhook_sent = true
+                                                        end
                                                     end
 
                                                     task.wait(0.5)
 
                                                     if _G.AutoRejoin then
-                                                        task.spawn(function()
-                                                            webhook_sent = false
-                                                            rejoin_match()
-                                                        end)
+                                                        webhook_sent = false
+                                                        rejoin_match()
                                                     end
                                                 end
                                             end
