@@ -613,6 +613,8 @@ local function rejoin_match()
     return res
 end
 
+local last_webhook_key = ""
+
 local function start_auto_rejoin_monitor()
     if auto_rejoin_monitor_running then return end
     auto_rejoin_monitor_running = true
@@ -637,29 +639,46 @@ local function start_auto_rejoin_monitor()
                                         if label then
                                             local txt = label.Text:upper()
                                             if txt ~= "" and (txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") or txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL")) then
-                                                if not webhook_sent then
-                                                    local found_section = false
-                                                    repeat
-                                                        task.wait(0.1)
-                                                        local f = uiRoot:FindFirstChild("Frame")
-                                                        local g = f and f:FindFirstChild("gameOver")
-                                                        local s = g and g:FindFirstChild("RewardsScreen")
-                                                        if s and s:FindFirstChild("RewardsSection") then
-                                                            found_section = true
+                                                local wave = "0"
+                                                local top = playerGui:FindFirstChild("ReactGameTopGameDisplay")
+                                                if top then
+                                                    local f = top:FindFirstChild("Frame")
+                                                    if f then
+                                                        local w = f:FindFirstChild("wave")
+                                                        if w then
+                                                            local c = w:FindFirstChild("container")
+                                                            if c then
+                                                                local v = c:FindFirstChild("value")
+                                                                if v and v:IsA("TextLabel") then
+                                                                    wave = v.Text:match("^(%d+)") or "0"
+                                                                end
+                                                            end
                                                         end
-                                                    until found_section
-
-                                                    local data = tds_collect()
-                                                    if data then
-                                                        send_embed(data, "TDS")
-                                                        webhook_sent = true
                                                     end
                                                 end
-
-                                                if _G.AutoRejoin and webhook_sent then
-                                                    task.wait(0.5)
-                                                    webhook_sent = false
-                                                    rejoin_match()
+                                                local current_key = txt .. "_" .. wave .. "_" .. tostring(game.PlaceId)
+                                                if current_key ~= last_webhook_key then
+                                                    last_webhook_key = current_key
+                                                    task.spawn(function()
+                                                        local found_section = false
+                                                        repeat
+                                                            task.wait(0.1)
+                                                            local f = uiRoot:FindFirstChild("Frame")
+                                                            local g = f and f:FindFirstChild("gameOver")
+                                                            local s = g and g:FindFirstChild("RewardsScreen")
+                                                            if s and s:FindFirstChild("RewardsSection") then
+                                                                found_section = true
+                                                            end
+                                                        until found_section
+                                                        local data = tds_collect()
+                                                        if data then
+                                                            send_embed(data, "TDS")
+                                                        end
+                                                        if _G.AutoRejoin then
+                                                            task.wait(0.5)
+                                                            rejoin_match()
+                                                        end
+                                                    end)
                                                 end
                                             end
                                         end
