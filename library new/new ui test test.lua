@@ -637,18 +637,18 @@ local function start_auto_rejoin_monitor()
                                         if label then
                                             local txt = label.Text:upper()
                                             if txt ~= "" and (txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") or txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL")) then
-                                                local found_section = false
-                                                repeat
-                                                    task.wait(0.1)
-                                                    local f = uiRoot:FindFirstChild("Frame")
-                                                    local g = f and f:FindFirstChild("gameOver")
-                                                    local s = g and g:FindFirstChild("RewardsScreen")
-                                                    if s and s:FindFirstChild("RewardsSection") then
-                                                        found_section = true
-                                                    end
-                                                until found_section
-
                                                 if not webhook_sent then
+                                                    local found_section = false
+                                                    repeat
+                                                        task.wait(0.1)
+                                                        local f = uiRoot:FindFirstChild("Frame")
+                                                        local g = f and f:FindFirstChild("gameOver")
+                                                        local s = g and g:FindFirstChild("RewardsScreen")
+                                                        if s and s:FindFirstChild("RewardsSection") then
+                                                            found_section = true
+                                                        end
+                                                    until found_section
+
                                                     local data = tds_collect()
                                                     if data then
                                                         send_embed(data, "TDS")
@@ -656,7 +656,7 @@ local function start_auto_rejoin_monitor()
                                                     end
                                                 end
 
-                                                if _G.AutoRejoin then
+                                                if _G.AutoRejoin and webhook_sent then
                                                     task.wait(0.5)
                                                     webhook_sent = false
                                                     rejoin_match()
@@ -675,7 +675,6 @@ local function start_auto_rejoin_monitor()
     end)
 end
 start_auto_rejoin_monitor()
-
 
 local function getTowerPosition(towerModel)
     local primary = towerModel:FindFirstChild("PrimaryPart") or towerModel:FindFirstChild("Head") or towerModel:FindFirstChildWhichIsA("BasePart")
