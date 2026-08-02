@@ -37,11 +37,399 @@ end
 
 game_state = identify_game_state()
 
+local HttpService = game:GetService("HttpService")
 local send_request = request or http_request or httprequest
 if not send_request then
     _G.SendWebhook = false
     warn("No HTTP function - webhooks disabled")
 end
+
+local WEBHOOK = _G.Webhook or ""
+
+local CHESTS = {
+    ["rbxassetid://"] = "Showtime Crate",
+    ["rbxassetid://"] = "Beach Crate",
+    ["rbxassetid://71674076269696"] = "Scuba Ops Crate",
+    ["rbxassetid://"] = "Patriotic Crate",
+}
+
+local CONSUMABLES = {
+    ["rbxassetid://100201829226448"] = "Ducky Squad(s)",
+    ["rbxassetid://17447507910"] = "Timescale Ticket(s)",
+    ["rbxassetid://17438486690"] = "Range Flag(s)",
+    ["rbxassetid://17438486138"] = "Damage Flag(s)",
+    ["rbxassetid://17438487774"] = "Cooldown Flag(s)",
+    ["rbxassetid://17429537022"] = "Blizzard(s)",
+    ["rbxassetid://17448596749"] = "Napalm Strike(s)",
+    ["rbxassetid://18493073533"] = "Spin Ticket(s)",
+    ["rbxassetid://17429548305"] = "Supply Drop(s)",
+    ["rbxassetid://98556517737333"] = "Low Grade Consumable Crate(s)",
+    ["rbxassetid://90205718290985"] = "Mid Grade Consumable Crate(s)",
+    ["rbxassetid://18443277591"] = "High Grade Consumable Crate(s)",
+    ["rbxassetid://136180382135048"] = "Santa Radio(s)",
+    ["rbxassetid://115421293343588"] = "Easter Egg(s)",
+    ["rbxassetid://95120437798143"] = "Molten Monster(s)",
+    ["rbxassetid://132155797622156"] = "Christmas Tree(s)",
+    ["rbxassetid://124065875200929"] = "Fruit Cake(s)",
+    ["rbxassetid://17429541513"] = "Barricade(s)",
+    ["rbxassetid://110415073436604"] = "Holy Hand Grenade(s)",
+    ["rbxassetid://17429533728"] = "Frag Grenade(s)",
+    ["rbxassetid://17437703262"] = "Molotov(s)",
+    ["rbxassetid://139414922355803"] = "Present Clusters(s)",
+}
+
+local MAIN = {
+    ["rbxassetid://6794340240"] = "XP",
+    ["rbxassetid://128907328829271"] = "Coins",
+    ["rbxassetid://108777382125602"] = "Gems",
+}
+
+local EVOLVED_XP = {
+    ["rbxassetid://16742136768"] = "Scout XP",
+    ["rbxassetid://16742109340"] = "Minigunner XP",
+    ["rbxassetid://16742038000"] = "Crook Boss XP",
+    ["rbxassetid://94394209436954"] = "Operator XP",
+    ["rbxassetid://131022816552952"] = "Juggernaut XP",
+    ["rbxassetid://74602401810472"] = "Kingpin XP",
+}
+
+local ITEM_NAMES = {}
+for k, v in pairs(CHESTS) do ITEM_NAMES[k] = v end
+for k, v in pairs(CONSUMABLES) do ITEM_NAMES[k] = v end
+for k, v in pairs(MAIN) do ITEM_NAMES[k] = v end
+for k, v in pairs(EVOLVED_XP) do ITEM_NAMES[k] = v end
+
+local function get_item_category(iconId)
+    if CHESTS[iconId] then return "chests" end
+    if CONSUMABLES[iconId] then return "consumables" end
+    if MAIN[iconId] then return "main" end
+    if EVOLVED_XP[iconId] then return "evolved_xp" end
+    return "unknown"
+end
+
+local function extract_number(str)
+    if type(str) ~= "string" then return 0 end
+    local num = str:match("%d+")
+    return tonumber(num) or 0
+end
+
+local function format_number(n)
+    local s = tostring(n):reverse():gsub("(%d%d%d)", "%1,"):reverse():gsub("^,", "")
+    return s
+end
+
+local function tds_get_rewards_section()
+    local root = player_gui:FindFirstChild("ReactGameNewRewards")
+    if not root then return end
+    local frame = root:FindFirstChild("Frame")
+    if not frame then return end
+    local gameOver = frame:FindFirstChild("gameOver")
+    if not gameOver then return end
+    local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+    if not rewardsScreen then return end
+    return rewardsScreen:FindFirstChild("RewardsSection")
+end
+
+local function tds_get_stats_container()
+    local root = player_gui:FindFirstChild("ReactGameNewRewards")
+    if not root then return end
+    local frame = root:FindFirstChild("Frame")
+    if not frame then return end
+    local gameOver = frame:FindFirstChild("gameOver")
+    if not gameOver then return end
+    local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+    if not rewardsScreen then return end
+    local gameStats = rewardsScreen:FindFirstChild("gameStats")
+    if not gameStats then return end
+    return gameStats:FindFirstChild("stats")
+end
+
+local function tds_get_wave()
+    local top = player_gui:FindFirstChild("ReactGameTopGameDisplay")
+    if not top then return "0" end
+    local frame = top:FindFirstChild("Frame")
+    if not frame then return "0" end
+    local wave = frame:FindFirstChild("wave")
+    if not wave then return "0" end
+    local container = wave:FindFirstChild("container")
+    if not container then return "0" end
+    local value = container:FindFirstChild("value")
+    if value and value:IsA("TextLabel") then
+        local txt = value.Text or "0/0"
+        return string.match(txt, "^(%d+)") or "0"
+    end
+    return "0"
+end
+
+local function tds_find_text_in_section(section, keyword)
+    if not section then return "" end
+    for _, child in ipairs(section:GetDescendants()) do
+        if child:IsA("TextLabel") and child.Text and string.find(child.Text, keyword) then
+            return child.Text
+        end
+    end
+    return ""
+end
+
+local function tds_parse_stats(stats)
+    local result = { time = "", map = "", difficulty = "" }
+    if not stats then return result end
+    for _, child in ipairs(stats:GetChildren()) do
+        local label = child:FindFirstChild("textLabel")
+        local value = child:FindFirstChild("textLabel2")
+        if label and label:IsA("TextLabel") and value then
+            local label_text = label.Text or ""
+            local val_text = ""
+            local refLabel = value:FindFirstChild("refLabel")
+            if refLabel and refLabel:IsA("TextLabel") then
+                val_text = refLabel.Text or ""
+            elseif value:IsA("TextLabel") then
+                val_text = value.Text or ""
+            end
+            if string.find(label_text, "Time") then
+                result.time = val_text
+            elseif string.find(label_text, "Map") then
+                result.map = val_text
+            elseif string.find(label_text, "Difficulty") or string.find(label_text, "Mode") then
+                result.difficulty = val_text
+            end
+        end
+    end
+    return result
+end
+
+local function tds_collect_items()
+    local all_items = {}
+    local section = tds_get_rewards_section()
+    if not section then return all_items end
+    for _, child in ipairs(section:GetChildren()) do
+        if child:IsA("GuiObject") or child:IsA("Frame") or child:IsA("ImageLabel") or child:IsA("ImageButton") or child:IsA("TextLabel") then
+            local iconFrame = child:FindFirstChild("icon")
+            if not iconFrame then
+                pcall(function() iconFrame = child.icon end)
+            end
+            if iconFrame then
+                local iconImage = iconFrame:FindFirstChild("icon")
+                if not iconImage then
+                    pcall(function() iconImage = iconFrame.icon end)
+                end
+                local iconId = ""
+                if iconImage then
+                    local success, img = pcall(function() return iconImage.Image end)
+                    if success and img and img ~= "" then
+                        iconId = tostring(img)
+                    end
+                end
+                if iconId ~= "" then
+                    local count = 0
+                    local countText = ""
+                    local countLabel = iconFrame:FindFirstChild("textLabel")
+                    if not countLabel then
+                        pcall(function() countLabel = iconFrame.textLabel end)
+                    end
+                    if countLabel then
+                        local success, txt = pcall(function() return countLabel.Text end)
+                        if success and txt and txt ~= "" then
+                            countText = txt
+                        end
+                    end
+                    if countText == "" then
+                        for _, desc in ipairs(iconFrame:GetDescendants()) do
+                            if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+                                local success, txt = pcall(function() return desc.Text end)
+                                if success and txt and txt ~= "" then
+                                    countText = txt
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    if countText == "" then
+                        for _, desc in ipairs(child:GetDescendants()) do
+                            if desc:IsA("TextLabel") or desc:IsA("TextButton") then
+                                local success, txt = pcall(function() return desc.Text end)
+                                if success and txt and txt ~= "" and txt ~= " " then
+                                    countText = txt
+                                    break
+                                end
+                            end
+                        end
+                    end
+                    count = extract_number(countText)
+                    if count == 0 and countText ~= "" then
+                        local x_match = string.match(countText, "x(%d+)")
+                        if x_match then
+                            count = tonumber(x_match) or 0
+                        end
+                    end
+                    if count == 0 and countText == "" then
+                        count = 1
+                    end
+                    if count > 0 then
+                        table.insert(all_items, {
+                            icon = iconId,
+                            count = count,
+                            category = get_item_category(iconId),
+                        })
+                    end
+                end
+            end
+        end
+    end
+    return all_items
+end
+
+local function tds_collect()
+    local section = tds_get_rewards_section()
+    if not section then return nil end
+    task.wait(0.5)
+    local banner_text = ""
+    local root = player_gui:FindFirstChild("ReactGameNewRewards")
+    if root then
+        local frame = root:FindFirstChild("Frame")
+        if frame then
+            local gameOver = frame:FindFirstChild("gameOver")
+            if gameOver then
+                local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+                if rewardsScreen then
+                    local rewardBanner = rewardsScreen:FindFirstChild("RewardBanner")
+                    if rewardBanner then
+                        local label = rewardBanner:FindFirstChild("textLabel") or rewardBanner:FindFirstChildOfClass("TextLabel")
+                        if label and label:IsA("TextLabel") then
+                            banner_text = label.Text or ""
+                        end
+                    end
+                end
+            end
+        end
+    end
+    local is_win = false
+    local upper = string.upper(banner_text)
+    if string.find(upper, "TRIUMPH") or string.find(upper, "VICTORY") or string.find(upper, "WIN") then
+        is_win = true
+    elseif string.find(upper, "LOST") or string.find(upper, "DEFEAT") or string.find(upper, "FAIL") then
+        is_win = false
+    else
+        for _, child in ipairs(section:GetDescendants()) do
+            if child:IsA("TextLabel") and child.Text then
+                local txt = string.upper(child.Text)
+                if string.find(txt, "TRIUMPH") or string.find(txt, "VICTORY") or string.find(txt, "WIN") then
+                    is_win = true
+                    break
+                elseif string.find(txt, "LOST") or string.find(txt, "DEFEAT") or string.find(txt, "FAIL") then
+                    is_win = false
+                    break
+                end
+            end
+        end
+    end
+    local coins_text = tds_find_text_in_section(section, "Coins")
+    local gems_text = tds_find_text_in_section(section, "Gems")
+    local stats = tds_get_stats_container()
+    local stats_data = tds_parse_stats(stats)
+    local items = tds_collect_items()
+    return {
+        status = is_win and "WIN" or "DEFEAT",
+        coins_gain = extract_number(coins_text),
+        gems_gain = extract_number(gems_text),
+        wave = tds_get_wave(),
+        map = stats_data.map,
+        difficulty = stats_data.difficulty,
+        time_display = stats_data.time,
+        tokens_gain = 0,
+        cookies_gain = 0,
+        items = items,
+    }
+end
+
+local function format_category_items(items, category)
+    local lines = {}
+    for _, item in ipairs(items) do
+        if item.category == category then
+            local item_name = ITEM_NAMES[item.icon]
+            if item_name then
+                table.insert(lines, string.format("%s x%d", item_name, item.count))
+            else
+                local assetId = string.match(item.icon, "rbxassetid://(%d+)") or "?"
+                table.insert(lines, string.format("Unknown x%d (`%s`)", item.count, assetId))
+            end
+        end
+    end
+    return lines
+end
+
+local function send_embed(data, game_name)
+    pcall(function()
+        local webhook_url = _G.Webhook or WEBHOOK
+        if webhook_url == "" or webhook_url == nil then return end
+        local color = (data.status == "WIN") and 0x2ecc71 or 0xe74c3c
+        local title = (data.status == "WIN") and "🏆 Victory" or (data.status == "DEFEAT" and "💀 Defeat" or "❓ Unknown")
+        local parts = {}
+        table.insert(parts, string.format("**Game:** %s", game_name))
+        table.insert(parts, string.format("**Difficulty:** %s | **Map:** %s", data.difficulty ~= "" and data.difficulty or "?", data.map ~= "" and data.map or "?"))
+        table.insert(parts, string.format("**Time:** %s | **Wave:** %s", data.time_display or "?", data.wave ~= "" and data.wave or "?"))
+        local currency_parts = {}
+        local coins_total = local_player:FindFirstChild("Coins") and local_player.Coins.Value or 0
+        local gems_total = local_player:FindFirstChild("Gems") and local_player.Gems.Value or 0
+        local coins_str = "**Coins:** " .. format_number(coins_total)
+        if data.coins_gain > 0 then
+            coins_str = coins_str .. " (+" .. data.coins_gain .. ")"
+        end
+        table.insert(currency_parts, coins_str)
+        local gems_str = "**Gems:** " .. format_number(gems_total)
+        if data.gems_gain > 0 then
+            gems_str = gems_str .. " (+" .. data.gems_gain .. ")"
+        end
+        table.insert(currency_parts, gems_str)
+        if #currency_parts > 0 then
+            table.insert(parts, table.concat(currency_parts, " | "))
+        end
+        if data.items and #data.items > 0 then
+            local chests = format_category_items(data.items, "chests")
+            local consumables = format_category_items(data.items, "consumables")
+            local main = format_category_items(data.items, "main")
+            local evolved = format_category_items(data.items, "evolved_xp")
+            local unknown = format_category_items(data.items, "unknown")
+            if #chests > 0 then
+                table.insert(parts, "**💎 Chests:** " .. table.concat(chests, " | "))
+            end
+            if #consumables > 0 then
+                table.insert(parts, "**📦 Consumables:** " .. table.concat(consumables, " | "))
+            end
+            if #main > 0 then
+                table.insert(parts, "**💰 Main:** " .. table.concat(main, " | "))
+            end
+            if #evolved > 0 then
+                table.insert(parts, "**⭐ Evolved XP:** " .. table.concat(evolved, " | "))
+            end
+            if #unknown > 0 then
+                table.insert(parts, "**❓ Unknown:** " .. table.concat(unknown, " | "))
+            end
+        else
+            table.insert(parts, "**Items:** None")
+        end
+        table.insert(parts, "**Account:** " .. local_player.Name)
+        local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        local embed = {
+            title = title,
+            color = color,
+            description = table.concat(parts, "\n"),
+            timestamp = timestamp
+        }
+        local payload = HttpService:JSONEncode({ embeds = { embed } })
+        if type(send_request) == "function" then
+            send_request({
+                Url = webhook_url,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = payload
+            })
+        end
+    end)
+end
+
+
+local webhook_sent = false
 
 local teleport_service = game:GetService("TeleportService")
 local marketplace_service = game:GetService("MarketplaceService")
@@ -119,76 +507,6 @@ local function check_res_ok(data)
     if success and is_model then return true end
     if type(data) == "userdata" then return true end
     return false
-end
-
-local function get_all_rewards()
-    local results = {
-        Coins = 0,
-        Gems = 0,
-        XP = 0,
-        Wave = 0,
-        Level = 0,
-        Time = "00:00",
-        Status = "UNKNOWN",
-        Others = {}
-    }
-    local ui_root = player_gui:FindFirstChild("ReactGameNewRewards")
-    local main_frame = ui_root and ui_root:FindFirstChild("Frame")
-    local game_over = main_frame and main_frame:FindFirstChild("gameOver")
-    local rewards_screen = game_over and game_over:FindFirstChild("RewardsScreen")
-    local game_stats = rewards_screen and rewards_screen:FindFirstChild("gameStats")
-    local stats_list = game_stats and game_stats:FindFirstChild("stats")
-    if stats_list then
-        for _, frame in ipairs(stats_list:GetChildren()) do
-            local l1 = frame:FindFirstChild("textLabel")
-            local l2 = frame:FindFirstChild("textLabel2")
-            if l1 and l2 and l1.Text:find("Time Completed:") then
-                results.Time = l2.Text
-                break
-            end
-        end
-    end
-    local top_banner = rewards_screen and rewards_screen:FindFirstChild("RewardBanner")
-    if top_banner and top_banner:FindFirstChild("textLabel") then
-        local txt = top_banner.textLabel.Text:upper()
-        results.Status = txt:find("TRIUMPH") and "WIN" or (txt:find("LOST") and "LOSS" or "UNKNOWN")
-    end
-    local level_value = local_player.Level
-    if level_value then
-        results.Level = level_value.Value or 0
-    end
-    local label = player_gui:WaitForChild("ReactGameTopGameDisplay").Frame.wave.container.value
-    local wave_num = label.Text:match("^(%d+)")
-    if wave_num then
-        results.Wave = tonumber(wave_num) or 0
-    end
-    local section_rewards = rewards_screen and rewards_screen:FindFirstChild("RewardsSection")
-    if section_rewards then
-        for _, item in ipairs(section_rewards:GetChildren()) do
-            if tonumber(item.Name) then
-                local icon_id = "0"
-                local img = item:FindFirstChildWhichIsA("ImageLabel", true)
-                if img then icon_id = img.Image:match("%d+") or "0" end
-                for _, child in ipairs(item:GetDescendants()) do
-                    if child:IsA("TextLabel") then
-                        local text = child.Text
-                        local amt = tonumber(text:match("(%d+)")) or 0
-                        if text:find("Coins") then
-                            results.Coins = amt
-                        elseif text:find("Gems") then
-                            results.Gems = amt
-                        elseif text:find("XP") then
-                            results.XP = amt
-                        elseif text:lower():find("x%d+") then
-                            local displayName = ItemNames[icon_id] or "Unknown Item (" .. icon_id .. ")"
-                            table.insert(results.Others, {Amount = text:match("x%d+"), Name = displayName})
-                        end
-                    end
-                end
-            end
-        end
-    end
-    return results
 end
 
 local function SmartTeleportToLobby()
@@ -1425,6 +1743,22 @@ local function start_rejoin_on_disconnect()
         end)
     end)
 end
+
+local VirtualUser = game:GetService("VirtualUser")
+local function setupAntiAFK()
+    pcall(function()
+        localPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new(0, 0))
+        end)
+    end)
+end
+setupAntiAFK()
+localPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    setupAntiAFK()
+end)
+
 
 local function start_auto_dj_booth()
     if auto_dj_running or not _G.AutoDJ then return end
