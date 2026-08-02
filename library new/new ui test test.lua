@@ -622,9 +622,17 @@ local function start_auto_rejoin_monitor()
                                                             found_section = true
                                                         end
                                                     until found_section
-                                                    task.wait(2)
+                                                    if not webhook_sent then
+                                                        local data = tds_collect()
+                                                        if data then
+                                                            send_embed(data, "TDS")
+                                                            webhook_sent = true
+                                                        end
+                                                    end
+                                                    task.wait(0.5)
                                                     if _G.AutoRejoin then
                                                         rejoin_match()
+                                                        webhook_sent = false
                                                     end
                                                 end
                                             end
@@ -643,6 +651,7 @@ local function start_auto_rejoin_monitor()
     end)
 end
 start_auto_rejoin_monitor()
+
 
 local function getTowerPosition(towerModel)
     local primary = towerModel:FindFirstChild("PrimaryPart") or towerModel:FindFirstChild("Head") or towerModel:FindFirstChildWhichIsA("BasePart")
