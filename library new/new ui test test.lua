@@ -372,9 +372,16 @@ local function format_category_items(items, category)
 end
 
 local function send_embed(data, game_name)
-    pcall(function()
-        local webhook_url = _G.Webhook or WEBHOOK
-        if webhook_url == "" or webhook_url == nil then return end
+    local webhook_url = _G.Webhook or WEBHOOK
+    if webhook_url == "" or webhook_url == nil then
+        warn("WEBHOOK: No URL set (_G.Webhook is empty)")
+        return
+    end
+    if type(send_request) ~= "function" then
+        warn("WEBHOOK: No HTTP function available")
+        return
+    end
+    local ok, err = pcall(function()
         local color = (data.status == "WIN") and 0x2ecc71 or 0xe74c3c
         local title = (data.status == "WIN") and "🏆 Victory" or (data.status == "DEFEAT" and "💀 Defeat" or "❓ Unknown")
         local parts = {}
@@ -382,8 +389,9 @@ local function send_embed(data, game_name)
         table.insert(parts, string.format("**Difficulty:** %s | **Map:** %s", data.difficulty ~= "" and data.difficulty or "?", data.map ~= "" and data.map or "?"))
         table.insert(parts, string.format("**Time:** %s | **Wave:** %s", data.time_display or "?", data.wave ~= "" and data.wave or "?"))
         local currency_parts = {}
-        local coins_total = local_player:FindFirstChild("Coins") and local_player.Coins.Value or 0
-        local gems_total = local_player:FindFirstChild("Gems") and local_player.Gems.Value or 0
+        local lp = game:GetService("Players").LocalPlayer
+        local coins_total = lp and lp:FindFirstChild("Coins") and lp.Coins.Value or 0
+        local gems_total = lp and lp:FindFirstChild("Gems") and lp.Gems.Value or 0
         local coins_str = "**Coins:** " .. format_number(coins_total)
         if data.coins_gain > 0 then
             coins_str = coins_str .. " (+" .. data.coins_gain .. ")"
@@ -421,7 +429,7 @@ local function send_embed(data, game_name)
         else
             table.insert(parts, "**Items:** None")
         end
-        table.insert(parts, "**Account:** " .. local_player.Name)
+        table.insert(parts, "**Account:** " .. (lp and lp.Name or "?"))
         local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
         local embed = {
             title = title,
@@ -430,17 +438,22 @@ local function send_embed(data, game_name)
             timestamp = timestamp
         }
         local payload = HttpService:JSONEncode({ embeds = { embed } })
-        if type(send_request) == "function" then
-            send_request({
-                Url = webhook_url,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = payload
-            })
+        local res = send_request({
+            Url = webhook_url,
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = payload
+        })
+        if res and res.StatusCode and res.StatusCode >= 200 and res.StatusCode < 300 then
+            print("WEBHOOK SENT OK")
+        else
+            warn("WEBHOOK FAILED:", res and res.StatusCode or "no response")
         end
     end)
+    if not ok then
+        warn("WEBHOOK ERROR:", err)
+    end
 end
-
 
 local webhook_sent = false
 
@@ -606,50 +619,47 @@ local function start_auto_rejoin_monitor()
 
     task.spawn(function()
         while true do
-            if _G.AutoRejoin then
-                local playerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
-                if playerGui then
-                    local isInGame = playerGui:FindFirstChild("ReactUniversalHotbar") ~= nil
-                    if isInGame then
-                        local uiRoot = playerGui:FindFirstChild("ReactGameNewRewards")
-                        if uiRoot then
-                            local mainFrame = uiRoot:FindFirstChild("Frame")
-                            if mainFrame and mainFrame.Visible then
-                                local gameOver = mainFrame:FindFirstChild("gameOver")
-                                if gameOver and gameOver.Visible then
-                                    local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
-                                    if rewardsScreen and rewardsScreen.Visible then
-                                        local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
-                                        if topBanner then
-                                            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
-                                            if label then
-                                                local txt = label.Text:upper()
-                                                if txt ~= "" then
-                                                    local found_section = false
-                                                    repeat
-                                                        task.wait(0.1)
-                                                        local f = uiRoot:FindFirstChild("Frame")
-                                                        local g = f and f:FindFirstChild("gameOver")
-                                                        local s = g and g:FindFirstChild("RewardsScreen")
-                                                        if s and s:FindFirstChild("RewardsSection") then
-                                                            found_section = true
-                                                        end
-                                                    until found_section
-
-                                                    if not webhook_sent then
-                                                        local data = tds_collect()
-                                                        if data then
-                                                            send_embed(data, "TDS")
-                                                            webhook_sent = true
-                                                        end
+            local playerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+            if playerGui then
+                local isInGame = playerGui:FindFirstChild("ReactUniversalHotbar") ~= nil
+                if isInGame then
+                    local uiRoot = playerGui:FindFirstChild("ReactGameNewRewards")
+                    if uiRoot then
+                        local mainFrame = uiRoot:FindFirstChild("Frame")
+                        if mainFrame and mainFrame.Visible then
+                            local gameOver = mainFrame:FindFirstChild("gameOver")
+                            if gameOver and gameOver.Visible then
+                                local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+                                if rewardsScreen and rewardsScreen.Visible then
+                                    local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
+                                    if topBanner then
+                                        local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
+                                        if label then
+                                            local txt = label.Text:upper()
+                                            if txt ~= "" and (txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") or txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL")) then
+                                                local found_section = false
+                                                repeat
+                                                    task.wait(0.1)
+                                                    local f = uiRoot:FindFirstChild("Frame")
+                                                    local g = f and f:FindFirstChild("gameOver")
+                                                    local s = g and g:FindFirstChild("RewardsScreen")
+                                                    if s and s:FindFirstChild("RewardsSection") then
+                                                        found_section = true
                                                     end
+                                                until found_section
 
+                                                if not webhook_sent then
+                                                    local data = tds_collect()
+                                                    if data then
+                                                        send_embed(data, "TDS")
+                                                        webhook_sent = true
+                                                    end
+                                                end
+
+                                                if _G.AutoRejoin then
                                                     task.wait(0.5)
-
-                                                    if _G.AutoRejoin then
-                                                        webhook_sent = false
-                                                        rejoin_match()
-                                                    end
+                                                    webhook_sent = false
+                                                    rejoin_match()
                                                 end
                                             end
                                         end
@@ -659,14 +669,13 @@ local function start_auto_rejoin_monitor()
                         end
                     end
                 end
-            else
-                task.wait(1)
             end
             task.wait(0.2)
         end
     end)
 end
 start_auto_rejoin_monitor()
+
 
 local function getTowerPosition(towerModel)
     local primary = towerModel:FindFirstChild("PrimaryPart") or towerModel:FindFirstChild("Head") or towerModel:FindFirstChildWhichIsA("BasePart")
