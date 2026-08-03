@@ -670,6 +670,7 @@ local function start_auto_rejoin_monitor()
                                                                 found_section = true
                                                             end
                                                         until found_section
+                                                            task.wait(1)
                                                         local data = tds_collect()
                                                         if data then
                                                             send_embed(data, "TDS")
