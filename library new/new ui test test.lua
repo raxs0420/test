@@ -670,13 +670,13 @@ local function start_auto_rejoin_monitor()
                                                                 found_section = true
                                                             end
                                                         until found_section
-                                                            task.wait(1)
+                                                            task.wait(0.5)
                                                         local data = tds_collect()
                                                         if data then
                                                             send_embed(data, "TDS")
                                                         end
                                                         if _G.AutoRejoin then
-                                                            task.wait(0.5)
+                                                            task.wait(0.2)
                                                             rejoin_match()
                                                         end
                                                     end)
