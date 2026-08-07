@@ -1845,11 +1845,14 @@ local function start_anti_lag()
         return false
     end
 
-    local reactOverrides = playerGui:FindFirstChild("ReactOverridesNotifications")
+        local reactOverrides = playerGui:FindFirstChild("ReactOverridesNotifications")
     if reactOverrides then
-        destroyNotifications(reactOverrides)
+        local frame = reactOverrides:FindFirstChild("Frame")
+        if frame then
+            frame:Destroy()
+        end
         local conn = reactOverrides.ChildAdded:Connect(function(child)
-            if child.Name == "notifications" then
+            if child.Name == "Frame" then
                 child:Destroy()
             end
         end)
@@ -1857,9 +1860,12 @@ local function start_anti_lag()
     else
         local conn = playerGui.ChildAdded:Connect(function(child)
             if child.Name == "ReactOverridesNotifications" then
-                destroyNotifications(child)
+                local frame = child:WaitForChild("Frame", 2)
+                if frame then
+                    frame:Destroy()
+                end
                 local innerConn = child.ChildAdded:Connect(function(inner)
-                    if inner.Name == "notifications" then
+                    if inner.Name == "Frame" then
                         inner:Destroy()
                     end
                 end)
