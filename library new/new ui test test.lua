@@ -1736,6 +1736,139 @@ local function start_anti_lag()
     local settings = settings().Rendering
     local original_quality = settings.QualityLevel
     settings.QualityLevel = Enum.QualityLevel.Level01
+
+    local Lighting = game:GetService("Lighting")
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+    local Terrain = workspace:FindFirstChildOfClass("Terrain")
+
+    pcall(function()
+        Lighting.GlobalShadows = false
+        Lighting.FogStart = 0
+        Lighting.FogEnd = 9e9
+        Lighting.FogColor = Color3.fromRGB(180, 180, 180)
+    end)
+
+    if Terrain then
+        pcall(function()
+            Terrain.WaterWaveSize = 0
+            Terrain.WaterWaveSpeed = 0
+            Terrain.WaterReflectance = 0
+            Terrain.WaterTransparency = 0
+        end)
+    end
+
+    for _, v in ipairs(Lighting:GetDescendants()) do
+        pcall(function()
+            if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
+                v.Enabled = false
+            end
+        end)
+    end
+
+    local function processPart(v)
+        if not v or not v.Parent then return end
+        pcall(function()
+            if v:IsA("BasePart") or v:IsA("UnionOperation") or v:IsA("MeshPart") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") then
+                if v.Material ~= Enum.Material.SmoothPlastic and v.Material ~= Enum.Material.Neon and v.Material ~= Enum.Material.ForceField then
+                    v.Material = Enum.Material.Plastic
+                end
+                v.Reflectance = 0
+                v.CastShadow = false
+            end
+            if v:IsA("Decal") or v:IsA("Texture") then
+                v.Transparency = 1
+            end
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                v.Enabled = false
+            end
+        end)
+    end
+
+    task.spawn(function()
+        local descendants = workspace:GetDescendants()
+        local batchSize = 200
+        for i = 1, #descendants, batchSize do
+            for j = i, math.min(i + batchSize - 1, #descendants) do
+                processPart(descendants[j])
+            end
+            task.wait(0.05)
+        end
+    end)
+
+    local antiLagConnections = {}
+
+    table.insert(antiLagConnections, workspace.DescendantAdded:Connect(function(v)
+        task.wait(0.1)
+        if _G.AntiLag then
+            processPart(v)
+        end
+    end))
+
+    table.insert(antiLagConnections, Lighting.DescendantAdded:Connect(function(v)
+        task.wait(0.1)
+        if _G.AntiLag then
+            pcall(function()
+                if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
+                    v.Enabled = false
+                end
+            end)
+        end
+    end))
+
+    local function muteSound(name)
+        local soundGui = playerGui:FindFirstChild("SoundGui")
+        if not soundGui then return end
+        local sound = soundGui:FindFirstChild(name)
+        if sound and sound:IsA("Sound") then
+            sound.Volume = 0
+        else
+            local conn = soundGui.ChildAdded:Connect(function(child)
+                if child.Name == name and child:IsA("Sound") then
+                    child.Volume = 0
+                end
+            end)
+            table.insert(antiLagConnections, conn)
+        end
+    end
+
+    muteSound("Error")
+    muteSound("Notification")
+
+    local function destroyNotifications(parent)
+        local notifs = parent:FindFirstChild("notifications")
+        if notifs then
+            notifs:Destroy()
+            return true
+        end
+        return false
+    end
+
+    local reactOverrides = playerGui:FindFirstChild("ReactOverridesNotifications")
+    if reactOverrides then
+        destroyNotifications(reactOverrides)
+        local conn = reactOverrides.ChildAdded:Connect(function(child)
+            if child.Name == "notifications" then
+                child:Destroy()
+            end
+        end)
+        table.insert(antiLagConnections, conn)
+    else
+        local conn = playerGui.ChildAdded:Connect(function(child)
+            if child.Name == "ReactOverridesNotifications" then
+                destroyNotifications(child)
+                local innerConn = child.ChildAdded:Connect(function(inner)
+                    if inner.Name == "notifications" then
+                        inner:Destroy()
+                    end
+                end)
+                table.insert(antiLagConnections, innerConn)
+            end
+        end)
+        table.insert(antiLagConnections, conn)
+    end
+
     task.spawn(function()
         while _G.AntiLag do
             local towers_folder = workspace:FindFirstChild("Towers")
@@ -1758,6 +1891,9 @@ local function start_anti_lag()
             task.wait(0.5)
         end
         anti_lag_running = false
+        for _, conn in ipairs(antiLagConnections) do
+            pcall(function() conn:Disconnect() end)
+        end
     end)
 end
 
