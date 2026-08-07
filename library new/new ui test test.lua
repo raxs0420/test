@@ -1836,44 +1836,16 @@ local function start_anti_lag()
     muteSound("Error")
     muteSound("Notification")
 
-    local function destroyNotifications(parent)
-        local notifs = parent:FindFirstChild("notifications")
-        if notifs then
-            notifs:Destroy()
-            return true
-        end
-        return false
-    end
-
-        local reactOverrides = playerGui:FindFirstChild("ReactOverridesNotifications")
+    local reactOverrides = playerGui:FindFirstChild("ReactOverridesNotifications")
     if reactOverrides then
-        local frame = reactOverrides:FindFirstChild("Frame")
-        if frame then
-            frame:Destroy()
-        end
-        local conn = reactOverrides.ChildAdded:Connect(function(child)
-            if child.Name == "Frame" then
-                child:Destroy()
-            end
-        end)
-        table.insert(antiLagConnections, conn)
-    else
-        local conn = playerGui.ChildAdded:Connect(function(child)
-            if child.Name == "ReactOverridesNotifications" then
-                local frame = child:WaitForChild("Frame", 2)
-                if frame then
-                    frame:Destroy()
-                end
-                local innerConn = child.ChildAdded:Connect(function(inner)
-                    if inner.Name == "Frame" then
-                        inner:Destroy()
-                    end
-                end)
-                table.insert(antiLagConnections, innerConn)
-            end
-        end)
-        table.insert(antiLagConnections, conn)
+        reactOverrides:Destroy()
     end
+    local conn = playerGui.ChildAdded:Connect(function(child)
+        if child.Name == "ReactOverridesNotifications" then
+            child:Destroy()
+        end
+    end)
+    table.insert(antiLagConnections, conn)
 
     task.spawn(function()
         while _G.AntiLag do
