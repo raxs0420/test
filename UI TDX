@@ -1236,7 +1236,7 @@ local abilityDisplayNames = {
     WARSHIP = "Warship (Warship)",
     GRAND_SLAM = "Grand Slam (Slammer Top 5)",
     RAGE = "Rage (John Top 5+)",
-    AXE = "Axe (John Bot 5)",
+    AXE = "Axe",
     MEDIC_DRONE = "Medic Drone (Combat Medic Bot 3+)",
     CALL_TO_ARMS = "Call to Arms (Commander Top 3+)",
     SPAWN_APC = "Spawn APC (Commander Top 4+)",
@@ -1314,25 +1314,67 @@ end
 
 abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 42 + 10)
 
-local function getPvPEnemiesFromGame()
-    local enemies = {}
-    local success = pcall(function()
-        local list = game:GetService("Players").LocalPlayer
-            :WaitForChild("PlayerGui")
-            :WaitForChild("Interface")
-            :WaitForChild("BottomBar")
-            :WaitForChild("PVPTowersBar")
-            :WaitForChild("EnemiesFrame")
-            :WaitForChild("List")
-
-        for _, child in ipairs(list:GetChildren()) do
-            if child.Name ~= "EnemyTemplate" and child.Name ~= "UIPadding" and child.Name ~= "UIListLayout" then
-                table.insert(enemies, child.Name)
+task.defer(function()
+    task.wait(0.5)
+    for _, row in ipairs(abilitiesFrame:GetChildren()) do
+        if row:IsA("Frame") then
+            for _, btn in ipairs(row:GetChildren()) do
+                if btn:IsA("TextButton") and btn.Text == "Axe" then
+                    local thresholdBox = Instance.new("TextBox")
+                    thresholdBox.Size = UDim2.new(0, 50, 0, 22)
+                    thresholdBox.Position = UDim2.new(1, -56, 0, 5)
+                    thresholdBox.Text = tostring(settings.axeEnemyThreshold or 3)
+                    thresholdBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
+                    thresholdBox.TextColor3 = Color3.fromRGB(220, 220, 225)
+                    thresholdBox.Font = Enum.Font.GothamBold
+                    thresholdBox.TextSize = 12
+                    thresholdBox.ClearTextOnFocus = false
+                    thresholdBox.Parent = btn
+                    local tbCorner = Instance.new("UICorner", thresholdBox)
+                    tbCorner.CornerRadius = UDim.new(0, 6)
+                    local tbStroke = Instance.new("UIStroke", thresholdBox)
+                    tbStroke.Color = Color3.fromRGB(50, 50, 55)
+                    tbStroke.Thickness = 1
+                    thresholdBox.FocusLost:Connect(function()
+                        local num = tonumber(thresholdBox.Text)
+                        if num then
+                            num = math.clamp(math.floor(num), 1, 5)
+                            settings.axeEnemyThreshold = num
+                            saveSettings()
+                            thresholdBox.Text = tostring(num)
+                        else
+                            thresholdBox.Text = tostring(settings.axeEnemyThreshold or 3)
+                        end
+                    end)
+                    break
+                end
             end
         end
-    end)
+    end
+end)
 
-    if not success or #enemies == 0 then
+local function getPvPEnemiesFromGame()
+    local enemies = {}
+    local playerGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return {"Normal Droid", "Heavy Droid", "Fallout"} end
+    local interface = playerGui:FindFirstChild("Interface")
+    if not interface then return {"Normal Droid", "Heavy Droid", "Fallout"} end
+    local bottomBar = interface:FindFirstChild("BottomBar")
+    if not bottomBar then return {"Normal Droid", "Heavy Droid", "Fallout"} end
+    local pvpBar = bottomBar:FindFirstChild("PVPTowersBar")
+    if not pvpBar then return {"Normal Droid", "Heavy Droid", "Fallout"} end
+    local enemiesFrame = pvpBar:FindFirstChild("EnemiesFrame")
+    if not enemiesFrame then return {"Normal Droid", "Heavy Droid", "Fallout"} end
+    local list = enemiesFrame:FindFirstChild("List")
+    if not list then return {"Normal Droid", "Heavy Droid", "Fallout"} end
+
+    for _, child in ipairs(list:GetChildren()) do
+        if child.Name ~= "EnemyTemplate" and child.Name ~= "UIPadding" and child.Name ~= "UIListLayout" then
+            table.insert(enemies, child.Name)
+        end
+    end
+
+    if #enemies == 0 then
         return {"Normal Droid", "Heavy Droid", "Fallout"}
     end
 
