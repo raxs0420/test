@@ -79,6 +79,7 @@ local defaultSettings = {
     autoSkip = false, 
     antiLagEnabled = true, 
     activeAbilities = {},
+    axeEnemyThreshold = 3,
     antiLagRemoveFog = true,
     antiLagRemoveShadows = true,
     antiLagReduceTextures = true,
@@ -99,13 +100,20 @@ local function loadSettings()
     local success, data = pcall(readfile, SettingsFile)
     if success and data then
         local decoded = game:GetService("HttpService"):JSONDecode(data)
-        for k, v in pairs(defaultSettings) do if decoded[k] == nil then decoded[k] = v end end
+        if type(decoded) ~= "table" then decoded = {} end
+        for k, v in pairs(defaultSettings) do
+            if decoded[k] == nil then
+                decoded[k] = v
+            end
+        end
         settings = decoded
         settings.activeAbilities = settings.activeAbilities or {}
+        settings.axeEnemyThreshold = tonumber(settings.axeEnemyThreshold) or 3
     else
         settings = {}
         for k, v in pairs(defaultSettings) do settings[k] = v end
     end
+    addDebugLog(string.format("Settings loaded. Axe threshold: %s", tostring(settings.axeEnemyThreshold)))
 end
 
 local function saveSettings()
@@ -934,16 +942,17 @@ end
 local function runAxeSequential()
     while settings.activeAbilities["AXE"] do
         local enemies = getAllEnemies()
+        local threshold = settings.axeEnemyThreshold or 3
         for part, data in pairs(towers) do
             if data.owned and data.name == "John" and data.hash and data.bottomCount >= 5 and part.Parent then
                 local nearby = 0
                 for _, enemy in ipairs(enemies) do
                     if (part.Position - enemy.Position).Magnitude <= 6.5 then
                         nearby = nearby + 1
-                        if nearby > 3 then break end
+                        if nearby > threshold then break end
                     end
                 end
-                if nearby > 3 then
+                if nearby > threshold then
                     task.spawn(function()
                         sendAbilityNoPosition(part, 1)
                     end)
@@ -1323,7 +1332,8 @@ task.defer(function()
                     local thresholdBox = Instance.new("TextBox")
                     thresholdBox.Size = UDim2.new(0, 50, 0, 22)
                     thresholdBox.Position = UDim2.new(1, -56, 0, 5)
-                    thresholdBox.Text = tostring(settings.axeEnemyThreshold or 3)
+                    local currentThreshold = tonumber(settings.axeEnemyThreshold) or 3
+                    thresholdBox.Text = tostring(currentThreshold)
                     thresholdBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
                     thresholdBox.TextColor3 = Color3.fromRGB(220, 220, 225)
                     thresholdBox.Font = Enum.Font.GothamBold
@@ -1338,14 +1348,16 @@ task.defer(function()
                     thresholdBox.FocusLost:Connect(function()
                         local num = tonumber(thresholdBox.Text)
                         if num then
-                            num = math.clamp(math.floor(num), 1, 5)
+                            num = math.clamp(math.floor(num), 1, 10)
                             settings.axeEnemyThreshold = num
                             saveSettings()
                             thresholdBox.Text = tostring(num)
+                            addDebugLog(string.format("[Axe] Enemy threshold set to %d", num))
                         else
-                            thresholdBox.Text = tostring(settings.axeEnemyThreshold or 3)
+                            thresholdBox.Text = tostring(tonumber(settings.axeEnemyThreshold) or 3)
                         end
                     end)
+                    addDebugLog(string.format("[Axe] Threshold box initialized with value: %d", currentThreshold))
                     break
                 end
             end
@@ -1355,29 +1367,16 @@ end)
 
 local function getPvPEnemiesFromGame()
     local enemies = {}
-    local playerGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-    if not playerGui then return {"Normal Droid", "Heavy Droid", "Fallout"} end
-    local interface = playerGui:FindFirstChild("Interface")
-    if not interface then return {"Normal Droid", "Heavy Droid", "Fallout"} end
-    local bottomBar = interface:FindFirstChild("BottomBar")
-    if not bottomBar then return {"Normal Droid", "Heavy Droid", "Fallout"} end
-    local pvpBar = bottomBar:FindFirstChild("PVPTowersBar")
-    if not pvpBar then return {"Normal Droid", "Heavy Droid", "Fallout"} end
-    local enemiesFrame = pvpBar:FindFirstChild("EnemiesFrame")
-    if not enemiesFrame then return {"Normal Droid", "Heavy Droid", "Fallout"} end
-    local list = enemiesFrame:FindFirstChild("List")
-    if not list then return {"Normal Droid", "Heavy Droid", "Fallout"} end
-
-    for _, child in ipairs(list:GetChildren()) do
-        if child.Name ~= "EnemyTemplate" and child.Name ~= "UIPadding" and child.Name ~= "UIListLayout" then
-            table.insert(enemies, child.Name)
+    local player = game:GetService("Players").LocalPlayer
+    for i = 1, 12 do
+        local name = player:GetAttribute("PVPEnemySlot" .. tostring(i))
+        if name and name ~= "" then
+            table.insert(enemies, name)
         end
     end
-
     if #enemies == 0 then
         return {"Normal Droid", "Heavy Droid", "Fallout"}
     end
-
     return enemies
 end
 
@@ -1388,6 +1387,12 @@ local pvpActive = false
 local pvpLoopThread = nil
 local pvpLastSentName = nil
 local pvpSentAt = 0
+
+local pvpEcoActive = false
+local pvpEcoThread = nil
+local pvpEcoCurrentEnemy = nil
+local pvpEcoWaveCheckConnection = nil
+local pvpEcoCompletedTransitions = {}
 
 local function runPvPLoop()
     while pvpActive and pvpSelectedEnemy do
@@ -1404,6 +1409,132 @@ local function runPvPLoop()
     end
     pvpActive = false
     pvpSelectedEnemy = nil
+end
+
+local function getEquippedEnemies()
+    local equipped = {}
+    local player = game:GetService("Players").LocalPlayer
+    for i = 1, 12 do
+        local name = player:GetAttribute("PVPEnemySlot" .. tostring(i))
+        if name and name ~= "" then
+            equipped[name] = true
+        end
+    end
+    return equipped
+end
+
+local function getCurrentWave()
+    local player = game:GetService("Players").LocalPlayer
+    local waveText = player:FindFirstChild("PlayerGui")
+        and player.PlayerGui:FindFirstChild("Interface")
+        and player.PlayerGui.Interface:FindFirstChild("GameInfoBar")
+        and player.PlayerGui.Interface.GameInfoBar:FindFirstChild("PVP")
+        and player.PlayerGui.Interface.GameInfoBar.PVP:FindFirstChild("Default")
+        and player.PlayerGui.Interface.GameInfoBar.PVP.Default:FindFirstChild("Wave")
+        and player.PlayerGui.Interface.GameInfoBar.PVP.Default.Wave:FindFirstChild("WaveText")
+    if waveText and waveText:IsA("TextLabel") then
+        local text = waveText.Text or ""
+        local num = tonumber(text:match("%d+"))
+        return num
+    end
+    return nil
+end
+
+local function getBestEcoEnemy(wave, equipped)
+    wave = wave or 1
+    if wave >= 26 and equipped["Heavy Metal"] then
+        return "Heavy Metal"
+    elseif wave >= 11 and equipped["Fallout"] then
+        return "Fallout"
+    elseif wave >= 4 and equipped["Heavy Droid"] then
+        return "Heavy Droid"
+    elseif equipped["Normal Droid"] then
+        return "Normal Droid"
+    end
+    return nil
+end
+
+local function runPvPEco()
+    local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("RequestSendPVPEnemy")
+    if not remote then
+        addDebugLog("[PvP ECO] Remote not found")
+        pvpEcoActive = false
+        return
+    end
+
+    local equipped = getEquippedEnemies()
+    local startWave = getCurrentWave() or 1
+    pvpEcoCurrentEnemy = getBestEcoEnemy(startWave, equipped)
+
+    if not pvpEcoCurrentEnemy then
+        addDebugLog("[PvP ECO] No equipped enemies available, cannot start")
+        pvpEcoActive = false
+        return
+    end
+
+    addDebugLog(string.format("[PvP ECO] Started on wave %d - sending %s", startWave, pvpEcoCurrentEnemy))
+
+    local switchEndTime = 0
+    local switchTarget = nil
+    local lastWave = startWave
+
+    while pvpEcoActive do
+        local currentWave = getCurrentWave()
+        local currentEquipped = getEquippedEnemies()
+
+        if currentWave and currentWave ~= lastWave then
+            lastWave = currentWave
+            addDebugLog(string.format("[PvP ECO] Wave changed to %d", currentWave))
+        end
+
+        if switchTarget and tick() >= switchEndTime then
+            pvpEcoCurrentEnemy = switchTarget
+            pvpEcoCompletedTransitions[switchTarget] = true
+            switchTarget = nil
+            switchEndTime = 0
+            addDebugLog(string.format("[PvP ECO] Timer done, now sending %s", pvpEcoCurrentEnemy))
+        end
+
+        if currentWave then
+            if currentWave >= 4 and currentWave < 11 and pvpEcoCurrentEnemy ~= "Heavy Droid" and not switchTarget then
+                if not pvpEcoCompletedTransitions["Heavy Droid"] and currentEquipped["Heavy Droid"] then
+                    switchEndTime = tick() + 10
+                    switchTarget = "Heavy Droid"
+                    addDebugLog("[PvP ECO] Wave 4+ detected, Heavy Droid in 10s")
+                end
+            end
+
+            if currentWave >= 11 and currentWave < 25 and pvpEcoCurrentEnemy ~= "Fallout" and not switchTarget then
+                if not pvpEcoCompletedTransitions["Fallout"] and currentEquipped["Fallout"] then
+                    switchEndTime = tick() + 10
+                    switchTarget = "Fallout"
+                    addDebugLog("[PvP ECO] Wave 11+ detected, Fallout in 10s")
+                end
+            end
+
+            if currentWave >= 25 and pvpEcoCurrentEnemy ~= "Heavy Metal" and not switchTarget then
+                if not pvpEcoCompletedTransitions["Heavy Metal"] and currentEquipped["Heavy Metal"] then
+                    switchEndTime = tick() + 10
+                    switchTarget = "Heavy Metal"
+                    addDebugLog("[PvP ECO] Wave 26+ detected, Heavy Metal in 10s")
+                end
+            end
+        end
+
+        if pvpEcoCurrentEnemy and currentEquipped[pvpEcoCurrentEnemy] then
+            pcall(function()
+                remote:InvokeServer(pvpEcoCurrentEnemy)
+            end)
+            pvpLastSentName = pvpEcoCurrentEnemy
+            pvpSentAt = tick()
+        end
+
+        task.wait(math.random() * 0.2 + 0.1)
+    end
+
+    pvpEcoActive = false
+    pvpEcoCurrentEnemy = nil
+    addDebugLog("[PvP ECO] Stopped")
 end
 
 local function rebuildPvPButtons()
@@ -1426,14 +1557,17 @@ local function rebuildPvPButtons()
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, -14, 0, 20)
     statusLabel.Name = "StatusLabel"
-    if pvpActive and pvpSelectedEnemy then
+    if pvpEcoActive and pvpEcoCurrentEnemy then
+        statusLabel.Text = string.format("[ECO] Sending: %s", pvpEcoCurrentEnemy)
+        statusLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
+    elseif pvpActive and pvpSelectedEnemy then
         statusLabel.Text = string.format("Sending: %s", pvpSelectedEnemy)
         statusLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
     elseif pvpLastSentName then
         statusLabel.Text = string.format("Last sent: %s (%.1fs ago)", pvpLastSentName, tick() - pvpSentAt)
         statusLabel.TextColor3 = Color3.fromRGB(220, 180, 100)
     else
-        statusLabel.Text = "Select an enemy below to start"
+        statusLabel.Text = "Select an enemy below or use Auto ECO"
         statusLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
     end
     statusLabel.TextSize = 10
@@ -1458,6 +1592,72 @@ local function rebuildPvPButtons()
     divider.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
     divider.BorderSizePixel = 0
     divider.Parent = pvpScroll
+
+    local ecoLabel = Instance.new("TextLabel")
+    ecoLabel.Size = UDim2.new(1, -14, 0, 18)
+    ecoLabel.Text = "Auto ECO"
+    ecoLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
+    ecoLabel.TextSize = 12
+    ecoLabel.Font = Enum.Font.GothamBold
+    ecoLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ecoLabel.BackgroundTransparency = 1
+    ecoLabel.Parent = pvpScroll
+
+    local ecoBtn = Instance.new("TextButton")
+    ecoBtn.Size = UDim2.new(1, -14, 0, 34)
+    ecoBtn.Text = pvpEcoActive and "▶ Auto ECO (Active)" or "Auto ECO"
+    ecoBtn.BackgroundColor3 = pvpEcoActive and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(35, 35, 40)
+    ecoBtn.TextColor3 = pvpEcoActive and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(180, 180, 185)
+    ecoBtn.TextSize = 12
+    ecoBtn.Font = Enum.Font.GothamSemibold
+    ecoBtn.AutoButtonColor = false
+    ecoBtn.Parent = pvpScroll
+    local ecoCorner = Instance.new("UICorner", ecoBtn)
+    ecoCorner.CornerRadius = UDim.new(0, 8)
+    local ecoStroke = Instance.new("UIStroke", ecoBtn)
+    ecoStroke.Color = pvpEcoActive and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(50, 50, 55)
+    ecoStroke.Thickness = 1
+
+    ecoBtn.MouseEnter:Connect(function()
+        if not pvpEcoActive then
+            ecoBtn.BackgroundColor3 = Color3.fromRGB(48, 48, 55)
+        end
+    end)
+    ecoBtn.MouseLeave:Connect(function()
+        if pvpEcoActive then
+            ecoBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+        else
+            ecoBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        end
+    end)
+
+    ecoBtn.MouseButton1Click:Connect(function()
+        if pvpEcoActive then
+            pvpEcoActive = false
+            pvpEcoCurrentEnemy = nil
+            pvpEcoCompletedTransitions = {}
+            if pvpEcoThread then
+                pcall(function() task.cancel(pvpEcoThread) end)
+                pvpEcoThread = nil
+            end
+            addDebugLog("[PvP ECO] Stopped by user")
+        else
+            if pvpActive then
+                pvpActive = false
+                pvpSelectedEnemy = nil
+                task.wait(0.1)
+            end
+            pvpEcoActive = true
+            pvpEcoThread = task.spawn(runPvPEco)
+        end
+        rebuildPvPButtons()
+    end)
+
+    local enemyDivider = Instance.new("Frame")
+    enemyDivider.Size = UDim2.new(1, -20, 0, 1)
+    enemyDivider.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    enemyDivider.BorderSizePixel = 0
+    enemyDivider.Parent = pvpScroll
 
     for _, name in ipairs(pvpEnemyNames) do
         local isActive = pvpActive and pvpSelectedEnemy == name
@@ -1497,6 +1697,16 @@ local function rebuildPvPButtons()
                     pvpActive = false
                     task.wait(0.1)
                 end
+                if pvpEcoActive then
+                    pvpEcoActive = false
+                    pvpEcoCurrentEnemy = nil
+                    pvpEcoCompletedTransitions = {}
+                    if pvpEcoThread then
+                        pcall(function() task.cancel(pvpEcoThread) end)
+                        pvpEcoThread = nil
+                    end
+                    task.wait(0.1)
+                end
                 pvpSelectedEnemy = name
                 pvpActive = true
                 pvpLoopThread = task.spawn(runPvPLoop)
@@ -1515,9 +1725,11 @@ end
 
 task.spawn(function()
     while true do
-        if pvpActive and pvpSelectedEnemy then
-            local status = pvpScroll:FindFirstChild("StatusLabel")
-            if status then
+        local status = pvpScroll:FindFirstChild("StatusLabel")
+        if status then
+            if pvpEcoActive and pvpEcoCurrentEnemy then
+                status.Text = string.format("[ECO] Sending: %s", pvpEcoCurrentEnemy)
+            elseif pvpActive and pvpSelectedEnemy then
                 status.Text = string.format("Sending: %s", pvpSelectedEnemy)
             end
         end
