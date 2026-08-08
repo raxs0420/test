@@ -9,7 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 
 if LocalPlayer.PlayerGui:FindFirstChild("TDXAuto") then return end
 
-local debugEnabled = true
+local debugEnabled = false
 local debugLogs = {}
 local maxDebugLogs = 150
 local debugLogFrameRef = nil
@@ -90,7 +90,8 @@ local defaultSettings = {
     antiLagDisableLightingEffects = true,
     antiLagReduceWater = true,
     antiLagDisableCastShadows = true,
-    antiLagMaterialOverride = true
+    antiLagMaterialOverride = true,
+    antiLagRemoveEnemies = false
 }
 local settings = {}
 
@@ -189,11 +190,15 @@ local minimizeStroke = Instance.new("UIStroke", minimizeBtn)
 minimizeStroke.Color = Color3.fromRGB(55, 55, 60)
 minimizeStroke.Thickness = 1
 
-local tabContainer = Instance.new("Frame")
+local tabContainer = Instance.new("ScrollingFrame")
 tabContainer.Size = UDim2.new(1, -24, 0, 34)
 tabContainer.Position = UDim2.new(0, 12, 0, 50)
 tabContainer.BackgroundTransparency = 1
 tabContainer.Parent = frame
+tabContainer.ScrollBarThickness = 0
+tabContainer.ScrollingEnabled = true
+tabContainer.CanvasSize = UDim2.new(0, 540, 0, 34)
+tabContainer.ScrollingDirection = Enum.ScrollingDirection.X
 
 local tabMainBtn = Instance.new("TextButton")
 tabMainBtn.Size = UDim2.new(0, 84, 0, 28)
@@ -254,6 +259,18 @@ tabDebugBtn.Font = Enum.Font.GothamSemibold
 tabDebugBtn.AutoButtonColor = false
 tabDebugBtn.Parent = tabContainer
 Instance.new("UICorner", tabDebugBtn).CornerRadius = UDim.new(0, 8)
+
+local tabPvPBtn = Instance.new("TextButton")
+tabPvPBtn.Size = UDim2.new(0, 84, 0, 28)
+tabPvPBtn.Position = UDim2.new(0, 450, 0, 3)
+tabPvPBtn.Text = "PvP"
+tabPvPBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+tabPvPBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
+tabPvPBtn.TextSize = 12
+tabPvPBtn.Font = Enum.Font.GothamSemibold
+tabPvPBtn.AutoButtonColor = false
+tabPvPBtn.Parent = tabContainer
+Instance.new("UICorner", tabPvPBtn).CornerRadius = UDim.new(0, 8)
 
 local contentFrame = Instance.new("Frame")
 contentFrame.Size = UDim2.new(1, -24, 1, -96)
@@ -362,6 +379,29 @@ debugLogLayoutRef.Padding = UDim.new(0, 2)
 debugLogLayoutRef.SortOrder = Enum.SortOrder.LayoutOrder
 debugLogLayoutRef.FillDirection = Enum.FillDirection.Vertical
 
+local pvpFrame = Instance.new("Frame")
+pvpFrame.Size = UDim2.new(1, -16, 1, -16)
+pvpFrame.Position = UDim2.new(0, 8, 0, 8)
+pvpFrame.BackgroundTransparency = 1
+pvpFrame.Visible = false
+pvpFrame.Parent = contentFrame
+
+local pvpScroll = Instance.new("ScrollingFrame")
+pvpScroll.Size = UDim2.new(1, 0, 1, 0)
+pvpScroll.Position = UDim2.new(0, 0, 0, 0)
+pvpScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+pvpScroll.BorderSizePixel = 0
+pvpScroll.ScrollBarThickness = 5
+pvpScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+pvpScroll.Parent = pvpFrame
+Instance.new("UICorner", pvpScroll).CornerRadius = UDim.new(0, 10)
+
+local pvpLayout = Instance.new("UIListLayout", pvpScroll)
+pvpLayout.Padding = UDim.new(0, 6)
+pvpLayout.SortOrder = Enum.SortOrder.LayoutOrder
+pvpLayout.FillDirection = Enum.FillDirection.Vertical
+pvpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
 local clearDebugBtn = Instance.new("TextButton")
 clearDebugBtn.Size = UDim2.new(1, 0, 0, 34)
 clearDebugBtn.Position = UDim2.new(0, 0, 1, -38)
@@ -449,9 +489,6 @@ addDebugLog("Looking for towers.....")
 local towers = {}
 local globalHitBlacklist = {}
 local towerPauseUntil = {}
-local pendingHash = nil
-local pendingTop = 0
-local pendingBottom = 0
 local pendingPlacements = {}
 
 local function updateTowersList()
@@ -564,18 +601,6 @@ local function onNumericAdded(child, part)
     if num > old then
         data.currentLevel = num
         addDebugLog(string.format("Level increase for %s: %d -> %d", part.Name, old, num))
-        if pendingHash and pendingPlacements and pendingPlacements[pendingHash] and not data.owned then
-            data.owned = true
-            data.hash = pendingHash
-            data.topCount = pendingTop
-            data.bottomCount = pendingBottom
-            addDebugLog(string.format("Assigned hash %d to %s", pendingHash, part.Name))
-            updateTowersList()
-            pendingHash = nil
-            pendingTop = 0
-            pendingBottom = 0
-            pendingPlacements[pendingHash] = nil
-        end
     end
 end
 
@@ -1289,8 +1314,177 @@ end
 
 abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 42 + 10)
 
+local function getPvPEnemiesFromGame()
+    local enemies = {}
+    local success = pcall(function()
+        local list = game:GetService("Players").LocalPlayer
+            :WaitForChild("PlayerGui")
+            :WaitForChild("Interface")
+            :WaitForChild("BottomBar")
+            :WaitForChild("PVPTowersBar")
+            :WaitForChild("EnemiesFrame")
+            :WaitForChild("List")
+
+        for _, child in ipairs(list:GetChildren()) do
+            if child.Name ~= "EnemyTemplate" and child.Name ~= "UIPadding" and child.Name ~= "UIListLayout" then
+                table.insert(enemies, child.Name)
+            end
+        end
+    end)
+
+    if not success or #enemies == 0 then
+        return {"Normal Droid", "Heavy Droid", "Fallout"}
+    end
+
+    return enemies
+end
+
+local pvpEnemyNames = getPvPEnemiesFromGame()
+
+local pvpSelectedEnemy = nil
+local pvpActive = false
+local pvpLoopThread = nil
+local pvpLastSentName = nil
+local pvpSentAt = 0
+
+local function runPvPLoop()
+    while pvpActive and pvpSelectedEnemy do
+        local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("RequestSendPVPEnemy")
+        if remote then
+            pcall(function()
+                remote:InvokeServer(pvpSelectedEnemy)
+            end)
+            pvpLastSentName = pvpSelectedEnemy
+            pvpSentAt = tick()
+            addDebugLog(string.format("[PvP] Sent: %s", pvpSelectedEnemy))
+        end
+        task.wait(math.random() * 0.2 + 0.1)
+    end
+    pvpActive = false
+    pvpSelectedEnemy = nil
+end
+
+local function rebuildPvPButtons()
+    pvpEnemyNames = getPvPEnemiesFromGame()
+
+    for _, child in ipairs(pvpScroll:GetChildren()) do
+        if child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel") then child:Destroy() end
+    end
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -14, 0, 22)
+    titleLabel.Text = "PvP Enemy Sender"
+    titleLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
+    titleLabel.TextSize = 13
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Center
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Parent = pvpScroll
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, -14, 0, 20)
+    statusLabel.Name = "StatusLabel"
+    if pvpActive and pvpSelectedEnemy then
+        statusLabel.Text = string.format("Sending: %s", pvpSelectedEnemy)
+        statusLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
+    elseif pvpLastSentName then
+        statusLabel.Text = string.format("Last sent: %s (%.1fs ago)", pvpLastSentName, tick() - pvpSentAt)
+        statusLabel.TextColor3 = Color3.fromRGB(220, 180, 100)
+    else
+        statusLabel.Text = "Select an enemy below to start"
+        statusLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
+    end
+    statusLabel.TextSize = 10
+    statusLabel.Font = Enum.Font.GothamSemibold
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Parent = pvpScroll
+
+    local descLabel = Instance.new("TextLabel")
+    descLabel.Size = UDim2.new(1, -14, 0, 28)
+    descLabel.Text = "0.1-0.3s delay per send | Click enemy to toggle"
+    descLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
+    descLabel.TextSize = 10
+    descLabel.Font = Enum.Font.Gotham
+    descLabel.TextXAlignment = Enum.TextXAlignment.Center
+    descLabel.TextWrapped = true
+    descLabel.BackgroundTransparency = 1
+    descLabel.Parent = pvpScroll
+
+    local divider = Instance.new("Frame")
+    divider.Size = UDim2.new(1, -20, 0, 1)
+    divider.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    divider.BorderSizePixel = 0
+    divider.Parent = pvpScroll
+
+    for _, name in ipairs(pvpEnemyNames) do
+        local isActive = pvpActive and pvpSelectedEnemy == name
+        local nameBtn = Instance.new("TextButton")
+        nameBtn.Size = UDim2.new(1, -14, 0, 34)
+        nameBtn.Text = isActive and ("▶ " .. name) or name
+        nameBtn.BackgroundColor3 = isActive and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(35, 35, 40)
+        nameBtn.TextColor3 = isActive and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(180, 180, 185)
+        nameBtn.TextSize = 12
+        nameBtn.Font = Enum.Font.GothamSemibold
+        nameBtn.AutoButtonColor = false
+        nameBtn.Parent = pvpScroll
+        local nbCorner = Instance.new("UICorner", nameBtn)
+        nbCorner.CornerRadius = UDim.new(0, 8)
+        local nbStroke = Instance.new("UIStroke", nameBtn)
+        nbStroke.Color = isActive and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(50, 50, 55)
+        nbStroke.Thickness = 1
+        nameBtn.MouseEnter:Connect(function()
+            if not (pvpActive and pvpSelectedEnemy == name) then
+                nameBtn.BackgroundColor3 = Color3.fromRGB(48, 48, 55)
+            end
+        end)
+        nameBtn.MouseLeave:Connect(function()
+            if pvpActive and pvpSelectedEnemy == name then
+                nameBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+            else
+                nameBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+            end
+        end)
+        nameBtn.MouseButton1Click:Connect(function()
+            if pvpActive and pvpSelectedEnemy == name then
+                pvpActive = false
+                pvpSelectedEnemy = nil
+                addDebugLog(string.format("[PvP] Stopped sending %s", name))
+            else
+                if pvpActive then
+                    pvpActive = false
+                    task.wait(0.1)
+                end
+                pvpSelectedEnemy = name
+                pvpActive = true
+                pvpLoopThread = task.spawn(runPvPLoop)
+                addDebugLog(string.format("[PvP] Started sending %s", name))
+            end
+            rebuildPvPButtons()
+        end)
+    end
+
+    task.defer(function()
+        if pvpScroll then
+            pvpScroll.CanvasSize = UDim2.new(0, 0, 0, pvpLayout.AbsoluteContentSize.Y + 10)
+        end
+    end)
+end
+
+task.spawn(function()
+    while true do
+        if pvpActive and pvpSelectedEnemy then
+            local status = pvpScroll:FindFirstChild("StatusLabel")
+            if status then
+                status.Text = string.format("Sending: %s", pvpSelectedEnemy)
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
 local function setActiveTab(activeBtn)
-    for _, btn in ipairs({tabMainBtn, tabAbilitiesBtn, tabTowersBtn, tabGameInfoBtn, tabDebugBtn}) do
+    for _, btn in ipairs({tabMainBtn, tabAbilitiesBtn, tabTowersBtn, tabGameInfoBtn, tabDebugBtn, tabPvPBtn}) do
         if btn == activeBtn then
             btn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
             btn.TextColor3 = Color3.fromRGB(220, 220, 225)
@@ -1307,6 +1501,7 @@ tabMainBtn.MouseButton1Click:Connect(function()
     debugFrame.Visible = false
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
+    pvpFrame.Visible = false
     setActiveTab(tabMainBtn)
 end)
 
@@ -1316,6 +1511,7 @@ tabAbilitiesBtn.MouseButton1Click:Connect(function()
     debugFrame.Visible = false
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
+    pvpFrame.Visible = false
     setActiveTab(tabAbilitiesBtn)
 end)
 
@@ -1325,6 +1521,7 @@ tabTowersBtn.MouseButton1Click:Connect(function()
     debugFrame.Visible = false
     towersFrame.Visible = true
     gameInfoFrame.Visible = false
+    pvpFrame.Visible = false
     setActiveTab(tabTowersBtn)
     updateTowersList()
 end)
@@ -1335,6 +1532,7 @@ tabGameInfoBtn.MouseButton1Click:Connect(function()
     debugFrame.Visible = false
     towersFrame.Visible = false
     gameInfoFrame.Visible = true
+    pvpFrame.Visible = false
     setActiveTab(tabGameInfoBtn)
 end)
 
@@ -1344,7 +1542,19 @@ tabDebugBtn.MouseButton1Click:Connect(function()
     debugFrame.Visible = true
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
+    pvpFrame.Visible = false
     setActiveTab(tabDebugBtn)
+end)
+
+tabPvPBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    abilitiesTabFrame.Visible = false
+    debugFrame.Visible = false
+    towersFrame.Visible = false
+    gameInfoFrame.Visible = false
+    pvpFrame.Visible = true
+    setActiveTab(tabPvPBtn)
+    rebuildPvPButtons()
 end)
 
 local antiLagEnabled = settings.antiLagEnabled
@@ -1607,9 +1817,11 @@ local function removeFolders()
             end
             local pathEntities = gameFolder:FindFirstChild("PathEntities")
             if pathEntities then
-                for _, child in ipairs(pathEntities:GetChildren()) do
-                    if not string.find(child.Name, "WarMachine") then
-                        child:Destroy()
+                if settings.antiLagRemoveEnemies then
+                    for _, child in ipairs(pathEntities:GetChildren()) do
+                        if not string.find(child.Name, "WarMachine") then
+                            child:Destroy()
+                        end
                     end
                 end
             end
@@ -1896,6 +2108,7 @@ local function createAntiLagSettingsUI()
     createToggle(scrollFrame, "Disable Trails", "antiLagDisableTrails", true)
     createToggle(scrollFrame, "Disable Lighting Effects (Bloom, etc.)", "antiLagDisableLightingEffects", true)
     createToggle(scrollFrame, "Reduce Water Effects", "antiLagReduceWater", true)
+    createToggle(scrollFrame, "Remove Path Units (No War Machine)", "antiLagRemoveEnemies", false)
 
     local sectionLabel2 = Instance.new("TextLabel")
     sectionLabel2.Size = UDim2.new(1, -16, 0, 22)
@@ -1956,6 +2169,7 @@ local function createAntiLagSettingsUI()
         settings.antiLagReduceWater = true
         settings.antiLagDisableCastShadows = true
         settings.antiLagMaterialOverride = true
+        settings.antiLagRemoveEnemies = false
         saveSettings()
         pcall(function() antiLagSettingsGui:Destroy() end)
         antiLagSettingsGui = nil
@@ -2096,8 +2310,19 @@ local function setupUpgradeListener()
                         local towerId = towerInfo[1]
                         local towerName = towerInfo[2]
                         local playerName = towerInfo[7]
+                        local rawPos = towerInfo[4]
+                        local position = nil
+                        if type(rawPos) == "table" and rawPos[1] and rawPos[2] and rawPos[3] then
+                            position = Vector3.new(rawPos[1], rawPos[2], rawPos[3])
+                        elseif typeof(rawPos) == "Vector3" then
+                            position = rawPos
+                        end
                         if tostring(playerName) == LocalPlayer.Name then
-                            pendingPlacements[towerId] = {name = towerName, time = tick()}
+                            pendingPlacements[towerId] = {
+                                name = towerName,
+                                time = tick(),
+                                position = position
+                            }
                             scanForTowers()
                         else
                             addDebugLog(string.format("Tower placed (other): %s, hash=%d", towerName, towerId))
@@ -2117,7 +2342,6 @@ local function setupUpgradeListener()
                 if not hash then continue end
                 if type(hash) == "string" then hash = tonumber(hash) end
                 if not hash then continue end
-                if not pendingPlacements[hash] then continue end
                 local top = 0
                 local bottom = 0
                 if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
@@ -2125,18 +2349,12 @@ local function setupUpgradeListener()
                     bottom = entry.LevelReplicationData[2] or 0
                 end
                 addDebugLog(string.format("Upgrade event: hash=%d top=%d bottom=%d", hash, top, bottom))
-                pendingHash = hash
-                pendingTop = top
-                pendingBottom = bottom
                 for part, data in pairs(towers) do
                     if data.hash == hash then
                         data.topCount = top
                         data.bottomCount = bottom
                         addDebugLog(string.format("Updated %s (hash %d)", part.Name, hash))
                         updateTowersList()
-                        pendingHash = nil
-                        pendingTop = 0
-                        pendingBottom = 0
                         break
                     end
                 end
@@ -2326,7 +2544,7 @@ local function setupGameInfo()
                 if success and type(config) == "table" then
                     local limitMap = config.LimitMap
                     if limitMap and #limitMap > 0 then
-                        local index = math.min(count, #limitMap)
+                        local index = math.min(type(count) == "number" and count or 1, #limitMap)
                         local limit = limitMap[index]
                         if limit then
                             limitStr = " (personal limit " .. tostring(limit) .. ")"
@@ -2336,7 +2554,17 @@ local function setupGameInfo()
             end
             local label = Instance.new("TextLabel")
             label.Size = UDim2.new(1, -14, 0, 20)
-            label.Text = towerName .. " = " .. tostring(count) .. limitStr
+            local countStr = ""
+            if type(count) == "table" then
+                local parts = {}
+                for k, v in pairs(count) do
+                    table.insert(parts, tostring(k) .. ": " .. tostring(v))
+                end
+                countStr = "{ " .. table.concat(parts, ", ") .. " }"
+            else
+                countStr = tostring(count)
+            end
+            label.Text = towerName .. " = " .. countStr .. limitStr
             label.TextColor3 = Color3.fromRGB(180, 180, 185)
             label.TextSize = 11
             label.TextXAlignment = Enum.TextXAlignment.Left
@@ -2367,5 +2595,42 @@ local function setupGameInfo()
 
     addDebugLog("Game Info: listener ready")
 end
+
+task.spawn(function()
+    while true do
+        local now = tick()
+        for hash, placement in pairs(pendingPlacements) do
+            if now - placement.time <= 5 then
+                local matchPart = nil
+                local bestDist = math.huge
+
+                for part, data in pairs(towers) do
+                    if not data.owned and data.hash == nil then
+                        if placement.position and typeof(placement.position) == "Vector3" then
+                            local dist = (part.Position - placement.position).Magnitude
+                            if dist < bestDist and dist < 0.5 then
+                                bestDist = dist
+                                matchPart = part
+                            end
+                        end
+                    end
+                end
+
+                if matchPart then
+                    local data = towers[matchPart]
+                    data.owned = true
+                    data.hash = hash
+                    addDebugLog(string.format("Assigned: %s | Hash: %d | Dist: %.4f", matchPart.Name, hash, bestDist))
+                    pendingPlacements[hash] = nil
+                    updateTowersList()
+                end
+            else
+                addDebugLog(string.format("Stale placement removed: %s | Hash: %d", placement.name or "unknown", hash))
+                pendingPlacements[hash] = nil
+            end
+        end
+        task.wait(0.1)
+    end
+end)
 
 task.spawn(setupGameInfo)
