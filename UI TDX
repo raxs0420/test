@@ -409,6 +409,30 @@ pvpLayout.Padding = UDim.new(0, 6)
 pvpLayout.SortOrder = Enum.SortOrder.LayoutOrder
 pvpLayout.FillDirection = Enum.FillDirection.Vertical
 pvpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+local ecoMyLabel = Instance.new("TextLabel")
+ecoMyLabel.Name = "EcoMyLabel"
+ecoMyLabel.Size = UDim2.new(1, -14, 0, 20)
+ecoMyLabel.Text = "ME: ..."
+ecoMyLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
+ecoMyLabel.TextSize = 11
+ecoMyLabel.Font = Enum.Font.GothamBold
+ecoMyLabel.TextXAlignment = Enum.TextXAlignment.Left
+ecoMyLabel.BackgroundTransparency = 1
+ecoMyLabel.Parent = pvpScroll
+ecoMyLabel.LayoutOrder = -200
+
+local ecoEnemyLabel = Instance.new("TextLabel")
+ecoEnemyLabel.Name = "EcoEnemyLabel"
+ecoEnemyLabel.Size = UDim2.new(1, -14, 0, 20)
+ecoEnemyLabel.Text = "Enemy: ..."
+ecoEnemyLabel.TextColor3 = Color3.fromRGB(220, 130, 130)
+ecoEnemyLabel.TextSize = 11
+ecoEnemyLabel.Font = Enum.Font.GothamBold
+ecoEnemyLabel.TextXAlignment = Enum.TextXAlignment.Left
+ecoEnemyLabel.BackgroundTransparency = 1
+ecoEnemyLabel.Parent = pvpScroll
+ecoEnemyLabel.LayoutOrder = -199
+
 
 local clearDebugBtn = Instance.new("TextButton")
 clearDebugBtn.Size = UDim2.new(1, 0, 0, 34)
@@ -942,17 +966,17 @@ end
 local function runAxeSequential()
     while settings.activeAbilities["AXE"] do
         local enemies = getAllEnemies()
-        local threshold = settings.axeEnemyThreshold or 3
+        local threshold = tonumber(settings.axeEnemyThreshold) or 3
         for part, data in pairs(towers) do
             if data.owned and data.name == "John" and data.hash and data.bottomCount >= 5 and part.Parent then
                 local nearby = 0
                 for _, enemy in ipairs(enemies) do
                     if (part.Position - enemy.Position).Magnitude <= 6.5 then
                         nearby = nearby + 1
-                        if nearby > threshold then break end
+                        if nearby >= threshold then break end
                     end
                 end
-                if nearby > threshold then
+                if nearby >= threshold then
                     task.spawn(function()
                         sendAbilityNoPosition(part, 1)
                     end)
@@ -1206,7 +1230,28 @@ local function runSpawnApcSequential()
 end
 
 local abilityLoopMap = {
-    GRENADE = makeFastSpamLoop("GRENADE", "Ranger", "bottom", 4, 1),
+    GRENADE = function()
+        while settings.activeAbilities["GRENADE"] do
+            local enemies = getAllEnemies()
+            for part, data in pairs(towers) do
+                if data.owned and data.name == "Ranger" and data.hash and data.bottomCount >= 4 and part.Parent then
+                    local hasEnemyInRange = false
+                    for _, enemy in ipairs(enemies) do
+                        if (part.Position - enemy.Position).Magnitude <= 18 then
+                            hasEnemyInRange = true
+                            break
+                        end
+                    end
+                    if hasEnemyInRange then
+                        task.spawn(function()
+                            sendAbilityNoPosition(part, 1)
+                        end)
+                    end
+                end
+            end
+            task.wait(0.05)
+        end
+    end,
     UNSTUN_HEALTH = makeFastSpamLoop("UNSTUN_HEALTH", "Shotgunner", "bottom", 5, 1),
     HEALTH_PACK = makeFastSpamLoop("HEALTH_PACK", "Shotgunner", "top", 5, 1),
     SHOCK_ROUNDS = makeFastSpamLoop("SHOCK_ROUNDS", "Laser Gunner", "top", 4, 1),
@@ -1392,7 +1437,9 @@ local pvpEcoActive = false
 local pvpEcoThread = nil
 local pvpEcoCurrentEnemy = nil
 local pvpEcoWaveCheckConnection = nil
-local pvpEcoCompletedTransitions = {}
+local pvpEcoCompletedTransitions = {} 
+
+
 
 local function runPvPLoop()
     while pvpActive and pvpSelectedEnemy do
@@ -1442,8 +1489,10 @@ end
 
 local function getBestEcoEnemy(wave, equipped)
     wave = wave or 1
-    if wave >= 26 and equipped["Heavy Metal"] then
+    if wave >= 25 and equipped["Heavy Metal"] then
         return "Heavy Metal"
+    elseif wave >= 13 and equipped["Knyght PVP"] then
+        return "Knyght PVP"
     elseif wave >= 11 and equipped["Fallout"] then
         return "Fallout"
     elseif wave >= 4 and equipped["Heavy Droid"] then
@@ -1504,7 +1553,7 @@ local function runPvPEco()
                 end
             end
 
-            if currentWave >= 11 and currentWave < 25 and pvpEcoCurrentEnemy ~= "Fallout" and not switchTarget then
+            if currentWave >= 11 and currentWave < 13 and pvpEcoCurrentEnemy ~= "Fallout" and not switchTarget then
                 if not pvpEcoCompletedTransitions["Fallout"] and currentEquipped["Fallout"] then
                     switchEndTime = tick() + 10
                     switchTarget = "Fallout"
@@ -1512,11 +1561,25 @@ local function runPvPEco()
                 end
             end
 
+            if currentWave >= 13 and currentWave < 26 and pvpEcoCurrentEnemy ~= "Knyght PVP" and not switchTarget then
+                if not pvpEcoCompletedTransitions["Knyght PVP"] and currentEquipped["Knyght PVP"] then
+                    switchEndTime = tick() + 10
+                    switchTarget = "Knyght PVP"
+                    addDebugLog("[PvP ECO] Wave 13+ detected, Knyght in 10s")
+                elseif not currentEquipped["Knyght PVP"] and pvpEcoCurrentEnemy ~= "Fallout" then
+                    if not pvpEcoCompletedTransitions["Fallout"] and currentEquipped["Fallout"] then
+                        switchEndTime = tick() + 10
+                        switchTarget = "Fallout"
+                        addDebugLog("[PvP ECO] Wave 13+ detected, Knyght not equipped, Fallout in 10s")
+                    end
+                end
+            end
+
             if currentWave >= 25 and pvpEcoCurrentEnemy ~= "Heavy Metal" and not switchTarget then
                 if not pvpEcoCompletedTransitions["Heavy Metal"] and currentEquipped["Heavy Metal"] then
                     switchEndTime = tick() + 10
                     switchTarget = "Heavy Metal"
-                    addDebugLog("[PvP ECO] Wave 26+ detected, Heavy Metal in 10s")
+                    addDebugLog("[PvP ECO] Wave 25+ detected, Heavy Metal in 10s")
                 end
             end
         end
@@ -1529,7 +1592,7 @@ local function runPvPEco()
             pvpSentAt = tick()
         end
 
-        task.wait(math.random() * 0.2 + 0.1)
+        task.wait(math.random() * 0.3 + 0.1)
     end
 
     pvpEcoActive = false
@@ -1541,7 +1604,7 @@ local function rebuildPvPButtons()
     pvpEnemyNames = getPvPEnemiesFromGame()
 
     for _, child in ipairs(pvpScroll:GetChildren()) do
-        if child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel") then child:Destroy() end
+        if (child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel")) and child.Name ~= "EcoMyLabel" and child.Name ~= "EcoEnemyLabel" then child:Destroy() end
     end
 
     local titleLabel = Instance.new("TextLabel")
@@ -1734,6 +1797,81 @@ task.spawn(function()
             end
         end
         task.wait(0.5)
+    end
+end)
+
+local function getMyCashText()
+    local player = game:GetService("Players").LocalPlayer
+    local playerGui = player:FindFirstChild("PlayerGui")
+    if not playerGui then return nil end
+    local interface = playerGui:FindFirstChild("Interface")
+    if not interface then return nil end
+    local gameInfoBar = interface:FindFirstChild("GameInfoBar")
+    if not gameInfoBar then return nil end
+    local pvp = gameInfoBar:FindFirstChild("PVP")
+    if not pvp then return nil end
+    local friendlyBar = pvp:FindFirstChild("FriendlyBar")
+    if not friendlyBar then return nil end
+    local cashFrame = friendlyBar:FindFirstChild("CashPerSecondFrame")
+    if not cashFrame then return nil end
+    local textLabel = cashFrame:FindFirstChild("Text")
+    if textLabel and textLabel:IsA("TextLabel") then
+        return textLabel.Text
+    end
+    return nil
+end
+
+local function parseCashValue(text)
+    if not text then return nil end
+    local clean = text:gsub("[$,]", "")
+    local kMatch = clean:match("([%d%.]+)k")
+    if kMatch then
+        return tonumber(kMatch) * 1000
+    end
+    local num = clean:match("([%d%.]+)")
+    return tonumber(num)
+end
+
+local function updatePvPEconomy()
+    if not pvpScroll then return end
+
+    local myCashText = getMyCashText()
+    local myCashNum = parseCashValue(myCashText)
+    local mySendDelta = game:GetService("Players").LocalPlayer:GetAttribute("PVPSendEcoDelta") or 0
+
+    local enemyPlayer = nil
+    for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+        if player ~= game:GetService("Players").LocalPlayer then
+            enemyPlayer = player
+            break
+        end
+    end
+
+    local enemySendDelta = 0
+    local enemyName = "Enemy"
+    if enemyPlayer then
+        enemySendDelta = enemyPlayer:GetAttribute("PVPSendEcoDelta") or 0
+        enemyName = enemyPlayer.Name
+    end
+
+    if myCashText then
+        ecoMyLabel.Text = string.format("ME: %s", myCashText)
+    else
+        ecoMyLabel.Text = "ME: ..."
+    end
+
+    if myCashNum then
+        local enemyEco = (myCashNum - mySendDelta) + enemySendDelta
+        ecoEnemyLabel.Text = string.format("%s: $%d/7s", enemyName, enemyEco)
+    else
+        ecoEnemyLabel.Text = string.format("%s: ...", enemyName)
+    end
+end
+
+task.spawn(function()
+    while true do
+        updatePvPEconomy()
+        task.wait(0.3)
     end
 end)
 
@@ -2470,6 +2608,8 @@ antiLagSettingsBtn.MouseButton1Click:Connect(function()
     end 
 end) 
 
+
+
 local anchorBtn = Instance.new("TextButton")
 anchorBtn.Size = UDim2.new(0, 48, 0, 48)
 anchorBtn.Position = UDim2.new(0, 12, 0, 12)
@@ -2877,6 +3017,8 @@ task.spawn(function()
                     addDebugLog(string.format("Assigned: %s | Hash: %d | Dist: %.4f", matchPart.Name, hash, bestDist))
                     pendingPlacements[hash] = nil
                     updateTowersList()
+
+
                 end
             else
                 addDebugLog(string.format("Stale placement removed: %s | Hash: %d", placement.name or "unknown", hash))
