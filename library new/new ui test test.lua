@@ -1120,6 +1120,41 @@ function TDS:HandleGameEnd()
     end
 end
 
+function TDS:Continue()
+    local gameOverDetected = false
+    repeat
+        task.wait(0.1)
+        local uiRoot = player_gui:FindFirstChild("ReactGameNewRewards")
+        if uiRoot then
+            local mainFrame = uiRoot:FindFirstChild("Frame")
+            if mainFrame and mainFrame.Visible then
+                local gameOver = mainFrame:FindFirstChild("gameOver")
+                if gameOver and gameOver.Visible then
+                    local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+                    if rewardsScreen and rewardsScreen.Visible then
+                        local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
+                        if topBanner then
+                            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
+                            if label then
+                                local txt = label.Text:upper()
+                                if txt ~= "" and (txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") or txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL")) then
+                                    gameOverDetected = true
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    until gameOverDetected
+
+    task.wait(1)
+
+    local Event = game:GetService("ReplicatedStorage").Network.GameManager["RF:NextMission"]
+    Event:InvokeServer()
+end
+
+
 local function get_current_wave()
     local label
     repeat
