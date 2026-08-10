@@ -1604,7 +1604,7 @@ local function rebuildPvPButtons()
     pvpEnemyNames = getPvPEnemiesFromGame()
 
     for _, child in ipairs(pvpScroll:GetChildren()) do
-        if (child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel")) and child.Name ~= "EcoMyLabel" and child.Name ~= "EcoEnemyLabel" then child:Destroy() end
+        if (child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel")) and child.Name ~= "EcoMyLabel" and child.Name ~= "EcoEnemyLabel" and child.Name ~= "DifferenceLabel" then child:Destroy() end
     end
 
     local titleLabel = Instance.new("TextLabel")
@@ -1854,18 +1854,44 @@ local function updatePvPEconomy()
         enemyName = enemyPlayer.Name
     end
 
-    if myCashText then
-        ecoMyLabel.Text = string.format("ME: %s", myCashText)
-    else
+    local localPlayer = game:GetService("Players").LocalPlayer
+    local isPvP = localPlayer.Team ~= nil
+
+    ecoMyLabel.Visible = isPvP
+    ecoEnemyLabel.Visible = isPvP
+
+    local diffLabel = pvpScroll:FindFirstChild("DifferenceLabel")
+    if not diffLabel then
+        diffLabel = Instance.new("TextLabel")
+        diffLabel.Name = "DifferenceLabel"
+        diffLabel.Size = UDim2.new(1, -14, 0, 20)
+        diffLabel.TextSize = 11
+        diffLabel.Font = Enum.Font.GothamBold
+        diffLabel.TextXAlignment = Enum.TextXAlignment.Left
+        diffLabel.BackgroundTransparency = 1
+        diffLabel.Parent = pvpScroll
+        diffLabel.LayoutOrder = -198
+    end
+    diffLabel.Visible = isPvP
+
+    local hasCashData = myCashNum ~= nil
+    if not hasCashData then
         ecoMyLabel.Text = "ME: ..."
+        ecoEnemyLabel.Text = string.format("%s: ...", enemyName)
+        diffLabel.Text = "Difference: ..."
+        diffLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
+        return
     end
 
-    if myCashNum then
-        local enemyEco = (myCashNum - mySendDelta) + enemySendDelta
-        ecoEnemyLabel.Text = string.format("%s: $%d/7s", enemyName, enemyEco)
-    else
-        ecoEnemyLabel.Text = string.format("%s: ...", enemyName)
-    end
+    ecoMyLabel.Text = string.format("ME: %s", myCashText)
+
+    local enemyEco = (myCashNum - mySendDelta) + enemySendDelta
+    ecoEnemyLabel.Text = string.format("%s: $%d/7s", enemyName, enemyEco)
+
+    local diff = myCashNum - enemyEco
+    local sign = diff >= 0 and "+" or ""
+    diffLabel.Text = string.format("Difference: %s$%d/7s", sign, diff)
+    diffLabel.TextColor3 = diff >= 0 and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(220, 130, 130)
 end
 
 task.spawn(function()
@@ -2900,94 +2926,298 @@ task.spawn(function()
 end)
 
 local function setupGameInfo()
-    local remote = ReplicatedStorage:FindFirstChild("Remotes")
-        and ReplicatedStorage.Remotes:FindFirstChild("TowerToEquippedCountMapChanged")
-    if not remote then
-        addDebugLog("Game Info: remote not found")
-        return
-    end
+    addDebugLog("Game Info: initializing player-based display")
 
-    local configs = ReplicatedStorage:FindFirstChild("TDX_Shared")
-        and ReplicatedStorage.TDX_Shared:FindFirstChild("Common")
-        and ReplicatedStorage.TDX_Shared.Common:FindFirstChild("Resources")
-        and ReplicatedStorage.TDX_Shared.Common.Resources:FindFirstChild("Towers")
-        and ReplicatedStorage.TDX_Shared.Common.Resources.Towers:FindFirstChild("Configs")
-    if not configs then
-        addDebugLog("Game Info: configs folder not found")
-        return
-    end
+    local teamColors = {
+        Blue = Color3.fromRGB(0, 120, 255),
+        Red = Color3.fromRGB(220, 50, 50),
+        Green = Color3.fromRGB(50, 200, 50),
+        Yellow = Color3.fromRGB(230, 200, 50),
+    }
 
-    local function updateGameInfoUI(towerCounts)
-        for _, child in ipairs(gameInfoScroll:GetChildren()) do
-            if child:IsA("TextLabel") then child:Destroy() end
-        end
-
-        local names = {}
-        for name in pairs(towerCounts) do
-            table.insert(names, name)
-        end
-        table.sort(names)
-
-        local labelCount = 0
-        for _, towerName in ipairs(names) do
-            local count = towerCounts[towerName]
-            local limitStr = ""
-            local module = configs:FindFirstChild(towerName)
-            if module then
-                local success, config = pcall(require, module)
-                if success and type(config) == "table" then
-                    local limitMap = config.LimitMap
-                    if limitMap and #limitMap > 0 then
-                        local index = math.min(type(count) == "number" and count or 1, #limitMap)
-                        local limit = limitMap[index]
-                        if limit then
-                            limitStr = " (personal limit " .. tostring(limit) .. ")"
-                        end
-                    end
-                end
+    local function getPlayerTeamColor(player)
+        if player.Team then
+            local teamName = player.Team.Name
+            if teamName == "Blue" or teamName == "Bright blue" then
+                return teamColors.Blue
+            elseif teamName == "Red" or teamName == "Bright red" then
+                return teamColors.Red
+            elseif teamName == "Green" or teamName == "Bright green" then
+                return teamColors.Green
+            elseif teamName == "Yellow" or teamName == "Bright yellow" then
+                return teamColors.Yellow
             end
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, -14, 0, 20)
-            local countStr = ""
-            if type(count) == "table" then
-                local parts = {}
-                for k, v in pairs(count) do
-                    table.insert(parts, tostring(k) .. ": " .. tostring(v))
-                end
-                countStr = "{ " .. table.concat(parts, ", ") .. " }"
+        end
+        return nil
+    end
+
+    local function getPlayerTowers(player)
+        local towerList = {}
+        for i = 1, 6 do
+            local towerName = player:GetAttribute("LoadoutSlot" .. tostring(i))
+            if towerName and towerName ~= "" then
+                table.insert(towerList, towerName)
             else
-                countStr = tostring(count)
+                table.insert(towerList, nil)
             end
-            label.Text = towerName .. " = " .. countStr .. limitStr
-            label.TextColor3 = Color3.fromRGB(180, 180, 185)
-            label.TextSize = 11
-            label.TextXAlignment = Enum.TextXAlignment.Left
-            label.BackgroundTransparency = 1
-            label.Font = Enum.Font.Gotham
-            label.Parent = gameInfoScroll
-            labelCount = labelCount + 1
+        end
+        return towerList
+    end
+
+    local function getPlayerEnemies(player)
+        local enemyList = {}
+        for i = 1, 12 do
+            local enemyName = player:GetAttribute("PVPEnemySlot" .. tostring(i))
+            if enemyName and enemyName ~= "" then
+                enemyName = enemyName:gsub("%s*PVP%s*$", ""):gsub("%s*pvp%s*$", "")
+                enemyName = enemyName:gsub("%s*PvP%s*$", "")
+                table.insert(enemyList, enemyName)
+            else
+                table.insert(enemyList, nil)
+            end
+        end
+        return enemyList
+    end
+
+    local function createSlotButton(parent, text, bgColor, textColor, position, size)
+        local btn = Instance.new("TextButton")
+        btn.Size = size or UDim2.new(0, 72, 0, 28)
+        btn.Position = position
+        btn.Text = text or ""
+        btn.BackgroundColor3 = bgColor or Color3.fromRGB(45, 45, 50)
+        btn.TextColor3 = textColor or Color3.fromRGB(180, 180, 185)
+        btn.TextSize = 9
+        btn.Font = Enum.Font.GothamSemibold
+        btn.AutoButtonColor = false
+        btn.TextWrapped = true
+        btn.Parent = parent
+        local corner = Instance.new("UICorner", btn)
+        corner.CornerRadius = UDim.new(0, 6)
+        local stroke = Instance.new("UIStroke", btn)
+        stroke.Color = Color3.fromRGB(60, 60, 65)
+        stroke.Thickness = 1
+        return btn
+    end
+
+    local function buildGameInfoUI()
+        for _, child in ipairs(gameInfoScroll:GetChildren()) do
+            if child:IsA("Frame") or child:IsA("TextLabel") then
+                child:Destroy()
+            end
         end
 
-        if labelCount == 0 then
+        local allPlayers = Players:GetPlayers()
+        if #allPlayers == 0 then
             local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, -14, 0, 22)
-            label.Text = "No tower data received yet"
+            label.Size = UDim2.new(1, -14, 0, 30)
+            label.Text = "No players found"
             label.TextColor3 = Color3.fromRGB(140, 140, 145)
-            label.TextSize = 11
+            label.TextSize = 12
             label.TextXAlignment = Enum.TextXAlignment.Center
             label.BackgroundTransparency = 1
             label.Font = Enum.Font.Gotham
             label.Parent = gameInfoScroll
+            gameInfoScroll.CanvasSize = UDim2.new(0, 0, 0, 40)
+            return false
         end
 
-        gameInfoScroll.CanvasSize = UDim2.new(0, 0, 0, gameInfoLayout.AbsoluteContentSize.Y + 10)
+        local teams = {}
+        local noTeamPlayers = {}
+
+        for _, player in ipairs(allPlayers) do
+            local teamColor = getPlayerTeamColor(player)
+            if teamColor then
+                local teamName = player.Team.Name
+                if not teams[teamName] then
+                    teams[teamName] = {color = teamColor, players = {}}
+                end
+                table.insert(teams[teamName].players, player)
+            else
+                table.insert(noTeamPlayers, player)
+            end
+        end
+
+        local yOffset = 8
+        local sectionSpacing = 16
+        local anyDataFound = false
+        local hasAnyTeam = next(teams) ~= nil
+
+        local function renderPlayerBlock(player, teamColor)
+            local towers = getPlayerTowers(player)
+            local enemies = getPlayerEnemies(player)
+
+            local hasTowerData = false
+            local hasEnemyData = false
+            for _, t in ipairs(towers) do if t then hasTowerData = true break end end
+            for _, e in ipairs(enemies) do if e then hasEnemyData = true break end end
+
+            if hasTowerData or hasEnemyData then
+                anyDataFound = true
+            end
+
+            local blockHeight = 72
+            if hasAnyTeam then
+                blockHeight = 138
+            end
+
+            local block = Instance.new("Frame")
+            block.Size = UDim2.new(1, -16, 0, blockHeight)
+            block.Position = UDim2.new(0, 8, 0, yOffset)
+            block.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+            block.BorderSizePixel = 0
+            block.Parent = gameInfoScroll
+            Instance.new("UICorner", block).CornerRadius = UDim.new(0, 10)
+            local blockStroke = Instance.new("UIStroke", block)
+            blockStroke.Color = Color3.fromRGB(45, 45, 50)
+            blockStroke.Thickness = 1
+
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(1, -12, 0, 18)
+            nameLabel.Position = UDim2.new(0, 6, 0, 4)
+            nameLabel.Text = player.Name
+            nameLabel.TextColor3 = teamColor or Color3.fromRGB(200, 200, 205)
+            nameLabel.TextSize = 11
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Parent = block
+
+            local towersLabel = Instance.new("TextLabel")
+            towersLabel.Size = UDim2.new(0, 50, 0, 14)
+            towersLabel.Position = UDim2.new(0, 6, 0, 22)
+            towersLabel.Text = "Towers"
+            towersLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
+            towersLabel.TextSize = 9
+            towersLabel.Font = Enum.Font.GothamSemibold
+            towersLabel.TextXAlignment = Enum.TextXAlignment.Left
+            towersLabel.BackgroundTransparency = 1
+            towersLabel.Parent = block
+
+            local towerColor = teamColor or Color3.fromRGB(80, 80, 85)
+            for i = 1, 6 do
+                local col = (i - 1) % 6
+                local towerName = towers[i]
+                createSlotButton(
+                    block,
+                    towerName or "",
+                    towerName and towerColor or Color3.fromRGB(35, 35, 40),
+                    towerName and Color3.fromRGB(230, 230, 235) or Color3.fromRGB(100, 100, 105),
+                    UDim2.new(0, 6 + col * 76, 0, 38),
+                    UDim2.new(0, 72, 0, 22)
+                )
+            end
+
+            if hasAnyTeam then
+                local enemiesLabel = Instance.new("TextLabel")
+                enemiesLabel.Size = UDim2.new(0, 50, 0, 14)
+                enemiesLabel.Position = UDim2.new(0, 6, 0, 64)
+                enemiesLabel.Text = "Enemies"
+                enemiesLabel.TextColor3 = Color3.fromRGB(160, 100, 220)
+                enemiesLabel.TextSize = 9
+                enemiesLabel.Font = Enum.Font.GothamSemibold
+                enemiesLabel.TextXAlignment = Enum.TextXAlignment.Left
+                enemiesLabel.BackgroundTransparency = 1
+                enemiesLabel.Parent = block
+
+                local enemyColor = Color3.fromRGB(140, 80, 200)
+                for i = 1, 12 do
+                    local col = (i - 1) % 6
+                    local row = math.floor((i - 1) / 6)
+                    local enemyName = enemies[i]
+                    createSlotButton(
+                        block,
+                        enemyName or "",
+                        enemyName and enemyColor or Color3.fromRGB(35, 35, 40),
+                        enemyName and Color3.fromRGB(235, 220, 255) or Color3.fromRGB(100, 100, 105),
+                        UDim2.new(0, 6 + col * 76, 0, 80 + row * 26),
+                        UDim2.new(0, 72, 0, 22)
+                    )
+                end
+            end
+
+            yOffset = yOffset + blockHeight + 8
+        end
+
+        for teamName, teamData in pairs(teams) do
+            local teamHeader = Instance.new("TextLabel")
+            teamHeader.Size = UDim2.new(1, -16, 0, 22)
+            teamHeader.Position = UDim2.new(0, 8, 0, yOffset)
+            teamHeader.Text = "Team: " .. teamName
+            teamHeader.TextColor3 = teamData.color
+            teamHeader.TextSize = 12
+            teamHeader.Font = Enum.Font.GothamBold
+            teamHeader.TextXAlignment = Enum.TextXAlignment.Left
+            teamHeader.BackgroundTransparency = 1
+            teamHeader.Parent = gameInfoScroll
+            yOffset = yOffset + 24
+
+            for _, player in ipairs(teamData.players) do
+                renderPlayerBlock(player, teamData.color)
+            end
+
+            yOffset = yOffset + sectionSpacing
+        end
+
+        if #noTeamPlayers > 0 then
+            if next(teams) then
+                local divider = Instance.new("Frame")
+                divider.Size = UDim2.new(1, -20, 0, 1)
+                divider.Position = UDim2.new(0, 10, 0, yOffset)
+                divider.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+                divider.BorderSizePixel = 0
+                divider.Parent = gameInfoScroll
+                yOffset = yOffset + 12
+            end
+
+            for _, player in ipairs(noTeamPlayers) do
+                renderPlayerBlock(player, nil)
+            end
+        end
+
+        gameInfoScroll.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
+        return anyDataFound
     end
 
-    remote.OnClientEvent:Connect(function(towerCounts)
-        updateGameInfoUI(towerCounts)
+    local dataFound = false
+    local retryCount = 0
+
+    local function tryBuild()
+        dataFound = buildGameInfoUI()
+        if dataFound then
+            addDebugLog("Game Info: data found and UI built")
+        else
+            retryCount = retryCount + 1
+            addDebugLog(string.format("Game Info: no data yet, retry #%d in 3s", retryCount))
+            task.delay(3, tryBuild)
+        end
+    end
+
+    tryBuild()
+
+    task.spawn(function()
+        while true do
+            if gameInfoFrame.Visible then
+                buildGameInfoUI()
+            end
+            task.wait(1)
+        end
     end)
 
-    addDebugLog("Game Info: listener ready")
+    Players.PlayerAdded:Connect(function()
+        if gameInfoFrame.Visible then
+            task.wait(0.5)
+            buildGameInfoUI()
+        end
+    end)
+
+    Players.PlayerRemoving:Connect(function()
+        if gameInfoFrame.Visible then
+            task.wait(0.5)
+            buildGameInfoUI()
+        end
+    end)
+
+    addDebugLog("Game Info: player-based display ready")
 end
 
 task.spawn(function()
@@ -3017,8 +3247,6 @@ task.spawn(function()
                     addDebugLog(string.format("Assigned: %s | Hash: %d | Dist: %.4f", matchPart.Name, hash, bestDist))
                     pendingPlacements[hash] = nil
                     updateTowersList()
-
-
                 end
             else
                 addDebugLog(string.format("Stale placement removed: %s | Hash: %d", placement.name or "unknown", hash))
