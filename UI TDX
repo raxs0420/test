@@ -175,7 +175,7 @@ title.Position = UDim2.new(0, 18, 0, 0)
 title.Text = "TDX Auto"
 title.TextColor3 = Color3.fromRGB(230, 230, 235)
 title.BackgroundTransparency = 1
-title.Font = Enum.Font.GothamBold
+title.Font = Enum.Font.Gotham
 title.TextSize = 18
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Parent = frame
@@ -186,7 +186,7 @@ minimizeBtn.Position = UDim2.new(1, -42, 0, 6)
 minimizeBtn.Text = "−"
 minimizeBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
 minimizeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-minimizeBtn.Font = Enum.Font.GothamBold
+minimizeBtn.Font = Enum.Font.Gotham
 minimizeBtn.TextSize = 18
 minimizeBtn.AutoButtonColor = false
 minimizeBtn.Parent = frame
@@ -215,7 +215,7 @@ tabMainBtn.Text = "Main"
 tabMainBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
 tabMainBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
 tabMainBtn.TextSize = 12
-tabMainBtn.Font = Enum.Font.GothamSemibold
+tabMainBtn.Font = Enum.Font.Gotham
 tabMainBtn.AutoButtonColor = false
 tabMainBtn.Parent = tabContainer
 Instance.new("UICorner", tabMainBtn).CornerRadius = UDim.new(0, 8)
@@ -227,7 +227,7 @@ tabAbilitiesBtn.Text = "Abilities"
 tabAbilitiesBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
 tabAbilitiesBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
 tabAbilitiesBtn.TextSize = 12
-tabAbilitiesBtn.Font = Enum.Font.GothamSemibold
+tabAbilitiesBtn.Font = Enum.Font.Gotham
 tabAbilitiesBtn.AutoButtonColor = false
 tabAbilitiesBtn.Parent = tabContainer
 Instance.new("UICorner", tabAbilitiesBtn).CornerRadius = UDim.new(0, 8)
@@ -239,7 +239,7 @@ tabTowersBtn.Text = "Towers"
 tabTowersBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
 tabTowersBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
 tabTowersBtn.TextSize = 12
-tabTowersBtn.Font = Enum.Font.GothamSemibold
+tabTowersBtn.Font = Enum.Font.Gotham
 tabTowersBtn.AutoButtonColor = false
 tabTowersBtn.Parent = tabContainer
 Instance.new("UICorner", tabTowersBtn).CornerRadius = UDim.new(0, 8)
@@ -251,7 +251,7 @@ tabGameInfoBtn.Text = "Game Info"
 tabGameInfoBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
 tabGameInfoBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
 tabGameInfoBtn.TextSize = 12
-tabGameInfoBtn.Font = Enum.Font.GothamSemibold
+tabGameInfoBtn.Font = Enum.Font.Gotham
 tabGameInfoBtn.AutoButtonColor = false
 tabGameInfoBtn.Parent = tabContainer
 Instance.new("UICorner", tabGameInfoBtn).CornerRadius = UDim.new(0, 8)
@@ -263,7 +263,7 @@ tabDebugBtn.Text = "Debug"
 tabDebugBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
 tabDebugBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
 tabDebugBtn.TextSize = 12
-tabDebugBtn.Font = Enum.Font.GothamSemibold
+tabDebugBtn.Font = Enum.Font.Gotham
 tabDebugBtn.AutoButtonColor = false
 tabDebugBtn.Parent = tabContainer
 Instance.new("UICorner", tabDebugBtn).CornerRadius = UDim.new(0, 8)
@@ -275,7 +275,7 @@ tabPvPBtn.Text = "PvP"
 tabPvPBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
 tabPvPBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
 tabPvPBtn.TextSize = 12
-tabPvPBtn.Font = Enum.Font.GothamSemibold
+tabPvPBtn.Font = Enum.Font.Gotham
 tabPvPBtn.AutoButtonColor = false
 tabPvPBtn.Parent = tabContainer
 Instance.new("UICorner", tabPvPBtn).CornerRadius = UDim.new(0, 8)
@@ -415,7 +415,7 @@ ecoMyLabel.Size = UDim2.new(1, -14, 0, 20)
 ecoMyLabel.Text = "ME: ..."
 ecoMyLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
 ecoMyLabel.TextSize = 11
-ecoMyLabel.Font = Enum.Font.GothamBold
+ecoMyLabel.Font = Enum.Font.Gotham
 ecoMyLabel.TextXAlignment = Enum.TextXAlignment.Left
 ecoMyLabel.BackgroundTransparency = 1
 ecoMyLabel.Parent = pvpScroll
@@ -427,7 +427,7 @@ ecoEnemyLabel.Size = UDim2.new(1, -14, 0, 20)
 ecoEnemyLabel.Text = "Enemy: ..."
 ecoEnemyLabel.TextColor3 = Color3.fromRGB(220, 130, 130)
 ecoEnemyLabel.TextSize = 11
-ecoEnemyLabel.Font = Enum.Font.GothamBold
+ecoEnemyLabel.Font = Enum.Font.Gotham
 ecoEnemyLabel.TextXAlignment = Enum.TextXAlignment.Left
 ecoEnemyLabel.BackgroundTransparency = 1
 ecoEnemyLabel.Parent = pvpScroll
@@ -441,7 +441,7 @@ clearDebugBtn.Text = "Clear Logs"
 clearDebugBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
 clearDebugBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
 clearDebugBtn.TextSize = 11
-clearDebugBtn.Font = Enum.Font.GothamSemibold
+clearDebugBtn.Font = Enum.Font.Gotham
 clearDebugBtn.AutoButtonColor = false
 clearDebugBtn.Parent = debugFrame
 Instance.new("UICorner", clearDebugBtn).CornerRadius = UDim.new(0, 8)
@@ -452,7 +452,7 @@ clearDebugStroke.Thickness = 1
 
 local function styleButton(btn, accent)
     btn.AutoButtonColor = false
-    btn.Font = Enum.Font.GothamSemibold
+    btn.Font = Enum.Font.Gotham
     local corner = Instance.new("UICorner", btn)
     corner.CornerRadius = UDim.new(0, 8)
     local stroke = Instance.new("UIStroke", btn)
@@ -499,7 +499,7 @@ antiLagSettingsBtn.Text = "⚙️"
 antiLagSettingsBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
 antiLagSettingsBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
 antiLagSettingsBtn.TextSize = 16
-antiLagSettingsBtn.Font = Enum.Font.GothamBold
+antiLagSettingsBtn.Font = Enum.Font.Gotham
 antiLagSettingsBtn.AutoButtonColor = false
 antiLagSettingsBtn.Parent = mainFrame
 local alsCorner = Instance.new("UICorner", antiLagSettingsBtn)
@@ -1320,7 +1320,7 @@ for _, abilityName in ipairs(abilityOrder) do
         btn.BackgroundColor3 = settings.activeAbilities[abilityName] and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(35, 35, 40)
         btn.TextColor3 = settings.activeAbilities[abilityName] and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(180, 180, 185)
         btn.TextSize = 10
-        btn.Font = Enum.Font.GothamSemibold
+        btn.Font = Enum.Font.Gotham
         btn.AutoButtonColor = false
         btn.Parent = rowFrame
         local btnCorner = Instance.new("UICorner", btn)
@@ -1381,7 +1381,7 @@ task.defer(function()
                     thresholdBox.Text = tostring(currentThreshold)
                     thresholdBox.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
                     thresholdBox.TextColor3 = Color3.fromRGB(220, 220, 225)
-                    thresholdBox.Font = Enum.Font.GothamBold
+                    thresholdBox.Font = Enum.Font.Gotham
                     thresholdBox.TextSize = 12
                     thresholdBox.ClearTextOnFocus = false
                     thresholdBox.Parent = btn
@@ -1612,7 +1612,7 @@ local function rebuildPvPButtons()
     titleLabel.Text = "PvP Enemy Sender"
     titleLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
     titleLabel.TextSize = 13
-    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.Font = Enum.Font.Gotham
     titleLabel.TextXAlignment = Enum.TextXAlignment.Center
     titleLabel.BackgroundTransparency = 1
     titleLabel.Parent = pvpScroll
@@ -1634,7 +1634,7 @@ local function rebuildPvPButtons()
         statusLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
     end
     statusLabel.TextSize = 10
-    statusLabel.Font = Enum.Font.GothamSemibold
+    statusLabel.Font = Enum.Font.Gotham
     statusLabel.TextXAlignment = Enum.TextXAlignment.Center
     statusLabel.BackgroundTransparency = 1
     statusLabel.Parent = pvpScroll
@@ -1661,7 +1661,7 @@ local function rebuildPvPButtons()
     ecoLabel.Text = "Auto ECO"
     ecoLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
     ecoLabel.TextSize = 12
-    ecoLabel.Font = Enum.Font.GothamBold
+    ecoLabel.Font = Enum.Font.Gotham
     ecoLabel.TextXAlignment = Enum.TextXAlignment.Left
     ecoLabel.BackgroundTransparency = 1
     ecoLabel.Parent = pvpScroll
@@ -1672,7 +1672,7 @@ local function rebuildPvPButtons()
     ecoBtn.BackgroundColor3 = pvpEcoActive and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(35, 35, 40)
     ecoBtn.TextColor3 = pvpEcoActive and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(180, 180, 185)
     ecoBtn.TextSize = 12
-    ecoBtn.Font = Enum.Font.GothamSemibold
+    ecoBtn.Font = Enum.Font.Gotham
     ecoBtn.AutoButtonColor = false
     ecoBtn.Parent = pvpScroll
     local ecoCorner = Instance.new("UICorner", ecoBtn)
@@ -1730,7 +1730,7 @@ local function rebuildPvPButtons()
         nameBtn.BackgroundColor3 = isActive and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(35, 35, 40)
         nameBtn.TextColor3 = isActive and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(180, 180, 185)
         nameBtn.TextSize = 12
-        nameBtn.Font = Enum.Font.GothamSemibold
+        nameBtn.Font = Enum.Font.Gotham
         nameBtn.AutoButtonColor = false
         nameBtn.Parent = pvpScroll
         local nbCorner = Instance.new("UICorner", nameBtn)
@@ -1866,7 +1866,7 @@ local function updatePvPEconomy()
         diffLabel.Name = "DifferenceLabel"
         diffLabel.Size = UDim2.new(1, -14, 0, 20)
         diffLabel.TextSize = 11
-        diffLabel.Font = Enum.Font.GothamBold
+        diffLabel.Font = Enum.Font.Gotham
         diffLabel.TextXAlignment = Enum.TextXAlignment.Left
         diffLabel.BackgroundTransparency = 1
         diffLabel.Parent = pvpScroll
@@ -1897,7 +1897,7 @@ end
 task.spawn(function()
     while true do
         updatePvPEconomy()
-        task.wait(0.3)
+        task.wait(0.1)
     end
 end)
 
@@ -2340,7 +2340,7 @@ local function createAntiLagSettingsUI()
     sfTitle.Text = "Anti-Lag Settings"
     sfTitle.TextColor3 = Color3.fromRGB(230, 230, 235)
     sfTitle.BackgroundTransparency = 1
-    sfTitle.Font = Enum.Font.GothamBold
+    sfTitle.Font = Enum.Font.Gotham
     sfTitle.TextSize = 16
     sfTitle.TextXAlignment = Enum.TextXAlignment.Left
     sfTitle.Parent = settingsFrame
@@ -2352,7 +2352,7 @@ local function createAntiLagSettingsUI()
     closeBtn.Text = "X"
     closeBtn.TextColor3 = Color3.fromRGB(220, 130, 130)
     closeBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
-    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Font = Enum.Font.Gotham
     closeBtn.TextSize = 14
     closeBtn.AutoButtonColor = false
     closeBtn.Parent = settingsFrame
@@ -2392,7 +2392,7 @@ local function createAntiLagSettingsUI()
         label.Text = text
         label.TextColor3 = Color3.fromRGB(200, 200, 205)
         label.BackgroundTransparency = 1
-        label.Font = Enum.Font.GothamSemibold
+        label.Font = Enum.Font.Gotham
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = toggleFrame
@@ -2467,7 +2467,7 @@ local function createAntiLagSettingsUI()
         label.Text = text
         label.TextColor3 = Color3.fromRGB(200, 200, 205)
         label.BackgroundTransparency = 1
-        label.Font = Enum.Font.GothamSemibold
+        label.Font = Enum.Font.Gotham
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = inputFrame
@@ -2479,7 +2479,7 @@ local function createAntiLagSettingsUI()
         inputBox.Text = tostring(settings[settingKey] or defaultValue)
         inputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
         inputBox.TextColor3 = Color3.fromRGB(220, 220, 225)
-        inputBox.Font = Enum.Font.GothamSemibold
+        inputBox.Font = Enum.Font.Gotham
         inputBox.TextSize = 12
         inputBox.ClearTextOnFocus = false
         inputBox.Parent = inputFrame
@@ -2510,7 +2510,7 @@ local function createAntiLagSettingsUI()
     sectionLabel.Text = "Visual Optimizations"
     sectionLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
     sectionLabel.BackgroundTransparency = 1
-    sectionLabel.Font = Enum.Font.GothamBold
+    sectionLabel.Font = Enum.Font.Gotham
     sectionLabel.TextSize = 13
     sectionLabel.TextXAlignment = Enum.TextXAlignment.Left
     sectionLabel.Parent = scrollFrame
@@ -2533,7 +2533,7 @@ local function createAntiLagSettingsUI()
     sectionLabel2.Text = "Enemy Management"
     sectionLabel2.TextColor3 = Color3.fromRGB(130, 220, 130)
     sectionLabel2.BackgroundTransparency = 1
-    sectionLabel2.Font = Enum.Font.GothamBold
+    sectionLabel2.Font = Enum.Font.Gotham
     sectionLabel2.TextSize = 13
     sectionLabel2.TextXAlignment = Enum.TextXAlignment.Left
     sectionLabel2.Parent = scrollFrame
@@ -2546,7 +2546,7 @@ local function createAntiLagSettingsUI()
     sectionLabel3.Text = "Actions"
     sectionLabel3.TextColor3 = Color3.fromRGB(130, 220, 130)
     sectionLabel3.BackgroundTransparency = 1
-    sectionLabel3.Font = Enum.Font.GothamBold
+    sectionLabel3.Font = Enum.Font.Gotham
     sectionLabel3.TextSize = 13
     sectionLabel3.TextXAlignment = Enum.TextXAlignment.Left
     sectionLabel3.Parent = scrollFrame
@@ -2557,7 +2557,7 @@ local function createAntiLagSettingsUI()
     resetBtn.Text = "Reset to Defaults"
     resetBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
     resetBtn.TextColor3 = Color3.fromRGB(220, 130, 130)
-    resetBtn.Font = Enum.Font.GothamSemibold
+    resetBtn.Font = Enum.Font.Gotham
     resetBtn.TextSize = 12
     resetBtn.AutoButtonColor = false
     resetBtn.Parent = scrollFrame
@@ -2643,7 +2643,7 @@ anchorBtn.Text = "TDX"
 anchorBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
 anchorBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
 anchorBtn.TextSize = 13
-anchorBtn.Font = Enum.Font.GothamBold
+anchorBtn.Font = Enum.Font.Gotham
 anchorBtn.Visible = false
 anchorBtn.AutoButtonColor = false
 anchorBtn.Parent = gui
@@ -2851,7 +2851,7 @@ teleportBtn.MouseButton1Click:Connect(function()
     text.Text = "Teleport to lobby?"
     text.TextColor3 = Color3.fromRGB(220, 220, 225)
     text.BackgroundTransparency = 1
-    text.Font = Enum.Font.GothamBold
+    text.Font = Enum.Font.Gotham
     text.TextSize = 17
     text.Parent = confirmFrame
     local yesBtn = Instance.new("TextButton")
@@ -2860,7 +2860,7 @@ teleportBtn.MouseButton1Click:Connect(function()
     yesBtn.Text = "Yes"
     yesBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
     yesBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
-    yesBtn.Font = Enum.Font.GothamSemibold
+    yesBtn.Font = Enum.Font.Gotham
     yesBtn.TextSize = 13
     yesBtn.AutoButtonColor = false
     yesBtn.Parent = confirmFrame
@@ -2874,7 +2874,7 @@ teleportBtn.MouseButton1Click:Connect(function()
     noBtn.Text = "No"
     noBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
     noBtn.TextColor3 = Color3.fromRGB(220, 130, 130)
-    noBtn.Font = Enum.Font.GothamSemibold
+    noBtn.Font = Enum.Font.Gotham
     noBtn.TextSize = 13
     noBtn.AutoButtonColor = false
     noBtn.Parent = confirmFrame
@@ -2987,7 +2987,7 @@ local function setupGameInfo()
         btn.BackgroundColor3 = bgColor or Color3.fromRGB(45, 45, 50)
         btn.TextColor3 = textColor or Color3.fromRGB(180, 180, 185)
         btn.TextSize = 9
-        btn.Font = Enum.Font.GothamSemibold
+        btn.Font = Enum.Font.Gotham
         btn.AutoButtonColor = false
         btn.TextWrapped = true
         btn.Parent = parent
@@ -3077,7 +3077,7 @@ local function setupGameInfo()
             nameLabel.Text = player.Name
             nameLabel.TextColor3 = teamColor or Color3.fromRGB(200, 200, 205)
             nameLabel.TextSize = 11
-            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.Font = Enum.Font.Gotham
             nameLabel.TextXAlignment = Enum.TextXAlignment.Left
             nameLabel.BackgroundTransparency = 1
             nameLabel.Parent = block
@@ -3088,7 +3088,7 @@ local function setupGameInfo()
             towersLabel.Text = "Towers"
             towersLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
             towersLabel.TextSize = 9
-            towersLabel.Font = Enum.Font.GothamSemibold
+            towersLabel.Font = Enum.Font.Gotham
             towersLabel.TextXAlignment = Enum.TextXAlignment.Left
             towersLabel.BackgroundTransparency = 1
             towersLabel.Parent = block
@@ -3114,7 +3114,7 @@ local function setupGameInfo()
                 enemiesLabel.Text = "Enemies"
                 enemiesLabel.TextColor3 = Color3.fromRGB(160, 100, 220)
                 enemiesLabel.TextSize = 9
-                enemiesLabel.Font = Enum.Font.GothamSemibold
+                enemiesLabel.Font = Enum.Font.Gotham
                 enemiesLabel.TextXAlignment = Enum.TextXAlignment.Left
                 enemiesLabel.BackgroundTransparency = 1
                 enemiesLabel.Parent = block
@@ -3145,7 +3145,7 @@ local function setupGameInfo()
             teamHeader.Text = "Team: " .. teamName
             teamHeader.TextColor3 = teamData.color
             teamHeader.TextSize = 12
-            teamHeader.Font = Enum.Font.GothamBold
+            teamHeader.Font = Enum.Font.Gotham
             teamHeader.TextXAlignment = Enum.TextXAlignment.Left
             teamHeader.BackgroundTransparency = 1
             teamHeader.Parent = gameInfoScroll
