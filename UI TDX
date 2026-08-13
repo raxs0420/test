@@ -53,7 +53,6 @@ end
 
 local function debugPrint(message, level)
     level = level or "INFO"
-    addDebugLog(string.format("[%s] %s", level, message))
 end
 
 local enemyBlocklist = {
@@ -77,22 +76,15 @@ local SettingsFile = "TDXAuto_Settings.json"
 local defaultSettings = { 
     autoTargetMode = nil, 
     autoSkip = false, 
-    antiLagEnabled = true, 
     activeAbilities = {},
     axeEnemyThreshold = 3,
-    antiLagRemoveFog = true,
-    antiLagRemoveShadows = true,
-    antiLagReduceTextures = true,
-    antiLagDisableEffects = true,
-    antiLagEnemyLimit = 100,
-    antiLagDisableParticles = true,
-    antiLagDisableDecals = true,
-    antiLagDisableTrails = true,
-    antiLagDisableLightingEffects = true,
-    antiLagReduceWater = true,
-    antiLagDisableCastShadows = true,
-    antiLagMaterialOverride = true,
-    antiLagRemoveEnemies = false
+    antiLagFog = false,
+    antiLagShadows = false,
+    antiLagEffects = false,
+    antiLagWater = false,
+    removeAnimEnemies = false,
+    removeAnimTowers = false,
+    removeAnimPaths = false
 }
 local settings = {}
 
@@ -109,9 +101,18 @@ local function loadSettings()
         settings = decoded
         settings.activeAbilities = settings.activeAbilities or {}
         settings.axeEnemyThreshold = tonumber(settings.axeEnemyThreshold) or 3
+        settings.antiLagFog = settings.antiLagFog == true
+        settings.antiLagShadows = settings.antiLagShadows == true
+        settings.antiLagEffects = settings.antiLagEffects == true
+        settings.antiLagWater = settings.antiLagWater == true
+        settings.removeAnimEnemies = settings.removeAnimEnemies == true
+        settings.removeAnimTowers = settings.removeAnimTowers == true
+        settings.removeAnimPaths = settings.removeAnimPaths == true
+        settings.ghostDronePosition = nil
     else
         settings = {}
         for k, v in pairs(defaultSettings) do settings[k] = v end
+        settings.ghostDronePosition = nil
     end
     addDebugLog(string.format("Settings loaded. Axe threshold: %s", tostring(settings.axeEnemyThreshold)))
 end
@@ -133,6 +134,7 @@ local gui = Instance.new("ScreenGui")
 gui.Name = "TDXAuto"
 gui.ResetOnSpawn = false
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.DisplayOrder = 100
 gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local frame = Instance.new("Frame")
@@ -205,7 +207,7 @@ tabContainer.BackgroundTransparency = 1
 tabContainer.Parent = frame
 tabContainer.ScrollBarThickness = 0
 tabContainer.ScrollingEnabled = true
-tabContainer.CanvasSize = UDim2.new(0, 540, 0, 34)
+tabContainer.CanvasSize = UDim2.new(0, 640, 0, 34)
 tabContainer.ScrollingDirection = Enum.ScrollingDirection.X
 
 local tabMainBtn = Instance.new("TextButton")
@@ -220,9 +222,21 @@ tabMainBtn.AutoButtonColor = false
 tabMainBtn.Parent = tabContainer
 Instance.new("UICorner", tabMainBtn).CornerRadius = UDim.new(0, 8)
 
+local tabPvPBtn = Instance.new("TextButton")
+tabPvPBtn.Size = UDim2.new(0, 84, 0, 28)
+tabPvPBtn.Position = UDim2.new(0, 90, 0, 3)
+tabPvPBtn.Text = "PvP"
+tabPvPBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+tabPvPBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
+tabPvPBtn.TextSize = 12
+tabPvPBtn.Font = Enum.Font.Gotham
+tabPvPBtn.AutoButtonColor = false
+tabPvPBtn.Parent = tabContainer
+Instance.new("UICorner", tabPvPBtn).CornerRadius = UDim.new(0, 8)
+
 local tabAbilitiesBtn = Instance.new("TextButton")
 tabAbilitiesBtn.Size = UDim2.new(0, 84, 0, 28)
-tabAbilitiesBtn.Position = UDim2.new(0, 90, 0, 3)
+tabAbilitiesBtn.Position = UDim2.new(0, 180, 0, 3)
 tabAbilitiesBtn.Text = "Abilities"
 tabAbilitiesBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
 tabAbilitiesBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
@@ -231,18 +245,6 @@ tabAbilitiesBtn.Font = Enum.Font.Gotham
 tabAbilitiesBtn.AutoButtonColor = false
 tabAbilitiesBtn.Parent = tabContainer
 Instance.new("UICorner", tabAbilitiesBtn).CornerRadius = UDim.new(0, 8)
-
-local tabTowersBtn = Instance.new("TextButton")
-tabTowersBtn.Size = UDim2.new(0, 84, 0, 28)
-tabTowersBtn.Position = UDim2.new(0, 180, 0, 3)
-tabTowersBtn.Text = "Towers"
-tabTowersBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
-tabTowersBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
-tabTowersBtn.TextSize = 12
-tabTowersBtn.Font = Enum.Font.Gotham
-tabTowersBtn.AutoButtonColor = false
-tabTowersBtn.Parent = tabContainer
-Instance.new("UICorner", tabTowersBtn).CornerRadius = UDim.new(0, 8)
 
 local tabGameInfoBtn = Instance.new("TextButton")
 tabGameInfoBtn.Size = UDim2.new(0, 84, 0, 28)
@@ -256,9 +258,33 @@ tabGameInfoBtn.AutoButtonColor = false
 tabGameInfoBtn.Parent = tabContainer
 Instance.new("UICorner", tabGameInfoBtn).CornerRadius = UDim.new(0, 8)
 
+local tabTowersBtn = Instance.new("TextButton")
+tabTowersBtn.Size = UDim2.new(0, 84, 0, 28)
+tabTowersBtn.Position = UDim2.new(0, 360, 0, 3)
+tabTowersBtn.Text = "Towers"
+tabTowersBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+tabTowersBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
+tabTowersBtn.TextSize = 12
+tabTowersBtn.Font = Enum.Font.Gotham
+tabTowersBtn.AutoButtonColor = false
+tabTowersBtn.Parent = tabContainer
+Instance.new("UICorner", tabTowersBtn).CornerRadius = UDim.new(0, 8)
+
+local tabAntiLagBtn = Instance.new("TextButton")
+tabAntiLagBtn.Size = UDim2.new(0, 84, 0, 28)
+tabAntiLagBtn.Position = UDim2.new(0, 450, 0, 3)
+tabAntiLagBtn.Text = "Anti-Lag"
+tabAntiLagBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
+tabAntiLagBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
+tabAntiLagBtn.TextSize = 12
+tabAntiLagBtn.Font = Enum.Font.Gotham
+tabAntiLagBtn.AutoButtonColor = false
+tabAntiLagBtn.Parent = tabContainer
+Instance.new("UICorner", tabAntiLagBtn).CornerRadius = UDim.new(0, 8)
+
 local tabDebugBtn = Instance.new("TextButton")
 tabDebugBtn.Size = UDim2.new(0, 84, 0, 28)
-tabDebugBtn.Position = UDim2.new(0, 360, 0, 3)
+tabDebugBtn.Position = UDim2.new(0, 540, 0, 3)
 tabDebugBtn.Text = "Debug"
 tabDebugBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
 tabDebugBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
@@ -267,18 +293,6 @@ tabDebugBtn.Font = Enum.Font.Gotham
 tabDebugBtn.AutoButtonColor = false
 tabDebugBtn.Parent = tabContainer
 Instance.new("UICorner", tabDebugBtn).CornerRadius = UDim.new(0, 8)
-
-local tabPvPBtn = Instance.new("TextButton")
-tabPvPBtn.Size = UDim2.new(0, 84, 0, 28)
-tabPvPBtn.Position = UDim2.new(0, 450, 0, 3)
-tabPvPBtn.Text = "PvP"
-tabPvPBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
-tabPvPBtn.TextColor3 = Color3.fromRGB(140, 140, 145)
-tabPvPBtn.TextSize = 12
-tabPvPBtn.Font = Enum.Font.Gotham
-tabPvPBtn.AutoButtonColor = false
-tabPvPBtn.Parent = tabContainer
-Instance.new("UICorner", tabPvPBtn).CornerRadius = UDim.new(0, 8)
 
 local contentFrame = Instance.new("Frame")
 contentFrame.Size = UDim2.new(1, -24, 1, -96)
@@ -409,30 +423,29 @@ pvpLayout.Padding = UDim.new(0, 6)
 pvpLayout.SortOrder = Enum.SortOrder.LayoutOrder
 pvpLayout.FillDirection = Enum.FillDirection.Vertical
 pvpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-local ecoMyLabel = Instance.new("TextLabel")
-ecoMyLabel.Name = "EcoMyLabel"
-ecoMyLabel.Size = UDim2.new(1, -14, 0, 20)
-ecoMyLabel.Text = "ME: ..."
-ecoMyLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
-ecoMyLabel.TextSize = 11
-ecoMyLabel.Font = Enum.Font.Gotham
-ecoMyLabel.TextXAlignment = Enum.TextXAlignment.Left
-ecoMyLabel.BackgroundTransparency = 1
-ecoMyLabel.Parent = pvpScroll
-ecoMyLabel.LayoutOrder = -200
 
-local ecoEnemyLabel = Instance.new("TextLabel")
-ecoEnemyLabel.Name = "EcoEnemyLabel"
-ecoEnemyLabel.Size = UDim2.new(1, -14, 0, 20)
-ecoEnemyLabel.Text = "Enemy: ..."
-ecoEnemyLabel.TextColor3 = Color3.fromRGB(220, 130, 130)
-ecoEnemyLabel.TextSize = 11
-ecoEnemyLabel.Font = Enum.Font.Gotham
-ecoEnemyLabel.TextXAlignment = Enum.TextXAlignment.Left
-ecoEnemyLabel.BackgroundTransparency = 1
-ecoEnemyLabel.Parent = pvpScroll
-ecoEnemyLabel.LayoutOrder = -199
+local antiLagFrame = Instance.new("Frame")
+antiLagFrame.Size = UDim2.new(1, -16, 1, -16)
+antiLagFrame.Position = UDim2.new(0, 8, 0, 8)
+antiLagFrame.BackgroundTransparency = 1
+antiLagFrame.Visible = false
+antiLagFrame.Parent = contentFrame
 
+local antiLagScroll = Instance.new("ScrollingFrame")
+antiLagScroll.Size = UDim2.new(1, 0, 1, 0)
+antiLagScroll.Position = UDim2.new(0, 0, 0, 0)
+antiLagScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+antiLagScroll.BorderSizePixel = 0
+antiLagScroll.ScrollBarThickness = 5
+antiLagScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+antiLagScroll.Parent = antiLagFrame
+Instance.new("UICorner", antiLagScroll).CornerRadius = UDim.new(0, 10)
+
+local antiLagLayout = Instance.new("UIListLayout", antiLagScroll)
+antiLagLayout.Padding = UDim.new(0, 6)
+antiLagLayout.SortOrder = Enum.SortOrder.LayoutOrder
+antiLagLayout.FillDirection = Enum.FillDirection.Vertical
+antiLagLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local clearDebugBtn = Instance.new("TextButton")
 clearDebugBtn.Size = UDim2.new(1, 0, 0, 34)
@@ -482,41 +495,6 @@ teleportBtn.TextSize = 11
 teleportBtn.Parent = mainFrame
 styleButton(teleportBtn, true)
 
-local antiLagBtn = Instance.new("TextButton")
-antiLagBtn.Size = UDim2.new(0.78, -4, 0, 36)
-antiLagBtn.Position = UDim2.new(0, 0, 0, 44)
-antiLagBtn.Text = "Anti Lag: ON"
-antiLagBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
-antiLagBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
-antiLagBtn.TextSize = 11
-antiLagBtn.Parent = mainFrame
-styleButton(antiLagBtn, true)
-
-local antiLagSettingsBtn = Instance.new("TextButton")
-antiLagSettingsBtn.Size = UDim2.new(0.2, -4, 0, 36)
-antiLagSettingsBtn.Position = UDim2.new(0.8, 0, 0, 44)
-antiLagSettingsBtn.Text = "⚙️"
-antiLagSettingsBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-antiLagSettingsBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
-antiLagSettingsBtn.TextSize = 16
-antiLagSettingsBtn.Font = Enum.Font.Gotham
-antiLagSettingsBtn.AutoButtonColor = false
-antiLagSettingsBtn.Parent = mainFrame
-local alsCorner = Instance.new("UICorner", antiLagSettingsBtn)
-alsCorner.CornerRadius = UDim.new(0, 8)
-local alsStroke = Instance.new("UIStroke", antiLagSettingsBtn)
-alsStroke.Color = Color3.fromRGB(50, 50, 55)
-alsStroke.Thickness = 1
-antiLagSettingsBtn.MouseEnter:Connect(function()
-    antiLagSettingsBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 62)
-end)
-antiLagSettingsBtn.MouseLeave:Connect(function()
-    antiLagSettingsBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-end)
-
-addDebugLog("=== TDX Auto Initialized ===")
-addDebugLog("Debug loaded")
-addDebugLog("Looking for towers.....")
 
 local towers = {}
 local globalHitBlacklist = {}
@@ -594,6 +572,7 @@ local function removeTower(part)
     if towers[part] then
         addDebugLog(string.format("Tower removed: %s", towers[part].name))
         towers[part] = nil
+        watchedTowers[part] = nil
         updateTowersList()
     end
 end
@@ -603,6 +582,7 @@ local function cleanupDeadTowers()
     for part, data in pairs(towers) do
         if isTowerDead(part) then
             towers[part] = nil
+            watchedTowers[part] = nil
             changed = true
         end
     end
@@ -623,6 +603,8 @@ local function scanForTowers()
     end
 end
 
+local watchedTowers = {}
+
 local function onNumericAdded(child, part)
     if not part or not part.Parent then return end
     local num = tonumber(child.Name)
@@ -632,39 +614,69 @@ local function onNumericAdded(child, part)
     local old = data.currentLevel
     if num > old then
         data.currentLevel = num
-        addDebugLog(string.format("Level increase for %s: %d -> %d", part.Name, old, num))
     end
 end
 
 local function watchTower(part)
     if not part or not part.Parent then return end
-    local function checkExisting()
-        for _, child in ipairs(part:GetChildren()) do
+    if watchedTowers[part] then return end
+    watchedTowers[part] = true
+
+    local function safeCheckChildren(parent)
+        local success, children = pcall(function() return parent:GetChildren() end)
+        if not success or not children then return end
+        for _, child in ipairs(children) do
             if tonumber(child.Name) then
                 onNumericAdded(child, part)
             end
             if child:IsA("Model") then
-                for _, sub in ipairs(child:GetChildren()) do
-                    if tonumber(sub.Name) then onNumericAdded(sub, part) end
+                local success2, subChildren = pcall(function() return child:GetChildren() end)
+                if success2 and subChildren then
+                    for _, sub in ipairs(subChildren) do
+                        if tonumber(sub.Name) then onNumericAdded(sub, part) end
+                    end
                 end
-                child.ChildAdded:Connect(function(sub)
-                    if tonumber(sub.Name) then onNumericAdded(sub, part) end
+                task.defer(function()
+                    if child and child.Parent then
+                        pcall(function()
+                            child.ChildAdded:Connect(function(sub)
+                                if tonumber(sub.Name) then onNumericAdded(sub, part) end
+                            end)
+                        end)
+                    end
                 end)
             end
         end
     end
-    part.ChildAdded:Connect(function(child)
-        if tonumber(child.Name) then onNumericAdded(child, part) end
-        if child:IsA("Model") then
-            child.ChildAdded:Connect(function(sub)
-                if tonumber(sub.Name) then onNumericAdded(sub, part) end
-            end)
-            for _, sub in ipairs(child:GetChildren()) do
-                if tonumber(sub.Name) then onNumericAdded(sub, part) end
-            end
+
+    task.defer(function()
+        if part and part.Parent then
+            safeCheckChildren(part)
         end
     end)
-    checkExisting()
+
+    pcall(function()
+        part.ChildAdded:Connect(function(child)
+            if tonumber(child.Name) then onNumericAdded(child, part) end
+            if child:IsA("Model") then
+                task.defer(function()
+                    if child and child.Parent then
+                        pcall(function()
+                            child.ChildAdded:Connect(function(sub)
+                                if tonumber(sub.Name) then onNumericAdded(sub, part) end
+                            end)
+                        end)
+                        local success, subChildren = pcall(function() return child:GetChildren() end)
+                        if success and subChildren then
+                            for _, sub in ipairs(subChildren) do
+                                if tonumber(sub.Name) then onNumericAdded(sub, part) end
+                            end
+                        end
+                    end
+                end)
+            end
+        end)
+    end)
 end
 
 local function getTowerUseAbilityRequest()
@@ -786,7 +798,7 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
             end
 
             if #validParts == 0 then
-                task.wait(0.05)
+                task.wait(0.1)
                 continue
             end
 
@@ -829,8 +841,8 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
                     globalHitBlacklist[target] = true
                     towerPauseUntil[part] = tick() + 6
                 end
-
-                task.wait(0.15)
+ 
+                task.wait(0.2)
             end
 
             task.wait(0.1)
@@ -931,7 +943,7 @@ local function runGrandSlamSequential()
     while settings.activeAbilities["GRAND_SLAM"] do
         local enemies = getAllEnemies()
         for part, data in pairs(towers) do
-            if data.owned and data.name == "Slammer" and data.hash and data.topCount >= 5 and part.Parent then
+            if data.owned and data.name == "Slammer" and data.hash and data.topCount >= 5 and part.Parent then 
                 local enemyInRange = false
                 for _, enemy in ipairs(enemies) do
                     if (part.Position - enemy.Position).Magnitude <= 5.5 then
@@ -960,6 +972,98 @@ local function runOverloadSequential()
             end
         end
         task.wait(0.05)
+    end
+end
+local function runJuggernautHERounds()
+    while settings.activeAbilities["HE_ROUNDS"] do
+        local enemies = getAllEnemies()
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Juggernaut" and data.hash and data.topCount >= 5 and part.Parent then
+                local enemyInRange = false
+                for _, enemy in ipairs(enemies) do
+                    if (part.Position - enemy.Position).Magnitude <= 45 then
+                        enemyInRange = true
+                        break
+                    end
+                end
+                if enemyInRange then
+                    task.spawn(function()
+                        sendAbilityNoPosition(part, 1)
+                    end)
+                end
+            end
+        end
+        task.wait(0.05)
+    end
+end
+
+local function runJuggernautOvercharge()
+    while settings.activeAbilities["OVERCHARGE"] do
+        local enemies = getAllEnemies()
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Juggernaut" and data.hash and data.bottomCount >= 5 and part.Parent then
+                local enemyInRange = false
+                for _, enemy in ipairs(enemies) do
+                    if (part.Position - enemy.Position).Magnitude <= 45 then
+                        enemyInRange = true
+                        break
+                    end
+                end
+                if enemyInRange then
+                    task.spawn(function()
+                        sendAbilityNoPosition(part, 1)
+                    end)
+                end
+            end
+        end
+        task.wait(0.05)
+    end
+end
+
+local function runGoldenJuggernautReboot()
+    while settings.activeAbilities["REBOOT_SYSTEM"] do
+        local enemies = getAllEnemies()
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Golden Juggernaut" and data.hash and part.Parent then
+                if data.topCount >= 5 or data.bottomCount >= 5 then
+                    local enemyInRange = false
+                    for _, enemy in ipairs(enemies) do
+                        if (part.Position - enemy.Position).Magnitude <= 45 then
+                            enemyInRange = true
+                            break
+                        end
+                    end
+                    if enemyInRange then
+                        task.spawn(function()
+                            sendAbilityNoPosition(part, 1)
+                        end)
+                    end
+                end
+            end
+        end
+        task.wait(0.05)
+    end
+end
+
+local function runGhostDrone()
+    while settings.activeAbilities["GHOST_DRONE"] do
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Ghost" and data.hash and data.topCount >= 4 and part.Parent then
+                local targetPos = part.Position
+                if settings.ghostDronePosition then
+                    local gp = settings.ghostDronePosition
+                    if type(gp) == "table" and gp[1] and gp[2] and gp[3] then
+                        targetPos = Vector3.new(gp[1], gp[2], gp[3])
+                    elseif typeof(gp) == "Vector3" then
+                        targetPos = gp
+                    end
+                end
+                task.spawn(function()
+                    sendAbilityWithPosition(part, 1, targetPos)
+                end)
+            end
+        end
+        task.wait(0.5)
     end
 end
 
@@ -1229,29 +1333,31 @@ local function runSpawnApcSequential()
     end
 end
 
-local abilityLoopMap = {
-    GRENADE = function()
-        while settings.activeAbilities["GRENADE"] do
-            local enemies = getAllEnemies()
-            for part, data in pairs(towers) do
-                if data.owned and data.name == "Ranger" and data.hash and data.bottomCount >= 4 and part.Parent then
-                    local hasEnemyInRange = false
-                    for _, enemy in ipairs(enemies) do
-                        if (part.Position - enemy.Position).Magnitude <= 18 then
-                            hasEnemyInRange = true
-                            break
-                        end
-                    end
-                    if hasEnemyInRange then
-                        task.spawn(function()
-                            sendAbilityNoPosition(part, 1)
-                        end)
+local function runRangerGrenade()
+    while settings.activeAbilities["GRENADE"] do
+        local enemies = getAllEnemies()
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Ranger" and data.hash and data.bottomCount >= 4 and part.Parent then
+                local hasEnemyInRange = false
+                for _, enemy in ipairs(enemies) do
+                    if (part.Position - enemy.Position).Magnitude <= 18 then
+                        hasEnemyInRange = true
+                        break
                     end
                 end
+                if hasEnemyInRange then
+                    task.spawn(function()
+                        sendAbilityNoPosition(part, 1)
+                    end)
+                end
             end
-            task.wait(0.05)
         end
-    end,
+        task.wait(0.05)
+    end
+end
+
+local abilityLoopMap = {
+    GRENADE = runRangerGrenade,
     UNSTUN_HEALTH = makeFastSpamLoop("UNSTUN_HEALTH", "Shotgunner", "bottom", 5, 1),
     HEALTH_PACK = makeFastSpamLoop("HEALTH_PACK", "Shotgunner", "top", 5, 1),
     SHOCK_ROUNDS = makeFastSpamLoop("SHOCK_ROUNDS", "Laser Gunner", "top", 4, 1),
@@ -1271,35 +1377,45 @@ local abilityLoopMap = {
     CALL_TO_ARMS = runCallToArmsSequential,
     ENCORE = runClusterCooldownAbility("ENCORE", "EDJ", "top", 3, 1, 10),
     RAGE = runClusterCooldownAbility("RAGE", "John", "top", 5, 1, 10),
+    HE_ROUNDS = runJuggernautHERounds,
+    OVERCHARGE = runJuggernautOvercharge,
+    REBOOT_SYSTEM = runGoldenJuggernautReboot,
+    GHOST_DRONE = runGhostDrone,
 }
 
 local abilityDisplayNames = {
-    GRENADE = "Grenade (Ranger Bot 4+)",
-    UNSTUN_HEALTH = "UnStun (Shotgunner Bot 5)",
-    HEALTH_PACK = "Health Pack (Shotgunner Top 5)",
-    HUMVEE = "Humvee (Operator Bot 3+)",
-    FLARE = "Flare (Sniper Bot 4+)",
-    ENCORE = "Encore (EDJ Top 3+)",
-    SHOCK_ROUNDS = "Shock Rounds (Laser Gunner Top 4+)",
-    STEALTH_SENSOR = "Stealth Sensor (Laser Gunner Bot 3+)",
-    AP_ROUNDS = "AP Rounds (Mobster Top 4+)",
-    N_BOUNTY = "N Bounty (Mobster Bot 3+)",
-    G_BOUNTY = "G Bounty (Golden Mobster Bot 3+)",
-    OVERLOAD = "Overload (Golden Mobster Top 4+)",
-    GOLDEN_RANGER = "Golden Ranger (Golden Ranger Bot 5)",
-    WARSHIP = "Warship (Warship)",
-    GRAND_SLAM = "Grand Slam (Slammer Top 5)",
-    RAGE = "Rage (John Top 5+)",
-    AXE = "Axe",
-    MEDIC_DRONE = "Medic Drone (Combat Medic Bot 3+)",
-    CALL_TO_ARMS = "Call to Arms (Commander Top 3+)",
-    SPAWN_APC = "Spawn APC (Commander Top 4+)",
+    GRENADE = "Grenade (Ranger B/4+)",
+    UNSTUN_HEALTH = "UnStun (Shotgunner B/5)",
+    HEALTH_PACK = "Health Pack (Shotgunner T/5)",
+    HUMVEE = "Humvee (Operator B/3+)",
+    FLARE = "Flare (Sniper B/4+)",
+    ENCORE = "Encore (EDJ T/3+)",
+    SHOCK_ROUNDS = "Shock Rounds (Laser Gunner T/4+)",
+    STEALTH_SENSOR = "Stealth Sensor (Laser Gunner B/3+)",
+    AP_ROUNDS = "AP Rounds (Mobster T/4+)",
+    N_BOUNTY = "N Bounty (Mobster B/3+)",
+    G_BOUNTY = "G Bounty (Golden Mobster B/3+)",
+    OVERLOAD = "Overload (Golden Mobster T/4+)",
+    GOLDEN_RANGER = "Golden Ranger (Golden Ranger B/5)",
+    WARSHIP = "Warship (Doesn't work)",
+    GRAND_SLAM = "Grand Slam (Slammer T/5)",
+    RAGE = "Rage (John T/5)",
+    AXE = "John (Axe B/5)       ",
+    MEDIC_DRONE = "Medic Drone (Combat Medic B/3+)",
+    CALL_TO_ARMS = "Call to Arms (Commander T/3+)",
+    SPAWN_APC = "Spawn APC (Commander T/4+)",
+    HE_ROUNDS = "HE Rounds (Juggernaut T/5)",
+    OVERCHARGE = "Overcharge (Juggernaut B/5)",
+    REBOOT_SYSTEM = "Reboot System (G Juggernaut T/B/5)",
+    GHOST_DRONE = "Drone (Ghost T/4+)                 ",
 }
 
 local abilityOrder = {
+    "AXE", "GHOST_DRONE", 
     "GRENADE", "UNSTUN_HEALTH", "HEALTH_PACK", "HUMVEE", "FLARE", "ENCORE",
     "SHOCK_ROUNDS", "STEALTH_SENSOR", "AP_ROUNDS", "N_BOUNTY", "G_BOUNTY", "OVERLOAD",
-    "GOLDEN_RANGER", "WARSHIP", "GRAND_SLAM", "RAGE", "AXE", "MEDIC_DRONE", "CALL_TO_ARMS", "SPAWN_APC"
+    "GOLDEN_RANGER", "WARSHIP", "GRAND_SLAM", "RAGE", "HE_ROUNDS", "OVERCHARGE", "REBOOT_SYSTEM"
+    , "MEDIC_DRONE", "CALL_TO_ARMS", "SPAWN_APC"
 }
 
 local rowFrame = nil
@@ -1307,7 +1423,7 @@ local buttonsInRow = 0
 
 for _, abilityName in ipairs(abilityOrder) do
     if abilityLoopMap[abilityName] then
-        if buttonsInRow == 0 then
+if buttonsInRow == 0 then
             rowFrame = Instance.new("Frame")
             rowFrame.Size = UDim2.new(1, -12, 0, 38)
             rowFrame.BackgroundTransparency = 1
@@ -1363,17 +1479,76 @@ for _, abilityName in ipairs(abilityOrder) do
             end
             saveSettings()
         end)
+
+        if abilityName == "GHOST_DRONE" then
+            local ghostSetBtn = Instance.new("TextButton")
+            ghostSetBtn.Size = UDim2.new(0, 50, 0, 22)
+            ghostSetBtn.Position = UDim2.new(1, -56, 0, 5)
+            ghostSetBtn.Text = "SET"
+            ghostSetBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+            ghostSetBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
+            ghostSetBtn.TextSize = 8
+            ghostSetBtn.Font = Enum.Font.Gotham
+            ghostSetBtn.AutoButtonColor = false
+            ghostSetBtn.Parent = btn
+            local gsCorner = Instance.new("UICorner", ghostSetBtn)
+            gsCorner.CornerRadius = UDim.new(0, 4)
+            local gsStroke = Instance.new("UIStroke", ghostSetBtn)
+            gsStroke.Color = hasPos and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(50, 50, 55)
+            gsStroke.Thickness = 1
+
+            ghostSetBtn.MouseEnter:Connect(function()
+                if settings.ghostDronePosition == nil then
+                    ghostSetBtn.BackgroundColor3 = Color3.fromRGB(48, 48, 55)
+                end
+            end)
+            ghostSetBtn.MouseLeave:Connect(function()
+                if settings.ghostDronePosition ~= nil then
+                    ghostSetBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+                else
+                    ghostSetBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+                end
+            end)
+
+            ghostSetBtn.MouseButton1Click:Connect(function()
+                if settings.ghostDronePosition then
+                    settings.ghostDronePosition = nil
+                    ghostSetBtn.Text = "SET"
+                    ghostSetBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+                    ghostSetBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
+                    gsStroke.Color = Color3.fromRGB(50, 50, 55)
+                    addDebugLog("[Ghost] Position cleared, using default (self)")
+                else
+                    local gameFolder = workspace:FindFirstChild("Game")
+                    local raycastIgnore = gameFolder and gameFolder:FindFirstChild("RaycastIgnore")
+                    local characters = raycastIgnore and raycastIgnore:FindFirstChild("Characters")
+                    local playerChar = characters and characters:FindFirstChild(LocalPlayer.Name)
+                    local head = playerChar and playerChar:FindFirstChild("Head")
+                    if head then
+                        local pos = head.Position - Vector3.new(0, 3, 0)
+                        settings.ghostDronePosition = {pos.X, pos.Y, pos.Z}
+                        ghostSetBtn.Text = "CLEAR"
+                        ghostSetBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+                        ghostSetBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
+                        gsStroke.Color = Color3.fromRGB(60, 130, 70)
+                        addDebugLog(string.format("[Ghost] Position set to %.1f, %.1f, %.1f (Head -3Y)", pos.X, pos.Y, pos.Z))
+                    else
+                        addDebugLog("[Ghost] Failed to set position - Head not found in workspace.Game.RaycastIgnore.Characters." .. tostring(LocalPlayer.Name))
+                    end
+                end
+            end)
+        end
     end
 end
 
-abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 42 + 10)
+abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 44 + 20)
 
 task.defer(function()
     task.wait(0.5)
     for _, row in ipairs(abilitiesFrame:GetChildren()) do
         if row:IsA("Frame") then
             for _, btn in ipairs(row:GetChildren()) do
-                if btn:IsA("TextButton") and btn.Text == "Axe" then
+                if btn:IsA("TextButton") and string.find(btn.Text, "Axe") then
                     local thresholdBox = Instance.new("TextBox")
                     thresholdBox.Size = UDim2.new(0, 50, 0, 22)
                     thresholdBox.Position = UDim2.new(1, -56, 0, 5)
@@ -1437,8 +1612,7 @@ local pvpEcoActive = false
 local pvpEcoThread = nil
 local pvpEcoCurrentEnemy = nil
 local pvpEcoWaveCheckConnection = nil
-local pvpEcoCompletedTransitions = {} 
-
+ 
 
 
 local function runPvPLoop()
@@ -1450,7 +1624,6 @@ local function runPvPLoop()
             end)
             pvpLastSentName = pvpSelectedEnemy
             pvpSentAt = tick()
-            addDebugLog(string.format("[PvP] Sent: %s", pvpSelectedEnemy))
         end
         task.wait(math.random() * 0.2 + 0.1)
     end
@@ -1487,117 +1660,100 @@ local function getCurrentWave()
     return nil
 end
 
+local ecoPriority = {
+    {name = "Golden Knight PVP", wave = 30},
+    {name = "Heavy Metal", wave = 26},
+    {name = "Scout Bot PVP", wave = 17},
+    {name = "Knyght PVP", wave = 14},
+    {name = "Fallout", wave = 12},
+    {name = "Heavy Droid", wave = 5},
+    {name = "Normal Droid", wave = 1},
+}
+
 local function getBestEcoEnemy(wave, equipped)
     wave = wave or 1
-    if wave >= 25 and equipped["Heavy Metal"] then
-        return "Heavy Metal"
-    elseif wave >= 13 and equipped["Knyght PVP"] then
-        return "Knyght PVP"
-    elseif wave >= 11 and equipped["Fallout"] then
-        return "Fallout"
-    elseif wave >= 4 and equipped["Heavy Droid"] then
-        return "Heavy Droid"
-    elseif equipped["Normal Droid"] then
-        return "Normal Droid"
+    for _, entry in ipairs(ecoPriority) do
+        if wave >= entry.wave and equipped[entry.name] then
+            return entry.name
+        end
     end
     return nil
+end
+
+local function getQueueEnemyCount()
+    local success, count = pcall(function()
+        local player = game:GetService("Players").LocalPlayer
+        local gui = player:FindFirstChild("PlayerGui")
+        if not gui then return 99 end
+        local interface = gui:FindFirstChild("Interface")
+        if not interface then return 99 end
+        local bottomBar = interface:FindFirstChild("BottomBar")
+        if not bottomBar then return 99 end
+        local pvpTowersBar = bottomBar:FindFirstChild("PVPTowersBar")
+        if not pvpTowersBar then return 99 end
+        local queueFrame = pvpTowersBar:FindFirstChild("QueueFrame")
+        if not queueFrame then return 99 end
+        local c = 0
+        for _, child in ipairs(queueFrame:GetChildren()) do
+            if not child:IsA("UIListLayout") and child.Visible then
+                c = c + 1
+            end
+        end
+        return c
+    end)
+    if success then
+        return count
+    else
+        return 99
+    end
 end
 
 local function runPvPEco()
     local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("RequestSendPVPEnemy")
     if not remote then
-        addDebugLog("[PvP ECO] Remote not found")
         pvpEcoActive = false
         return
     end
 
     local equipped = getEquippedEnemies()
-    local startWave = getCurrentWave() or 1
+    local startWave = getCurrentWave() or 0
     pvpEcoCurrentEnemy = getBestEcoEnemy(startWave, equipped)
 
     if not pvpEcoCurrentEnemy then
-        addDebugLog("[PvP ECO] No equipped enemies available, cannot start")
-        pvpEcoActive = false
-        return
+    else
     end
 
-    addDebugLog(string.format("[PvP ECO] Started on wave %d - sending %s", startWave, pvpEcoCurrentEnemy))
-
-    local switchEndTime = 0
-    local switchTarget = nil
-    local lastWave = startWave
-
     while pvpEcoActive do
-        local currentWave = getCurrentWave()
+        local currentWave = getCurrentWave() or 1
         local currentEquipped = getEquippedEnemies()
+        local queueCount = getQueueEnemyCount()
 
-        if currentWave and currentWave ~= lastWave then
-            lastWave = currentWave
-            addDebugLog(string.format("[PvP ECO] Wave changed to %d", currentWave))
-        end
+        local bestEnemy = getBestEcoEnemy(currentWave, currentEquipped)
 
-        if switchTarget and tick() >= switchEndTime then
-            pvpEcoCurrentEnemy = switchTarget
-            pvpEcoCompletedTransitions[switchTarget] = true
-            switchTarget = nil
-            switchEndTime = 0
-            addDebugLog(string.format("[PvP ECO] Timer done, now sending %s", pvpEcoCurrentEnemy))
-        end
-
-        if currentWave then
-            if currentWave >= 4 and currentWave < 11 and pvpEcoCurrentEnemy ~= "Heavy Droid" and not switchTarget then
-                if not pvpEcoCompletedTransitions["Heavy Droid"] and currentEquipped["Heavy Droid"] then
-                    switchEndTime = tick() + 10
-                    switchTarget = "Heavy Droid"
-                    addDebugLog("[PvP ECO] Wave 4+ detected, Heavy Droid in 10s")
-                end
+        if bestEnemy then
+            if bestEnemy ~= pvpEcoCurrentEnemy then
+                pvpEcoCurrentEnemy = bestEnemy
             end
 
-            if currentWave >= 11 and currentWave < 13 and pvpEcoCurrentEnemy ~= "Fallout" and not switchTarget then
-                if not pvpEcoCompletedTransitions["Fallout"] and currentEquipped["Fallout"] then
-                    switchEndTime = tick() + 10
-                    switchTarget = "Fallout"
-                    addDebugLog("[PvP ECO] Wave 11+ detected, Fallout in 10s")
-                end
+            if queueCount < 2 then
+                pcall(function()
+                    remote:InvokeServer(pvpEcoCurrentEnemy)
+                end)
+                pvpLastSentName = pvpEcoCurrentEnemy
+                pvpSentAt = tick()
+            else
             end
-
-            if currentWave >= 13 and currentWave < 26 and pvpEcoCurrentEnemy ~= "Knyght PVP" and not switchTarget then
-                if not pvpEcoCompletedTransitions["Knyght PVP"] and currentEquipped["Knyght PVP"] then
-                    switchEndTime = tick() + 10
-                    switchTarget = "Knyght PVP"
-                    addDebugLog("[PvP ECO] Wave 13+ detected, Knyght in 10s")
-                elseif not currentEquipped["Knyght PVP"] and pvpEcoCurrentEnemy ~= "Fallout" then
-                    if not pvpEcoCompletedTransitions["Fallout"] and currentEquipped["Fallout"] then
-                        switchEndTime = tick() + 10
-                        switchTarget = "Fallout"
-                        addDebugLog("[PvP ECO] Wave 13+ detected, Knyght not equipped, Fallout in 10s")
-                    end
-                end
-            end
-
-            if currentWave >= 25 and pvpEcoCurrentEnemy ~= "Heavy Metal" and not switchTarget then
-                if not pvpEcoCompletedTransitions["Heavy Metal"] and currentEquipped["Heavy Metal"] then
-                    switchEndTime = tick() + 10
-                    switchTarget = "Heavy Metal"
-                    addDebugLog("[PvP ECO] Wave 25+ detected, Heavy Metal in 10s")
-                end
+        else
+            if pvpEcoCurrentEnemy ~= "WAITING" then
+                pvpEcoCurrentEnemy = "WAITING"
             end
         end
 
-        if pvpEcoCurrentEnemy and currentEquipped[pvpEcoCurrentEnemy] then
-            pcall(function()
-                remote:InvokeServer(pvpEcoCurrentEnemy)
-            end)
-            pvpLastSentName = pvpEcoCurrentEnemy
-            pvpSentAt = tick()
-        end
-
-        task.wait(math.random() * 0.3 + 0.1)
+        task.wait(math.random() * 0.2 + 0.1)
     end
 
     pvpEcoActive = false
     pvpEcoCurrentEnemy = nil
-    addDebugLog("[PvP ECO] Stopped")
 end
 
 local function rebuildPvPButtons()
@@ -1630,7 +1786,7 @@ local function rebuildPvPButtons()
         statusLabel.Text = string.format("Last sent: %s (%.1fs ago)", pvpLastSentName, tick() - pvpSentAt)
         statusLabel.TextColor3 = Color3.fromRGB(220, 180, 100)
     else
-        statusLabel.Text = "Select an enemy below or use Auto ECO"
+        statusLabel.Text = "Select an enemy to spam send"
         statusLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
     end
     statusLabel.TextSize = 10
@@ -1641,7 +1797,7 @@ local function rebuildPvPButtons()
 
     local descLabel = Instance.new("TextLabel")
     descLabel.Size = UDim2.new(1, -14, 0, 28)
-    descLabel.Text = "0.1-0.3s delay per send | Click enemy to toggle"
+    descLabel.Text = "0.1-0.2s | Click enemy to toggle"
     descLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
     descLabel.TextSize = 10
     descLabel.Font = Enum.Font.Gotham
@@ -1661,7 +1817,7 @@ local function rebuildPvPButtons()
     ecoLabel.Text = "Auto ECO"
     ecoLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
     ecoLabel.TextSize = 12
-    ecoLabel.Font = Enum.Font.Gotham
+    ecoLabel.Font = Enum.Font.GothamBold
     ecoLabel.TextXAlignment = Enum.TextXAlignment.Left
     ecoLabel.BackgroundTransparency = 1
     ecoLabel.Parent = pvpScroll
@@ -1698,12 +1854,11 @@ local function rebuildPvPButtons()
         if pvpEcoActive then
             pvpEcoActive = false
             pvpEcoCurrentEnemy = nil
-            pvpEcoCompletedTransitions = {}
+            
             if pvpEcoThread then
                 pcall(function() task.cancel(pvpEcoThread) end)
                 pvpEcoThread = nil
             end
-            addDebugLog("[PvP ECO] Stopped by user")
         else
             if pvpActive then
                 pvpActive = false
@@ -1754,7 +1909,6 @@ local function rebuildPvPButtons()
             if pvpActive and pvpSelectedEnemy == name then
                 pvpActive = false
                 pvpSelectedEnemy = nil
-                addDebugLog(string.format("[PvP] Stopped sending %s", name))
             else
                 if pvpActive then
                     pvpActive = false
@@ -1763,7 +1917,7 @@ local function rebuildPvPButtons()
                 if pvpEcoActive then
                     pvpEcoActive = false
                     pvpEcoCurrentEnemy = nil
-                    pvpEcoCompletedTransitions = {}
+                    
                     if pvpEcoThread then
                         pcall(function() task.cancel(pvpEcoThread) end)
                         pvpEcoThread = nil
@@ -1773,7 +1927,6 @@ local function rebuildPvPButtons()
                 pvpSelectedEnemy = name
                 pvpActive = true
                 pvpLoopThread = task.spawn(runPvPLoop)
-                addDebugLog(string.format("[PvP] Started sending %s", name))
             end
             rebuildPvPButtons()
         end)
@@ -1799,6 +1952,530 @@ task.spawn(function()
         task.wait(0.5)
     end
 end)
+
+local antiLagButtons = {}
+
+local function createAntiLagToggle(name, settingKey, labelText, order)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -14, 0, 36)
+    btn.Text = labelText
+    btn.BackgroundColor3 = settings[settingKey] and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(38, 38, 44)
+    btn.TextColor3 = settings[settingKey] and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(180, 180, 185)
+    btn.TextSize = 11
+    btn.Font = Enum.Font.Gotham
+    btn.AutoButtonColor = false
+    btn.LayoutOrder = order
+    btn.Parent = antiLagScroll
+    local corner = Instance.new("UICorner", btn)
+    corner.CornerRadius = UDim.new(0, 8)
+    local stroke = Instance.new("UIStroke", btn)
+    stroke.Color = settings[settingKey] and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(50, 50, 55)
+    stroke.Thickness = 1
+
+    btn.MouseEnter:Connect(function()
+        if not settings[settingKey] then
+            btn.BackgroundColor3 = Color3.fromRGB(48, 48, 55)
+        end
+    end)
+    btn.MouseLeave:Connect(function()
+        if settings[settingKey] then
+            btn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+        end
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        settings[settingKey] = not settings[settingKey]
+        saveSettings()
+        if settings[settingKey] then
+            btn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
+            btn.TextColor3 = Color3.fromRGB(130, 220, 130)
+            stroke.Color = Color3.fromRGB(60, 130, 70)
+        else
+            btn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+            btn.TextColor3 = Color3.fromRGB(180, 180, 185)
+            stroke.Color = Color3.fromRGB(50, 50, 55)
+        end
+        applyAntiLagSettings()
+    end)
+
+    antiLagButtons[settingKey] = btn
+    return btn
+end
+
+local function buildAntiLagUI()
+    for _, child in ipairs(antiLagScroll:GetChildren()) do
+        if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("TextBox") or child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
+    antiLagButtons = {}
+
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1, -14, 0, 22)
+    title.Text = "Performance & Anti-Lag"
+    title.TextColor3 = Color3.fromRGB(200, 200, 205)
+    title.TextSize = 13
+    title.Font = Enum.Font.Gotham
+    title.TextXAlignment = Enum.TextXAlignment.Center
+    title.BackgroundTransparency = 1
+    title.LayoutOrder = 0
+    title.Parent = antiLagScroll
+
+    local desc = Instance.new("TextLabel")
+    desc.Size = UDim2.new(1, -14, 0, 28)
+    desc.Text = "Toggle options"
+    desc.TextColor3 = Color3.fromRGB(140, 140, 145)
+    desc.TextSize = 10
+    desc.Font = Enum.Font.Gotham
+    desc.TextXAlignment = Enum.TextXAlignment.Center
+    desc.TextWrapped = true
+    desc.BackgroundTransparency = 1
+    desc.LayoutOrder = 1
+    desc.Parent = antiLagScroll
+
+    local divider = Instance.new("Frame")
+    divider.Size = UDim2.new(1, -20, 0, 1)
+    divider.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    divider.BorderSizePixel = 0
+    divider.LayoutOrder = 2
+    divider.Parent = antiLagScroll
+
+    createAntiLagToggle("Fog", "antiLagFog", "Remove Fog", 3)
+    createAntiLagToggle("Shadows", "antiLagShadows", "Remove Shadows", 4)
+    createAntiLagToggle("Effects", "antiLagEffects", "Disable Lighting Effects", 5)
+    createAntiLagToggle("Water", "antiLagWater", "Reduce Water Effects", 6)
+
+    local divider2 = Instance.new("Frame")
+    divider2.Size = UDim2.new(1, -20, 0, 1)
+    divider2.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    divider2.BorderSizePixel = 0
+    divider2.LayoutOrder = 7
+    divider2.Parent = antiLagScroll
+
+    local animLabel = Instance.new("TextLabel")
+    animLabel.Size = UDim2.new(1, -14, 0, 18)
+    animLabel.Text = "Optimization (Anim + Visuals)"
+    animLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
+    animLabel.TextSize = 12
+    animLabel.Font = Enum.Font.Gotham
+    animLabel.TextXAlignment = Enum.TextXAlignment.Left
+    animLabel.BackgroundTransparency = 1
+    animLabel.LayoutOrder = 8
+    animLabel.Parent = antiLagScroll
+
+    createAntiLagToggle("AnimEnemies", "removeAnimEnemies", "Remove Enemies Animators", 9)
+    createAntiLagToggle("AnimTowers", "removeAnimTowers", "Remove Towers Animators", 10)
+    createAntiLagToggle("AnimPaths", "removeAnimPaths", "Remove Path Entities Animators", 11)
+
+    task.defer(function()
+        antiLagScroll.CanvasSize = UDim2.new(0, 0, 0, antiLagLayout.AbsoluteContentSize.Y + 10)
+    end)
+end
+
+local originalFog = {start = nil, fin = nil}
+local originalAtmosphere = {}
+
+local function applyAntiLagSettings()
+    if settings.antiLagFog then
+        if originalFog.start == nil then
+            originalFog.start = Lighting.FogStart
+            originalFog.fin = Lighting.FogEnd
+            for _, child in ipairs(Lighting:GetChildren()) do
+                if child:IsA("Atmosphere") then
+                    originalAtmosphere[child] = {
+                        density = child.Density,
+                        haze = child.Haze,
+                        glare = child.Glare
+                    }
+                end
+            end
+        end
+        Lighting.FogStart = 100000
+        Lighting.FogEnd = 100000
+        for _, child in ipairs(Lighting:GetChildren()) do
+            if child:IsA("Atmosphere") then
+                child.Density = 0
+            end
+        end
+    else
+        if originalFog.start ~= nil then
+            Lighting.FogStart = originalFog.start
+            Lighting.FogEnd = originalFog.fin
+        end
+        for child, vals in pairs(originalAtmosphere) do
+            if child and child.Parent then
+                child.Density = vals.density
+                child.Haze = vals.haze
+                child.Glare = vals.glare
+            end
+        end
+    end
+
+    if settings.antiLagShadows then
+        Lighting.GlobalShadows = false
+        Lighting.ShadowSoftness = 0
+    else
+        Lighting.GlobalShadows = true
+        Lighting.ShadowSoftness = 0.5
+    end
+
+    if settings.antiLagEffects then
+        for _, child in ipairs(Lighting:GetChildren()) do
+            if child:IsA("BloomEffect") then child.Enabled = false end
+            if child:IsA("SunRaysEffect") then child.Enabled = false end
+            if child:IsA("ColorCorrectionEffect") then child.Enabled = false end
+            if child:IsA("Atmosphere") then
+                child.Density = 0
+                child.Haze = 0
+                child.Glare = 0
+            end
+        end
+    else
+        for _, child in ipairs(Lighting:GetChildren()) do
+            if child:IsA("BloomEffect") then child.Enabled = true end
+            if child:IsA("SunRaysEffect") then child.Enabled = true end
+            if child:IsA("ColorCorrectionEffect") then child.Enabled = true end
+        end
+    end
+
+    if settings.antiLagWater then
+        workspace.Terrain.WaterWaveSize = 0
+        workspace.Terrain.WaterWaveSpeed = 0
+        workspace.Terrain.WaterReflectance = 0
+        workspace.Terrain.WaterTransparency = 1
+    else
+        workspace.Terrain.WaterWaveSize = 0.15
+        workspace.Terrain.WaterWaveSpeed = 10
+        workspace.Terrain.WaterReflectance = 1
+        workspace.Terrain.WaterTransparency = 0.3
+    end
+end
+
+if settings.antiLagFog or settings.antiLagShadows or settings.antiLagEffects or settings.antiLagWater then
+    task.delay(3, applyAntiLagSettings)
+end
+
+local animCleanedTowers = {}
+
+local function cleanAnimators(parent, cache)
+    if not parent then return end
+    for _, child in ipairs(parent:GetChildren()) do
+        if child:IsA("AnimationController") and not cache[child] then
+            cache[child] = true
+            pcall(function() child:Destroy() end)
+        end
+        if #child:GetChildren() > 0 then
+            cleanAnimators(child, cache)
+        end
+    end
+end
+
+local animFoldersToScan = {}
+local animFoldersScanned = {}
+local animScanIndex = 1
+local animScanBatchSize = 25
+local animScanInterval = 0.5
+
+local function collectAnimFolders(parent, list)
+    if not parent then return end
+    for _, child in ipairs(parent:GetChildren()) do
+        if child.Name == "Animations" and child:IsA("Folder") then
+            table.insert(list, child)
+        else
+            collectAnimFolders(child, list)
+        end
+    end
+end
+
+local function shouldRemoveAnim(animName)
+    local lower = animName:lower()
+    if lower:find("death") then return false end
+    return true
+end
+
+local function isAnimationObject(obj)
+    return obj:IsA("Animation") or obj:IsA("KeyframeSequence") or obj:IsA("CurveAnimation")
+end
+
+local function removeAnimationObject(anim)
+    local success, err = pcall(function()
+        anim:Destroy()
+    end)
+    if not success then
+        local success2, err2 = pcall(function()
+            anim.Parent = nil
+        end)
+        if success2 then
+            return true, "parented_to_nil"
+        else
+            return false, tostring(err)
+        end
+    end
+    return true, "destroyed"
+end
+
+local function scanAnimFoldersBatch()
+    if #animFoldersToScan == 0 then return 0 end
+    local processed = 0
+    local removed = 0
+
+    while processed < animScanBatchSize and animScanIndex <= #animFoldersToScan do
+        local folder = animFoldersToScan[animScanIndex]
+        animScanIndex = animScanIndex + 1
+
+        if folder and folder.Parent then
+            local folderKey = tostring(folder)
+            if not animFoldersScanned[folderKey] then
+                for _, anim in ipairs(folder:GetChildren()) do
+                    if isAnimationObject(anim) then
+                        if shouldRemoveAnim(anim.Name) then
+                            local ok, method = removeAnimationObject(anim)
+                            if ok then
+                                removed = removed + 1
+                            else
+                            end
+                        end
+                    end
+                end
+
+                local hasRemovableLeft = false
+                for _, child in ipairs(folder:GetChildren()) do
+                    if isAnimationObject(child) and shouldRemoveAnim(child.Name) then
+                        hasRemovableLeft = true
+                        break
+                    end
+                end
+
+                if not hasRemovableLeft then
+                    animFoldersScanned[folderKey] = true
+                end
+
+                processed = processed + 1
+            end
+        end
+    end
+
+    return removed
+end
+
+local function removeAnimationsFromFolder(folder, removedCount)
+    removedCount = removedCount or 0
+    if not folder then return removedCount end
+
+    for _, child in ipairs(folder:GetChildren()) do
+        if child.Name == "Animations" and child:IsA("Folder") then
+            for _, anim in ipairs(child:GetChildren()) do
+                if isAnimationObject(anim) and shouldRemoveAnim(anim.Name) then
+                    local ok, _ = removeAnimationObject(anim)
+                    if ok then
+                        removedCount = removedCount + 1
+                    end
+                end
+            end
+        elseif child.Name == "ModelSkins" and child:IsA("Folder") then
+            for _, modelSkin in ipairs(child:GetChildren()) do
+                removedCount = removeAnimationsFromFolder(modelSkin, removedCount)
+            end
+        elseif child:IsA("Folder") or child:IsA("Model") or child:IsA("Configuration") then
+            removedCount = removeAnimationsFromFolder(child, removedCount)
+        end
+    end
+
+    return removedCount
+end
+
+local function directRemoveFromPaths()
+    local removed = 0
+    local rs = game:GetService("ReplicatedStorage")
+
+    local enemyModels = rs:FindFirstChild("TDX_Shared")
+    enemyModels = enemyModels and enemyModels:FindFirstChild("Common")
+    enemyModels = enemyModels and enemyModels:FindFirstChild("Resources")
+    enemyModels = enemyModels and enemyModels:FindFirstChild("Enemies")
+    enemyModels = enemyModels and enemyModels:FindFirstChild("Models")
+
+    if enemyModels then
+        removed = removed + removeAnimationsFromFolder(enemyModels, 0)
+    end
+
+    local pathModels = rs:FindFirstChild("TDX_Shared")
+    pathModels = pathModels and pathModels:FindFirstChild("Common")
+    pathModels = pathModels and pathModels:FindFirstChild("Resources")
+    pathModels = pathModels and pathModels:FindFirstChild("PathEntities")
+    pathModels = pathModels and pathModels:FindFirstChild("Models")
+
+    if pathModels then
+        removed = removed + removeAnimationsFromFolder(pathModels, 0)
+    end
+
+    local pathEntities = rs:FindFirstChild("TDX_Shared")
+    pathEntities = pathEntities and pathEntities:FindFirstChild("Common")
+    pathEntities = pathEntities and pathEntities:FindFirstChild("Resources")
+    pathEntities = pathEntities and pathEntities:FindFirstChild("PathEntities")
+
+    if pathEntities then
+        local skinsFolder = pathEntities:FindFirstChild("Skins")
+        if skinsFolder then
+            removed = removed + removeAnimationsFromFolder(skinsFolder, 0)
+        end
+    end
+
+    return removed
+end
+
+local function startAnimFolderScan()
+    animFoldersToScan = {}
+    animFoldersScanned = {}
+    animScanIndex = 1
+
+    local rs = game:GetService("ReplicatedStorage")
+
+    local enemyModels = rs:FindFirstChild("TDX_Shared")
+    enemyModels = enemyModels and enemyModels:FindFirstChild("Common")
+    enemyModels = enemyModels and enemyModels:FindFirstChild("Resources")
+    enemyModels = enemyModels and enemyModels:FindFirstChild("Enemies")
+    enemyModels = enemyModels and enemyModels:FindFirstChild("Models")
+
+    if enemyModels then
+        collectAnimFolders(enemyModels, animFoldersToScan)
+        for _, eventFolder in ipairs(enemyModels:GetChildren()) do
+            local animCount = 0
+            for _, enemyModel in ipairs(eventFolder:GetChildren()) do
+                local animFolder = enemyModel:FindFirstChild("Animations")
+                if animFolder then
+                    for _, anim in ipairs(animFolder:GetChildren()) do
+                        if isAnimationObject(anim) then
+                            animCount = animCount + 1
+                        end
+                    end
+                end
+            end
+        end
+    else
+    end
+
+    local pathModels = rs:FindFirstChild("TDX_Shared")
+    pathModels = pathModels and pathModels:FindFirstChild("Common")
+    pathModels = pathModels and pathModels:FindFirstChild("Resources")
+    pathModels = pathModels and pathModels:FindFirstChild("PathEntities")
+    pathModels = pathModels and pathModels:FindFirstChild("Models")
+
+    if pathModels then
+        collectAnimFolders(pathModels, animFoldersToScan)
+    end
+
+    local pathEntities = rs:FindFirstChild("TDX_Shared")
+    pathEntities = pathEntities and pathEntities:FindFirstChild("Common")
+    pathEntities = pathEntities and pathEntities:FindFirstChild("Resources")
+    pathEntities = pathEntities and pathEntities:FindFirstChild("PathEntities")
+
+    if pathEntities then
+        local skinsFolder = pathEntities:FindFirstChild("Skins")
+        if skinsFolder then
+            collectAnimFolders(skinsFolder, animFoldersToScan)
+            for _, skin in ipairs(skinsFolder:GetChildren()) do
+                local skinAnimCount = 0
+                local modelSkins = skin:FindFirstChild("ModelSkins")
+                if modelSkins then
+                    for _, modelSkin in ipairs(modelSkins:GetChildren()) do
+                        local animFolder = modelSkin:FindFirstChild("Animations")
+                        if animFolder then
+                            for _, anim in ipairs(animFolder:GetChildren()) do
+                                if isAnimationObject(anim) then
+                                    skinAnimCount = skinAnimCount + 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+
+    local directRemoved = directRemoveFromPaths()
+    if directRemoved > 0 then
+    end
+end
+
+local function runAnimFolderScanner()
+    while true do
+        if settings.removeAnimEnemies or settings.removeAnimPaths then
+            if #animFoldersToScan == 0 then
+                startAnimFolderScan()
+            end
+
+            if animScanIndex <= #animFoldersToScan then
+                local removed = scanAnimFoldersBatch()
+                if removed > 0 then
+                end
+            end
+        end
+        task.wait(animScanInterval)
+    end
+end
+
+task.spawn(runAnimFolderScanner)
+
+local enemyProcessed = {}
+
+local function processEnemyVisuals(enemiesFolder, batchSize)
+    local allEnemies = enemiesFolder:GetChildren()
+    local processed = 0
+    for _, enemy in ipairs(allEnemies) do
+        if processed >= batchSize then break end
+        if enemyProcessed[enemy] then continue end
+        enemyProcessed[enemy] = true
+        processed = processed + 1
+
+        for _, desc in ipairs(enemy:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                desc.CastShadow = false
+            end
+        end
+
+        for _, desc in ipairs(enemy:GetDescendants()) do
+            if desc:IsA("ParticleEmitter") or desc:IsA("Trail") or desc:IsA("Beam") or desc:IsA("Fire") or desc:IsA("Smoke") or desc:IsA("Sparkles") then
+                pcall(function() desc:Destroy() end)
+            end
+        end
+
+        for _, desc in ipairs(enemy:GetDescendants()) do
+            if desc:IsA("Decal") or desc:IsA("Texture") then
+                pcall(function() desc:Destroy() end)
+            end
+        end
+    end
+    return processed
+end
+
+local function runAntiLagLoops()
+    while true do
+        if settings.removeAnimEnemies then
+            local gameFolder = workspace:FindFirstChild("Game")
+            if gameFolder then
+                local enemies = gameFolder:FindFirstChild("Enemies")
+                if enemies then
+                    local count = processEnemyVisuals(enemies, 100)
+                    if count > 0 then
+                    end
+                end
+            end
+        end
+        if settings.removeAnimTowers then
+            local gameFolder = workspace:FindFirstChild("Game")
+            if gameFolder then
+                local towersFolder = gameFolder:FindFirstChild("Towers")
+                if towersFolder then cleanAnimators(towersFolder, animCleanedTowers) end
+            end
+        end
+        task.wait(0.3)
+    end
+end
+
+task.spawn(runAntiLagLoops)
 
 local function getMyCashText()
     local player = game:GetService("Players").LocalPlayer
@@ -1833,15 +2510,135 @@ local function parseCashValue(text)
 end
 
 local function updatePvPEconomy()
-    if not pvpScroll then return end
+end
+
+local ecoOverlayGui = nil
+local ecoOverlayEnemyLabel = nil
+local ecoOverlayDiffLabel = nil
+
+local function createEcoOverlay()
+    if ecoOverlayGui then
+        pcall(function() ecoOverlayGui:Destroy() end)
+    end
+
+    ecoOverlayGui = Instance.new("ScreenGui")
+    ecoOverlayGui.Name = "TDXEcoOverlay"
+    ecoOverlayGui.ResetOnSpawn = false
+    ecoOverlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ecoOverlayGui.DisplayOrder = -1
+    ecoOverlayGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+    ecoOverlayEnemyLabel = Instance.new("TextLabel")
+    ecoOverlayEnemyLabel.Name = "EcoOverlayEnemy"
+    ecoOverlayEnemyLabel.Size = UDim2.new(0, 200, 0, 22)
+    ecoOverlayEnemyLabel.BackgroundTransparency = 1
+    ecoOverlayEnemyLabel.Text = ""
+    ecoOverlayEnemyLabel.TextColor3 = Color3.fromRGB(255, 30, 30)
+    ecoOverlayEnemyLabel.TextSize = 16
+    ecoOverlayEnemyLabel.Font = Enum.Font.GothamBold
+    ecoOverlayEnemyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ecoOverlayEnemyLabel.TextYAlignment = Enum.TextYAlignment.Center
+    ecoOverlayEnemyLabel.TextStrokeTransparency = 0.4
+    ecoOverlayEnemyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    ecoOverlayEnemyLabel.Parent = ecoOverlayGui
+
+    ecoOverlayDiffLabel = Instance.new("TextLabel")
+    ecoOverlayDiffLabel.Name = "EcoOverlayDiff"
+    ecoOverlayDiffLabel.Size = UDim2.new(0, 200, 0, 18)
+    ecoOverlayDiffLabel.BackgroundTransparency = 1
+    ecoOverlayDiffLabel.Text = ""
+    ecoOverlayDiffLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    ecoOverlayDiffLabel.TextSize = 13
+    ecoOverlayDiffLabel.Font = Enum.Font.GothamBold
+    ecoOverlayDiffLabel.TextXAlignment = Enum.TextXAlignment.Left
+    ecoOverlayDiffLabel.TextYAlignment = Enum.TextYAlignment.Center
+    ecoOverlayDiffLabel.TextStrokeTransparency = 0.4
+    ecoOverlayDiffLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    ecoOverlayDiffLabel.Parent = ecoOverlayGui
+end
+
+local function updateEcoOverlay()
+    if not ecoOverlayGui then
+        createEcoOverlay()
+    end
+
+    local hasAnyTeam = false
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Team then
+            hasAnyTeam = true
+            break
+        end
+    end
+
+    if not hasAnyTeam then
+        ecoOverlayEnemyLabel.Visible = false
+        ecoOverlayDiffLabel.Visible = false
+        return
+    end
+
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then 
+        ecoOverlayEnemyLabel.Visible = false
+        ecoOverlayDiffLabel.Visible = false
+        return 
+    end
+    local interface = playerGui:FindFirstChild("Interface")
+    if not interface then 
+        ecoOverlayEnemyLabel.Visible = false
+        ecoOverlayDiffLabel.Visible = false
+        return 
+    end
+    local gameInfoBar = interface:FindFirstChild("GameInfoBar")
+    if not gameInfoBar then 
+        ecoOverlayEnemyLabel.Visible = false
+        ecoOverlayDiffLabel.Visible = false
+        return 
+    end
+    local pvp = gameInfoBar:FindFirstChild("PVP")
+    if not pvp then 
+        ecoOverlayEnemyLabel.Visible = false
+        ecoOverlayDiffLabel.Visible = false
+        return 
+    end
+
+    local friendlyBar = pvp:FindFirstChild("FriendlyBar")
+    if not friendlyBar then 
+        ecoOverlayEnemyLabel.Visible = false
+        ecoOverlayDiffLabel.Visible = false
+        return 
+    end
+    local cashFrame = friendlyBar:FindFirstChild("CashPerSecondFrame")
+    if not cashFrame then 
+        ecoOverlayEnemyLabel.Visible = false
+        ecoOverlayDiffLabel.Visible = false
+        return 
+    end
+    local cashTextLabel = cashFrame:FindFirstChild("Text")
+
+    local baseTextSize = 16
+    local baseFont = Enum.Font.GothamBold
+    if cashTextLabel and cashTextLabel:IsA("TextLabel") then
+        baseTextSize = cashTextLabel.TextSize or 16
+        baseFont = cashTextLabel.Font or Enum.Font.GothamBold
+        ecoOverlayEnemyLabel.Font = baseFont
+        ecoOverlayEnemyLabel.TextSize = baseTextSize
+        ecoOverlayDiffLabel.Font = cashTextLabel.Font or Enum.Font.Gotham
+        ecoOverlayDiffLabel.TextSize = (cashTextLabel.TextSize or 16) - 2
+    end
+
+    local cashPos = cashFrame.AbsolutePosition
+    local cashSize = cashFrame.AbsoluteSize
+
+    ecoOverlayEnemyLabel.Position = UDim2.new(0, cashPos.X + cashSize.X + 12, 0, cashPos.Y)
+    ecoOverlayDiffLabel.Position = UDim2.new(0, cashPos.X + 12, 0, cashPos.Y + cashSize.Y + 1)
 
     local myCashText = getMyCashText()
     local myCashNum = parseCashValue(myCashText)
-    local mySendDelta = game:GetService("Players").LocalPlayer:GetAttribute("PVPSendEcoDelta") or 0
+    local mySendDelta = LocalPlayer:GetAttribute("PVPSendEcoDelta") or 0
 
     local enemyPlayer = nil
-    for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
-        if player ~= game:GetService("Players").LocalPlayer then
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
             enemyPlayer = player
             break
         end
@@ -1854,55 +2651,31 @@ local function updatePvPEconomy()
         enemyName = enemyPlayer.Name
     end
 
-    local localPlayer = game:GetService("Players").LocalPlayer
-    local isPvP = localPlayer.Team ~= nil
+    if myCashNum then
+        local enemyEco = (myCashNum - mySendDelta) + enemySendDelta
+        ecoOverlayEnemyLabel.Text = string.format("%s: $%d/7s", enemyName, enemyEco)
+        ecoOverlayEnemyLabel.Visible = true
 
-    ecoMyLabel.Visible = isPvP
-    ecoEnemyLabel.Visible = isPvP
-
-    local diffLabel = pvpScroll:FindFirstChild("DifferenceLabel")
-    if not diffLabel then
-        diffLabel = Instance.new("TextLabel")
-        diffLabel.Name = "DifferenceLabel"
-        diffLabel.Size = UDim2.new(1, -14, 0, 20)
-        diffLabel.TextSize = 11
-        diffLabel.Font = Enum.Font.Gotham
-        diffLabel.TextXAlignment = Enum.TextXAlignment.Left
-        diffLabel.BackgroundTransparency = 1
-        diffLabel.Parent = pvpScroll
-        diffLabel.LayoutOrder = -198
+        local diff = myCashNum - enemyEco
+        local sign = diff >= 0 and "+" or ""
+        ecoOverlayDiffLabel.Text = string.format("%s$%d", sign, diff)
+        ecoOverlayDiffLabel.TextColor3 = diff >= 0 and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(220, 130, 130)
+        ecoOverlayDiffLabel.Visible = true
+    else
+        ecoOverlayEnemyLabel.Visible = false
+        ecoOverlayDiffLabel.Visible = false
     end
-    diffLabel.Visible = isPvP
-
-    local hasCashData = myCashNum ~= nil
-    if not hasCashData then
-        ecoMyLabel.Text = "ME: ..."
-        ecoEnemyLabel.Text = string.format("%s: ...", enemyName)
-        diffLabel.Text = "Difference: ..."
-        diffLabel.TextColor3 = Color3.fromRGB(140, 140, 145)
-        return
-    end
-
-    ecoMyLabel.Text = string.format("ME: %s", myCashText)
-
-    local enemyEco = (myCashNum - mySendDelta) + enemySendDelta
-    ecoEnemyLabel.Text = string.format("%s: $%d/7s", enemyName, enemyEco)
-
-    local diff = myCashNum - enemyEco
-    local sign = diff >= 0 and "+" or ""
-    diffLabel.Text = string.format("Difference: %s$%d/7s", sign, diff)
-    diffLabel.TextColor3 = diff >= 0 and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(220, 130, 130)
 end
 
 task.spawn(function()
     while true do
-        updatePvPEconomy()
-        task.wait(0.1)
+        updateEcoOverlay()
+        task.wait(0.3)
     end
 end)
 
 local function setActiveTab(activeBtn)
-    for _, btn in ipairs({tabMainBtn, tabAbilitiesBtn, tabTowersBtn, tabGameInfoBtn, tabDebugBtn, tabPvPBtn}) do
+    for _, btn in ipairs({tabMainBtn, tabPvPBtn, tabAbilitiesBtn, tabGameInfoBtn, tabTowersBtn, tabAntiLagBtn, tabDebugBtn}) do
         if btn == activeBtn then
             btn.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
             btn.TextColor3 = Color3.fromRGB(220, 220, 225)
@@ -1920,6 +2693,7 @@ tabMainBtn.MouseButton1Click:Connect(function()
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
     pvpFrame.Visible = false
+        antiLagFrame.Visible = false
     setActiveTab(tabMainBtn)
 end)
 
@@ -1930,6 +2704,7 @@ tabAbilitiesBtn.MouseButton1Click:Connect(function()
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
     pvpFrame.Visible = false
+        antiLagFrame.Visible = false
     setActiveTab(tabAbilitiesBtn)
 end)
 
@@ -1940,6 +2715,7 @@ tabTowersBtn.MouseButton1Click:Connect(function()
     towersFrame.Visible = true
     gameInfoFrame.Visible = false
     pvpFrame.Visible = false
+        antiLagFrame.Visible = false
     setActiveTab(tabTowersBtn)
     updateTowersList()
 end)
@@ -1951,6 +2727,7 @@ tabGameInfoBtn.MouseButton1Click:Connect(function()
     towersFrame.Visible = false
     gameInfoFrame.Visible = true
     pvpFrame.Visible = false
+        antiLagFrame.Visible = false
     setActiveTab(tabGameInfoBtn)
 end)
 
@@ -1961,6 +2738,7 @@ tabDebugBtn.MouseButton1Click:Connect(function()
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
     pvpFrame.Visible = false
+        antiLagFrame.Visible = false
     setActiveTab(tabDebugBtn)
 end)
 
@@ -1971,670 +2749,22 @@ tabPvPBtn.MouseButton1Click:Connect(function()
     towersFrame.Visible = false
     gameInfoFrame.Visible = false
     pvpFrame.Visible = true
+    antiLagFrame.Visible = false
     setActiveTab(tabPvPBtn)
     rebuildPvPButtons()
 end)
 
-local antiLagEnabled = settings.antiLagEnabled
-local originalSettings = {}
-local antiLagApplied = false
-local antiLagConnections = {}
-
-local function storeOriginalSettings()
-    pcall(function()
-        originalSettings.globalShadows = Lighting.GlobalShadows
-        originalSettings.fogStart = Lighting.FogStart
-        originalSettings.fogEnd = Lighting.FogEnd
-        originalSettings.fogColor = Lighting.FogColor
-        originalSettings.brightness = Lighting.Brightness
-        originalSettings.outdoorAmbient = Lighting.OutdoorAmbient
-        originalSettings.ambient = Lighting.Ambient
-    end)
-
-    local terrain = workspace:FindFirstChildOfClass("Terrain")
-    if terrain then
-        pcall(function()
-            originalSettings.terrainWaterWaveSize = terrain.WaterWaveSize
-            originalSettings.terrainWaterWaveSpeed = terrain.WaterWaveSpeed
-            originalSettings.terrainWaterReflectance = terrain.WaterReflectance
-            originalSettings.terrainWaterTransparency = terrain.WaterTransparency
-        end)
-    end
-end
-
-local function safeSetProperty(obj, prop, value)
-    pcall(function() obj[prop] = value end)
-end
-
-local function isEnemyPart(v)
-    local parent = v
-    while parent do
-        if parent.Name == "Enemies" then
-            local gameFolder = workspace:FindFirstChild("Game")
-            if gameFolder and parent.Parent == gameFolder then
-                return true
-            end
-        end
-        parent = parent.Parent
-    end
-    return false
-end
-
-local function processPart(v)
-    if not v or not v.Parent then return end
-    if isEnemyPart(v) then return end
-    pcall(function()
-        if v:IsA("BasePart") or v:IsA("UnionOperation") or v:IsA("MeshPart") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") then
-            if not v:GetAttribute("_al_origMat") then
-                v:SetAttribute("_al_origMat", tostring(v.Material))
-            end
-            if settings.antiLagMaterialOverride then
-                if v.Material ~= Enum.Material.SmoothPlastic and v.Material ~= Enum.Material.Neon and v.Material ~= Enum.Material.ForceField then
-                    v.Material = Enum.Material.Plastic
-                end
-                v.Reflectance = 0
-            end
-            if settings.antiLagDisableCastShadows then
-                v.CastShadow = false
-            end
-        end
-        if (v:IsA("Decal") or v:IsA("Texture")) and settings.antiLagDisableDecals then
-            if not v:GetAttribute("_al_origTrans") then
-                v:SetAttribute("_al_origTrans", v.Transparency)
-            end
-            v.Transparency = 1
-        end
-        if (v:IsA("ParticleEmitter") or v:IsA("Trail")) and settings.antiLagDisableParticles then
-            if not v:GetAttribute("_al_origEnabled") then
-                v:SetAttribute("_al_origEnabled", v.Enabled)
-            end
-            v.Enabled = false
-        end
-        if v:IsA("Trail") and settings.antiLagDisableTrails then
-            if not v:GetAttribute("_al_origEnabled") then
-                v:SetAttribute("_al_origEnabled", v.Enabled)
-            end
-            v.Enabled = false
-        end
-    end)
-end
-
-local function applyAntiLagOnce()
-    if antiLagApplied then return end
-    antiLagApplied = true
-
-    if settings.antiLagRemoveFog then
-        safeSetProperty(Lighting, "FogStart", 0)
-        safeSetProperty(Lighting, "FogEnd", 9e9)
-        safeSetProperty(Lighting, "FogColor", Color3.fromRGB(180, 180, 180))
-    end
-
-    if settings.antiLagRemoveShadows then
-        safeSetProperty(Lighting, "GlobalShadows", false)
-    end
-
-    if settings.antiLagReduceTextures then
-        pcall(function() settings().Rendering.QualityLevel = 1 end)
-    end
-
-    if settings.antiLagReduceWater then
-        local terrain = workspace:FindFirstChildOfClass("Terrain")
-        if terrain then
-            pcall(function()
-                terrain.WaterWaveSize = 0
-                terrain.WaterWaveSpeed = 0
-                terrain.WaterReflectance = 0
-                terrain.WaterTransparency = 0
-            end)
-        end
-    end
-
-    if settings.antiLagDisableLightingEffects then
-        for _, v in ipairs(Lighting:GetDescendants()) do
-            pcall(function()
-                if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
-                    if not v:GetAttribute("_al_origEnabled") then
-                        v:SetAttribute("_al_origEnabled", v.Enabled)
-                    end
-                    v.Enabled = false
-                end
-            end)
-        end
-    end
-
-    task.spawn(function()
-        local descendants = workspace:GetDescendants()
-        local batchSize = 200
-        for i = 1, #descendants, batchSize do
-            for j = i, math.min(i + batchSize - 1, #descendants) do
-                if not isEnemyPart(descendants[j]) then
-                    processPart(descendants[j])
-                end
-            end
-            task.wait(0.05)
-        end
-    end)
-end
-
-local function setupAntiLagConnections()
-    for _, conn in ipairs(antiLagConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    antiLagConnections = {}
-
-    table.insert(antiLagConnections, workspace.DescendantAdded:Connect(function(v)
-        task.wait(0.1)
-        if antiLagEnabled and not isEnemyPart(v) then
-            processPart(v)
-        end
-    end))
-
-    table.insert(antiLagConnections, Lighting.DescendantAdded:Connect(function(v)
-        task.wait(0.1)
-        if antiLagEnabled and settings.antiLagDisableLightingEffects then
-            pcall(function()
-                if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
-                    if not v:GetAttribute("_al_origEnabled") then
-                        v:SetAttribute("_al_origEnabled", v.Enabled)
-                    end
-                    v.Enabled = false
-                end
-            end)
-        end
-    end))
-end
-
-local function restoreOriginalSettings()
-    pcall(function()
-        if originalSettings.globalShadows ~= nil then Lighting.GlobalShadows = originalSettings.globalShadows end
-        if originalSettings.fogStart ~= nil then Lighting.FogStart = originalSettings.fogStart end
-        if originalSettings.fogEnd ~= nil then Lighting.FogEnd = originalSettings.fogEnd end
-        if originalSettings.fogColor ~= nil then Lighting.FogColor = originalSettings.fogColor end
-        if originalSettings.brightness ~= nil then Lighting.Brightness = originalSettings.brightness end
-    end)
-
-    pcall(function() settings().Rendering.QualityLevel = 10 end)
-
-    local terrain = workspace:FindFirstChildOfClass("Terrain")
-    if terrain then
-        pcall(function()
-            if originalSettings.terrainWaterWaveSize ~= nil then terrain.WaterWaveSize = originalSettings.terrainWaterWaveSize end
-            if originalSettings.terrainWaterWaveSpeed ~= nil then terrain.WaterWaveSpeed = originalSettings.terrainWaterWaveSpeed end
-            if originalSettings.terrainWaterReflectance ~= nil then terrain.WaterReflectance = originalSettings.terrainWaterReflectance end
-            if originalSettings.terrainWaterTransparency ~= nil then terrain.WaterTransparency = originalSettings.terrainWaterTransparency end
-        end)   
-    end
-
-    task.spawn(function()
-        for _, v in ipairs(workspace:GetDescendants()) do
-            if isEnemyPart(v) then continue end
-            pcall(function()
-                if v:IsA("BasePart") or v:IsA("UnionOperation") or v:IsA("MeshPart") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") then
-                    local origMat = v:GetAttribute("_al_origMat")
-                    if origMat then
-                        local success, mat = pcall(function() return Enum.Material[origMat] end)
-                        if success then v.Material = mat end
-                    end
-                end
-                if v:IsA("Decal") or v:IsA("Texture") then
-                    local origTrans = v:GetAttribute("_al_origTrans")
-                    if origTrans ~= nil then v.Transparency = origTrans end
-                end
-                if v:IsA("ParticleEmitter") or v:IsA("Trail") then
-                    local origEnabled = v:GetAttribute("_al_origEnabled")
-                    if origEnabled ~= nil then v.Enabled = origEnabled end
-                end
-            end)
-        end
-        for _, v in ipairs(Lighting:GetDescendants()) do
-            pcall(function()
-                if v:IsA("BlurEffect") or v:IsA("SunRaysEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("BloomEffect") or v:IsA("DepthOfFieldEffect") or v:IsA("Atmosphere") then
-                    local origEnabled = v:GetAttribute("_al_origEnabled")
-                    if origEnabled ~= nil then v.Enabled = origEnabled end
-                end
-            end) 
-        end
-    end)  
-
-    for _, conn in ipairs(antiLagConnections) do
-        pcall(function() conn:Disconnect() end)
-    end
-    antiLagConnections = {}
-    antiLagApplied = false
-end
-
-local function removeFolders()
-    local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
-    if tdxShared then
-        local common = tdxShared:FindFirstChild("Common")
-        if common then
-            local resources = common:FindFirstChild("Resources")
-            if resources then
-                local deathEffects = resources:FindFirstChild("DeathEffects")
-                if deathEffects then deathEffects:Destroy() end
-            end
-        end
-    end
-    local gameProjectiles = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Projectiles")
-    if gameProjectiles then gameProjectiles:Destroy() end
-    if antiLagEnabled then
-        local gameFolder = workspace:FindFirstChild("Game")
-        if gameFolder then
-            local enemies = gameFolder:FindFirstChild("Enemies")
-            if enemies then
-                local enemyParts = enemies:GetChildren()
-                for _, part in ipairs(enemyParts) do
-                    if not part:GetAttribute("_created") then part:SetAttribute("_created", tick()) end
-                end
-                local limit = settings.antiLagEnemyLimit or 100
-                if #enemyParts > limit then
-                    local excess = #enemyParts - limit
-                    table.sort(enemyParts, function(a,b) return (a:GetAttribute("_created") or 0) < (b:GetAttribute("_created") or 0) end)
-                    for i = 1, excess do enemyParts[i]:Destroy() end
-                end
-            end
-            local pathEntities = gameFolder:FindFirstChild("PathEntities")
-            if pathEntities then
-                if settings.antiLagRemoveEnemies then
-                    for _, child in ipairs(pathEntities:GetChildren()) do
-                        if not string.find(child.Name, "WarMachine") then
-                            child:Destroy()
-                        end
-                    end
-                end
-            end
-        end
-    end
-end
-
-antiLagBtn.MouseButton1Click:Connect(function()
-    antiLagEnabled = not antiLagEnabled
-    settings.antiLagEnabled = antiLagEnabled
-    saveSettings()
-    if antiLagEnabled then
-        antiLagBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
-        antiLagBtn.TextColor3 = Color3.fromRGB(130, 220, 130)
-        antiLagBtn.Text = "Anti Lag: ON"
-        storeOriginalSettings()
-        applyAntiLagOnce()
-        setupAntiLagConnections()
-        addDebugLog("Anti-Lag enabled")
-    else
-        antiLagBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-        antiLagBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
-        antiLagBtn.Text = "Anti Lag: OFF"
-        restoreOriginalSettings()
-        addDebugLog("Anti-Lag disabled")
-    end
+tabAntiLagBtn.MouseButton1Click:Connect(function()
+    mainFrame.Visible = false
+    abilitiesTabFrame.Visible = false
+    debugFrame.Visible = false
+    towersFrame.Visible = false
+    gameInfoFrame.Visible = false
+    pvpFrame.Visible = false
+    antiLagFrame.Visible = true
+    setActiveTab(tabAntiLagBtn)
+    buildAntiLagUI()
 end)
-
-if not antiLagEnabled then
-    antiLagBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
-    antiLagBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
-    antiLagBtn.Text = "Anti Lag: OFF"
-else
-    storeOriginalSettings()
-    applyAntiLagOnce()
-    setupAntiLagConnections()
-end
-
-local antiLagSettingsOpen = false
-local antiLagSettingsGui = nil
-
-local function createAntiLagSettingsUI()
-    if antiLagSettingsGui then
-        pcall(function() antiLagSettingsGui:Destroy() end)
-        antiLagSettingsGui = nil
-    end
-
-    antiLagSettingsGui = Instance.new("ScreenGui")
-    antiLagSettingsGui.Name = "TDXAntiLagSettings"
-    antiLagSettingsGui.ResetOnSpawn = false
-    antiLagSettingsGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    antiLagSettingsGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-
-    local overlay = Instance.new("Frame")
-    overlay.Size = UDim2.new(1, 0, 1, 0)
-    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
-    overlay.BackgroundTransparency = 0.5
-    overlay.Parent = antiLagSettingsGui
-    overlay.ZIndex = 100
-
-    local settingsFrame = Instance.new("Frame")
-    settingsFrame.Size = UDim2.new(0, 380, 0, 520)
-    settingsFrame.Position = UDim2.new(0.5, -190, 0.5, -260)
-    settingsFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 16)
-    settingsFrame.BorderSizePixel = 0
-    settingsFrame.Parent = overlay
-    settingsFrame.ZIndex = 101
-    settingsFrame.Active = true
-
-    local sfCorner = Instance.new("UICorner", settingsFrame)
-    sfCorner.CornerRadius = UDim.new(0, 14)
-
-    local sfStroke = Instance.new("UIStroke", settingsFrame)
-    sfStroke.Color = Color3.fromRGB(45, 45, 50)
-    sfStroke.Thickness = 1.5
-
-    local sfTopBar = Instance.new("Frame")
-    sfTopBar.Size = UDim2.new(1, 0, 0, 44)
-    sfTopBar.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
-    sfTopBar.BorderSizePixel = 0
-    sfTopBar.Parent = settingsFrame
-    sfTopBar.ZIndex = 102
-
-    local sfTopBarCorner = Instance.new("UICorner", sfTopBar)
-    sfTopBarCorner.CornerRadius = UDim.new(0, 14)
-
-    local sfTopBarFix = Instance.new("Frame")
-    sfTopBarFix.Size = UDim2.new(1, 0, 0, 20)
-    sfTopBarFix.Position = UDim2.new(0, 0, 1, -20)
-    sfTopBarFix.BackgroundColor3 = Color3.fromRGB(22, 22, 26)
-    sfTopBarFix.BorderSizePixel = 0
-    sfTopBarFix.Parent = sfTopBar
-    sfTopBarFix.ZIndex = 102
-
-    local sfTitle = Instance.new("TextLabel")
-    sfTitle.Size = UDim2.new(1, -60, 0, 44)
-    sfTitle.Position = UDim2.new(0, 18, 0, 0)
-    sfTitle.Text = "Anti-Lag Settings"
-    sfTitle.TextColor3 = Color3.fromRGB(230, 230, 235)
-    sfTitle.BackgroundTransparency = 1
-    sfTitle.Font = Enum.Font.Gotham
-    sfTitle.TextSize = 16
-    sfTitle.TextXAlignment = Enum.TextXAlignment.Left
-    sfTitle.Parent = settingsFrame
-    sfTitle.ZIndex = 103
-
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.new(0, 32, 0, 32)
-    closeBtn.Position = UDim2.new(1, -38, 0, 6)
-    closeBtn.Text = "X"
-    closeBtn.TextColor3 = Color3.fromRGB(220, 130, 130)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
-    closeBtn.Font = Enum.Font.Gotham
-    closeBtn.TextSize = 14
-    closeBtn.AutoButtonColor = false
-    closeBtn.Parent = settingsFrame
-    closeBtn.ZIndex = 103
-    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
-    local closeStroke = Instance.new("UIStroke", closeBtn)
-    closeStroke.Color = Color3.fromRGB(130, 60, 60)
-    closeStroke.Thickness = 1
-
-    local scrollFrame = Instance.new("ScrollingFrame")
-    scrollFrame.Size = UDim2.new(1, -24, 1, -90)
-    scrollFrame.Position = UDim2.new(0, 12, 0, 54)
-    scrollFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
-    scrollFrame.BorderSizePixel = 0
-    scrollFrame.ScrollBarThickness = 5
-    scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
-    scrollFrame.Parent = settingsFrame
-    scrollFrame.ZIndex = 102
-    Instance.new("UICorner", scrollFrame).CornerRadius = UDim.new(0, 10)
-
-    local scrollLayout = Instance.new("UIListLayout", scrollFrame)
-    scrollLayout.Padding = UDim.new(0, 8)
-    scrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    scrollLayout.FillDirection = Enum.FillDirection.Vertical
-    scrollLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-
-    local function createToggle(parent, text, settingKey, defaultValue)
-        local toggleFrame = Instance.new("Frame")
-        toggleFrame.Size = UDim2.new(1, -16, 0, 36)
-        toggleFrame.BackgroundTransparency = 1
-        toggleFrame.Parent = parent
-        toggleFrame.ZIndex = 103
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(0.7, 0, 1, 0)
-        label.Position = UDim2.new(0, 8, 0, 0)
-        label.Text = text
-        label.TextColor3 = Color3.fromRGB(200, 200, 205)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.Gotham
-        label.TextSize = 12
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = toggleFrame
-        label.ZIndex = 104
-
-        local toggleBtn = Instance.new("TextButton")
-        toggleBtn.Size = UDim2.new(0, 50, 0, 26)
-        toggleBtn.Position = UDim2.new(1, -58, 0.5, -13)
-        toggleBtn.Text = ""
-        toggleBtn.AutoButtonColor = false
-        toggleBtn.Parent = toggleFrame
-        toggleBtn.ZIndex = 104
-
-        local toggleCorner = Instance.new("UICorner", toggleBtn)
-        toggleCorner.CornerRadius = UDim.new(0, 13)
-
-        local toggleStroke = Instance.new("UIStroke", toggleBtn)
-        toggleStroke.Thickness = 1
-
-        local circle = Instance.new("Frame")
-        circle.Size = UDim2.new(0, 20, 0, 20)
-        circle.Position = UDim2.new(0, 3, 0.5, -10)
-        circle.BackgroundColor3 = Color3.fromRGB(220, 220, 225)
-        circle.BorderSizePixel = 0
-        circle.Parent = toggleBtn
-        circle.ZIndex = 105
-        Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
-
-        local currentValue = settings[settingKey]
-        if currentValue == nil then currentValue = defaultValue end
-
-        local function updateToggleVisual()
-            if currentValue then
-                toggleBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 55)
-                toggleStroke.Color = Color3.fromRGB(60, 130, 70)
-                circle.Position = UDim2.new(1, -23, 0.5, -10)
-            else
-                toggleBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 60)
-                toggleStroke.Color = Color3.fromRGB(70, 70, 75)
-                circle.Position = UDim2.new(0, 3, 0.5, -10)
-            end
-        end
-
-        updateToggleVisual()
-
-        toggleBtn.MouseButton1Click:Connect(function()
-            currentValue = not currentValue
-            settings[settingKey] = currentValue
-            saveSettings()
-            updateToggleVisual()
-            if antiLagEnabled then
-                restoreOriginalSettings()
-                storeOriginalSettings()
-                applyAntiLagOnce()
-            end
-            addDebugLog(string.format("Anti-Lag setting '%s' set to %s", settingKey, tostring(currentValue)))
-        end)
-
-        return toggleFrame
-    end
-
-    local function createInputBox(parent, text, settingKey, defaultValue)
-        local inputFrame = Instance.new("Frame")
-        inputFrame.Size = UDim2.new(1, -16, 0, 50)
-        inputFrame.BackgroundTransparency = 1
-        inputFrame.Parent = parent
-        inputFrame.ZIndex = 103
-
-        local label = Instance.new("TextLabel")
-        label.Size = UDim2.new(1, -16, 0, 20)
-        label.Position = UDim2.new(0, 8, 0, 0)
-        label.Text = text
-        label.TextColor3 = Color3.fromRGB(200, 200, 205)
-        label.BackgroundTransparency = 1
-        label.Font = Enum.Font.Gotham
-        label.TextSize = 12
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = inputFrame
-        label.ZIndex = 104
-
-        local inputBox = Instance.new("TextBox")
-        inputBox.Size = UDim2.new(0, 80, 0, 26)
-        inputBox.Position = UDim2.new(0, 8, 0, 22)
-        inputBox.Text = tostring(settings[settingKey] or defaultValue)
-        inputBox.BackgroundColor3 = Color3.fromRGB(30, 30, 34)
-        inputBox.TextColor3 = Color3.fromRGB(220, 220, 225)
-        inputBox.Font = Enum.Font.Gotham
-        inputBox.TextSize = 12
-        inputBox.ClearTextOnFocus = false
-        inputBox.Parent = inputFrame
-        inputBox.ZIndex = 104
-        Instance.new("UICorner", inputBox).CornerRadius = UDim.new(0, 6)
-        local inputStroke = Instance.new("UIStroke", inputBox)
-        inputStroke.Color = Color3.fromRGB(50, 50, 55)
-        inputStroke.Thickness = 1
-
-        inputBox.FocusLost:Connect(function()
-            local num = tonumber(inputBox.Text)
-            if num then
-                num = math.clamp(math.floor(num), 10, 500)
-                settings[settingKey] = num
-                saveSettings()
-                inputBox.Text = tostring(num)
-                addDebugLog(string.format("Anti-Lag enemy limit set to %d", num))
-            else
-                inputBox.Text = tostring(settings[settingKey] or defaultValue)
-            end
-        end)
-
-        return inputFrame
-    end
-
-    local sectionLabel = Instance.new("TextLabel")
-    sectionLabel.Size = UDim2.new(1, -16, 0, 22)
-    sectionLabel.Text = "Visual Optimizations"
-    sectionLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
-    sectionLabel.BackgroundTransparency = 1
-    sectionLabel.Font = Enum.Font.Gotham
-    sectionLabel.TextSize = 13
-    sectionLabel.TextXAlignment = Enum.TextXAlignment.Left
-    sectionLabel.Parent = scrollFrame
-    sectionLabel.ZIndex = 104
-
-    createToggle(scrollFrame, "Remove Fog", "antiLagRemoveFog", true)
-    createToggle(scrollFrame, "Remove Shadows (Global)", "antiLagRemoveShadows", true)
-    createToggle(scrollFrame, "Disable Part Cast Shadows", "antiLagDisableCastShadows", true)
-    createToggle(scrollFrame, "Reduce Textures (Low Quality)", "antiLagReduceTextures", true)
-    createToggle(scrollFrame, "Override Materials to Plastic", "antiLagMaterialOverride", true)
-    createToggle(scrollFrame, "Disable Decals / Textures", "antiLagDisableDecals", true)
-    createToggle(scrollFrame, "Disable Particles", "antiLagDisableParticles", true)
-    createToggle(scrollFrame, "Disable Trails", "antiLagDisableTrails", true)
-    createToggle(scrollFrame, "Disable Lighting Effects (Bloom, etc.)", "antiLagDisableLightingEffects", true)
-    createToggle(scrollFrame, "Reduce Water Effects", "antiLagReduceWater", true)
-    createToggle(scrollFrame, "Remove Path Units (No War Machine)", "antiLagRemoveEnemies", false)
-
-    local sectionLabel2 = Instance.new("TextLabel")
-    sectionLabel2.Size = UDim2.new(1, -16, 0, 22)
-    sectionLabel2.Text = "Enemy Management"
-    sectionLabel2.TextColor3 = Color3.fromRGB(130, 220, 130)
-    sectionLabel2.BackgroundTransparency = 1
-    sectionLabel2.Font = Enum.Font.Gotham
-    sectionLabel2.TextSize = 13
-    sectionLabel2.TextXAlignment = Enum.TextXAlignment.Left
-    sectionLabel2.Parent = scrollFrame
-    sectionLabel2.ZIndex = 104
-
-    createInputBox(scrollFrame, "Max Enemy Count (10-500)", "antiLagEnemyLimit", 100)
-
-    local sectionLabel3 = Instance.new("TextLabel")
-    sectionLabel3.Size = UDim2.new(1, -16, 0, 22)
-    sectionLabel3.Text = "Actions"
-    sectionLabel3.TextColor3 = Color3.fromRGB(130, 220, 130)
-    sectionLabel3.BackgroundTransparency = 1
-    sectionLabel3.Font = Enum.Font.Gotham
-    sectionLabel3.TextSize = 13
-    sectionLabel3.TextXAlignment = Enum.TextXAlignment.Left
-    sectionLabel3.Parent = scrollFrame
-    sectionLabel3.ZIndex = 104
-
-    local resetBtn = Instance.new("TextButton")
-    resetBtn.Size = UDim2.new(1, -16, 0, 34)
-    resetBtn.Text = "Reset to Defaults"
-    resetBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
-    resetBtn.TextColor3 = Color3.fromRGB(220, 130, 130)
-    resetBtn.Font = Enum.Font.Gotham
-    resetBtn.TextSize = 12
-    resetBtn.AutoButtonColor = false
-    resetBtn.Parent = scrollFrame
-    resetBtn.ZIndex = 104
-    Instance.new("UICorner", resetBtn).CornerRadius = UDim.new(0, 8)
-    local resetStroke = Instance.new("UIStroke", resetBtn)
-    resetStroke.Color = Color3.fromRGB(130, 60, 60)
-    resetStroke.Thickness = 1
-
-    resetBtn.MouseEnter:Connect(function()
-        resetBtn.BackgroundColor3 = Color3.fromRGB(120, 55, 55)
-    end)
-    resetBtn.MouseLeave:Connect(function()
-        resetBtn.BackgroundColor3 = Color3.fromRGB(100, 45, 45)
-    end)
-
-    resetBtn.MouseButton1Click:Connect(function()
-        settings.antiLagRemoveFog = true
-        settings.antiLagRemoveShadows = true
-        settings.antiLagReduceTextures = true
-        settings.antiLagDisableEffects = true
-        settings.antiLagEnemyLimit = 100
-        settings.antiLagDisableParticles = true
-        settings.antiLagDisableDecals = true
-        settings.antiLagDisableTrails = true
-        settings.antiLagDisableLightingEffects = true
-        settings.antiLagReduceWater = true
-        settings.antiLagDisableCastShadows = true
-        settings.antiLagMaterialOverride = true
-        settings.antiLagRemoveEnemies = false
-        saveSettings()
-        pcall(function() antiLagSettingsGui:Destroy() end)
-        antiLagSettingsGui = nil
-        antiLagSettingsOpen = false
-        createAntiLagSettingsUI()
-        addDebugLog("Anti-Lag settings reset to defaults")
-    end)
-
-    task.defer(function()
-        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLayout.AbsoluteContentSize.Y + 20)
-    end)
-
-    closeBtn.MouseButton1Click:Connect(function()
-        pcall(function() antiLagSettingsGui:Destroy() end)
-        antiLagSettingsGui = nil
-        antiLagSettingsOpen = false
-    end)
-
-    overlay.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local pos = input.Position
-            local framePos = settingsFrame.AbsolutePosition
-            local frameSize = settingsFrame.AbsoluteSize
-            if pos.X < framePos.X or pos.X > framePos.X + frameSize.X or pos.Y < framePos.Y or pos.Y > framePos.Y + frameSize.Y then
-                pcall(function() antiLagSettingsGui:Destroy() end)
-                antiLagSettingsGui = nil
-                antiLagSettingsOpen = false
-            end
-        end
-    end)
-end
-
-antiLagSettingsBtn.MouseButton1Click:Connect(function()
-    if antiLagSettingsOpen then
-        if antiLagSettingsGui then
-            pcall(function() antiLagSettingsGui:Destroy() end)
-            antiLagSettingsGui = nil
-        end
-        antiLagSettingsOpen = false
-    else
-        createAntiLagSettingsUI()
-        antiLagSettingsOpen = true
-        addDebugLog("Anti-Lag settings UI opened")
-    end 
-end) 
-
-
 
 local anchorBtn = Instance.new("TextButton")
 anchorBtn.Size = UDim2.new(0, 48, 0, 48)
@@ -2659,22 +2789,12 @@ local function toggleMinimize()
     isMinimized = not isMinimized
     frame.Visible = not isMinimized
     anchorBtn.Visible = isMinimized
-    addDebugLog(isMinimized and "UI minimized" or "UI restored")
 end
 
 minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
 anchorBtn.MouseButton1Click:Connect(toggleMinimize)
  
-task.delay(13, function()
-    local lastCheck = 0
-    RunService.Heartbeat:Connect(function(deltaTime)
-        lastCheck = lastCheck + deltaTime
-        if lastCheck >= 0.5 then
-            lastCheck = 0
-            removeFolders()
-        end
-    end)
-end)
+
 
 local function startCoinCollector()
     task.spawn(function()
@@ -2686,12 +2806,20 @@ local function startCoinCollector()
             end
             return remote
         end
+        local coinIndex = 0
         while true do
             local currentRemote = getRemote()
             if currentRemote then
-                for i = 1, 250 do pcall(function() currentRemote:FireServer(i) end) end
+                local batchSize = math.random(2, 4)
+                for i = 1, batchSize do
+                    coinIndex = coinIndex + 1
+                    if coinIndex > 100 then coinIndex = 1 end
+                    pcall(function() currentRemote:FireServer(coinIndex) end)
+                end
+                task.wait(math.random() * 0.7 + 0.3)
+            else
+                task.wait(2)
             end
-            task.wait(2.5)
         end
     end)
 end
@@ -2705,80 +2833,84 @@ local function setupUpgradeListener()
     local factoryRemote = remotes:FindFirstChild("TowerFactoryQueueUpdated")
     if factoryRemote then
         factoryRemote.OnClientEvent:Connect(function(...)
-            local args = {...}
-            local events = (type(args[1]) == "table" and #args[1] > 0) and args[1] or args
-            for _, ev in ipairs(events) do
-                if type(ev) ~= "table" then continue end
-                if ev.Creation == false then
-                    local towerId = ev.Data
-                    if type(towerId) == "table" then towerId = towerId[1] end
-                    if type(towerId) == "number" then
-                        pendingPlacements[towerId] = nil
-                        for part, data in pairs(towers) do
-                            if data.hash == towerId then
-                                removeTower(part)
-                                break
+            task.defer(function(...)
+                local args = {...}
+                local events = (type(args[1]) == "table" and #args[1] > 0) and args[1] or args
+                for _, ev in ipairs(events) do
+                    if type(ev) ~= "table" then continue end
+                    if ev.Creation == false then
+                        local towerId = ev.Data
+                        if type(towerId) == "table" then towerId = towerId[1] end
+                        if type(towerId) == "number" then
+                            pendingPlacements[towerId] = nil
+                            for part, data in pairs(towers) do
+                                if data.hash == towerId then
+                                    removeTower(part)
+                                    break
+                                end
+                            end
+                        end
+                    else
+                        local towerInfo = ev.Data
+                        if type(towerInfo) == "table" and towerInfo[1] and type(towerInfo[1]) == "table" then
+                            towerInfo = towerInfo[1]
+                        end
+                        if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
+                            local towerId = towerInfo[1]
+                            local towerName = towerInfo[2]
+                            local playerName = towerInfo[7]
+                            local rawPos = towerInfo[4]
+                            local position = nil
+                            if type(rawPos) == "table" and rawPos[1] and rawPos[2] and rawPos[3] then
+                                position = Vector3.new(rawPos[1], rawPos[2], rawPos[3])
+                            elseif typeof(rawPos) == "Vector3" then
+                                position = rawPos
+                            end
+                            if tostring(playerName) == LocalPlayer.Name then
+                                pendingPlacements[towerId] = {
+                                    name = towerName,
+                                    time = tick(),
+                                    position = position
+                                }
+                                task.defer(scanForTowers)
+                            else
+                                addDebugLog(string.format("Tower placed (other): %s, hash=%d", towerName, towerId))
                             end
                         end
                     end
-                else
-                    local towerInfo = ev.Data
-                    if type(towerInfo) == "table" and towerInfo[1] and type(towerInfo[1]) == "table" then
-                        towerInfo = towerInfo[1]
-                    end
-                    if type(towerInfo) == "table" and type(towerInfo[1]) == "number" then
-                        local towerId = towerInfo[1]
-                        local towerName = towerInfo[2]
-                        local playerName = towerInfo[7]
-                        local rawPos = towerInfo[4]
-                        local position = nil
-                        if type(rawPos) == "table" and rawPos[1] and rawPos[2] and rawPos[3] then
-                            position = Vector3.new(rawPos[1], rawPos[2], rawPos[3])
-                        elseif typeof(rawPos) == "Vector3" then
-                            position = rawPos
-                        end
-                        if tostring(playerName) == LocalPlayer.Name then
-                            pendingPlacements[towerId] = {
-                                name = towerName,
-                                time = tick(),
-                                position = position
-                            }
-                            scanForTowers()
-                        else
-                            addDebugLog(string.format("Tower placed (other): %s, hash=%d", towerName, towerId))
-                        end
-                    end
                 end
-            end
+            end, ...)
         end)
     end
     local upgradeRemote = remotes:FindFirstChild("TowerUpgradeQueueUpdated")
     if upgradeRemote then
         upgradeRemote.OnClientEvent:Connect(function(data)
-            if type(data) ~= "table" then return end
-            local entries = (#data > 0) and data or {data}
-            for _, entry in ipairs(entries) do
-                local hash = entry.Hash or entry.hash or entry.Id or entry.id
-                if not hash then continue end
-                if type(hash) == "string" then hash = tonumber(hash) end
-                if not hash then continue end
-                local top = 0
-                local bottom = 0
-                if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
-                    top = entry.LevelReplicationData[1] or 0
-                    bottom = entry.LevelReplicationData[2] or 0
-                end
-                addDebugLog(string.format("Upgrade event: hash=%d top=%d bottom=%d", hash, top, bottom))
-                for part, data in pairs(towers) do
-                    if data.hash == hash then
-                        data.topCount = top
-                        data.bottomCount = bottom
-                        addDebugLog(string.format("Updated %s (hash %d)", part.Name, hash))
-                        updateTowersList()
-                        break
+            task.defer(function(data)
+                if type(data) ~= "table" then return end
+                local entries = (#data > 0) and data or {data}
+                for _, entry in ipairs(entries) do
+                    local hash = entry.Hash or entry.hash or entry.Id or entry.id
+                    if not hash then continue end
+                    if type(hash) == "string" then hash = tonumber(hash) end
+                    if not hash then continue end
+                    local top = 0
+                    local bottom = 0
+                    if entry.LevelReplicationData and type(entry.LevelReplicationData) == "table" then
+                        top = entry.LevelReplicationData[1] or 0
+                        bottom = entry.LevelReplicationData[2] or 0
+                    end
+                    addDebugLog(string.format("Upgrade event: hash=%d top=%d bottom=%d", hash, top, bottom))
+                    for part, data in pairs(towers) do
+                        if data.hash == hash then
+                            data.topCount = top
+                            data.bottomCount = bottom
+                            addDebugLog(string.format("Updated %s (hash %d)", part.Name, hash))
+                            updateTowersList()
+                            break
+                        end
                     end
                 end
-            end
+            end, data)
         end)
     end
 end
@@ -2793,14 +2925,16 @@ local function setupAbilityListener()
         return
     end
     ev.OnClientEvent:Connect(function(...)
-        local args = {...}
-        local data = args[1]
-        if type(data) == "table" and type(data[1]) == "table" then
-            local hash = data[1][1]
-            if type(hash) == "number" then
-                abilityUsedQueue[hash] = true
+        task.defer(function(...)
+            local args = {...}
+            local data = args[1]
+            if type(data) == "table" and type(data[1]) == "table" then
+                local hash = data[1][1]
+                if type(hash) == "number" then
+                    abilityUsedQueue[hash] = true
+                end
             end
-        end
+        end, ...)
     end)
 end
 
@@ -2809,7 +2943,16 @@ local function startTowerTracking()
     if gameFolder then
         local towersFolder = gameFolder:FindFirstChild("Towers")
         if towersFolder then
-            towersFolder.ChildAdded:Connect(function(part) if part:IsA("BasePart") then addTower(part) watchTower(part) end end)
+            towersFolder.ChildAdded:Connect(function(part) 
+                if part:IsA("BasePart") then 
+                    addTower(part) 
+                    task.defer(function()
+                        if part and part.Parent then
+                            watchTower(part)
+                        end
+                    end)
+                end 
+            end)
             towersFolder.ChildRemoved:Connect(function(part) if part:IsA("BasePart") then removeTower(part) end end)
         else
             task.wait(2)
@@ -2822,7 +2965,13 @@ local function startTowerTracking()
         return
     end
     scanForTowers()
-    for part, _ in pairs(towers) do watchTower(part) end
+    task.defer(function()
+        for part, _ in pairs(towers) do 
+            if not watchedTowers[part] then
+                watchTower(part) 
+            end
+        end
+    end)
     task.spawn(function() while true do cleanupDeadTowers() task.wait(1) end end)
 end
 
@@ -2897,8 +3046,6 @@ clearDebugBtn.MouseButton1Click:Connect(function()
     end
     debugLogFrameRef.CanvasSize = UDim2.new(0, 0, 0, 0)
     debugLogs = {}
-    addDebugLog("=== Logs Cleared ===")
-    addDebugLog("Debug system ready")
 end)
 
 task.wait(1)
@@ -2907,7 +3054,6 @@ setupUpgradeListener()
 setupAbilityListener()
 
 addDebugLog("=== Ready ===")
-addDebugLog(string.format("Loaded %d abilities", #abilityOrder))
 
 for abilityName, isActive in pairs(settings.activeAbilities) do
     if isActive and abilityLoopMap[abilityName] then
@@ -2918,15 +3064,14 @@ end
 
 task.spawn(function()
     while true do
-        for _, player in ipairs(Players:GetPlayers()) do
-            player:SetAttribute("VIP", true)
-        end
+        pcall(function()
+            LocalPlayer:SetAttribute("VIP", true)
+        end)
         task.wait(5)
     end
 end)
 
 local function setupGameInfo()
-    addDebugLog("Game Info: initializing player-based display")
 
     local teamColors = {
         Blue = Color3.fromRGB(0, 120, 255),
@@ -3184,10 +3329,8 @@ local function setupGameInfo()
     local function tryBuild()
         dataFound = buildGameInfoUI()
         if dataFound then
-            addDebugLog("Game Info: data found and UI built")
         else
             retryCount = retryCount + 1
-            addDebugLog(string.format("Game Info: no data yet, retry #%d in 3s", retryCount))
             task.delay(3, tryBuild)
         end
     end
@@ -3217,7 +3360,6 @@ local function setupGameInfo()
         end
     end)
 
-    addDebugLog("Game Info: player-based display ready")
 end
 
 task.spawn(function()
@@ -3253,7 +3395,7 @@ task.spawn(function()
                 pendingPlacements[hash] = nil
             end
         end
-        task.wait(0.1)
+        task.wait(0.2)
     end
 end)
 
