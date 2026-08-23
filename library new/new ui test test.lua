@@ -48,7 +48,7 @@ local WEBHOOK = _G.Webhook or ""
 
 local CHESTS = {
     ["rbxassetid://"] = "Showtime Crate",
-    ["rbxassetid://"] = "Beach Crate",
+    ["rbxassetid://100652254678254"] = "Beach Crate",
     ["rbxassetid://71674076269696"] = "Scuba Ops Crate",
     ["rbxassetid://"] = "Patriotic Crate",
 }
