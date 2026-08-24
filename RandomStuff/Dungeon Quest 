@@ -1,0 +1,1300 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+local Settings = {
+    AutoAttack = false,
+    AttackInterval = 0.1,
+    WalkSpeed = 16,
+    AutoFarm = false,
+    AutoStart = false,
+    SelectedDungeon = "Desert Temple",
+    SelectedDifficulty = "Easy",
+    AutoLevelUp = false,
+    SelectedSkill = "none",
+}
+
+local HttpService = game:GetService("HttpService")
+local savedSettings = nil
+pcall(function()
+    if readfile then
+        savedSettings = readfile("AutoFarmSettings.json")
+    end
+end)
+
+if savedSettings then
+    pcall(function()
+        local decoded = HttpService:JSONDecode(savedSettings)
+        if decoded.AutoStart ~= nil then Settings.AutoStart = decoded.AutoStart end
+        if decoded.SelectedDungeon then Settings.SelectedDungeon = decoded.SelectedDungeon end
+        if decoded.SelectedDifficulty then Settings.SelectedDifficulty = decoded.SelectedDifficulty end
+        if decoded.WalkSpeed then Settings.WalkSpeed = decoded.WalkSpeed end
+        if decoded.AutoLevelUp ~= nil then Settings.AutoLevelUp = decoded.AutoLevelUp end
+        if decoded.SelectedSkill then Settings.SelectedSkill = decoded.SelectedSkill end
+    end)
+end
+
+local function saveSettings()
+    pcall(function()
+        if writefile then
+            local toSave = {
+                AutoStart = Settings.AutoStart,
+                SelectedDungeon = Settings.SelectedDungeon,
+                SelectedDifficulty = Settings.SelectedDifficulty,
+                WalkSpeed = Settings.WalkSpeed,
+                AutoLevelUp = Settings.AutoLevelUp,
+                SelectedSkill = Settings.SelectedSkill,
+            }
+            writefile("AutoFarmSettings.json", HttpService:JSONEncode(toSave))
+        end
+    end)
+end
+
+local attackConnection = nil
+local farmConnection = nil
+local levelUpConnection = nil
+local isMinimized = false
+local uiScreenGui = nil
+local attackBtnRef = nil
+local farmBtnRef = nil
+local autoStartBtnRef = nil
+local autoLevelBtnRef = nil
+local speedLabelRef = nil
+local sliderFillRef = nil
+local dungeonBtnRef = nil
+local difficultyBtnRef = nil
+local skillBtnRef = nil
+local currentTab = "Main"
+local isInDungeon = false
+local autoStartRunning = false
+local cachedSwingRemote = nil
+local cachedWeaponName = nil
+local cachedSpellEvents = {}
+local lastSpellCast = 0
+local lastLevelUpCast = 0
+
+local DungeonList = {
+    "Aquatic Temple",
+    "Desert Temple",
+    "Enchanted Forest",
+    "Ghastly Harbor",
+    "Gilded Skies",
+    "King's Castle",
+    "Northern Lands",
+    "Orbital Outpost",
+    "Pirate Island",
+    "Samurai Palace",
+    "Steampunk Sewers",
+    "The Canals",
+    "The Underworld",
+    "Volcanic Chambers",
+    "Winter Outpost",
+}
+
+local DifficultyList = {
+    "Easy",
+    "Medium",
+    "Hard",
+    "Insane",
+    "Nightmare",
+}
+
+local SkillList = {
+    "spellPower",
+    "stamina",
+    "physicalPower",
+}
+
+local function getEquippedWeapon()
+    local weaponValue = LocalPlayer:FindFirstChild("weaponEquipped")
+    if weaponValue and weaponValue:IsA("StringValue") then
+        return weaponValue.Value
+    end
+    return nil
+end
+
+local function getEquippedSpells()
+    local spells = {}
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if not backpack then return spells end
+    for _, child in pairs(backpack:GetChildren()) do
+        if child:IsA("Tool") then
+            local spellEvent = child:FindFirstChild("spellEvent")
+            if spellEvent then
+                table.insert(spells, spellEvent)
+            end
+        end
+    end
+    return spells
+end
+
+local function updateCachedSpell()
+    cachedSpellEvents = getEquippedSpells()
+    return #cachedSpellEvents > 0
+end
+
+local function setWalkSpeed(speed)
+    local character = LocalPlayer.Character
+    if not character then return end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return end
+    humanoid.WalkSpeed = speed
+end
+
+local function findAllEnemyFolders()
+    local folders = {}
+    local dungeon = Workspace:FindFirstChild("dungeon")
+    if not dungeon then return folders end
+    for _, child in pairs(dungeon:GetChildren()) do
+        local enemyFolder = child:FindFirstChild("enemyFolder")
+        if enemyFolder then
+            table.insert(folders, enemyFolder)
+        end
+    end
+    return folders
+end
+
+local function getClosestEnemy()
+    if not LocalPlayer.Character then return nil end
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    local enemyFolders = findAllEnemyFolders()
+    if #enemyFolders == 0 then return nil end
+    local myPos = hrp.Position
+    local closestEnemy = nil
+    local closestDist = math.huge
+    for _, enemyFolder in pairs(enemyFolders) do
+        for _, enemy in pairs(enemyFolder:GetChildren()) do
+            if enemy:IsA("Model") or enemy:IsA("Part") or enemy:IsA("MeshPart") then
+                local enemyHrp = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy:FindFirstChild("Head")
+                if not enemyHrp then
+                    enemyHrp = enemy:FindFirstChildWhichIsA("BasePart")
+                end
+                if enemyHrp then
+                    local dist = (myPos - enemyHrp.Position).Magnitude
+                    if dist < closestDist then
+                        closestDist = dist
+                        closestEnemy = enemyHrp
+                    end
+                end
+            end
+        end
+    end
+    return closestEnemy
+end
+
+local function getEnemyBottomPosition(enemyPart)
+    if not enemyPart then return nil end
+    local sizeY = enemyPart.Size.Y
+    local bottomY = enemyPart.Position.Y - (sizeY / 2)
+    return Vector3.new(enemyPart.Position.X, bottomY, enemyPart.Position.Z)
+end
+
+local function teleportUnderEnemy(enemyPart)
+    if not enemyPart then return end
+    if not LocalPlayer.Character then return end
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local bottomPos = getEnemyBottomPosition(enemyPart)
+    if not bottomPos then return end
+    local targetPos = bottomPos - Vector3.new(0, 5.5, 0)
+    local lookVector = (enemyPart.Position - targetPos).Unit
+    local worldForward = Vector3.new(0, 0, 1)
+    local upRef = worldForward - worldForward:Dot(lookVector) * lookVector
+    if upRef.Magnitude < 0.001 then
+        local worldRight = Vector3.new(1, 0, 0)
+        upRef = worldRight - worldRight:Dot(lookVector) * lookVector
+    end
+    local upVector = upRef.Unit
+    local rightVector = lookVector:Cross(upVector).Unit
+    hrp.CFrame = CFrame.fromMatrix(targetPos, rightVector, upVector)
+end
+
+local function updateCachedWeapon()
+    local weaponName = getEquippedWeapon()
+    if not weaponName then
+        cachedSwingRemote = nil
+        cachedWeaponName = nil
+        return false
+    end
+    if cachedWeaponName == weaponName and cachedSwingRemote then
+        local character = LocalPlayer.Character
+        if character then
+            local weapon = character:FindFirstChild(weaponName)
+            if weapon then
+                local swing = weapon:FindFirstChild("swing")
+                if swing then
+                    return true
+                end
+            end
+        end
+    end
+    local character = LocalPlayer.Character
+    if not character then
+        cachedSwingRemote = nil
+        cachedWeaponName = nil
+        return false
+    end
+    local weapon = character:FindFirstChild(weaponName)
+    if not weapon then
+        cachedSwingRemote = nil
+        cachedWeaponName = nil
+        return false
+    end
+    local swing = weapon:FindFirstChild("swing")
+    if swing then
+        cachedSwingRemote = swing
+        cachedWeaponName = weaponName
+        return true
+    else
+        cachedSwingRemote = nil
+        cachedWeaponName = nil
+        return false
+    end
+end
+
+local function stopAutoAttack()
+    if attackConnection then
+        attackConnection:Disconnect()
+        attackConnection = nil
+    end
+    cachedSwingRemote = nil
+    cachedWeaponName = nil
+    cachedSpellEvents = {}
+    lastSpellCast = 0
+end
+
+local function startAutoAttack()
+    stopAutoAttack()
+    local hasWeapon = updateCachedWeapon()
+    if not hasWeapon then
+    end
+    local lastAttack = 0
+    local lastWeaponCheck = 0
+    local lastSpellCheck = 0
+    attackConnection = RunService.Heartbeat:Connect(function()
+        if not Settings.AutoAttack then return end
+        local now = tick()
+        if now - lastWeaponCheck >= 1 then
+            lastWeaponCheck = now
+            updateCachedWeapon()
+        end
+        if now - lastSpellCheck >= 1 then
+            lastSpellCheck = now
+            updateCachedSpell()
+        end
+        if cachedSwingRemote then
+            local closestEnemy = getClosestEnemy()
+            if closestEnemy then
+                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local dist = (hrp.Position - closestEnemy.Position).Magnitude
+                    if dist <= 10 then
+                        if now - lastAttack >= Settings.AttackInterval then
+                            lastAttack = now
+                            cachedSwingRemote:FireServer()
+                        end
+                    end
+                end
+            end
+        end
+        if #cachedSpellEvents > 0 then
+            if now - lastSpellCast >= 0.3 then
+                lastSpellCast = now
+                for _, spellEvent in ipairs(cachedSpellEvents) do
+                    pcall(function()
+                        spellEvent:FireServer()
+                    end)
+                end
+            end
+        end
+    end)
+end
+
+local function startAutoFarm()
+    if farmConnection then
+        farmConnection:Disconnect()
+        farmConnection = nil
+    end
+    farmConnection = RunService.Heartbeat:Connect(function()
+        if not Settings.AutoFarm then return end
+        if not Settings.AutoAttack then
+            Settings.AutoAttack = true
+            if attackBtnRef then
+                attackBtnRef.Text = "ON"
+                attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+            end
+            startAutoAttack()
+        end
+        local enemy = getClosestEnemy()
+        if enemy then
+            teleportUnderEnemy(enemy)
+        end
+    end)
+end
+
+local function stopAutoFarm()
+    if farmConnection then
+        farmConnection:Disconnect()
+        farmConnection = nil
+    end
+end
+
+local function stopAutoLevelUp()
+    if levelUpConnection then
+        levelUpConnection:Disconnect()
+        levelUpConnection = nil
+    end
+    lastLevelUpCast = 0
+end
+
+local function startAutoLevelUp()
+    stopAutoLevelUp()
+    local spendSkillPoint = ReplicatedStorage:WaitForChild("remotes"):WaitForChild("spendSkillPoint")
+    levelUpConnection = RunService.Heartbeat:Connect(function()
+        if not Settings.AutoLevelUp then return end
+        local skillPoints = LocalPlayer:FindFirstChild("skillPoints")
+        if not skillPoints or skillPoints.Value <= 0 then return end
+        local now = tick()
+        if now - lastLevelUpCast >= 0.2 then
+            lastLevelUpCast = now
+            pcall(function()
+                spendSkillPoint:FireServer(Settings.SelectedSkill, 1)
+            end)
+        end
+    end)
+end
+
+local function createLobby()
+    local createLobbyEvent = ReplicatedStorage:WaitForChild("remotes"):WaitForChild("createLobby")
+    createLobbyEvent:InvokeServer(
+        Settings.SelectedDungeon,
+        Settings.SelectedDifficulty,
+        1,
+        true,
+        true,
+        false
+    )
+end
+
+local function startDungeon()
+    local startDungeonEvent = ReplicatedStorage:WaitForChild("remotes"):WaitForChild("startDungeon")
+    startDungeonEvent:FireServer()
+end
+
+local function changeStartValue()
+    local changeStartValueEvent = ReplicatedStorage:WaitForChild("remotes"):WaitForChild("changeStartValue")
+    changeStartValueEvent:FireServer()
+end
+
+local function autoStartSequence()
+    if autoStartRunning then return end
+    autoStartRunning = true
+    local dungeon = Workspace:FindFirstChild("dungeon")
+    if dungeon and dungeon:FindFirstChild("initialRoom") then
+        isInDungeon = true
+        pcall(changeStartValue)
+        Settings.AutoFarm = true
+        Settings.AutoAttack = true
+        if farmBtnRef then
+            farmBtnRef.Text = "ON"
+            farmBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+        end
+        if attackBtnRef then
+            attackBtnRef.Text = "ON"
+            attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+        end
+        if autoStartBtnRef then
+            autoStartBtnRef.Text = "Running"
+        end
+        startAutoAttack()
+        startAutoFarm()
+        autoStartRunning = false
+        return
+    end
+    if autoStartBtnRef then
+        autoStartBtnRef.Text = "Creating..."
+    end
+    local success, err = pcall(createLobby)
+    if not success then
+        warn("[AutoStart] CreateLobby Error: " .. tostring(err))
+        if autoStartBtnRef then autoStartBtnRef.Text = "Failed!" end
+        task.delay(2, function()
+            if autoStartBtnRef and Settings.AutoStart then autoStartBtnRef.Text = "ON" end
+            autoStartRunning = false
+        end)
+        return
+    end
+    if autoStartBtnRef then
+        autoStartBtnRef.Text = "Starting..."
+    end
+    task.wait(1)
+    if not Settings.AutoStart then
+        autoStartRunning = false
+        return
+    end
+    local success2, err2 = pcall(startDungeon)
+    if not success2 then
+        warn("[AutoStart] StartDungeon Error: " .. tostring(err2))
+        if autoStartBtnRef then autoStartBtnRef.Text = "Failed!" end
+        task.delay(2, function()
+            if autoStartBtnRef and Settings.AutoStart then autoStartBtnRef.Text = "ON" end
+            autoStartRunning = false
+        end)
+        return
+    end
+    if autoStartBtnRef then
+        autoStartBtnRef.Text = "Waiting..."
+    end
+    while Settings.AutoStart do
+        task.wait(0.5)
+        local d = Workspace:FindFirstChild("dungeon")
+        if d and d:FindFirstChild("initialRoom") then
+            break
+        end
+    end
+    if not Settings.AutoStart then
+        autoStartRunning = false
+        return
+    end
+    task.wait(1)
+    local enemiesFound = false
+    local waitTime = 0
+    while Settings.AutoStart and waitTime < 10 do
+        task.wait(0.5)
+        waitTime = waitTime + 0.5
+        local closest = getClosestEnemy()
+        if closest then
+            enemiesFound = true
+            break
+        end
+    end
+    if not Settings.AutoStart then
+        autoStartRunning = false
+        return
+    end
+    if not enemiesFound then
+        warn("[AutoStart] No enemies found after waiting.")
+    end
+    isInDungeon = true
+    pcall(changeStartValue)
+    Settings.AutoFarm = true
+    Settings.AutoAttack = true
+    if farmBtnRef then
+        farmBtnRef.Text = "ON"
+        farmBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+    end
+    if attackBtnRef then
+        attackBtnRef.Text = "ON"
+        attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+    end
+    if autoStartBtnRef then
+        autoStartBtnRef.Text = "Running"
+    end
+    startAutoAttack()
+    startAutoFarm()
+    autoStartRunning = false
+end
+
+local function startDungeonMonitor()
+    RunService.Heartbeat:Connect(function()
+        local dungeon = Workspace:FindFirstChild("dungeon")
+        local inDungeonNow = dungeon and dungeon:FindFirstChild("initialRoom") ~= nil
+        if inDungeonNow and not isInDungeon then
+            isInDungeon = true
+            if Settings.AutoStart and not autoStartRunning then
+                Settings.AutoFarm = true
+                Settings.AutoAttack = true
+                if farmBtnRef then
+                    farmBtnRef.Text = "ON"
+                    farmBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+                end
+                if attackBtnRef then
+                    attackBtnRef.Text = "ON"
+                    attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+                end
+                if autoStartBtnRef then
+                    autoStartBtnRef.Text = "Running"
+                end
+                startAutoAttack()
+                startAutoFarm()
+            end
+        elseif not inDungeonNow and isInDungeon then
+            isInDungeon = false
+            Settings.AutoFarm = false
+            Settings.AutoAttack = false
+            stopAutoAttack()
+            stopAutoFarm()
+            if farmBtnRef then
+                farmBtnRef.Text = "OFF"
+                farmBtnRef.BackgroundColor3 = Color3.fromRGB(160, 0, 0)
+            end
+            if attackBtnRef then
+                attackBtnRef.Text = "OFF"
+                attackBtnRef.BackgroundColor3 = Color3.fromRGB(160, 0, 0)
+            end
+            if autoStartBtnRef and Settings.AutoStart then
+                autoStartBtnRef.Text = "ON"
+            end
+        end
+    end)
+end
+
+local function createUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "AutoAttackUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    screenGui.Parent = PlayerGui
+    uiScreenGui = screenGui
+
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Name = "MainFrame"
+    mainFrame.Size = UDim2.new(0, 280, 0, 420)
+    mainFrame.Position = UDim2.new(0, 20, 0, 20)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Active = true
+    mainFrame.Draggable = true
+    mainFrame.Parent = screenGui
+
+    local mainCorner = Instance.new("UICorner")
+    mainCorner.CornerRadius = UDim.new(0, 8)
+    mainCorner.Parent = mainFrame
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 28)
+    titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+
+    local titleCorner = Instance.new("UICorner")
+    titleCorner.CornerRadius = UDim.new(0, 8)
+    titleCorner.Parent = titleBar
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(0.5, 0, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "Auto Farm"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 14
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = titleBar
+
+    local minBtn = Instance.new("TextButton")
+    minBtn.Name = "MinimizeBtn"
+    minBtn.Size = UDim2.new(0, 24, 0, 20)
+    minBtn.Position = UDim2.new(1, -56, 0.5, -10)
+    minBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+    minBtn.BorderSizePixel = 0
+    minBtn.Text = "−"
+    minBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minBtn.TextSize = 16
+    minBtn.Font = Enum.Font.GothamBold
+    minBtn.Parent = titleBar
+
+    local minCorner = Instance.new("UICorner")
+    minCorner.CornerRadius = UDim.new(0, 4)
+    minCorner.Parent = minBtn
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Name = "CloseBtn"
+    closeBtn.Size = UDim2.new(0, 24, 0, 20)
+    closeBtn.Position = UDim2.new(1, -28, 0.5, -10)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+    closeBtn.BorderSizePixel = 0
+    closeBtn.Text = "×"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.TextSize = 14
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.Parent = titleBar
+
+    local closeCorner = Instance.new("UICorner")
+    closeCorner.CornerRadius = UDim.new(0, 4)
+    closeCorner.Parent = closeBtn
+
+    local tabBar = Instance.new("Frame")
+    tabBar.Name = "TabBar"
+    tabBar.Size = UDim2.new(1, 0, 0, 28)
+    tabBar.Position = UDim2.new(0, 0, 0, 28)
+    tabBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    tabBar.BorderSizePixel = 0
+    tabBar.Parent = mainFrame
+
+    local mainTabBtn = Instance.new("TextButton")
+    mainTabBtn.Name = "MainTab"
+    mainTabBtn.Size = UDim2.new(0.5, 0, 1, 0)
+    mainTabBtn.Position = UDim2.new(0, 0, 0, 0)
+    mainTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    mainTabBtn.BorderSizePixel = 0
+    mainTabBtn.Text = "Main"
+    mainTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    mainTabBtn.TextSize = 12
+    mainTabBtn.Font = Enum.Font.GothamBold
+    mainTabBtn.Parent = tabBar
+
+    local farmTabBtn = Instance.new("TextButton")
+    farmTabBtn.Name = "FarmTab"
+    farmTabBtn.Size = UDim2.new(0.5, 0, 1, 0)
+    farmTabBtn.Position = UDim2.new(0.5, 0, 0, 0)
+    farmTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    farmTabBtn.BorderSizePixel = 0
+    farmTabBtn.Text = "Farming"
+    farmTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    farmTabBtn.TextSize = 12
+    farmTabBtn.Font = Enum.Font.GothamBold
+    farmTabBtn.Parent = tabBar
+
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Name = "Content"
+    contentFrame.Size = UDim2.new(1, -12, 1, -64)
+    contentFrame.Position = UDim2.new(0, 6, 0, 58)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.Parent = mainFrame
+
+    local mainContent = Instance.new("Frame")
+    mainContent.Name = "MainContent"
+    mainContent.Size = UDim2.new(1, 0, 1, 0)
+    mainContent.BackgroundTransparency = 1
+    mainContent.Visible = true
+    mainContent.Parent = contentFrame
+
+    local farmContent = Instance.new("Frame")
+    farmContent.Name = "FarmContent"
+    farmContent.Size = UDim2.new(1, 0, 1, 0)
+    farmContent.BackgroundTransparency = 1
+    farmContent.Visible = false
+    farmContent.Parent = contentFrame
+
+    local function switchTab(tab)
+        currentTab = tab
+        if tab == "Main" then
+            mainContent.Visible = true
+            farmContent.Visible = false
+            mainTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            mainTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            farmTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            farmTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        else
+            mainContent.Visible = false
+            farmContent.Visible = true
+            farmTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            farmTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            mainTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            mainTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        end
+    end
+
+    mainTabBtn.MouseButton1Click:Connect(function() switchTab("Main") end)
+    farmTabBtn.MouseButton1Click:Connect(function() switchTab("Farming") end)
+
+    local attackSection = Instance.new("Frame")
+    attackSection.Name = "AttackSection"
+    attackSection.Size = UDim2.new(1, 0, 0, 36)
+    attackSection.Position = UDim2.new(0, 0, 0, 4)
+    attackSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    attackSection.BorderSizePixel = 0
+    attackSection.Parent = mainContent
+
+    local attackCorner = Instance.new("UICorner")
+    attackCorner.CornerRadius = UDim.new(0, 6)
+    attackCorner.Parent = attackSection
+
+    local attackTitle = Instance.new("TextLabel")
+    attackTitle.Size = UDim2.new(0.5, 0, 1, 0)
+    attackTitle.Position = UDim2.new(0, 10, 0, 0)
+    attackTitle.BackgroundTransparency = 1
+    attackTitle.Text = "Auto Attack"
+    attackTitle.TextColor3 = Color3.fromRGB(255, 100, 100)
+    attackTitle.TextSize = 12
+    attackTitle.Font = Enum.Font.GothamBold
+    attackTitle.TextXAlignment = Enum.TextXAlignment.Left
+    attackTitle.Parent = attackSection
+
+    local attackBtn = Instance.new("TextButton")
+    attackBtn.Size = UDim2.new(0, 50, 0, 22)
+    attackBtn.Position = UDim2.new(1, -56, 0.5, -11)
+    attackBtn.BackgroundColor3 = Settings.AutoAttack and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+    attackBtn.BorderSizePixel = 0
+    attackBtn.Text = Settings.AutoAttack and "ON" or "OFF"
+    attackBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    attackBtn.TextSize = 11
+    attackBtn.Font = Enum.Font.GothamBold
+    attackBtn.Parent = attackSection
+    attackBtnRef = attackBtn
+
+    local attackBtnCorner = Instance.new("UICorner")
+    attackBtnCorner.CornerRadius = UDim.new(0, 4)
+    attackBtnCorner.Parent = attackBtn
+
+    attackBtn.MouseButton1Click:Connect(function()
+        Settings.AutoAttack = not Settings.AutoAttack
+        attackBtn.Text = Settings.AutoAttack and "ON" or "OFF"
+        attackBtn.BackgroundColor3 = Settings.AutoAttack and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+        if Settings.AutoAttack then
+            startAutoAttack()
+        else
+            stopAutoAttack()
+        end
+    end)
+
+    local speedSection = Instance.new("Frame")
+    speedSection.Name = "SpeedSection"
+    speedSection.Size = UDim2.new(1, 0, 0, 70)
+    speedSection.Position = UDim2.new(0, 0, 0, 44)
+    speedSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    speedSection.BorderSizePixel = 0
+    speedSection.Parent = mainContent
+
+    local speedCorner = Instance.new("UICorner")
+    speedCorner.CornerRadius = UDim.new(0, 6)
+    speedCorner.Parent = speedSection
+
+    local speedTitle = Instance.new("TextLabel")
+    speedTitle.Size = UDim2.new(0.5, 0, 0, 18)
+    speedTitle.Position = UDim2.new(0, 10, 0, 4)
+    speedTitle.BackgroundTransparency = 1
+    speedTitle.Text = "Walk Speed"
+    speedTitle.TextColor3 = Color3.fromRGB(255, 200, 50)
+    speedTitle.TextSize = 12
+    speedTitle.Font = Enum.Font.GothamBold
+    speedTitle.TextXAlignment = Enum.TextXAlignment.Left
+    speedTitle.Parent = speedSection
+
+    local speedValueLabel = Instance.new("TextLabel")
+    speedValueLabel.Size = UDim2.new(0.3, 0, 0, 18)
+    speedValueLabel.Position = UDim2.new(0.7, 0, 0, 4)
+    speedValueLabel.BackgroundTransparency = 1
+    speedValueLabel.Text = tostring(Settings.WalkSpeed)
+    speedValueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    speedValueLabel.TextSize = 12
+    speedValueLabel.Font = Enum.Font.GothamBold
+    speedValueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    speedValueLabel.Parent = speedSection
+    speedLabelRef = speedValueLabel
+
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Name = "SliderBg"
+    sliderBg.Size = UDim2.new(1, -20, 0, 20)
+    sliderBg.Position = UDim2.new(0, 10, 0, 26)
+    sliderBg.BackgroundTransparency = 1
+    sliderBg.Parent = speedSection
+
+    local sliderTrack = Instance.new("Frame")
+    sliderTrack.Name = "SliderTrack"
+    sliderTrack.Size = UDim2.new(1, 0, 0, 6)
+    sliderTrack.Position = UDim2.new(0, 0, 0.5, -3)
+    sliderTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    sliderTrack.BorderSizePixel = 0
+    sliderTrack.Parent = sliderBg
+
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = sliderTrack
+
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Name = "SliderFill"
+    sliderFill.Size = UDim2.new(0, 0, 1, 0)
+    sliderFill.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Parent = sliderTrack
+    sliderFillRef = sliderFill
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = sliderFill
+
+    local sliderKnob = Instance.new("Frame")
+    sliderKnob.Name = "SliderKnob"
+    sliderKnob.Size = UDim2.new(0, 14, 0, 14)
+    sliderKnob.Position = UDim2.new(1, -7, 0.5, -7)
+    sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    sliderKnob.BorderSizePixel = 0
+    sliderKnob.Parent = sliderFill
+
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = sliderKnob
+
+    local minLabel = Instance.new("TextLabel")
+    minLabel.Size = UDim2.new(0, 20, 0, 14)
+    minLabel.Position = UDim2.new(0, 0, 0, 48)
+    minLabel.BackgroundTransparency = 1
+    minLabel.Text = "16"
+    minLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+    minLabel.TextSize = 9
+    minLabel.Font = Enum.Font.Gotham
+    minLabel.Parent = speedSection
+
+    local maxLabel = Instance.new("TextLabel")
+    maxLabel.Size = UDim2.new(0, 20, 0, 14)
+    maxLabel.Position = UDim2.new(1, -20, 0, 48)
+    maxLabel.BackgroundTransparency = 1
+    maxLabel.Text = "50"
+    maxLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+    maxLabel.TextSize = 9
+    maxLabel.Font = Enum.Font.Gotham
+    maxLabel.TextXAlignment = Enum.TextXAlignment.Right
+    maxLabel.Parent = speedSection
+
+    local minSpeed = 16
+    local maxSpeed = 50
+    local isDragging = false
+    local trackWidth = 0
+
+    local function updateSlider(inputX)
+        local trackPos = sliderTrack.AbsolutePosition.X
+        trackWidth = sliderTrack.AbsoluteSize.X
+        local relativeX = math.clamp(inputX - trackPos, 0, trackWidth)
+        local percent = relativeX / trackWidth
+        sliderFill.Size = UDim2.new(0, relativeX, 1, 0)
+        local speed = math.floor(minSpeed + (maxSpeed - minSpeed) * percent)
+        Settings.WalkSpeed = speed
+        speedValueLabel.Text = tostring(speed)
+        setWalkSpeed(speed)
+        saveSettings()
+    end
+
+    task.delay(0.1, function()
+        trackWidth = sliderTrack.AbsoluteSize.X
+        local initialPercent = (Settings.WalkSpeed - minSpeed) / (maxSpeed - minSpeed)
+        local initialWidth = trackWidth * initialPercent
+        sliderFill.Size = UDim2.new(0, initialWidth, 1, 0)
+    end)
+
+    sliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+            updateSlider(input.Position.X)
+        end
+    end)
+
+    sliderKnob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateSlider(input.Position.X)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = false
+        end
+    end)
+
+    local levelUpSection = Instance.new("Frame")
+    levelUpSection.Name = "LevelUpSection"
+    levelUpSection.Size = UDim2.new(1, 0, 0, 36)
+    levelUpSection.Position = UDim2.new(0, 0, 0, 118)
+    levelUpSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    levelUpSection.BorderSizePixel = 0
+    levelUpSection.Parent = mainContent
+
+    local levelUpCorner = Instance.new("UICorner")
+    levelUpCorner.CornerRadius = UDim.new(0, 6)
+    levelUpCorner.Parent = levelUpSection
+
+    local levelUpTitle = Instance.new("TextLabel")
+    levelUpTitle.Size = UDim2.new(0.4, 0, 1, 0)
+    levelUpTitle.Position = UDim2.new(0, 10, 0, 0)
+    levelUpTitle.BackgroundTransparency = 1
+    levelUpTitle.Text = "Auto Level Up"
+    levelUpTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+    levelUpTitle.TextSize = 12
+    levelUpTitle.Font = Enum.Font.GothamBold
+    levelUpTitle.TextXAlignment = Enum.TextXAlignment.Left
+    levelUpTitle.Parent = levelUpSection
+
+    local levelUpBtn = Instance.new("TextButton")
+    levelUpBtn.Name = "LevelUpBtn"
+    levelUpBtn.Size = UDim2.new(0, 50, 0, 22)
+    levelUpBtn.Position = UDim2.new(1, -56, 0.5, -11)
+    levelUpBtn.BackgroundColor3 = Settings.AutoLevelUp and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+    levelUpBtn.BorderSizePixel = 0
+    levelUpBtn.Text = Settings.AutoLevelUp and "ON" or "OFF"
+    levelUpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    levelUpBtn.TextSize = 11
+    levelUpBtn.Font = Enum.Font.GothamBold
+    levelUpBtn.Parent = levelUpSection
+    autoLevelBtnRef = levelUpBtn
+
+    local levelUpBtnCorner = Instance.new("UICorner")
+    levelUpBtnCorner.CornerRadius = UDim.new(0, 4)
+    levelUpBtnCorner.Parent = levelUpBtn
+
+    levelUpBtn.MouseButton1Click:Connect(function()
+        Settings.AutoLevelUp = not Settings.AutoLevelUp
+        levelUpBtn.Text = Settings.AutoLevelUp and "ON" or "OFF"
+        levelUpBtn.BackgroundColor3 = Settings.AutoLevelUp and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+        saveSettings()
+        if Settings.AutoLevelUp then
+            startAutoLevelUp()
+        else
+            stopAutoLevelUp()
+        end
+    end)
+
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Name = "Status"
+    statusLabel.Size = UDim2.new(1, 0, 0, 14)
+    statusLabel.Position = UDim2.new(0, 0, 0, 160)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "Weapon: None"
+    statusLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+    statusLabel.TextSize = 10
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Center
+    statusLabel.Parent = mainContent
+
+    local function createDropdown(parent, position, titleText, itemsList, defaultValue, onSelect)
+        local section = Instance.new("Frame")
+        section.Name = titleText .. "Section"
+        section.Size = UDim2.new(1, 0, 0, 36)
+        section.Position = position
+        section.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        section.BorderSizePixel = 0
+        section.Parent = parent
+
+        local sectionCorner = Instance.new("UICorner")
+        sectionCorner.CornerRadius = UDim.new(0, 6)
+        sectionCorner.Parent = section
+
+        local title = Instance.new("TextLabel")
+        title.Size = UDim2.new(0.4, 0, 1, 0)
+        title.Position = UDim2.new(0, 10, 0, 0)
+        title.BackgroundTransparency = 1
+        title.Text = titleText
+        title.TextColor3 = Color3.fromRGB(100, 150, 255)
+        title.TextSize = 12
+        title.Font = Enum.Font.GothamBold
+        title.TextXAlignment = Enum.TextXAlignment.Left
+        title.Parent = section
+
+        local dropdownBtn = Instance.new("TextButton")
+        dropdownBtn.Size = UDim2.new(0, 150, 0, 22)
+        dropdownBtn.Position = UDim2.new(1, -156, 0.5, -11)
+        dropdownBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+        dropdownBtn.BorderSizePixel = 0
+        dropdownBtn.Text = defaultValue
+        dropdownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        dropdownBtn.TextSize = 11
+        dropdownBtn.Font = Enum.Font.GothamBold
+        dropdownBtn.Parent = section
+
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 4)
+        btnCorner.Parent = dropdownBtn
+
+        local arrow = Instance.new("TextLabel")
+        arrow.Size = UDim2.new(0, 20, 1, 0)
+        arrow.Position = UDim2.new(1, -20, 0, 0)
+        arrow.BackgroundTransparency = 1
+        arrow.Text = "▼"
+        arrow.TextColor3 = Color3.fromRGB(200, 200, 200)
+        arrow.TextSize = 10
+        arrow.Font = Enum.Font.GothamBold
+        arrow.Parent = dropdownBtn
+
+        local dropdownMenu = Instance.new("Frame")
+        dropdownMenu.Name = titleText .. "Menu"
+        dropdownMenu.Size = UDim2.new(0, 150, 0, 120)
+        dropdownMenu.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+        dropdownMenu.BorderSizePixel = 0
+        dropdownMenu.Visible = false
+        dropdownMenu.ZIndex = 100
+        dropdownMenu.Parent = uiScreenGui
+
+        local menuCorner = Instance.new("UICorner")
+        menuCorner.CornerRadius = UDim.new(0, 4)
+        menuCorner.Parent = dropdownMenu
+
+        local scrollFrame = Instance.new("ScrollingFrame")
+        scrollFrame.Name = "Scroll"
+        scrollFrame.Size = UDim2.new(1, -4, 1, -4)
+        scrollFrame.Position = UDim2.new(0, 2, 0, 2)
+        scrollFrame.BackgroundTransparency = 1
+        scrollFrame.BorderSizePixel = 0
+        scrollFrame.ScrollBarThickness = 4
+        scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(100, 100, 100)
+        scrollFrame.CanvasSize = UDim2.new(0, 0, 0, #itemsList * 24)
+        scrollFrame.ZIndex = 101
+        scrollFrame.Parent = dropdownMenu
+
+        local listLayout = Instance.new("UIListLayout")
+        listLayout.Padding = UDim.new(0, 2)
+        listLayout.Parent = scrollFrame
+
+        for i, item in ipairs(itemsList) do
+            local itemBtn = Instance.new("TextButton")
+            itemBtn.Name = item
+            itemBtn.Size = UDim2.new(1, 0, 0, 22)
+            itemBtn.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+            itemBtn.BorderSizePixel = 0
+            itemBtn.Text = item
+            itemBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            itemBtn.TextSize = 10
+            itemBtn.Font = Enum.Font.Gotham
+            itemBtn.ZIndex = 102
+            itemBtn.Parent = scrollFrame
+
+            local itemCorner = Instance.new("UICorner")
+            itemCorner.CornerRadius = UDim.new(0, 3)
+            itemCorner.Parent = itemBtn
+
+            itemBtn.MouseButton1Click:Connect(function()
+                dropdownBtn.Text = item
+                onSelect(item)
+                dropdownMenu.Visible = false
+                saveSettings()
+            end)
+        end
+
+        local function updateDropdownPosition()
+            local absPos = dropdownBtn.AbsolutePosition
+            dropdownMenu.Position = UDim2.new(0, absPos.X, 0, absPos.Y + 24)
+        end
+
+        dropdownBtn.MouseButton1Click:Connect(function()
+            local isOpen = dropdownMenu.Visible
+            for _, child in pairs(uiScreenGui:GetDescendants()) do
+                if child.Name:match("Menu$") and child:IsA("Frame") then
+                    child.Visible = false
+                end
+            end
+            if not isOpen then
+                updateDropdownPosition()
+                dropdownMenu.Visible = true
+            end
+        end)
+
+        return section, dropdownBtn
+    end
+
+    local dungeonSection, dungeonBtn = createDropdown(
+        farmContent,
+        UDim2.new(0, 0, 0, 4),
+        "Dungeon",
+        DungeonList,
+        Settings.SelectedDungeon,
+        function(value)
+            Settings.SelectedDungeon = value
+        end
+    )
+    dungeonBtnRef = dungeonBtn
+
+    local difficultySection, diffBtn = createDropdown(
+        farmContent,
+        UDim2.new(0, 0, 0, 44),
+        "Difficulty",
+        DifficultyList,
+        Settings.SelectedDifficulty,
+        function(value)
+            Settings.SelectedDifficulty = value
+        end
+    )
+    difficultyBtnRef = diffBtn
+
+    local farmSection = Instance.new("Frame")
+    farmSection.Name = "FarmSection"
+    farmSection.Size = UDim2.new(1, 0, 0, 36)
+    farmSection.Position = UDim2.new(0, 0, 0, 84)
+    farmSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    farmSection.BorderSizePixel = 0
+    farmSection.Parent = farmContent
+
+    local farmCorner = Instance.new("UICorner")
+    farmCorner.CornerRadius = UDim.new(0, 6)
+    farmCorner.Parent = farmSection
+
+    local farmTitle = Instance.new("TextLabel")
+    farmTitle.Size = UDim2.new(0.5, 0, 1, 0)
+    farmTitle.Position = UDim2.new(0, 10, 0, 0)
+    farmTitle.BackgroundTransparency = 1
+    farmTitle.Text = "Auto Farm"
+    farmTitle.TextColor3 = Color3.fromRGB(100, 255, 100)
+    farmTitle.TextSize = 12
+    farmTitle.Font = Enum.Font.GothamBold
+    farmTitle.TextXAlignment = Enum.TextXAlignment.Left
+    farmTitle.Parent = farmSection
+
+    local farmBtn = Instance.new("TextButton")
+    farmBtn.Size = UDim2.new(0, 50, 0, 22)
+    farmBtn.Position = UDim2.new(1, -56, 0.5, -11)
+    farmBtn.BackgroundColor3 = Settings.AutoFarm and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+    farmBtn.BorderSizePixel = 0
+    farmBtn.Text = Settings.AutoFarm and "ON" or "OFF"
+    farmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    farmBtn.TextSize = 11
+    farmBtn.Font = Enum.Font.GothamBold
+    farmBtn.Parent = farmSection
+    farmBtnRef = farmBtn
+
+    local farmBtnCorner = Instance.new("UICorner")
+    farmBtnCorner.CornerRadius = UDim.new(0, 4)
+    farmBtnCorner.Parent = farmBtn
+
+    farmBtn.MouseButton1Click:Connect(function()
+        Settings.AutoFarm = not Settings.AutoFarm
+        farmBtn.Text = Settings.AutoFarm and "ON" or "OFF"
+        farmBtn.BackgroundColor3 = Settings.AutoFarm and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+        if Settings.AutoFarm then
+            Settings.AutoAttack = true
+            attackBtnRef.Text = "ON"
+            attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+            startAutoAttack()
+            startAutoFarm()
+        else
+            stopAutoFarm()
+        end
+    end)
+
+    local autoStartSection = Instance.new("Frame")
+    autoStartSection.Name = "AutoStartSection"
+    autoStartSection.Size = UDim2.new(1, 0, 0, 36)
+    autoStartSection.Position = UDim2.new(0, 0, 0, 124)
+    autoStartSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    autoStartSection.BorderSizePixel = 0
+    autoStartSection.Parent = farmContent
+
+    local autoStartCorner = Instance.new("UICorner")
+    autoStartCorner.CornerRadius = UDim.new(0, 6)
+    autoStartCorner.Parent = autoStartSection
+
+    local autoStartTitle = Instance.new("TextLabel")
+    autoStartTitle.Size = UDim2.new(0.5, 0, 1, 0)
+    autoStartTitle.Position = UDim2.new(0, 10, 0, 0)
+    autoStartTitle.BackgroundTransparency = 1
+    autoStartTitle.Text = "Auto Start"
+    autoStartTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
+    autoStartTitle.TextSize = 12
+    autoStartTitle.Font = Enum.Font.GothamBold
+    autoStartTitle.TextXAlignment = Enum.TextXAlignment.Left
+    autoStartTitle.Parent = autoStartSection
+
+    local autoStartBtn = Instance.new("TextButton")
+    autoStartBtn.Name = "AutoStartBtn"
+    autoStartBtn.Size = UDim2.new(0, 50, 0, 22)
+    autoStartBtn.Position = UDim2.new(1, -56, 0.5, -11)
+    autoStartBtn.BackgroundColor3 = Settings.AutoStart and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+    autoStartBtn.BorderSizePixel = 0
+    autoStartBtn.Text = Settings.AutoStart and "ON" or "OFF"
+    autoStartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    autoStartBtn.TextSize = 11
+    autoStartBtn.Font = Enum.Font.GothamBold
+    autoStartBtn.Parent = autoStartSection
+    autoStartBtnRef = autoStartBtn
+
+    local autoStartBtnCorner = Instance.new("UICorner")
+    autoStartBtnCorner.CornerRadius = UDim.new(0, 4)
+    autoStartBtnCorner.Parent = autoStartBtn
+
+    autoStartBtn.MouseButton1Click:Connect(function()
+        Settings.AutoStart = not Settings.AutoStart
+        autoStartBtn.Text = Settings.AutoStart and "ON" or "OFF"
+        autoStartBtn.BackgroundColor3 = Settings.AutoStart and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+        saveSettings()
+        if Settings.AutoStart and not isInDungeon and not autoStartRunning then
+            task.spawn(autoStartSequence)
+        end
+    end)
+
+    local skillSection, skillBtn = createDropdown(
+        mainContent,
+        UDim2.new(0, 0, 0, 158),
+        "Skill",
+        SkillList,
+        Settings.SelectedSkill,
+        function(value)
+            Settings.SelectedSkill = value
+        end
+    )
+    skillBtnRef = skillBtn
+
+    minBtn.MouseButton1Click:Connect(function()
+        isMinimized = not isMinimized
+        if isMinimized then
+            contentFrame.Visible = false
+            tabBar.Visible = false
+            mainFrame.Size = UDim2.new(0, 280, 0, 28)
+            minBtn.Text = "+"
+        else
+            contentFrame.Visible = true
+            tabBar.Visible = true
+            mainFrame.Size = UDim2.new(0, 280, 0, 420)
+            minBtn.Text = "−"
+        end
+    end)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        screenGui.Enabled = false
+    end)
+
+    return statusLabel
+end
+
+local function startWeaponMonitor(statusLabel)
+    local lastWeapon = nil
+    RunService.Heartbeat:Connect(function()
+        local weapon = getEquippedWeapon()
+        if weapon ~= lastWeapon then
+            lastWeapon = weapon
+            if weapon then
+                statusLabel.Text = "Weapon: " .. weapon
+                statusLabel.TextColor3 = Color3.fromRGB(0, 255, 100)
+            else
+                statusLabel.Text = "Weapon: None"
+                statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
+            end
+        end
+        if not weapon and Settings.AutoAttack and not Settings.AutoFarm then
+            Settings.AutoAttack = false
+            stopAutoAttack()
+            if attackBtnRef then
+                attackBtnRef.Text = "OFF"
+                attackBtnRef.BackgroundColor3 = Color3.fromRGB(160, 0, 0)
+            end
+        end
+    end)
+end
+
+local function startSpeedMonitor()
+    LocalPlayer.CharacterAdded:Connect(function(character)
+        local humanoid = character:WaitForChild("Humanoid")
+        humanoid.WalkSpeed = Settings.WalkSpeed
+    end)
+end
+
+local function init()
+    local statusLabel = createUI()
+    startWeaponMonitor(statusLabel)
+    startSpeedMonitor()
+    startDungeonMonitor()
+    if Settings.AutoStart and not isInDungeon then
+        task.spawn(autoStartSequence)
+    end
+    if Settings.AutoLevelUp then
+        startAutoLevelUp()
+    end
+    UserInputService.InputBegan:Connect(function(input, gameProcessed)
+        if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
+            if uiScreenGui then
+                uiScreenGui.Enabled = not uiScreenGui.Enabled
+            end
+        end
+    end)
+end
+
+init()
