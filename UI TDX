@@ -502,16 +502,27 @@ local towerPauseUntil = {}
 local pendingPlacements = {}
 
 local function updateTowersList()
-    if not towersScroll or not towersLayout then return end
+    if not towersScroll then return end
     for _, child in ipairs(towersScroll:GetChildren()) do
-        if child:IsA("TextLabel") then child:Destroy() end
+        if child:IsA("Frame") or child:IsA("TextLabel") or child:IsA("UIListLayout") then
+            child:Destroy()
+        end
     end
+
+    local listLayout = Instance.new("UIListLayout")
+    listLayout.Padding = UDim.new(0, 6)
+    listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    listLayout.FillDirection = Enum.FillDirection.Vertical
+    listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    listLayout.Parent = towersScroll
+
     local ownedTowers = {}
     for part, data in pairs(towers) do
         if data.owned and data.hash then
             table.insert(ownedTowers, {part = part, data = data})
         end
     end
+
     if #ownedTowers == 0 then
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(1, -14, 0, 22)
@@ -523,28 +534,85 @@ local function updateTowersList()
         label.Font = Enum.Font.Gotham
         label.Parent = towersScroll
     else
-        table.sort(ownedTowers, function(a,b) return a.data.name < b.data.name end)
+        local groups = {}
         for _, entry in ipairs(ownedTowers) do
-            local data = entry.data
-            local label = Instance.new("TextLabel")
-            label.Size = UDim2.new(1, -14, 0, 22)
-            label.Text = string.format("%s | Hash: %d | Top: %d | Bottom: %d", 
-                data.name, data.hash or 0, data.topCount or 0, data.bottomCount or 0)
-            label.TextColor3 = Color3.fromRGB(180, 180, 185)
-            label.TextSize = 11
-            label.TextXAlignment = Enum.TextXAlignment.Left
-            label.BackgroundTransparency = 1
-            label.Font = Enum.Font.Gotham
-            label.Parent = towersScroll
+            local name = entry.data.name or "Unknown"
+            if not groups[name] then
+                groups[name] = {}
+            end
+            table.insert(groups[name], entry)
+        end
+
+        local sortedNames = {}
+        for name, _ in pairs(groups) do
+            table.insert(sortedNames, name)
+        end
+        table.sort(sortedNames)
+
+        for _, name in ipairs(sortedNames) do
+            local group = groups[name]
+            table.sort(group, function(a, b) return (a.data.hash or 0) < (b.data.hash or 0) end)
+
+            local block = Instance.new("Frame")
+            block.Size = UDim2.new(1, -16, 0, 0)
+            block.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+            block.BorderSizePixel = 0
+            block.Parent = towersScroll
+            Instance.new("UICorner", block).CornerRadius = UDim.new(0, 10)
+            local blockStroke = Instance.new("UIStroke", block)
+            blockStroke.Color = Color3.fromRGB(45, 45, 50)
+            blockStroke.Thickness = 1
+
+            local nameLabel = Instance.new("TextLabel")
+            nameLabel.Size = UDim2.new(1, -40, 0, 18)
+            nameLabel.Position = UDim2.new(0, 20, 0, 6)
+            nameLabel.Text = "     " .. name .. " (" .. #group .. ")"
+            nameLabel.TextColor3 = Color3.fromRGB(200, 200, 205)
+            nameLabel.TextSize = 11
+            nameLabel.Font = Enum.Font.GothamBold
+            nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+            nameLabel.BackgroundTransparency = 1
+            nameLabel.Parent = block
+
+            local innerLayout = Instance.new("UIListLayout")
+            innerLayout.Padding = UDim.new(0, 3)
+            innerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            innerLayout.FillDirection = Enum.FillDirection.Vertical
+            innerLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+            innerLayout.Parent = block
+
+            for i, entry in ipairs(group) do
+                local data = entry.data
+                local row = Instance.new("Frame")
+                row.Size = UDim2.new(1, -40, 0, 20)
+                row.BackgroundTransparency = 1
+                row.LayoutOrder = i
+                row.Parent = block
+
+                local infoLabel = Instance.new("TextLabel")
+                infoLabel.Size = UDim2.new(1, -8, 1, 0)
+                infoLabel.Position = UDim2.new(0, 20, 0, 0)
+                infoLabel.Text = string.format("Hash: %d | Top: %d | Bottom: %d",
+                    data.hash or 0, data.topCount or 0, data.bottomCount or 0)
+                infoLabel.TextColor3 = Color3.fromRGB(170, 170, 175)
+                infoLabel.TextSize = 10
+                infoLabel.Font = Enum.Font.Gotham
+                infoLabel.TextXAlignment = Enum.TextXAlignment.Left
+                infoLabel.BackgroundTransparency = 1
+                infoLabel.Parent = row
+            end
+
+            local contentHeight = (#group * 20) + ((#group - 1) * 3)
+            block.Size = UDim2.new(1, -16, 0, 6 + 18 + contentHeight + 5)
         end
     end
+
     task.defer(function()
-        if towersScroll then
-            towersScroll.CanvasSize = UDim2.new(0, 0, 0, towersLayout.AbsoluteContentSize.Y + 10)
+        if towersScroll and listLayout then
+            towersScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
         end
     end)
 end
-
 local function isTowerDead(part)
     if not part then return true end
     if not part.Parent then return true end
@@ -850,6 +918,118 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
     end
 end
 
+local function runEnemyInRangeAbility(abilityName, towerName, requiredPath, pathLevel, slot, range, enemyThreshold)
+    enemyThreshold = enemyThreshold or 1
+    return function()
+        while settings.activeAbilities[abilityName] do
+            local enemies = (range > 0) and getAllEnemies() or {}
+            for part, data in pairs(towers) do
+                if data.owned and data.name == towerName and data.hash and part.Parent then
+                    local meets = false
+                    if requiredPath == "top" then
+                        meets = data.topCount >= pathLevel
+                    elseif requiredPath == "bottom" then
+                        meets = data.bottomCount >= pathLevel
+                    elseif requiredPath == "any" then
+                        meets = data.topCount >= pathLevel or data.bottomCount >= pathLevel
+                    end
+                    if meets then
+                        local shouldUse = true
+                        if range > 0 then
+                            local nearby = 0
+                            for _, enemy in ipairs(enemies) do
+                                if (part.Position - enemy.Position).Magnitude <= range then
+                                    nearby = nearby + 1
+                                    if nearby >= enemyThreshold then
+                                        break
+                                    end
+                                end
+                            end
+                            shouldUse = nearby >= enemyThreshold
+                        end
+                        if shouldUse then
+                            task.spawn(function()
+                                sendAbilityNoPosition(part, slot)
+                            end)
+                        end
+                    end
+                end
+            end
+            task.wait(0.05)
+        end
+    end
+end
+
+local function runSequentialClusterAbility(abilityName, towerName, requiredPath, pathLevel, slot, syncRange, cooldown, intervalFn)
+    return function()
+        local clusterStates = {}
+        while settings.activeAbilities[abilityName] do
+            local eligible = {}
+            for part, data in pairs(towers) do
+                if data.owned and data.name == towerName and data.hash and part.Parent then
+                    local meets = false
+                    if requiredPath == "top" then
+                        meets = data.topCount >= pathLevel
+                    elseif requiredPath == "bottom" then
+                        meets = data.bottomCount >= pathLevel
+                    end
+                    if meets then
+                        table.insert(eligible, {part = part, pos = part.Position, hash = data.hash})
+                    end
+                end
+            end
+            if #eligible > 0 then
+                local clusters = {}
+                local visited = {}
+                for i, tower in ipairs(eligible) do
+                    if not visited[i] then
+                        local cluster = {tower}
+                        visited[i] = true
+                        for j, other in ipairs(eligible) do
+                            if not visited[j] and (tower.pos - other.pos).Magnitude <= syncRange then
+                                table.insert(cluster, other)
+                                visited[j] = true
+                            end
+                        end
+                        table.insert(clusters, cluster)
+                    end
+                end
+                for _, cluster in ipairs(clusters) do
+                    local size = #cluster
+                    if size >= 1 then
+                        local clusterKey = ""
+                        for _, t in ipairs(cluster) do
+                            clusterKey = clusterKey .. t.hash .. "_"
+                        end
+                        local state = clusterStates[clusterKey]
+                        local now = tick()
+                        local interval = cooldown
+                        if intervalFn then
+                            interval = intervalFn(size)
+                        end
+                        if not state then
+                            state = { lastUse = 0, nextIndex = 1 }
+                            clusterStates[clusterKey] = state
+                        end
+                        if now - state.lastUse >= interval then
+                            local target = cluster[state.nextIndex]
+                            if target then
+                                task.spawn(function()
+                                    sendAbilityNoPosition(target.part, slot)
+                                    state.lastUse = now
+                                    state.nextIndex = (state.nextIndex % size) + 1
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.3)
+        end
+    end
+end
+
+
 local function runOperatorHumvee()
     while settings.activeAbilities["HUMVEE"] do
         for part, data in pairs(towers) do
@@ -866,64 +1046,8 @@ local function runOperatorHumvee()
     end
 end
 
-local function runSniperFlare()
-    local lastFlareUseTime = 0
-    while settings.activeAbilities["FLARE"] do
-        local now = tick()
-        if now - lastFlareUseTime >= 5 then
-            for part, data in pairs(towers) do
-                if data.owned and data.name == "Sniper" and data.hash and data.bottomCount >= 4 and part.Parent then
-                    task.spawn(function()
-                        sendAbilityNoPosition(part, 1)
-                    end)
-                end
-            end
-            lastFlareUseTime = now
-        end
-        task.wait(0.5)
-    end
-end
 
-local function runStealthSensor()
-    local lastBurstUseTime = 0
-    while settings.activeAbilities["STEALTH_SENSOR"] do
-        local now = tick()
-        if now - lastBurstUseTime >= 4 then
-            for part, data in pairs(towers) do
-                if data.owned and data.name == "Laser Gunner" and data.hash and data.bottomCount >= 3 and part.Parent then
-                    task.spawn(function()
-                        sendAbilityNoPosition(part, 1)
-                    end)
-                end
-            end
-            lastBurstUseTime = now
-        end
-        task.wait(0.5)
-    end
-end
 
-local function runGoldenRanger()
-    while settings.activeAbilities["GOLDEN_RANGER"] do
-        local enemies = getAllEnemies()
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Golden Ranger" and data.hash and data.bottomCount >= 5 and part.Parent then
-                local enemyInRange = false
-                for _, enemy in ipairs(enemies) do
-                    if (part.Position - enemy.Position).Magnitude <= 23 then
-                        enemyInRange = true
-                        break
-                    end
-                end
-                if enemyInRange then
-                    task.spawn(function()
-                        sendAbilityNoPosition(part, 1)
-                    end)
-                end
-            end
-        end
-        task.wait(0.05)
-    end
-end
 
 local function runWarship()
     while settings.activeAbilities["WARSHIP"] do
@@ -939,86 +1063,8 @@ local function runWarship()
     end
 end
 
-local function runGrandSlamSequential()
-    while settings.activeAbilities["GRAND_SLAM"] do
-        local enemies = getAllEnemies()
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Slammer" and data.hash and data.topCount >= 5 and part.Parent then 
-                local enemyInRange = false
-                for _, enemy in ipairs(enemies) do
-                    if (part.Position - enemy.Position).Magnitude <= 5.5 then
-                        enemyInRange = true
-                        break
-                    end
-                end
-                if enemyInRange then
-                    task.spawn(function()
-                        sendAbilityNoPosition(part, 1)
-                    end)
-                end
-            end
-        end
-        task.wait(0.1)
-    end
-end
 
-local function runOverloadSequential()
-    while settings.activeAbilities["OVERLOAD"] do
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Golden Mobster" and data.hash and data.topCount >= 4 and part.Parent then
-                task.spawn(function()
-                    sendAbilityNoPosition(part, 1)
-                end)
-            end
-        end
-        task.wait(0.05)
-    end
-end
-local function runJuggernautHERounds()
-    while settings.activeAbilities["HE_ROUNDS"] do
-        local enemies = getAllEnemies()
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Juggernaut" and data.hash and data.topCount >= 5 and part.Parent then
-                local enemyInRange = false
-                for _, enemy in ipairs(enemies) do
-                    if (part.Position - enemy.Position).Magnitude <= 45 then
-                        enemyInRange = true
-                        break
-                    end
-                end
-                if enemyInRange then
-                    task.spawn(function()
-                        sendAbilityNoPosition(part, 1)
-                    end)
-                end
-            end
-        end
-        task.wait(0.05)
-    end
-end
 
-local function runJuggernautOvercharge()
-    while settings.activeAbilities["OVERCHARGE"] do
-        local enemies = getAllEnemies()
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Juggernaut" and data.hash and data.bottomCount >= 5 and part.Parent then
-                local enemyInRange = false
-                for _, enemy in ipairs(enemies) do
-                    if (part.Position - enemy.Position).Magnitude <= 45 then
-                        enemyInRange = true
-                        break
-                    end
-                end
-                if enemyInRange then
-                    task.spawn(function()
-                        sendAbilityNoPosition(part, 1)
-                    end)
-                end
-            end
-        end
-        task.wait(0.05)
-    end
-end
 
 local function runGoldenJuggernautReboot()
     while settings.activeAbilities["REBOOT_SYSTEM"] do
@@ -1067,91 +1113,7 @@ local function runGhostDrone()
     end
 end
 
-local function runAxeSequential()
-    while settings.activeAbilities["AXE"] do
-        local enemies = getAllEnemies()
-        local threshold = tonumber(settings.axeEnemyThreshold) or 3
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "John" and data.hash and data.bottomCount >= 5 and part.Parent then
-                local nearby = 0
-                for _, enemy in ipairs(enemies) do
-                    if (part.Position - enemy.Position).Magnitude <= 6.5 then
-                        nearby = nearby + 1
-                        if nearby >= threshold then break end
-                    end
-                end
-                if nearby >= threshold then
-                    task.spawn(function()
-                        sendAbilityNoPosition(part, 1)
-                    end)
-                end
-            end
-        end
-        task.wait(0.1)
-    end
-end
 
-local function runClusterCooldownAbility(abilityName, towerName, requiredPath, pathLevel, slot, clusterRadius)
-    return function()
-        local clusterStates = {}
-        while settings.activeAbilities[abilityName] do
-            local eligible = {}
-            for part, data in pairs(towers) do
-                if data.owned and data.name == towerName and data.hash and part.Parent then
-                    local meets = false
-                    if requiredPath == "top" then
-                        meets = data.topCount >= pathLevel
-                    elseif requiredPath == "bottom" then
-                        meets = data.bottomCount >= pathLevel
-                    end
-                    if meets then
-                        table.insert(eligible, {part = part, pos = part.Position, hash = data.hash})
-                    end
-                end
-            end
-            if #eligible > 0 then
-                local clusters = {}
-                local visited = {}
-                for i, tower in ipairs(eligible) do
-                    if not visited[i] then
-                        local cluster = {tower}
-                        visited[i] = true
-                        for j, other in ipairs(eligible) do
-                            if not visited[j] and (tower.pos - other.pos).Magnitude <= clusterRadius then
-                                table.insert(cluster, other)
-                                visited[j] = true
-                            end
-                        end
-                        table.insert(clusters, cluster)
-                    end
-                end
-                for _, cluster in ipairs(clusters) do
-                    local clusterKey = ""
-                    for _, t in ipairs(cluster) do
-                        clusterKey = clusterKey .. t.hash .. "_"
-                    end
-                    local state = clusterStates[clusterKey]
-                    local now = tick()
-                    if not state then
-                        state = { lastUse = 0, nextIndex = 1 }
-                        clusterStates[clusterKey] = state
-                    end
-                    if now - state.lastUse >= 8 then
-                        local target = cluster[state.nextIndex]
-                        if target then
-                            task.spawn(function()
-                                sendAbilityNoPosition(target.part, slot)
-                                state.lastUse = now
-                                state.nextIndex = (state.nextIndex % #cluster) + 1
-                            end)
-                        end
-                    end
-                end
-            end
-            task.wait(0.3)
-        end
-    end
-end
 
 local medicDroneIgnoreTowers = {
     ["Barracks"] = true, ["Behemoth Factory"] = true, ["Relic"] = true, ["War Machine"] = true,
@@ -1266,119 +1228,32 @@ local function runMedicDroneSequential(slot)
     end
 end
 
-local function runCallToArmsSequential()
-    local clusterStates = {}
-    while settings.activeAbilities["CALL_TO_ARMS"] do
-        local commanders = {}
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Commander" and data.hash and data.topCount >= 3 and part.Parent then
-                table.insert(commanders, {part = part, pos = part.Position, hash = data.hash})
-            end
-        end
-        if #commanders > 0 then
-            local clusters = {}
-            local visited = {}
-            for i, cmd in ipairs(commanders) do
-                if not visited[i] then
-                    local cluster = {cmd}
-                    visited[i] = true
-                    for j, other in ipairs(commanders) do
-                        if not visited[j] and (cmd.pos - other.pos).Magnitude <= 5 then
-                            table.insert(cluster, other)
-                            visited[j] = true
-                        end
-                    end
-                    table.insert(clusters, cluster)
-                end
-            end
-            for _, cluster in ipairs(clusters) do
-                local size = #cluster
-                if size >= 2 then
-                    local clusterKey = ""
-                    for _, cmd in ipairs(cluster) do
-                        clusterKey = clusterKey .. cmd.hash .. "_"
-                    end
-                    local state = clusterStates[clusterKey]
-                    local now = tick()
-                    local interval = (size == 2) and 21 or 13
-                    if not state then
-                        state = { lastUse = 0, nextIndex = 1 }
-                        clusterStates[clusterKey] = state
-                    end
-                    if now - state.lastUse >= interval then
-                        local targetCmd = cluster[state.nextIndex]
-                        task.spawn(function()
-                            sendAbilityNoPosition(targetCmd.part, 1)
-                            state.lastUse = now
-                            state.nextIndex = (state.nextIndex % size) + 1
-                        end)
-                    end
-                end
-            end
-        end
-        task.wait(0.3)
-    end
-end
 
-local function runSpawnApcSequential()
-    while settings.activeAbilities["SPAWN_APC"] do
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Commander" and data.hash and data.topCount >= 4 and part.Parent then
-                task.spawn(function()
-                    sendAbilityNoPosition(part, 2)
-                end)
-            end
-        end
-        task.wait(0.05)
-    end
-end
 
-local function runRangerGrenade()
-    while settings.activeAbilities["GRENADE"] do
-        local enemies = getAllEnemies()
-        for part, data in pairs(towers) do
-            if data.owned and data.name == "Ranger" and data.hash and data.bottomCount >= 4 and part.Parent then
-                local hasEnemyInRange = false
-                for _, enemy in ipairs(enemies) do
-                    if (part.Position - enemy.Position).Magnitude <= 18 then
-                        hasEnemyInRange = true
-                        break
-                    end
-                end
-                if hasEnemyInRange then
-                    task.spawn(function()
-                        sendAbilityNoPosition(part, 1)
-                    end)
-                end
-            end
-        end
-        task.wait(0.05)
-    end
-end
 
 local abilityLoopMap = {
-    GRENADE = runRangerGrenade,
+    GRENADE = runEnemyInRangeAbility("GRENADE", "Ranger", "bottom", 4, 1, 17, 1),
     UNSTUN_HEALTH = makeFastSpamLoop("UNSTUN_HEALTH", "Shotgunner", "bottom", 5, 1),
     HEALTH_PACK = makeFastSpamLoop("HEALTH_PACK", "Shotgunner", "top", 5, 1),
-    SHOCK_ROUNDS = makeFastSpamLoop("SHOCK_ROUNDS", "Laser Gunner", "top", 4, 1),
-    AP_ROUNDS = makeFastSpamLoop("AP_ROUNDS", "Mobster", "top", 4, 1),
+    SHOCK_ROUNDS = runEnemyInRangeAbility("SHOCK_ROUNDS", "Laser Gunner", "top", 4, 1, 30, 1),
+    AP_ROUNDS = runEnemyInRangeAbility("AP_ROUNDS", "Mobster", "top", 4, 1, 30, 1),
     N_BOUNTY = runBountyTargeted("N_BOUNTY", 1, 3, "Mobster"),
     G_BOUNTY = runBountyTargeted("G_BOUNTY", 1, 3, "Golden Mobster"),
     HUMVEE = runOperatorHumvee,
-    FLARE = runSniperFlare,
-    STEALTH_SENSOR = runStealthSensor,
-    GOLDEN_RANGER = runGoldenRanger,
+    FLARE = runSequentialClusterAbility("FLARE", "Sniper", "bottom", 4, 1, 9999, 5, nil),
+    STEALTH_SENSOR = runSequentialClusterAbility("STEALTH_SENSOR", "Laser Gunner", "bottom", 3, 1, 9999, 4, nil),
+    GOLDEN_RANGER = runEnemyInRangeAbility("GOLDEN_RANGER", "Golden Ranger", "bottom", 5, 1, 23, 1),
     WARSHIP = runWarship,
-    GRAND_SLAM = runGrandSlamSequential,
-    OVERLOAD = runOverloadSequential,
-    AXE = runAxeSequential,
+    GRAND_SLAM = runEnemyInRangeAbility("GRAND_SLAM", "Slammer", "top", 5, 1, 5.5, 1),
+    OVERLOAD = runEnemyInRangeAbility("OVERLOAD", "Golden Mobster", "top", 4, 1, 35, 1),
+    AXE = runEnemyInRangeAbility("AXE", "John", "bottom", 5, 1, 6.5, settings.axeEnemyThreshold),
     MEDIC_DRONE = function() runMedicDroneSequential(1) end,
-    SPAWN_APC = runSpawnApcSequential,
-    CALL_TO_ARMS = runCallToArmsSequential,
-    ENCORE = runClusterCooldownAbility("ENCORE", "EDJ", "top", 3, 1, 10),
-    RAGE = runClusterCooldownAbility("RAGE", "John", "top", 5, 1, 10),
-    HE_ROUNDS = runJuggernautHERounds,
-    OVERCHARGE = runJuggernautOvercharge,
+    SPAWN_APC = runEnemyInRangeAbility("SPAWN_APC", "Commander", "top", 4, 2, 0, 0),
+    CALL_TO_ARMS = runSequentialClusterAbility("CALL_TO_ARMS", "Commander", "top", 3, 1, 5, 21, function(size) return (size == 2) and 21 or 13 end),
+    ENCORE = runSequentialClusterAbility("ENCORE", "EDJ", "top", 3, 1, 10, 8, nil),
+    RAGE = runSequentialClusterAbility("RAGE", "John", "top", 5, 1, 10, 8, nil),
+    HE_ROUNDS = runEnemyInRangeAbility("HE_ROUNDS", "Juggernaut", "top", 5, 1, 45, 1),
+    OVERCHARGE = runEnemyInRangeAbility("OVERCHARGE", "Juggernaut", "bottom", 5, 1, 45, 1),
     REBOOT_SYSTEM = runGoldenJuggernautReboot,
     GHOST_DRONE = runGhostDrone,
 }
@@ -2004,6 +1879,29 @@ local function createAntiLagToggle(name, settingKey, labelText, order)
     return btn
 end
 
+local function clearEffectFolders()
+    local rs = game:GetService("ReplicatedStorage")
+    local shared = rs:FindFirstChild("TDX_Shared")
+    if not shared then return end
+    local common = shared:FindFirstChild("Common")
+    if not common then return end
+    local resources = common:FindFirstChild("Resources")
+    if not resources then return end
+
+    local folders = {"Projectiles", "DeathEffects", "EmitOnceVisualEffects"}
+    for _, folderName in ipairs(folders) do
+        local folder = resources:FindFirstChild(folderName)
+        if folder then
+            for _, child in ipairs(folder:GetChildren()) do
+                pcall(function() child:Destroy() end)
+            end
+            folder.ChildAdded:Connect(function(child)
+                pcall(function() child:Destroy() end)
+            end)
+        end
+    end
+end
+
 local function buildAntiLagUI()
     for _, child in ipairs(antiLagScroll:GetChildren()) do
         if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("TextBox") or child:IsA("Frame") then
@@ -2068,6 +1966,41 @@ local function buildAntiLagUI()
     createAntiLagToggle("AnimEnemies", "removeAnimEnemies", "Remove Enemies Animators", 9)
     createAntiLagToggle("AnimTowers", "removeAnimTowers", "Remove Towers Animators", 10)
     createAntiLagToggle("AnimPaths", "removeAnimPaths", "Remove Path Entities Animators", 11)
+
+    local divider3 = Instance.new("Frame")
+    divider3.Size = UDim2.new(1, -20, 0, 1)
+    divider3.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+    divider3.BorderSizePixel = 0
+    divider3.LayoutOrder = 12
+    divider3.Parent = antiLagScroll
+
+    local clearEffectsBtn = Instance.new("TextButton")
+    clearEffectsBtn.Size = UDim2.new(1, -14, 0, 36)
+    clearEffectsBtn.Text = "Clear Effects & Projectiles"
+    clearEffectsBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+    clearEffectsBtn.TextColor3 = Color3.fromRGB(220, 180, 100)
+    clearEffectsBtn.TextSize = 11
+    clearEffectsBtn.Font = Enum.Font.Gotham
+    clearEffectsBtn.AutoButtonColor = false
+    clearEffectsBtn.LayoutOrder = 13
+    clearEffectsBtn.Parent = antiLagScroll
+    local cebCorner = Instance.new("UICorner", clearEffectsBtn)
+    cebCorner.CornerRadius = UDim.new(0, 8)
+    local cebStroke = Instance.new("UIStroke", clearEffectsBtn)
+    cebStroke.Color = Color3.fromRGB(50, 50, 55)
+    cebStroke.Thickness = 1
+
+    clearEffectsBtn.MouseEnter:Connect(function()
+        clearEffectsBtn.BackgroundColor3 = Color3.fromRGB(48, 48, 55)
+    end)
+    clearEffectsBtn.MouseLeave:Connect(function()
+        clearEffectsBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+    end)
+
+    clearEffectsBtn.MouseButton1Click:Connect(function()
+        clearEffectFolders()
+        addDebugLog("[Anti-Lag] Cleared Projectiles, DeathEffects, and EmitOnceVisualEffects")
+    end)
 
     task.defer(function()
         antiLagScroll.CanvasSize = UDim2.new(0, 0, 0, antiLagLayout.AbsoluteContentSize.Y + 10)
@@ -2264,6 +2197,13 @@ local function removeAnimationsFromFolder(folder, removedCount)
     removedCount = removedCount or 0
     if not folder then return removedCount end
 
+    for _, desc in ipairs(folder:GetDescendants()) do
+        if desc.Name == "DeathExplodePart" then
+            pcall(function() desc:Destroy() end)
+            removedCount = removedCount + 1
+        end
+    end
+
     for _, child in ipairs(folder:GetChildren()) do
         if child.Name == "Animations" and child:IsA("Folder") then
             for _, anim in ipairs(child:GetChildren()) do
@@ -2274,11 +2214,8 @@ local function removeAnimationsFromFolder(folder, removedCount)
                     end
                 end
             end
-        elseif child.Name == "ModelSkins" and child:IsA("Folder") then
-            for _, modelSkin in ipairs(child:GetChildren()) do
-                removedCount = removeAnimationsFromFolder(modelSkin, removedCount)
-            end
-        elseif child:IsA("Folder") or child:IsA("Model") or child:IsA("Configuration") then
+        end
+        if child:IsA("Folder") or child:IsA("Model") or child:IsA("Configuration") then
             removedCount = removeAnimationsFromFolder(child, removedCount)
         end
     end
@@ -2793,9 +2730,9 @@ end
 
 minimizeBtn.MouseButton1Click:Connect(toggleMinimize)
 anchorBtn.MouseButton1Click:Connect(toggleMinimize)
- 
 
 
+--[[ --Not Fixed
 local function startCoinCollector()
     task.spawn(function()
         local remote = nil
@@ -2824,6 +2761,7 @@ local function startCoinCollector()
     end)
 end
 startCoinCollector()
+--]]
 
 local function setupUpgradeListener()
     local remotes = ReplicatedStorage:FindFirstChild("Remotes")
@@ -3124,6 +3062,18 @@ local function setupGameInfo()
         return enemyList
     end
 
+local function getPlayerPowerUps(player)
+        local offensive = player:GetAttribute("PVPPowerUpOffensive")
+        local defensive = player:GetAttribute("PVPPowerUpDefensive")
+        if offensive and offensive ~= "" then
+            offensive = offensive:gsub("^PVP", ""):gsub("^pvp", ""):gsub("^PvP", "")
+        end
+        if defensive and defensive ~= "" then
+            defensive = defensive:gsub("^PVP", ""):gsub("^pvp", ""):gsub("^PvP", "")
+        end
+        return {offensive = offensive, defensive = defensive}
+    end
+
     local function createSlotButton(parent, text, bgColor, textColor, position, size)
         local btn = Instance.new("TextButton")
         btn.Size = size or UDim2.new(0, 72, 0, 28)
@@ -3187,14 +3137,66 @@ local function setupGameInfo()
         local anyDataFound = false
         local hasAnyTeam = next(teams) ~= nil
 
-        local function renderPlayerBlock(player, teamColor)
+        local allTowerTypes = {}
+        local playerTowerSets = {}
+
+        local function collectPlayerData(player)
             local towers = getPlayerTowers(player)
             local enemies = getPlayerEnemies(player)
+            local powerUps = getPlayerPowerUps(player)
+            local towerSet = {}
+            local towerAliases = {["Oil Derrick"] = "Farm"}
+            for _, t in ipairs(towers) do
+                if t then
+                    towerSet[t] = true
+                    allTowerTypes[t] = true
+                    local alias = towerAliases[t]
+                    if alias then
+                        towerSet[alias] = true
+                        allTowerTypes[alias] = true
+                    end
+                end
+            end
+            playerTowerSets[player] = {towers = towers, enemies = enemies, powerUps = powerUps, towerSet = towerSet}
+        end
+
+        for _, player in ipairs(allPlayers) do
+            collectPlayerData(player)
+        end
+
+        local orderedTowerTypes = {}
+        for t, _ in pairs(allTowerTypes) do
+            table.insert(orderedTowerTypes, t)
+        end
+        table.sort(orderedTowerTypes)
+
+        local sharedTowerTypes = {}
+        local towerAliases = {["Oil Derrick"] = "Farm"}
+        for _, towerType in ipairs(orderedTowerTypes) do
+            local count = 0
+            for _, pdata in pairs(playerTowerSets) do
+                if pdata.towerSet[towerType] then
+                    count = count + 1
+                end
+            end
+            if count >= 2 then
+                sharedTowerTypes[towerType] = true
+            end
+        end
+
+        local function renderPlayerBlock(player, teamColor, isLocal)
+            local pdata = playerTowerSets[player]
+            if not pdata then return end
+            local towers = pdata.towers
+            local enemies = pdata.enemies
+            local powerUps = pdata.powerUps
 
             local hasTowerData = false
             local hasEnemyData = false
+            local hasPowerUpData = false
             for _, t in ipairs(towers) do if t then hasTowerData = true break end end
             for _, e in ipairs(enemies) do if e then hasEnemyData = true break end end
+            if powerUps and (powerUps.offensive or powerUps.defensive) then hasPowerUpData = true end
 
             if hasTowerData or hasEnemyData then
                 anyDataFound = true
@@ -3219,13 +3221,48 @@ local function setupGameInfo()
             local nameLabel = Instance.new("TextLabel")
             nameLabel.Size = UDim2.new(1, -12, 0, 18)
             nameLabel.Position = UDim2.new(0, 6, 0, 4)
-            nameLabel.Text = player.Name
-            nameLabel.TextColor3 = teamColor or Color3.fromRGB(200, 200, 205)
+            nameLabel.Text = isLocal and (player.Name .. " (You)") or player.Name
+            nameLabel.TextColor3 = isLocal and Color3.fromRGB(130, 220, 130) or (teamColor or Color3.fromRGB(200, 200, 205))
             nameLabel.TextSize = 11
             nameLabel.Font = Enum.Font.Gotham
             nameLabel.TextXAlignment = Enum.TextXAlignment.Left
             nameLabel.BackgroundTransparency = 1
             nameLabel.Parent = block
+
+            if hasAnyTeam and powerUps then
+                local offName = powerUps.offensive
+                local defName = powerUps.defensive
+
+                local offBtn = Instance.new("TextButton")
+                offBtn.Size = UDim2.new(0, 80, 0, 18)
+                offBtn.Position = UDim2.new(1, -170, 0, 4)
+                offBtn.Text = offName or ""
+                offBtn.BackgroundColor3 = offName and Color3.fromRGB(255, 182, 193) or Color3.fromRGB(35, 35, 40)
+                offBtn.TextColor3 = offName and Color3.fromRGB(230, 230, 235) or Color3.fromRGB(100, 100, 105)
+                offBtn.TextSize = 9
+                offBtn.Font = Enum.Font.Gotham
+                offBtn.AutoButtonColor = false
+                offBtn.Parent = block
+                Instance.new("UICorner", offBtn).CornerRadius = UDim.new(0, 4)
+                local offStroke = Instance.new("UIStroke", offBtn)
+                offStroke.Color = Color3.fromRGB(60, 60, 65)
+                offStroke.Thickness = 1
+
+                local defBtn = Instance.new("TextButton")
+                defBtn.Size = UDim2.new(0, 80, 0, 18)
+                defBtn.Position = UDim2.new(1, -86, 0, 4)
+                defBtn.Text = defName or ""
+                defBtn.BackgroundColor3 = defName and Color3.fromRGB(173, 216, 230) or Color3.fromRGB(35, 35, 40)
+                defBtn.TextColor3 = defName and Color3.fromRGB(230, 230, 235) or Color3.fromRGB(100, 100, 105)
+                defBtn.TextSize = 9
+                defBtn.Font = Enum.Font.Gotham
+                defBtn.AutoButtonColor = false
+                defBtn.Parent = block
+                Instance.new("UICorner", defBtn).CornerRadius = UDim.new(0, 4)
+                local defStroke = Instance.new("UIStroke", defBtn)
+                defStroke.Color = Color3.fromRGB(60, 60, 65)
+                defStroke.Thickness = 1
+            end
 
             local towersLabel = Instance.new("TextLabel")
             towersLabel.Size = UDim2.new(0, 50, 0, 14)
@@ -3239,9 +3276,44 @@ local function setupGameInfo()
             towersLabel.Parent = block
 
             local towerColor = teamColor or Color3.fromRGB(80, 80, 85)
+
+            local alignedTowers = {}
+            if hasTowerData then
+                local towerAliases = {["Oil Derrick"] = "Farm"}
+                for _, towerType in ipairs(orderedTowerTypes) do
+                    if sharedTowerTypes[towerType] then
+                        local hasIt = false
+                        for _, t in ipairs(towers) do
+                            if t == towerType then
+                                hasIt = true
+                                break
+                            end
+                        end
+                        if not hasIt then
+                            for _, t in ipairs(towers) do
+                                if t and towerAliases[t] == towerType then
+                                    hasIt = true
+                                    break
+                                end
+                            end
+                        end
+                        table.insert(alignedTowers, hasIt and towerType or "")
+                    end
+                end
+                for _, t in ipairs(towers) do
+                    if t then
+                        local aliasTarget = towerAliases[t]
+                        local isShared = sharedTowerTypes[t] or (aliasTarget and sharedTowerTypes[aliasTarget])
+                        if not isShared then
+                            table.insert(alignedTowers, t)
+                        end
+                    end
+                end
+            end
+
             for i = 1, 6 do
                 local col = (i - 1) % 6
-                local towerName = towers[i]
+                local towerName = alignedTowers[i]
                 createSlotButton(
                     block,
                     towerName or "",
@@ -3296,8 +3368,21 @@ local function setupGameInfo()
             teamHeader.Parent = gameInfoScroll
             yOffset = yOffset + 24
 
+            local otherPlayers = {}
+            local localPlayerInTeam = nil
             for _, player in ipairs(teamData.players) do
-                renderPlayerBlock(player, teamData.color)
+                if player == LocalPlayer then
+                    localPlayerInTeam = player
+                else
+                    table.insert(otherPlayers, player)
+                end
+            end
+
+            for _, player in ipairs(otherPlayers) do
+                renderPlayerBlock(player, teamData.color, false)
+            end
+            if localPlayerInTeam then
+                renderPlayerBlock(localPlayerInTeam, teamData.color, true)
             end
 
             yOffset = yOffset + sectionSpacing
@@ -3314,16 +3399,28 @@ local function setupGameInfo()
                 yOffset = yOffset + 12
             end
 
+            local otherNoTeam = {}
+            local localNoTeam = nil
             for _, player in ipairs(noTeamPlayers) do
-                renderPlayerBlock(player, nil)
+                if player == LocalPlayer then
+                    localNoTeam = player
+                else
+                    table.insert(otherNoTeam, player)
+                end
+            end
+
+            for _, player in ipairs(otherNoTeam) do
+                renderPlayerBlock(player, nil, false)
+            end
+            if localNoTeam then
+                renderPlayerBlock(localNoTeam, nil, true)
             end
         end
 
         gameInfoScroll.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
         return anyDataFound
     end
-
-    local dataFound = false
+local dataFound = false
     local retryCount = 0
 
     local function tryBuild()
