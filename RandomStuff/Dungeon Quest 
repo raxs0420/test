@@ -15,7 +15,8 @@ local Settings = {
     SelectedDungeon = "Desert Temple",
     SelectedDifficulty = "Easy",
     AutoLevelUp = false,
-    SelectedSkill = "none",
+    SelectedSkill = "None",
+    Hardcore = false,
 }
 
 local HttpService = game:GetService("HttpService")
@@ -35,6 +36,7 @@ if savedSettings then
         if decoded.WalkSpeed then Settings.WalkSpeed = decoded.WalkSpeed end
         if decoded.AutoLevelUp ~= nil then Settings.AutoLevelUp = decoded.AutoLevelUp end
         if decoded.SelectedSkill then Settings.SelectedSkill = decoded.SelectedSkill end
+        if decoded.Hardcore ~= nil then Settings.Hardcore = decoded.Hardcore end
     end)
 end
 
@@ -48,6 +50,7 @@ local function saveSettings()
                 WalkSpeed = Settings.WalkSpeed,
                 AutoLevelUp = Settings.AutoLevelUp,
                 SelectedSkill = Settings.SelectedSkill,
+                Hardcore = Settings.Hardcore,
             }
             writefile("AutoFarmSettings.json", HttpService:JSONEncode(toSave))
         end
@@ -63,6 +66,7 @@ local attackBtnRef = nil
 local farmBtnRef = nil
 local autoStartBtnRef = nil
 local autoLevelBtnRef = nil
+local hardcoreBtnRef = nil
 local speedLabelRef = nil
 local sliderFillRef = nil
 local dungeonBtnRef = nil
@@ -74,8 +78,11 @@ local autoStartRunning = false
 local cachedSwingRemote = nil
 local cachedWeaponName = nil
 local cachedSpellEvents = {}
+local cachedAbilityEvents = {}
 local lastSpellCast = 0
+local lastAbilityCast = 0
 local lastLevelUpCast = 0
+local platformFolder = nil
 
 local DungeonList = {
     "Aquatic Temple",
@@ -127,14 +134,30 @@ local function getEquippedSpells()
             if spellEvent then
                 table.insert(spells, spellEvent)
             end
+            local abilityEvent = child:FindFirstChild("abilityEvent")
+            if abilityEvent then
+                table.insert(spells, abilityEvent)
+            end
         end
     end
     return spells
 end
 
 local function updateCachedSpell()
-    cachedSpellEvents = getEquippedSpells()
-    return #cachedSpellEvents > 0
+    local allEvents = getEquippedSpells()
+    cachedSpellEvents = {}
+    cachedAbilityEvents = {}
+    for _, event in ipairs(allEvents) do
+        local parent = event.Parent
+        if parent then
+            if event.Name == "spellEvent" then
+                table.insert(cachedSpellEvents, event)
+            elseif event.Name == "abilityEvent" then
+                table.insert(cachedAbilityEvents, event)
+            end
+        end
+    end
+    return #cachedSpellEvents > 0 or #cachedAbilityEvents > 0
 end
 
 local function setWalkSpeed(speed)
@@ -194,6 +217,26 @@ local function getEnemyBottomPosition(enemyPart)
     return Vector3.new(enemyPart.Position.X, bottomY, enemyPart.Position.Z)
 end
 
+local function createPlatform(position)
+    if platformFolder then
+        platformFolder:Destroy()
+        platformFolder = nil
+    end
+    platformFolder = Instance.new("Folder")
+    platformFolder.Name = "AutoFarmPlatform"
+    platformFolder.Parent = Workspace
+    local platform = Instance.new("Part")
+    platform.Name = "Platform"
+    platform.Size = Vector3.new(25, 1, 25)
+    platform.Position = position - Vector3.new(0, 3.5, 0)
+    platform.Anchored = true
+    platform.CanCollide = true
+    platform.Transparency = 1
+    platform.Material = Enum.Material.SmoothPlastic
+    platform.Parent = platformFolder
+    return platform
+end
+
 local function teleportUnderEnemy(enemyPart)
     if not enemyPart then return end
     if not LocalPlayer.Character then return end
@@ -201,7 +244,8 @@ local function teleportUnderEnemy(enemyPart)
     if not hrp then return end
     local bottomPos = getEnemyBottomPosition(enemyPart)
     if not bottomPos then return end
-    local targetPos = bottomPos - Vector3.new(0, 5.5, 0)
+    local targetPos = bottomPos - Vector3.new(0, 7, 0)
+    createPlatform(targetPos)
     local lookVector = (enemyPart.Position - targetPos).Unit
     local worldForward = Vector3.new(0, 0, 1)
     local upRef = worldForward - worldForward:Dot(lookVector) * lookVector
@@ -265,13 +309,16 @@ local function stopAutoAttack()
     cachedSwingRemote = nil
     cachedWeaponName = nil
     cachedSpellEvents = {}
+    cachedAbilityEvents = {}
     lastSpellCast = 0
+    lastAbilityCast = 0
 end
 
 local function startAutoAttack()
     stopAutoAttack()
     local hasWeapon = updateCachedWeapon()
     if not hasWeapon then
+    else
     end
     local lastAttack = 0
     local lastWeaponCheck = 0
@@ -288,18 +335,9 @@ local function startAutoAttack()
             updateCachedSpell()
         end
         if cachedSwingRemote then
-            local closestEnemy = getClosestEnemy()
-            if closestEnemy then
-                local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local dist = (hrp.Position - closestEnemy.Position).Magnitude
-                    if dist <= 10 then
-                        if now - lastAttack >= Settings.AttackInterval then
-                            lastAttack = now
-                            cachedSwingRemote:FireServer()
-                        end
-                    end
-                end
+            if now - lastAttack >= Settings.AttackInterval then
+                lastAttack = now
+                cachedSwingRemote:FireServer()
             end
         end
         if #cachedSpellEvents > 0 then
@@ -308,6 +346,16 @@ local function startAutoAttack()
                 for _, spellEvent in ipairs(cachedSpellEvents) do
                     pcall(function()
                         spellEvent:FireServer()
+                    end)
+                end
+            end
+        end
+        if #cachedAbilityEvents > 0 then
+            if now - lastAbilityCast >= 0.3 then
+                lastAbilityCast = now
+                for _, abilityEvent in ipairs(cachedAbilityEvents) do
+                    pcall(function()
+                        abilityEvent:FireServer()
                     end)
                 end
             end
@@ -342,6 +390,10 @@ local function stopAutoFarm()
         farmConnection:Disconnect()
         farmConnection = nil
     end
+    if platformFolder then
+        platformFolder:Destroy()
+        platformFolder = nil
+    end
 end
 
 local function stopAutoLevelUp()
@@ -375,10 +427,13 @@ local function createLobby()
         Settings.SelectedDungeon,
         Settings.SelectedDifficulty,
         1,
-        true,
+        Settings.Hardcore,
         true,
         false
     )
+    task.wait(0.5)
+    local startDungeonEvent = ReplicatedStorage:WaitForChild("remotes"):WaitForChild("startDungeon")
+    startDungeonEvent:FireServer()
 end
 
 local function startDungeon()
@@ -421,7 +476,6 @@ local function autoStartSequence()
     end
     local success, err = pcall(createLobby)
     if not success then
-        warn("[AutoStart] CreateLobby Error: " .. tostring(err))
         if autoStartBtnRef then autoStartBtnRef.Text = "Failed!" end
         task.delay(2, function()
             if autoStartBtnRef and Settings.AutoStart then autoStartBtnRef.Text = "ON" end
@@ -439,7 +493,6 @@ local function autoStartSequence()
     end
     local success2, err2 = pcall(startDungeon)
     if not success2 then
-        warn("[AutoStart] StartDungeon Error: " .. tostring(err2))
         if autoStartBtnRef then autoStartBtnRef.Text = "Failed!" end
         task.delay(2, function()
             if autoStartBtnRef and Settings.AutoStart then autoStartBtnRef.Text = "ON" end
@@ -478,7 +531,6 @@ local function autoStartSequence()
         return
     end
     if not enemiesFound then
-        warn("[AutoStart] No enemies found after waiting.")
     end
     isInDungeon = true
     pcall(changeStartValue)
@@ -529,6 +581,10 @@ local function startDungeonMonitor()
             Settings.AutoAttack = false
             stopAutoAttack()
             stopAutoFarm()
+            if platformFolder then
+                platformFolder:Destroy()
+                platformFolder = nil
+            end
             if farmBtnRef then
                 farmBtnRef.Text = "OFF"
                 farmBtnRef.BackgroundColor3 = Color3.fromRGB(160, 0, 0)
@@ -1161,13 +1217,67 @@ local function createUI()
         end
     end)
 
+    local toggleRow = Instance.new("Frame")
+    toggleRow.Name = "ToggleRow"
+    toggleRow.Size = UDim2.new(1, 0, 0, 36)
+    toggleRow.Position = UDim2.new(0, 0, 0, 124)
+    toggleRow.BackgroundTransparency = 1
+    toggleRow.BorderSizePixel = 0
+    toggleRow.Parent = farmContent
+
+    local hardcoreSection = Instance.new("Frame")
+    hardcoreSection.Name = "HardcoreSection"
+    hardcoreSection.Size = UDim2.new(0.48, 0, 1, 0)
+    hardcoreSection.Position = UDim2.new(0, 0, 0, 0)
+    hardcoreSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    hardcoreSection.BorderSizePixel = 0
+    hardcoreSection.Parent = toggleRow
+
+    local hardcoreCorner = Instance.new("UICorner")
+    hardcoreCorner.CornerRadius = UDim.new(0, 6)
+    hardcoreCorner.Parent = hardcoreSection
+
+    local hardcoreTitle = Instance.new("TextLabel")
+    hardcoreTitle.Size = UDim2.new(0.5, 0, 1, 0)
+    hardcoreTitle.Position = UDim2.new(0, 8, 0, 0)
+    hardcoreTitle.BackgroundTransparency = 1
+    hardcoreTitle.Text = "Hardcore"
+    hardcoreTitle.TextColor3 = Color3.fromRGB(255, 50, 50)
+    hardcoreTitle.TextSize = 11
+    hardcoreTitle.Font = Enum.Font.GothamBold
+    hardcoreTitle.TextXAlignment = Enum.TextXAlignment.Left
+    hardcoreTitle.Parent = hardcoreSection
+
+    local hardcoreBtn = Instance.new("TextButton")
+    hardcoreBtn.Size = UDim2.new(0, 40, 0, 20)
+    hardcoreBtn.Position = UDim2.new(1, -46, 0.5, -10)
+    hardcoreBtn.BackgroundColor3 = Settings.Hardcore and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+    hardcoreBtn.BorderSizePixel = 0
+    hardcoreBtn.Text = Settings.Hardcore and "ON" or "OFF"
+    hardcoreBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    hardcoreBtn.TextSize = 10
+    hardcoreBtn.Font = Enum.Font.GothamBold
+    hardcoreBtn.Parent = hardcoreSection
+    hardcoreBtnRef = hardcoreBtn
+
+    local hardcoreBtnCorner = Instance.new("UICorner")
+    hardcoreBtnCorner.CornerRadius = UDim.new(0, 4)
+    hardcoreBtnCorner.Parent = hardcoreBtn
+
+    hardcoreBtn.MouseButton1Click:Connect(function()
+        Settings.Hardcore = not Settings.Hardcore
+        hardcoreBtn.Text = Settings.Hardcore and "ON" or "OFF"
+        hardcoreBtn.BackgroundColor3 = Settings.Hardcore and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+        saveSettings()
+    end)
+
     local autoStartSection = Instance.new("Frame")
     autoStartSection.Name = "AutoStartSection"
-    autoStartSection.Size = UDim2.new(1, 0, 0, 36)
-    autoStartSection.Position = UDim2.new(0, 0, 0, 124)
+    autoStartSection.Size = UDim2.new(0.48, 0, 1, 0)
+    autoStartSection.Position = UDim2.new(0.52, 0, 0, 0)
     autoStartSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     autoStartSection.BorderSizePixel = 0
-    autoStartSection.Parent = farmContent
+    autoStartSection.Parent = toggleRow
 
     local autoStartCorner = Instance.new("UICorner")
     autoStartCorner.CornerRadius = UDim.new(0, 6)
@@ -1175,24 +1285,24 @@ local function createUI()
 
     local autoStartTitle = Instance.new("TextLabel")
     autoStartTitle.Size = UDim2.new(0.5, 0, 1, 0)
-    autoStartTitle.Position = UDim2.new(0, 10, 0, 0)
+    autoStartTitle.Position = UDim2.new(0, 8, 0, 0)
     autoStartTitle.BackgroundTransparency = 1
     autoStartTitle.Text = "Auto Start"
     autoStartTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
-    autoStartTitle.TextSize = 12
+    autoStartTitle.TextSize = 11
     autoStartTitle.Font = Enum.Font.GothamBold
     autoStartTitle.TextXAlignment = Enum.TextXAlignment.Left
     autoStartTitle.Parent = autoStartSection
 
     local autoStartBtn = Instance.new("TextButton")
     autoStartBtn.Name = "AutoStartBtn"
-    autoStartBtn.Size = UDim2.new(0, 50, 0, 22)
-    autoStartBtn.Position = UDim2.new(1, -56, 0.5, -11)
+    autoStartBtn.Size = UDim2.new(0, 40, 0, 20)
+    autoStartBtn.Position = UDim2.new(1, -46, 0.5, -10)
     autoStartBtn.BackgroundColor3 = Settings.AutoStart and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
     autoStartBtn.BorderSizePixel = 0
     autoStartBtn.Text = Settings.AutoStart and "ON" or "OFF"
     autoStartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    autoStartBtn.TextSize = 11
+    autoStartBtn.TextSize = 10
     autoStartBtn.Font = Enum.Font.GothamBold
     autoStartBtn.Parent = autoStartSection
     autoStartBtnRef = autoStartBtn
