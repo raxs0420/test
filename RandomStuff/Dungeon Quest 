@@ -18,8 +18,11 @@ local Settings = {
     AutoLevelUp = false,
     SelectedSkill = "None",
     Hardcore = false,
+    Raid = false,
     FarmingMode = "Orbit",
 }
+
+local LOBBY_PLACE_ID = 77649408247578
 
 local HttpService = game:GetService("HttpService")
 local savedSettings = nil
@@ -39,6 +42,7 @@ if savedSettings then
         if decoded.AutoLevelUp ~= nil then Settings.AutoLevelUp = decoded.AutoLevelUp end
         if decoded.SelectedSkill then Settings.SelectedSkill = decoded.SelectedSkill end
         if decoded.Hardcore ~= nil then Settings.Hardcore = decoded.Hardcore end
+        if decoded.Raid ~= nil then Settings.Raid = decoded.Raid end
         if decoded.FarmingMode then Settings.FarmingMode = decoded.FarmingMode end
     end)
 end
@@ -54,6 +58,7 @@ local function saveSettings()
                 AutoLevelUp = Settings.AutoLevelUp,
                 SelectedSkill = Settings.SelectedSkill,
                 Hardcore = Settings.Hardcore,
+                Raid = Settings.Raid,
                 FarmingMode = Settings.FarmingMode,
             }
             writefile("AutoFarmSettings.json", HttpService:JSONEncode(toSave))
@@ -81,6 +86,7 @@ local farmBtnRef = nil
 local autoStartBtnRef = nil
 local autoLevelBtnRef = nil
 local hardcoreBtnRef = nil
+local raidBtnRef = nil
 local speedLabelRef = nil
 local sliderFillRef = nil
 local dungeonBtnRef = nil
@@ -102,7 +108,7 @@ local platformPart = nil
 
 local orbitAngle = 0
 local orbitRadius = 7
-local orbitSpeed = 10
+local orbitSpeed = 12
 local orbitYOffset = -5.5
 
 local cachedCluster = nil
@@ -111,6 +117,20 @@ local ENEMY_UPDATE_INTERVAL = 0.1
 
 local isTweening = false
 local transitionTween = nil
+
+local noclipEnabled = false
+
+local function setNoclip(enabled)
+    if noclipEnabled == enabled then return end
+    noclipEnabled = enabled
+    local character = LocalPlayer.Character
+    if not character then return end
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = not enabled
+        end
+    end
+end
 
 local function getEquippedWeapon()
     local weaponValue = LocalPlayer:FindFirstChild("weaponEquipped")
@@ -174,6 +194,7 @@ local function updateEnemyFolders()
     end
     lastFolderUpdate = now
     local folders = {}
+
     local dungeon = Workspace:FindFirstChild("dungeon")
     if dungeon then
         for _, child in pairs(dungeon:GetChildren()) do
@@ -183,6 +204,14 @@ local function updateEnemyFolders()
             end
         end
     end
+
+    if #folders == 0 then
+        local enemies = Workspace:FindFirstChild("enemies")
+        if enemies then
+            table.insert(folders, enemies)
+        end
+    end
+
     cachedEnemyFolders = folders
 end
 
@@ -385,8 +414,12 @@ local function startAutoFarm()
     end
     local lastTime = tick()
 
+    setNoclip(true)
+
     farmConnection = RunService.Heartbeat:Connect(function()
-        if not Settings.AutoFarm then return end
+        if not Settings.AutoFarm then
+            return
+        end
         if not Settings.AutoAttack then
             Settings.AutoAttack = true
             if attackBtnRef then
@@ -461,8 +494,11 @@ local function startAutoFarm()
             platformPart.Position = Vector3.new(centroid.X, centroid.Y - 15, centroid.Z)
         else
             if platformPart then
-                platformPart:Destroy()
-                platformPart = nil
+                local dist = (myPos - platformPart.Position).Magnitude
+                if dist > 100 then
+                    platformPart:Destroy()
+                    platformPart = nil
+                end
             end
         end
 
@@ -526,6 +562,7 @@ local function stopAutoFarm()
     end
     isTweening = false
     cachedCluster = nil
+    setNoclip(false)
 end
 
 local function stopAutoLevelUp()
@@ -561,7 +598,7 @@ local function createLobby()
         1,
         Settings.Hardcore,
         true,
-        false
+        Settings.Raid
     )
     task.wait(0.5)
     local startDungeonEvent = ReplicatedStorage:WaitForChild("remotes"):WaitForChild("startDungeon")
@@ -599,8 +636,9 @@ end
 local function autoStartSequence()
     if autoStartRunning then return end
     autoStartRunning = true
-    local dungeon = Workspace:FindFirstChild("dungeon")
-    if dungeon and dungeon:FindFirstChild("initialRoom") then
+
+    local isLobby = (game.PlaceId == LOBBY_PLACE_ID)
+    if not isLobby then
         isInDungeon = true
         pcall(changeStartValue)
         task.delay(3, function()
@@ -611,6 +649,7 @@ local function autoStartSequence()
         autoStartRunning = false
         return
     end
+
     if autoStartBtnRef then
         autoStartBtnRef.Text = "Creating..."
     end
@@ -645,8 +684,7 @@ local function autoStartSequence()
     end
     while Settings.AutoStart do
         task.wait(0.5)
-        local d = Workspace:FindFirstChild("dungeon")
-        if d and d:FindFirstChild("initialRoom") then
+        if game.PlaceId ~= LOBBY_PLACE_ID then
             break
         end
     end
@@ -687,8 +725,8 @@ end
 
 local function startDungeonMonitor()
     RunService.Heartbeat:Connect(function()
-        local dungeon = Workspace:FindFirstChild("dungeon")
-        local inDungeonNow = dungeon and dungeon:FindFirstChild("initialRoom") ~= nil
+        local isLobby = (game.PlaceId == LOBBY_PLACE_ID)
+        local inDungeonNow = not isLobby
         if inDungeonNow and not isInDungeon then
             isInDungeon = true
             if Settings.AutoStart and not autoStartRunning then
@@ -1429,7 +1467,7 @@ local function createUI()
 
     local hardcoreSection = Instance.new("Frame")
     hardcoreSection.Name = "HardcoreSection"
-    hardcoreSection.Size = UDim2.new(0.48, 0, 1, 0)
+    hardcoreSection.Size = UDim2.new(0.32, 0, 1, 0)
     hardcoreSection.Position = UDim2.new(0, 0, 0, 0)
     hardcoreSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     hardcoreSection.BorderSizePixel = 0
@@ -1439,23 +1477,12 @@ local function createUI()
     hardcoreCorner.CornerRadius = UDim.new(0, 6)
     hardcoreCorner.Parent = hardcoreSection
 
-    local hardcoreTitle = Instance.new("TextLabel")
-    hardcoreTitle.Size = UDim2.new(0.5, 0, 1, 0)
-    hardcoreTitle.Position = UDim2.new(0, 8, 0, 0)
-    hardcoreTitle.BackgroundTransparency = 1
-    hardcoreTitle.Text = "Hardcore"
-    hardcoreTitle.TextColor3 = Color3.fromRGB(255, 50, 50)
-    hardcoreTitle.TextSize = 11
-    hardcoreTitle.Font = Enum.Font.GothamBold
-    hardcoreTitle.TextXAlignment = Enum.TextXAlignment.Left
-    hardcoreTitle.Parent = hardcoreSection
-
     local hardcoreBtn = Instance.new("TextButton")
-    hardcoreBtn.Size = UDim2.new(0, 40, 0, 20)
-    hardcoreBtn.Position = UDim2.new(1, -46, 0.5, -10)
+    hardcoreBtn.Size = UDim2.new(1, -4, 1, -4)
+    hardcoreBtn.Position = UDim2.new(0, 2, 0, 2)
     hardcoreBtn.BackgroundColor3 = Settings.Hardcore and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
     hardcoreBtn.BorderSizePixel = 0
-    hardcoreBtn.Text = Settings.Hardcore and "ON" or "OFF"
+    hardcoreBtn.Text = "Hardcore"
     hardcoreBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     hardcoreBtn.TextSize = 10
     hardcoreBtn.Font = Enum.Font.GothamBold
@@ -1468,15 +1495,48 @@ local function createUI()
 
     hardcoreBtn.MouseButton1Click:Connect(function()
         Settings.Hardcore = not Settings.Hardcore
-        hardcoreBtn.Text = Settings.Hardcore and "ON" or "OFF"
         hardcoreBtn.BackgroundColor3 = Settings.Hardcore and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+        saveSettings()
+    end)
+
+    local raidSection = Instance.new("Frame")
+    raidSection.Name = "RaidSection"
+    raidSection.Size = UDim2.new(0.32, 0, 1, 0)
+    raidSection.Position = UDim2.new(0.34, 0, 0, 0)
+    raidSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    raidSection.BorderSizePixel = 0
+    raidSection.Parent = toggleRow
+
+    local raidCorner = Instance.new("UICorner")
+    raidCorner.CornerRadius = UDim.new(0, 6)
+    raidCorner.Parent = raidSection
+
+    local raidBtn = Instance.new("TextButton")
+    raidBtn.Size = UDim2.new(1, -4, 1, -4)
+    raidBtn.Position = UDim2.new(0, 2, 0, 2)
+    raidBtn.BackgroundColor3 = Settings.Raid and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+    raidBtn.BorderSizePixel = 0
+    raidBtn.Text = "Raid"
+    raidBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    raidBtn.TextSize = 10
+    raidBtn.Font = Enum.Font.GothamBold
+    raidBtn.Parent = raidSection
+    raidBtnRef = raidBtn
+
+    local raidBtnCorner = Instance.new("UICorner")
+    raidBtnCorner.CornerRadius = UDim.new(0, 4)
+    raidBtnCorner.Parent = raidBtn
+
+    raidBtn.MouseButton1Click:Connect(function()
+        Settings.Raid = not Settings.Raid
+        raidBtn.BackgroundColor3 = Settings.Raid and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
         saveSettings()
     end)
 
     local autoStartSection = Instance.new("Frame")
     autoStartSection.Name = "AutoStartSection"
-    autoStartSection.Size = UDim2.new(0.48, 0, 1, 0)
-    autoStartSection.Position = UDim2.new(0.52, 0, 0, 0)
+    autoStartSection.Size = UDim2.new(0.32, 0, 1, 0)
+    autoStartSection.Position = UDim2.new(0.68, 0, 0, 0)
     autoStartSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     autoStartSection.BorderSizePixel = 0
     autoStartSection.Parent = toggleRow
@@ -1490,21 +1550,21 @@ local function createUI()
     autoStartTitle.Position = UDim2.new(0, 8, 0, 0)
     autoStartTitle.BackgroundTransparency = 1
     autoStartTitle.Text = "Auto Start"
-    autoStartTitle.TextColor3 = Color3.fromRGB(255, 150, 50)
-    autoStartTitle.TextSize = 11
+    autoStartTitle.TextColor3 = Color3.fromRGB(100, 150, 255)
+    autoStartTitle.TextSize = 10
     autoStartTitle.Font = Enum.Font.GothamBold
     autoStartTitle.TextXAlignment = Enum.TextXAlignment.Left
     autoStartTitle.Parent = autoStartSection
 
     local autoStartBtn = Instance.new("TextButton")
     autoStartBtn.Name = "AutoStartBtn"
-    autoStartBtn.Size = UDim2.new(0, 40, 0, 20)
-    autoStartBtn.Position = UDim2.new(1, -46, 0.5, -10)
+    autoStartBtn.Size = UDim2.new(0, 34, 0, 18)
+    autoStartBtn.Position = UDim2.new(1, -40, 0.5, -9)
     autoStartBtn.BackgroundColor3 = Settings.AutoStart and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
     autoStartBtn.BorderSizePixel = 0
     autoStartBtn.Text = Settings.AutoStart and "ON" or "OFF"
     autoStartBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    autoStartBtn.TextSize = 10
+    autoStartBtn.TextSize = 9
     autoStartBtn.Font = Enum.Font.GothamBold
     autoStartBtn.Parent = autoStartSection
     autoStartBtnRef = autoStartBtn
