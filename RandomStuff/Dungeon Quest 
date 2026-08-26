@@ -17,6 +17,7 @@ local Settings = {
     AutoLevelUp = false,
     SelectedSkill = "None",
     Hardcore = false,
+    FarmingMode = "Orbit",
 }
 
 local HttpService = game:GetService("HttpService")
@@ -37,6 +38,7 @@ if savedSettings then
         if decoded.AutoLevelUp ~= nil then Settings.AutoLevelUp = decoded.AutoLevelUp end
         if decoded.SelectedSkill then Settings.SelectedSkill = decoded.SelectedSkill end
         if decoded.Hardcore ~= nil then Settings.Hardcore = decoded.Hardcore end
+        if decoded.FarmingMode then Settings.FarmingMode = decoded.FarmingMode end
     end)
 end
 
@@ -51,11 +53,22 @@ local function saveSettings()
                 AutoLevelUp = Settings.AutoLevelUp,
                 SelectedSkill = Settings.SelectedSkill,
                 Hardcore = Settings.Hardcore,
+                FarmingMode = Settings.FarmingMode,
             }
             writefile("AutoFarmSettings.json", HttpService:JSONEncode(toSave))
         end
     end)
 end
+
+local DungeonList = {
+    "Aquatic Temple", "Desert Temple", "Enchanted Forest", "Ghastly Harbor",
+    "Gilded Skies", "King's Castle", "Northern Lands", "Orbital Outpost",
+    "Pirate Island", "Samurai Palace", "Steampunk Sewers", "The Canals",
+    "The Underworld", "Volcanic Chambers", "Winter Outpost",
+}
+local DifficultyList = { "Easy", "Medium", "Hard", "Insane", "Nightmare" }
+local SkillList = { "spellPower", "stamina", "physicalPower" }
+local ModeList = { "Orbit", "Under" }
 
 local attackConnection = nil
 local farmConnection = nil
@@ -72,6 +85,7 @@ local sliderFillRef = nil
 local dungeonBtnRef = nil
 local difficultyBtnRef = nil
 local skillBtnRef = nil
+local modeBtnRef = nil
 local currentTab = "Main"
 local isInDungeon = false
 local autoStartRunning = false
@@ -82,39 +96,17 @@ local cachedAbilityEvents = {}
 local lastSpellCast = 0
 local lastAbilityCast = 0
 local lastLevelUpCast = 0
-local platformFolder = nil
 
-local DungeonList = {
-    "Aquatic Temple",
-    "Desert Temple",
-    "Enchanted Forest",
-    "Ghastly Harbor",
-    "Gilded Skies",
-    "King's Castle",
-    "Northern Lands",
-    "Orbital Outpost",
-    "Pirate Island",
-    "Samurai Palace",
-    "Steampunk Sewers",
-    "The Canals",
-    "The Underworld",
-    "Volcanic Chambers",
-    "Winter Outpost",
-}
+local platformPart = nil
 
-local DifficultyList = {
-    "Easy",
-    "Medium",
-    "Hard",
-    "Insane",
-    "Nightmare",
-}
+local orbitAngle = 0
+local orbitRadius = 6
+local orbitSpeed = 13
+local orbitYOffset = -5.5
 
-local SkillList = {
-    "spellPower",
-    "stamina",
-    "physicalPower",
-}
+local cachedCluster = nil
+local lastEnemyUpdate = 0
+local ENEMY_UPDATE_INTERVAL = 0.1
 
 local function getEquippedWeapon()
     local weaponValue = LocalPlayer:FindFirstChild("weaponEquipped")
@@ -168,94 +160,113 @@ local function setWalkSpeed(speed)
     humanoid.WalkSpeed = speed
 end
 
-local function findAllEnemyFolders()
+local cachedEnemyFolders = nil
+local lastFolderUpdate = 0
+
+local function updateEnemyFolders()
+    local now = tick()
+    if now - lastFolderUpdate < 1 then
+        return
+    end
+    lastFolderUpdate = now
     local folders = {}
     local dungeon = Workspace:FindFirstChild("dungeon")
-    if not dungeon then return folders end
-    for _, child in pairs(dungeon:GetChildren()) do
-        local enemyFolder = child:FindFirstChild("enemyFolder")
-        if enemyFolder then
-            table.insert(folders, enemyFolder)
+    if dungeon then
+        for _, child in pairs(dungeon:GetChildren()) do
+            local enemyFolder = child:FindFirstChild("enemyFolder")
+            if enemyFolder then
+                table.insert(folders, enemyFolder)
+            end
         end
     end
-    return folders
+    cachedEnemyFolders = folders
 end
 
-local function getClosestEnemy()
-    if not LocalPlayer.Character then return nil end
-    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-    local enemyFolders = findAllEnemyFolders()
-    if #enemyFolders == 0 then return nil end
-    local myPos = hrp.Position
-    local closestEnemy = nil
-    local closestDist = math.huge
-    for _, enemyFolder in pairs(enemyFolders) do
+local function getEnemyClusters(myPos)
+    updateEnemyFolders()
+    if not cachedEnemyFolders or #cachedEnemyFolders == 0 then
+        return nil
+    end
+
+    local allEnemies = {}
+    for _, enemyFolder in pairs(cachedEnemyFolders) do
         for _, enemy in pairs(enemyFolder:GetChildren()) do
             if enemy:IsA("Model") or enemy:IsA("Part") or enemy:IsA("MeshPart") then
-                local enemyHrp = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy:FindFirstChild("Head")
-                if not enemyHrp then
-                    enemyHrp = enemy:FindFirstChildWhichIsA("BasePart")
+                local hrp = enemy:FindFirstChild("HumanoidRootPart") or enemy:FindFirstChild("Torso") or enemy:FindFirstChild("Head")
+                if not hrp then
+                    hrp = enemy:FindFirstChildWhichIsA("BasePart")
                 end
-                if enemyHrp then
-                    local dist = (myPos - enemyHrp.Position).Magnitude
-                    if dist < closestDist then
-                        closestDist = dist
-                        closestEnemy = enemyHrp
-                    end
+                if hrp then
+                    table.insert(allEnemies, hrp)
                 end
             end
         end
     end
-    return closestEnemy
-end
 
-local function getEnemyBottomPosition(enemyPart)
-    if not enemyPart then return nil end
-    local sizeY = enemyPart.Size.Y
-    local bottomY = enemyPart.Position.Y - (sizeY / 2)
-    return Vector3.new(enemyPart.Position.X, bottomY, enemyPart.Position.Z)
-end
-
-local function createPlatform(position)
-    if platformFolder then
-        platformFolder:Destroy()
-        platformFolder = nil
+    if #allEnemies == 0 then
+        return nil
     end
-    platformFolder = Instance.new("Folder")
-    platformFolder.Name = "AutoFarmPlatform"
-    platformFolder.Parent = Workspace
-    local platform = Instance.new("Part")
-    platform.Name = "Platform"
-    platform.Size = Vector3.new(25, 1, 25)
-    platform.Position = position - Vector3.new(0, 3.5, 0)
-    platform.Anchored = true
-    platform.CanCollide = true
-    platform.Transparency = 1
-    platform.Material = Enum.Material.SmoothPlastic
-    platform.Parent = platformFolder
-    return platform
-end
 
-local function teleportUnderEnemy(enemyPart)
-    if not enemyPart then return end
-    if not LocalPlayer.Character then return end
-    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    local bottomPos = getEnemyBottomPosition(enemyPart)
-    if not bottomPos then return end
-    local targetPos = bottomPos - Vector3.new(0, 7, 0)
-    createPlatform(targetPos)
-    local lookVector = (enemyPart.Position - targetPos).Unit
-    local worldForward = Vector3.new(0, 0, 1)
-    local upRef = worldForward - worldForward:Dot(lookVector) * lookVector
-    if upRef.Magnitude < 0.001 then
-        local worldRight = Vector3.new(1, 0, 0)
-        upRef = worldRight - worldRight:Dot(lookVector) * lookVector
+    local clusters = {}
+    local visited = {}
+    local clusterThreshold = 10
+
+    for i = 1, #allEnemies do
+        if not visited[i] then
+            local cluster = {}
+            local queue = {i}
+            visited[i] = true
+            while #queue > 0 do
+                local idx = table.remove(queue, 1)
+                local part = allEnemies[idx]
+                table.insert(cluster, part)
+                for j = 1, #allEnemies do
+                    if not visited[j] then
+                        local other = allEnemies[j]
+                        local dist = (part.Position - other.Position).Magnitude
+                        if dist <= clusterThreshold then
+                            visited[j] = true
+                            table.insert(queue, j)
+                        end
+                    end
+                end
+            end
+            table.insert(clusters, cluster)
+        end
     end
-    local upVector = upRef.Unit
-    local rightVector = lookVector:Cross(upVector).Unit
-    hrp.CFrame = CFrame.fromMatrix(targetPos, rightVector, upVector)
+
+    local resultClusters = {}
+    for _, cluster in ipairs(clusters) do
+        local centroid = Vector3.new(0,0,0)
+        for _, part in ipairs(cluster) do
+            centroid = centroid + part.Position
+        end
+        centroid = centroid / #cluster
+        local closestDist = math.huge
+        local closestPart = nil
+        for _, part in ipairs(cluster) do
+            local dist = (myPos - part.Position).Magnitude
+            if dist < closestDist then
+                closestDist = dist
+                closestPart = part
+            end
+        end
+        table.insert(resultClusters, {
+            centroid = centroid,
+            enemies = cluster,
+            size = #cluster,
+            closestEnemy = closestPart,
+            closestDist = closestDist
+        })
+    end
+
+    table.sort(resultClusters, function(a, b)
+        local da = (myPos - a.centroid).Magnitude
+        local db = (myPos - b.centroid).Magnitude
+        return da < db
+    end)
+
+    return resultClusters
 end
 
 local function updateCachedWeapon()
@@ -363,11 +374,28 @@ local function startAutoAttack()
     end)
 end
 
+local function teleportUnderEnemy(enemyPart)
+    if not enemyPart then return end
+    if not LocalPlayer.Character then return end
+    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+
+    local sizeY = enemyPart.Size.Y
+    local bottomY = enemyPart.Position.Y - (sizeY / 2)
+    local targetPos = Vector3.new(enemyPart.Position.X, bottomY - 6, enemyPart.Position.Z)
+
+    local lookAt = enemyPart.Position
+    local cframe = CFrame.new(targetPos, lookAt)
+    hrp.CFrame = cframe
+end
+
 local function startAutoFarm()
     if farmConnection then
         farmConnection:Disconnect()
         farmConnection = nil
     end
+    local lastTime = tick()
+
     farmConnection = RunService.Heartbeat:Connect(function()
         if not Settings.AutoFarm then return end
         if not Settings.AutoAttack then
@@ -378,9 +406,89 @@ local function startAutoFarm()
             end
             startAutoAttack()
         end
-        local enemy = getClosestEnemy()
-        if enemy then
-            teleportUnderEnemy(enemy)
+
+        local character = LocalPlayer.Character
+        if not character then return end
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        local myPos = hrp.Position
+
+        local now = tick()
+        if now - lastEnemyUpdate >= ENEMY_UPDATE_INTERVAL then
+            lastEnemyUpdate = now
+
+            local specialEnemy = nil
+            for _, obj in pairs(Workspace:GetChildren()) do
+                if obj.Name == "Azrallik's Heart" then
+                    local hrpPart = obj:FindFirstChild("HumanoidRootPart") or obj:FindFirstChild("Torso") or obj:FindFirstChild("Head")
+                    if not hrpPart then
+                        hrpPart = obj:FindFirstChildWhichIsA("BasePart")
+                    end
+                    if hrpPart then
+                        specialEnemy = hrpPart
+                        break
+                    end
+                end
+            end
+
+            if specialEnemy then
+                cachedCluster = {
+                    centroid = specialEnemy.Position,
+                    enemies = {specialEnemy},
+                    size = 1,
+                    closestEnemy = specialEnemy,
+                    closestDist = (myPos - specialEnemy.Position).Magnitude
+                }
+            else
+                local clusters = getEnemyClusters(myPos)
+                if clusters and #clusters > 0 then
+                    cachedCluster = clusters[1]
+                else
+                    cachedCluster = nil
+                end
+            end
+        end
+
+        if cachedCluster then
+            if not platformPart then
+                platformPart = Instance.new("Part")
+                platformPart.Name = "AutoFarmPlatform"
+                platformPart.Size = Vector3.new(500, 1, 500)
+                platformPart.Anchored = true
+                platformPart.CanCollide = true
+                platformPart.Transparency = 1
+                platformPart.Material = Enum.Material.SmoothPlastic
+                platformPart.Parent = Workspace
+            end
+            local centroid = cachedCluster.centroid
+            platformPart.Position = Vector3.new(centroid.X, centroid.Y - 15, centroid.Z)
+        else
+            if platformPart then
+                platformPart:Destroy()
+                platformPart = nil
+            end
+        end
+
+        if not cachedCluster then
+            return
+        end
+
+        if Settings.FarmingMode == "Under" then
+            teleportUnderEnemy(cachedCluster.closestEnemy)
+        else
+            local targetY = cachedCluster.centroid.Y + orbitYOffset
+            local dt = now - lastTime
+            lastTime = now
+            local angularSpeed = orbitSpeed / orbitRadius
+            orbitAngle = orbitAngle + angularSpeed * dt
+
+            local x = math.cos(orbitAngle) * orbitRadius
+            local z = math.sin(orbitAngle) * orbitRadius
+            local targetPos = Vector3.new(cachedCluster.centroid.X + x, targetY, cachedCluster.centroid.Z + z)
+
+            local lookAt = cachedCluster.centroid
+            local cframe = CFrame.new(targetPos, lookAt)
+            hrp.CFrame = cframe
         end
     end)
 end
@@ -390,10 +498,11 @@ local function stopAutoFarm()
         farmConnection:Disconnect()
         farmConnection = nil
     end
-    if platformFolder then
-        platformFolder:Destroy()
-        platformFolder = nil
+    if platformPart then
+        platformPart:Destroy()
+        platformPart = nil
     end
+    cachedCluster = nil
 end
 
 local function stopAutoLevelUp()
@@ -520,10 +629,13 @@ local function autoStartSequence()
     while Settings.AutoStart and waitTime < 10 do
         task.wait(0.5)
         waitTime = waitTime + 0.5
-        local closest = getClosestEnemy()
-        if closest then
-            enemiesFound = true
-            break
+        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local myPos = LocalPlayer.Character.HumanoidRootPart.Position
+            local clusters = getEnemyClusters(myPos)
+            if clusters and #clusters > 0 then
+                enemiesFound = true
+                break
+            end
         end
     end
     if not Settings.AutoStart then
@@ -581,10 +693,6 @@ local function startDungeonMonitor()
             Settings.AutoAttack = false
             stopAutoAttack()
             stopAutoFarm()
-            if platformFolder then
-                platformFolder:Destroy()
-                platformFolder = nil
-            end
             if farmBtnRef then
                 farmBtnRef.Text = "OFF"
                 farmBtnRef.BackgroundColor3 = Color3.fromRGB(160, 0, 0)
@@ -1163,28 +1271,111 @@ local function createUI()
     )
     difficultyBtnRef = diffBtn
 
-    local farmSection = Instance.new("Frame")
-    farmSection.Name = "FarmSection"
-    farmSection.Size = UDim2.new(1, 0, 0, 36)
-    farmSection.Position = UDim2.new(0, 0, 0, 84)
-    farmSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-    farmSection.BorderSizePixel = 0
-    farmSection.Parent = farmContent
+    local modeFarmSection = Instance.new("Frame")
+    modeFarmSection.Name = "ModeFarmSection"
+    modeFarmSection.Size = UDim2.new(1, 0, 0, 36)
+    modeFarmSection.Position = UDim2.new(0, 0, 0, 84)
+    modeFarmSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    modeFarmSection.BorderSizePixel = 0
+    modeFarmSection.Parent = farmContent
 
-    local farmCorner = Instance.new("UICorner")
-    farmCorner.CornerRadius = UDim.new(0, 6)
-    farmCorner.Parent = farmSection
+    local mfCorner = Instance.new("UICorner")
+    mfCorner.CornerRadius = UDim.new(0, 6)
+    mfCorner.Parent = modeFarmSection
 
-    local farmTitle = Instance.new("TextLabel")
-    farmTitle.Size = UDim2.new(0.5, 0, 1, 0)
-    farmTitle.Position = UDim2.new(0, 10, 0, 0)
-    farmTitle.BackgroundTransparency = 1
-    farmTitle.Text = "Auto Farm"
-    farmTitle.TextColor3 = Color3.fromRGB(100, 255, 100)
-    farmTitle.TextSize = 12
-    farmTitle.Font = Enum.Font.GothamBold
-    farmTitle.TextXAlignment = Enum.TextXAlignment.Left
-    farmTitle.Parent = farmSection
+    local modeLabel = Instance.new("TextLabel")
+    modeLabel.Size = UDim2.new(0, 45, 1, 0)
+    modeLabel.Position = UDim2.new(0, 8, 0, 0)
+    modeLabel.BackgroundTransparency = 1
+    modeLabel.Text = "Mode:"
+    modeLabel.TextColor3 = Color3.fromRGB(100, 150, 255)
+    modeLabel.TextSize = 12
+    modeLabel.Font = Enum.Font.GothamBold
+    modeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    modeLabel.Parent = modeFarmSection
+
+    local modeBtn = Instance.new("TextButton")
+    modeBtn.Size = UDim2.new(0, 80, 0, 22)
+    modeBtn.Position = UDim2.new(0, 55, 0.5, -11)
+    modeBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+    modeBtn.BorderSizePixel = 0
+    modeBtn.Text = Settings.FarmingMode
+    modeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    modeBtn.TextSize = 11
+    modeBtn.Font = Enum.Font.GothamBold
+    modeBtn.Parent = modeFarmSection
+    modeBtnRef = modeBtn
+
+    local modeBtnCorner = Instance.new("UICorner")
+    modeBtnCorner.CornerRadius = UDim.new(0, 4)
+    modeBtnCorner.Parent = modeBtn
+
+    local modeArrow = Instance.new("TextLabel")
+    modeArrow.Size = UDim2.new(0, 16, 1, 0)
+    modeArrow.Position = UDim2.new(1, -18, 0, 0)
+    modeArrow.BackgroundTransparency = 1
+    modeArrow.Text = "▼"
+    modeArrow.TextColor3 = Color3.fromRGB(200, 200, 200)
+    modeArrow.TextSize = 10
+    modeArrow.Font = Enum.Font.GothamBold
+    modeArrow.Parent = modeBtn
+
+    local modeMenu = Instance.new("Frame")
+    modeMenu.Name = "ModeMenu"
+    modeMenu.Size = UDim2.new(0, 80, 0, 60)
+    modeMenu.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    modeMenu.BorderSizePixel = 0
+    modeMenu.Visible = false
+    modeMenu.ZIndex = 100
+    modeMenu.Parent = uiScreenGui
+
+    local modeMenuCorner = Instance.new("UICorner")
+    modeMenuCorner.CornerRadius = UDim.new(0, 4)
+    modeMenuCorner.Parent = modeMenu
+
+    for _, mode in ipairs(ModeList) do
+        local item = Instance.new("TextButton")
+        item.Name = mode
+        item.Size = UDim2.new(1, -4, 0, 22)
+        item.Position = UDim2.new(0, 2, 0, (#ModeList - 1 - table.find(ModeList, mode)) * 24 + 2)
+        item.BackgroundColor3 = Color3.fromRGB(55, 55, 55)
+        item.BorderSizePixel = 0
+        item.Text = mode
+        item.TextColor3 = Color3.fromRGB(255, 255, 255)
+        item.TextSize = 10
+        item.Font = Enum.Font.Gotham
+        item.ZIndex = 102
+        item.Parent = modeMenu
+
+        local itemCorner = Instance.new("UICorner")
+        itemCorner.CornerRadius = UDim.new(0, 3)
+        itemCorner.Parent = item
+
+        item.MouseButton1Click:Connect(function()
+            modeBtn.Text = mode
+            Settings.FarmingMode = mode
+            modeMenu.Visible = false
+            saveSettings()
+        end)
+    end
+
+    local function updateModeMenuPosition()
+        local absPos = modeBtn.AbsolutePosition
+        modeMenu.Position = UDim2.new(0, absPos.X, 0, absPos.Y + 24)
+    end
+
+    modeBtn.MouseButton1Click:Connect(function()
+        local isOpen = modeMenu.Visible
+        for _, child in pairs(uiScreenGui:GetDescendants()) do
+            if child.Name:match("Menu$") and child:IsA("Frame") then
+                child.Visible = false
+            end
+        end
+        if not isOpen then
+            updateModeMenuPosition()
+            modeMenu.Visible = true
+        end
+    end)
 
     local farmBtn = Instance.new("TextButton")
     farmBtn.Size = UDim2.new(0, 50, 0, 22)
@@ -1195,7 +1386,7 @@ local function createUI()
     farmBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     farmBtn.TextSize = 11
     farmBtn.Font = Enum.Font.GothamBold
-    farmBtn.Parent = farmSection
+    farmBtn.Parent = modeFarmSection
     farmBtnRef = farmBtn
 
     local farmBtnCorner = Instance.new("UICorner")
