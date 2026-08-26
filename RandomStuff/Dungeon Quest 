@@ -20,6 +20,13 @@ local Settings = {
     Hardcore = false,
     Raid = false,
     FarmingMode = "Orbit",
+    OrbitSpeed = 12,
+    OrbitRadius = 7,
+    OrbitYOffset = -5.5,
+    UnderOffset = -6,
+    RotationDirection = -1,
+    HealThreshold = 80,
+    HealCooldown = 3,
 }
 
 local LOBBY_PLACE_ID = 77649408247578
@@ -44,6 +51,13 @@ if savedSettings then
         if decoded.Hardcore ~= nil then Settings.Hardcore = decoded.Hardcore end
         if decoded.Raid ~= nil then Settings.Raid = decoded.Raid end
         if decoded.FarmingMode then Settings.FarmingMode = decoded.FarmingMode end
+        if decoded.OrbitSpeed then Settings.OrbitSpeed = decoded.OrbitSpeed end
+        if decoded.OrbitRadius then Settings.OrbitRadius = decoded.OrbitRadius end
+        if decoded.OrbitYOffset then Settings.OrbitYOffset = decoded.OrbitYOffset end
+        if decoded.UnderOffset then Settings.UnderOffset = decoded.UnderOffset end
+        if decoded.RotationDirection then Settings.RotationDirection = decoded.RotationDirection end
+        if decoded.HealThreshold then Settings.HealThreshold = decoded.HealThreshold end
+        if decoded.HealCooldown then Settings.HealCooldown = decoded.HealCooldown end
     end)
 end
 
@@ -60,6 +74,13 @@ local function saveSettings()
                 Hardcore = Settings.Hardcore,
                 Raid = Settings.Raid,
                 FarmingMode = Settings.FarmingMode,
+                OrbitSpeed = Settings.OrbitSpeed,
+                OrbitRadius = Settings.OrbitRadius,
+                OrbitYOffset = Settings.OrbitYOffset,
+                UnderOffset = Settings.UnderOffset,
+                RotationDirection = Settings.RotationDirection,
+                HealThreshold = Settings.HealThreshold,
+                HealCooldown = Settings.HealCooldown,
             }
             writefile("AutoFarmSettings.json", HttpService:JSONEncode(toSave))
         end
@@ -75,6 +96,7 @@ local DungeonList = {
 local DifficultyList = { "Easy", "Medium", "Hard", "Insane", "Nightmare" }
 local SkillList = { "spellPower", "stamina", "physicalPower" }
 local ModeList = { "Orbit", "Under" }
+local DirectionList = { "Counterclockwise", "Clockwise" }
 
 local attackConnection = nil
 local farmConnection = nil
@@ -107,9 +129,9 @@ local lastLevelUpCast = 0
 local platformPart = nil
 
 local orbitAngle = 0
-local orbitRadius = 7
-local orbitSpeed = 12
-local orbitYOffset = -5.5
+local orbitRadius = Settings.OrbitRadius
+local orbitSpeed = Settings.OrbitSpeed
+local orbitYOffset = Settings.OrbitYOffset
 
 local cachedCluster = nil
 local lastEnemyUpdate = 0
@@ -119,6 +141,9 @@ local isTweening = false
 local transitionTween = nil
 
 local noclipEnabled = false
+
+local lastHealCast = 0
+local healCooldown = Settings.HealCooldown
 
 local function setNoclip(enabled)
     if noclipEnabled == enabled then return end
@@ -358,6 +383,19 @@ local function stopAutoAttack()
     lastAbilityCast = 0
 end
 
+local function shouldHeal()
+    local character = LocalPlayer.Character
+    if not character then return false end
+    local humanoid = character:FindFirstChild("Humanoid")
+    if not humanoid then return false end
+    local healthPercent = (humanoid.Health / humanoid.MaxHealth) * 100
+    return healthPercent <= Settings.HealThreshold
+end
+
+local function isHealingSpell(name)
+    return name == "Redemption" or name == "Universal Heal" or name == "Chain Heal" or name == "Aura of Life"
+end
+
 local function startAutoAttack()
     stopAutoAttack()
     local hasWeapon = updateCachedWeapon()
@@ -388,9 +426,20 @@ local function startAutoAttack()
             if now - lastSpellCast >= 0.3 then
                 lastSpellCast = now
                 for _, spellEvent in ipairs(cachedSpellEvents) do
-                    pcall(function()
-                        spellEvent:FireServer()
-                    end)
+                    local tool = spellEvent.Parent
+                    local spellName = tool and tool.Name or ""
+                    if isHealingSpell(spellName) then
+                        if shouldHeal() and (now - lastHealCast >= healCooldown) then
+                            lastHealCast = now
+                            pcall(function()
+                                spellEvent:FireServer()
+                            end)
+                        end
+                    else
+                        pcall(function()
+                            spellEvent:FireServer()
+                        end)
+                    end
                 end
             end
         end
@@ -398,9 +447,20 @@ local function startAutoAttack()
             if now - lastAbilityCast >= 0.3 then
                 lastAbilityCast = now
                 for _, abilityEvent in ipairs(cachedAbilityEvents) do
-                    pcall(function()
-                        abilityEvent:FireServer()
-                    end)
+                    local tool = abilityEvent.Parent
+                    local abilityName = tool and tool.Name or ""
+                    if isHealingSpell(abilityName) then
+                        if shouldHeal() and (now - lastHealCast >= healCooldown) then
+                            lastHealCast = now
+                            pcall(function()
+                                abilityEvent:FireServer()
+                            end)
+                        end
+                    else
+                        pcall(function()
+                            abilityEvent:FireServer()
+                        end)
+                    end
                 end
             end
         end
@@ -420,6 +480,7 @@ local function startAutoFarm()
         if not Settings.AutoFarm then
             return
         end
+
         if not Settings.AutoAttack then
             Settings.AutoAttack = true
             if attackBtnRef then
@@ -507,22 +568,21 @@ local function startAutoFarm()
         end
 
         local targetPos, targetCFrame
+        local enemyPart = cachedCluster.closestEnemy
+        if not enemyPart then return end
+
         if Settings.FarmingMode == "Under" then
-            local enemyPart = cachedCluster.closestEnemy
-            if enemyPart then
-                local sizeY = enemyPart.Size.Y
-                local bottomY = enemyPart.Position.Y - (sizeY / 2)
-                targetPos = Vector3.new(enemyPart.Position.X, bottomY - 6, enemyPart.Position.Z)
-                targetCFrame = CFrame.new(targetPos, enemyPart.Position)
-            end
+            targetPos = Vector3.new(enemyPart.Position.X, enemyPart.Position.Y + Settings.UnderOffset, enemyPart.Position.Z)
+            targetCFrame = CFrame.new(targetPos, enemyPart.Position)
         else
-            local targetY = cachedCluster.centroid.Y + orbitYOffset
+            local targetY = enemyPart.Position.Y + Settings.OrbitYOffset
             local dt = now - lastTime
             lastTime = now
-            local angularSpeed = orbitSpeed / orbitRadius
+            local angularSpeed = Settings.OrbitSpeed / Settings.OrbitRadius
             orbitAngle = orbitAngle + angularSpeed * dt
-            local x = math.cos(orbitAngle) * orbitRadius
-            local z = math.sin(orbitAngle) * orbitRadius
+            local dirSign = Settings.RotationDirection
+            local x = math.cos(orbitAngle) * Settings.OrbitRadius
+            local z = dirSign * math.sin(orbitAngle) * Settings.OrbitRadius
             targetPos = Vector3.new(cachedCluster.centroid.X + x, targetY, cachedCluster.centroid.Z + z)
             targetCFrame = CFrame.new(targetPos, cachedCluster.centroid)
         end
@@ -757,6 +817,161 @@ local function startDungeonMonitor()
     end)
 end
 
+local function createSliderSection(parent, position, title, minVal, maxVal, defaultValue, callback)
+    local section = Instance.new("Frame")
+    section.Name = title .. "Section"
+    section.Size = UDim2.new(1, 0, 0, 50)
+    section.Position = position
+    section.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    section.BorderSizePixel = 0
+    section.Parent = parent
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = section
+
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(0.5, 0, 0, 18)
+    titleLabel.Position = UDim2.new(0, 10, 0, 4)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = title
+    titleLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+    titleLabel.TextSize = 12
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    titleLabel.Parent = section
+
+    local valueLabel = Instance.new("TextLabel")
+    valueLabel.Size = UDim2.new(0.3, 0, 0, 18)
+    valueLabel.Position = UDim2.new(0.7, 0, 0, 4)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(defaultValue)
+    valueLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    valueLabel.TextSize = 12
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valueLabel.Parent = section
+
+    local sliderBg = Instance.new("Frame")
+    sliderBg.Name = "SliderBg"
+    sliderBg.Size = UDim2.new(1, -20, 0, 20)
+    sliderBg.Position = UDim2.new(0, 10, 0, 26)
+    sliderBg.BackgroundTransparency = 1
+    sliderBg.Parent = section
+
+    local sliderTrack = Instance.new("Frame")
+    sliderTrack.Name = "SliderTrack"
+    sliderTrack.Size = UDim2.new(1, 0, 0, 6)
+    sliderTrack.Position = UDim2.new(0, 0, 0.5, -3)
+    sliderTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+    sliderTrack.BorderSizePixel = 0
+    sliderTrack.Parent = sliderBg
+
+    local trackCorner = Instance.new("UICorner")
+    trackCorner.CornerRadius = UDim.new(1, 0)
+    trackCorner.Parent = sliderTrack
+
+    local sliderFill = Instance.new("Frame")
+    sliderFill.Name = "SliderFill"
+    sliderFill.Size = UDim2.new(0, 0, 1, 0)
+    sliderFill.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+    sliderFill.BorderSizePixel = 0
+    sliderFill.Parent = sliderTrack
+
+    local fillCorner = Instance.new("UICorner")
+    fillCorner.CornerRadius = UDim.new(1, 0)
+    fillCorner.Parent = sliderFill
+
+    local sliderKnob = Instance.new("Frame")
+    sliderKnob.Name = "SliderKnob"
+    sliderKnob.Size = UDim2.new(0, 14, 0, 14)
+    sliderKnob.Position = UDim2.new(1, -7, 0.5, -7)
+    sliderKnob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    sliderKnob.BorderSizePixel = 0
+    sliderKnob.Parent = sliderFill
+
+    local knobCorner = Instance.new("UICorner")
+    knobCorner.CornerRadius = UDim.new(1, 0)
+    knobCorner.Parent = sliderKnob
+
+    local minLabel = Instance.new("TextLabel")
+    minLabel.Size = UDim2.new(0, 20, 0, 14)
+    minLabel.Position = UDim2.new(0, 0, 0, 22)
+    minLabel.BackgroundTransparency = 1
+    minLabel.Text = tostring(minVal)
+    minLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+    minLabel.TextSize = 9
+    minLabel.Font = Enum.Font.Gotham
+    minLabel.Parent = section
+
+    local maxLabel = Instance.new("TextLabel")
+    maxLabel.Size = UDim2.new(0, 20, 0, 14)
+    maxLabel.Position = UDim2.new(1, -20, 0, 22)
+    maxLabel.BackgroundTransparency = 1
+    maxLabel.Text = tostring(maxVal)
+    maxLabel.TextColor3 = Color3.fromRGB(120, 120, 120)
+    maxLabel.TextSize = 9
+    maxLabel.Font = Enum.Font.Gotham
+    maxLabel.TextXAlignment = Enum.TextXAlignment.Right
+    maxLabel.Parent = section
+
+    local isDragging = false
+    local trackWidth = 0
+
+    local function updateSlider(inputX)
+        local trackPos = sliderTrack.AbsolutePosition.X
+        trackWidth = sliderTrack.AbsoluteSize.X
+        local relativeX = math.clamp(inputX - trackPos, 0, trackWidth)
+        local percent = relativeX / trackWidth
+        sliderFill.Size = UDim2.new(0, relativeX, 1, 0)
+        local value = minVal + (maxVal - minVal) * percent
+        if typeof(defaultValue) == "number" then
+            if defaultValue % 1 == 0 then
+                value = math.floor(value + 0.5)
+            else
+                value = math.floor(value * 10) / 10
+            end
+        end
+        valueLabel.Text = tostring(value)
+        callback(value)
+        saveSettings()
+    end
+
+    task.delay(0.1, function()
+        trackWidth = sliderTrack.AbsoluteSize.X
+        local initialPercent = (defaultValue - minVal) / (maxVal - minVal)
+        local initialWidth = trackWidth * initialPercent
+        sliderFill.Size = UDim2.new(0, initialWidth, 1, 0)
+    end)
+
+    sliderBg.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+            updateSlider(input.Position.X)
+        end
+    end)
+
+    sliderKnob.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = true
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if isDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            updateSlider(input.Position.X)
+        end
+    end)
+
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            isDragging = false
+        end
+    end)
+
+    return section
+end
+
 local function createUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "AutoAttackUI"
@@ -767,7 +982,7 @@ local function createUI()
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.Size = UDim2.new(0, 280, 0, 420)
+    mainFrame.Size = UDim2.new(0, 280, 0, 500)
     mainFrame.Position = UDim2.new(0, 20, 0, 20)
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
     mainFrame.BorderSizePixel = 0
@@ -844,7 +1059,7 @@ local function createUI()
 
     local mainTabBtn = Instance.new("TextButton")
     mainTabBtn.Name = "MainTab"
-    mainTabBtn.Size = UDim2.new(0.5, 0, 1, 0)
+    mainTabBtn.Size = UDim2.new(0.333, 0, 1, 0)
     mainTabBtn.Position = UDim2.new(0, 0, 0, 0)
     mainTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
     mainTabBtn.BorderSizePixel = 0
@@ -856,8 +1071,8 @@ local function createUI()
 
     local farmTabBtn = Instance.new("TextButton")
     farmTabBtn.Name = "FarmTab"
-    farmTabBtn.Size = UDim2.new(0.5, 0, 1, 0)
-    farmTabBtn.Position = UDim2.new(0.5, 0, 0, 0)
+    farmTabBtn.Size = UDim2.new(0.333, 0, 1, 0)
+    farmTabBtn.Position = UDim2.new(0.333, 0, 0, 0)
     farmTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     farmTabBtn.BorderSizePixel = 0
     farmTabBtn.Text = "Farming"
@@ -865,6 +1080,18 @@ local function createUI()
     farmTabBtn.TextSize = 12
     farmTabBtn.Font = Enum.Font.GothamBold
     farmTabBtn.Parent = tabBar
+
+    local settingsTabBtn = Instance.new("TextButton")
+    settingsTabBtn.Name = "SettingsTab"
+    settingsTabBtn.Size = UDim2.new(0.334, 0, 1, 0)
+    settingsTabBtn.Position = UDim2.new(0.666, 0, 0, 0)
+    settingsTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    settingsTabBtn.BorderSizePixel = 0
+    settingsTabBtn.Text = "Settings"
+    settingsTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+    settingsTabBtn.TextSize = 12
+    settingsTabBtn.Font = Enum.Font.GothamBold
+    settingsTabBtn.Parent = tabBar
 
     local contentFrame = Instance.new("Frame")
     contentFrame.Name = "Content"
@@ -887,27 +1114,51 @@ local function createUI()
     farmContent.Visible = false
     farmContent.Parent = contentFrame
 
+    local settingsContent = Instance.new("Frame")
+    settingsContent.Name = "SettingsContent"
+    settingsContent.Size = UDim2.new(1, 0, 1, 0)
+    settingsContent.BackgroundTransparency = 1
+    settingsContent.Visible = false
+    settingsContent.Parent = contentFrame
+
     local function switchTab(tab)
         currentTab = tab
         if tab == "Main" then
             mainContent.Visible = true
             farmContent.Visible = false
+            settingsContent.Visible = false
             mainTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
             mainTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
             farmTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
             farmTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
-        else
+            settingsTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            settingsTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        elseif tab == "Farming" then
             mainContent.Visible = false
             farmContent.Visible = true
+            settingsContent.Visible = false
             farmTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
             farmTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
             mainTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
             mainTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+            settingsTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            settingsTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        else
+            mainContent.Visible = false
+            farmContent.Visible = false
+            settingsContent.Visible = true
+            settingsTabBtn.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
+            settingsTabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            mainTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            mainTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+            farmTabBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            farmTabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
         end
     end
 
     mainTabBtn.MouseButton1Click:Connect(function() switchTab("Main") end)
     farmTabBtn.MouseButton1Click:Connect(function() switchTab("Farming") end)
+    settingsTabBtn.MouseButton1Click:Connect(function() switchTab("Settings") end)
 
     local attackSection = Instance.new("Frame")
     attackSection.Name = "AttackSection"
@@ -1595,6 +1846,50 @@ local function createUI()
     )
     skillBtnRef = skillBtn
 
+    local yPos = 4
+    createSliderSection(settingsContent, UDim2.new(0, 0, 0, yPos), "Orbit Speed", 1, 30, Settings.OrbitSpeed, function(val)
+        Settings.OrbitSpeed = val
+        orbitSpeed = val
+    end)
+    yPos = yPos + 54
+    createSliderSection(settingsContent, UDim2.new(0, 0, 0, yPos), "Orbit Radius", 1, 20, Settings.OrbitRadius, function(val)
+        Settings.OrbitRadius = val
+        orbitRadius = val
+    end)
+    yPos = yPos + 54
+    createSliderSection(settingsContent, UDim2.new(0, 0, 0, yPos), "Orbit Y Offset", -20, 0, Settings.OrbitYOffset, function(val)
+        Settings.OrbitYOffset = val
+        orbitYOffset = val
+    end)
+    yPos = yPos + 54
+    createSliderSection(settingsContent, UDim2.new(0, 0, 0, yPos), "Under Offset", -15, 0, Settings.UnderOffset, function(val)
+        Settings.UnderOffset = val
+    end)
+    yPos = yPos + 54
+    createSliderSection(settingsContent, UDim2.new(0, 0, 0, yPos), "Heal Threshold %", 10, 95, Settings.HealThreshold, function(val)
+        Settings.HealThreshold = val
+    end)
+    yPos = yPos + 54
+    createSliderSection(settingsContent, UDim2.new(0, 0, 0, yPos), "Heal Cooldown (s)", 1, 10, Settings.HealCooldown, function(val)
+        Settings.HealCooldown = val
+        healCooldown = val
+    end)
+    yPos = yPos + 54
+
+    local dirSection, dirBtn = createDropdown(
+        settingsContent,
+        UDim2.new(0, 0, 0, yPos),
+        "Rotation Direction",
+        DirectionList,
+        Settings.RotationDirection == -1 and "Counterclockwise" or "Clockwise",
+        function(value)
+            Settings.RotationDirection = value == "Counterclockwise" and -1 or 1
+        end
+    )
+    yPos = yPos + 54
+
+    settingsContent.Size = UDim2.new(1, 0, 0, yPos + 20)
+
     minBtn.MouseButton1Click:Connect(function()
         isMinimized = not isMinimized
         if isMinimized then
@@ -1605,7 +1900,7 @@ local function createUI()
         else
             contentFrame.Visible = true
             tabBar.Visible = true
-            mainFrame.Size = UDim2.new(0, 280, 0, 420)
+            mainFrame.Size = UDim2.new(0, 280, 0, 500)
             minBtn.Text = "−"
         end
     end)
