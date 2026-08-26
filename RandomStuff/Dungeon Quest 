@@ -100,9 +100,9 @@ local lastLevelUpCast = 0
 local platformPart = nil
 
 local orbitAngle = 0
-local orbitRadius = 6
-local orbitSpeed = 13
-local orbitYOffset = -5.5
+local orbitRadius = 7
+local orbitSpeed = 16
+local orbitYOffset = -7
 
 local cachedCluster = nil
 local lastEnemyUpdate = 0
@@ -555,6 +555,24 @@ local function changeStartValue()
     changeStartValueEvent:FireServer()
 end
 
+local function enableAutoFarmAttack()
+    Settings.AutoFarm = true
+    Settings.AutoAttack = true
+    if farmBtnRef then
+        farmBtnRef.Text = "ON"
+        farmBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+    end
+    if attackBtnRef then
+        attackBtnRef.Text = "ON"
+        attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
+    end
+    if autoStartBtnRef then
+        autoStartBtnRef.Text = "Running"
+    end
+    startAutoAttack()
+    startAutoFarm()
+end
+
 local function autoStartSequence()
     if autoStartRunning then return end
     autoStartRunning = true
@@ -562,21 +580,11 @@ local function autoStartSequence()
     if dungeon and dungeon:FindFirstChild("initialRoom") then
         isInDungeon = true
         pcall(changeStartValue)
-        Settings.AutoFarm = true
-        Settings.AutoAttack = true
-        if farmBtnRef then
-            farmBtnRef.Text = "ON"
-            farmBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
-        end
-        if attackBtnRef then
-            attackBtnRef.Text = "ON"
-            attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
-        end
-        if autoStartBtnRef then
-            autoStartBtnRef.Text = "Running"
-        end
-        startAutoAttack()
-        startAutoFarm()
+        task.delay(3, function()
+            if isInDungeon then
+                enableAutoFarmAttack()
+            end
+        end)
         autoStartRunning = false
         return
     end
@@ -646,21 +654,11 @@ local function autoStartSequence()
     end
     isInDungeon = true
     pcall(changeStartValue)
-    Settings.AutoFarm = true
-    Settings.AutoAttack = true
-    if farmBtnRef then
-        farmBtnRef.Text = "ON"
-        farmBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
-    end
-    if attackBtnRef then
-        attackBtnRef.Text = "ON"
-        attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
-    end
-    if autoStartBtnRef then
-        autoStartBtnRef.Text = "Running"
-    end
-    startAutoAttack()
-    startAutoFarm()
+    task.delay(3, function()
+        if isInDungeon then
+            enableAutoFarmAttack()
+        end
+    end)
     autoStartRunning = false
 end
 
@@ -671,21 +669,11 @@ local function startDungeonMonitor()
         if inDungeonNow and not isInDungeon then
             isInDungeon = true
             if Settings.AutoStart and not autoStartRunning then
-                Settings.AutoFarm = true
-                Settings.AutoAttack = true
-                if farmBtnRef then
-                    farmBtnRef.Text = "ON"
-                    farmBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
-                end
-                if attackBtnRef then
-                    attackBtnRef.Text = "ON"
-                    attackBtnRef.BackgroundColor3 = Color3.fromRGB(0, 160, 0)
-                end
-                if autoStartBtnRef then
-                    autoStartBtnRef.Text = "Running"
-                end
-                startAutoAttack()
-                startAutoFarm()
+                task.delay(3, function()
+                    if isInDungeon then
+                        enableAutoFarmAttack()
+                    end
+                end)
             end
         elseif not inDungeonNow and isInDungeon then
             isInDungeon = false
