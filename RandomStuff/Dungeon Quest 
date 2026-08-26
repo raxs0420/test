@@ -100,9 +100,9 @@ local lastLevelUpCast = 0
 local platformPart = nil
 
 local orbitAngle = 0
-local orbitRadius = 7
-local orbitSpeed = 16
-local orbitYOffset = -7
+local orbitRadius = 6
+local orbitSpeed = 12
+local orbitYOffset = -5.5
 
 local cachedCluster = nil
 local lastEnemyUpdate = 0
