@@ -5,6 +5,7 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
 
 local Settings = {
     AutoAttack = false,
@@ -100,13 +101,16 @@ local lastLevelUpCast = 0
 local platformPart = nil
 
 local orbitAngle = 0
-local orbitRadius = 6
-local orbitSpeed = 12
+local orbitRadius = 7
+local orbitSpeed = 10
 local orbitYOffset = -5.5
 
 local cachedCluster = nil
 local lastEnemyUpdate = 0
 local ENEMY_UPDATE_INTERVAL = 0.1
+
+local isTweening = false
+local transitionTween = nil
 
 local function getEquippedWeapon()
     local weaponValue = LocalPlayer:FindFirstChild("weaponEquipped")
@@ -374,21 +378,6 @@ local function startAutoAttack()
     end)
 end
 
-local function teleportUnderEnemy(enemyPart)
-    if not enemyPart then return end
-    if not LocalPlayer.Character then return end
-    local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-
-    local sizeY = enemyPart.Size.Y
-    local bottomY = enemyPart.Position.Y - (sizeY / 2)
-    local targetPos = Vector3.new(enemyPart.Position.X, bottomY - 6, enemyPart.Position.Z)
-
-    local lookAt = enemyPart.Position
-    local cframe = CFrame.new(targetPos, lookAt)
-    hrp.CFrame = cframe
-end
-
 local function startAutoFarm()
     if farmConnection then
         farmConnection:Disconnect()
@@ -431,8 +420,9 @@ local function startAutoFarm()
                 end
             end
 
+            local newCluster = nil
             if specialEnemy then
-                cachedCluster = {
+                newCluster = {
                     centroid = specialEnemy.Position,
                     enemies = {specialEnemy},
                     size = 1,
@@ -442,9 +432,16 @@ local function startAutoFarm()
             else
                 local clusters = getEnemyClusters(myPos)
                 if clusters and #clusters > 0 then
-                    cachedCluster = clusters[1]
-                else
-                    cachedCluster = nil
+                    newCluster = clusters[1]
+                end
+            end
+
+            if newCluster ~= cachedCluster then
+                cachedCluster = newCluster
+                if transitionTween then
+                    transitionTween:Cancel()
+                    transitionTween = nil
+                    isTweening = false
                 end
             end
         end
@@ -473,22 +470,43 @@ local function startAutoFarm()
             return
         end
 
+        local targetPos, targetCFrame
         if Settings.FarmingMode == "Under" then
-            teleportUnderEnemy(cachedCluster.closestEnemy)
+            local enemyPart = cachedCluster.closestEnemy
+            if enemyPart then
+                local sizeY = enemyPart.Size.Y
+                local bottomY = enemyPart.Position.Y - (sizeY / 2)
+                targetPos = Vector3.new(enemyPart.Position.X, bottomY - 6, enemyPart.Position.Z)
+                targetCFrame = CFrame.new(targetPos, enemyPart.Position)
+            end
         else
             local targetY = cachedCluster.centroid.Y + orbitYOffset
             local dt = now - lastTime
             lastTime = now
             local angularSpeed = orbitSpeed / orbitRadius
             orbitAngle = orbitAngle + angularSpeed * dt
-
             local x = math.cos(orbitAngle) * orbitRadius
             local z = math.sin(orbitAngle) * orbitRadius
-            local targetPos = Vector3.new(cachedCluster.centroid.X + x, targetY, cachedCluster.centroid.Z + z)
+            targetPos = Vector3.new(cachedCluster.centroid.X + x, targetY, cachedCluster.centroid.Z + z)
+            targetCFrame = CFrame.new(targetPos, cachedCluster.centroid)
+        end
 
-            local lookAt = cachedCluster.centroid
-            local cframe = CFrame.new(targetPos, lookAt)
-            hrp.CFrame = cframe
+        if targetCFrame then
+            local dist = (targetPos - myPos).Magnitude
+            if dist > 30 and not isTweening then
+                if transitionTween then transitionTween:Cancel() end
+                isTweening = true
+                local tweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+                local goal = {CFrame = targetCFrame}
+                transitionTween = TweenService:Create(hrp, tweenInfo, goal)
+                transitionTween:Play()
+                transitionTween.Completed:Connect(function()
+                    isTweening = false
+                    transitionTween = nil
+                end)
+            elseif not isTweening then
+                hrp.CFrame = targetCFrame
+            end
         end
     end)
 end
@@ -502,6 +520,11 @@ local function stopAutoFarm()
         platformPart:Destroy()
         platformPart = nil
     end
+    if transitionTween then
+        transitionTween:Cancel()
+        transitionTween = nil
+    end
+    isTweening = false
     cachedCluster = nil
 end
 
