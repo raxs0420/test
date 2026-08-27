@@ -2518,6 +2518,33 @@ local success, err = pcall(function()
 
                 yPos = yPos + Library:ScaleY(5) + Library:ScaleY(2)
 
+                local recorderBtn = Instance.new("TextButton")
+                recorderBtn.Size = UDim2.new(1, -Library:ScaleX(4), 0, Library:ScaleY(5))
+                recorderBtn.Position = UDim2.new(0, Library:ScaleX(2), 0, yPos)
+                recorderBtn.BackgroundColor3 = Color3.fromRGB(218, 165, 32)
+                recorderBtn.Text = "Recorder"
+                recorderBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                recorderBtn.Font = Enum.Font.GothamBold
+                recorderBtn.TextSize = Library:ScaleY(1.3)
+                recorderBtn.Parent = scrollFrame
+                recorderBtn.AutoButtonColor = false
+                Library:AddCorner(recorderBtn, 8)
+                Library:AddStroke(recorderBtn, 1, Color3.fromRGB(255, 215, 0))
+
+                recorderBtn.MouseButton1Click:Connect(function()
+                    pcall(function()
+                        loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/RECORDER"))()
+                    end)
+                    local originalColor = recorderBtn.BackgroundColor3
+                    recorderBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+                    recorderBtn.Text = "EXECUTED!"
+                    task.wait(0.5)
+                    recorderBtn.BackgroundColor3 = originalColor
+                    recorderBtn.Text = "Recorder"
+                end)
+
+                yPos = yPos + Library:ScaleY(5) + Library:ScaleY(2)
+
                 local bountyBtn = Library:CreateButton(
                     scrollFrame,
                     "Auto Bounty",
