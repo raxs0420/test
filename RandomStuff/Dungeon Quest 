@@ -27,6 +27,7 @@ local Settings = {
     RotationDirection = -1,
     HealThreshold = 80,
     HealCooldown = 3,
+    FastRejoin = false, 
 }
 
 local LOBBY_PLACE_ID = 77649408247578
@@ -58,6 +59,7 @@ if savedSettings then
         if decoded.RotationDirection then Settings.RotationDirection = decoded.RotationDirection end
         if decoded.HealThreshold then Settings.HealThreshold = decoded.HealThreshold end
         if decoded.HealCooldown then Settings.HealCooldown = decoded.HealCooldown end
+        if decoded.FastRejoin ~= nil then Settings.FastRejoin = decoded.FastRejoin end
     end)
 end
 
@@ -81,6 +83,7 @@ local function saveSettings()
                 RotationDirection = Settings.RotationDirection,
                 HealThreshold = Settings.HealThreshold,
                 HealCooldown = Settings.HealCooldown,
+                FastRejoin = Settings.FastRejoin,
             }
             writefile("AutoFarmSettings.json", HttpService:JSONEncode(toSave))
         end
@@ -101,6 +104,7 @@ local DirectionList = { "Counterclockwise", "Clockwise" }
 local attackConnection = nil
 local farmConnection = nil
 local levelUpConnection = nil
+local fastRejoinConnection = nil
 local isMinimized = false
 local uiScreenGui = nil
 local attackBtnRef = nil
@@ -144,6 +148,34 @@ local noclipEnabled = false
 
 local lastHealCast = 0
 local healCooldown = Settings.HealCooldown
+
+local function startFastRejoin()
+    if fastRejoinConnection then return end
+    local remotes = ReplicatedStorage:WaitForChild("remotes")
+    local showJoinRequest = remotes:WaitForChild("showJoinRequest")
+    fastRejoinConnection = showJoinRequest.OnClientEvent:Connect(function(...)
+        if Settings.Raid then return end
+        task.wait(0.2)
+        local replayDungeon = remotes:WaitForChild("replayDungeon")
+        local data = {
+            dungeonProgress = "bossKilled",
+            dungeonStarted = true,
+            hardcore = Settings.Hardcore,
+            dungeonFinished = true,
+            dungeonName = Settings.SelectedDungeon,
+            isHardcore = Settings.Hardcore,
+            fightingBoss = true
+        }
+        replayDungeon:FireServer(data)
+    end)
+end
+
+local function stopFastRejoin()
+    if fastRejoinConnection then
+        fastRejoinConnection:Disconnect()
+        fastRejoinConnection = nil
+    end
+end
 
 local function setNoclip(enabled)
     if noclipEnabled == enabled then return end
@@ -1888,6 +1920,59 @@ local function createUI()
     )
     yPos = yPos + 54
 
+    local fastRejoinSection = Instance.new("Frame")
+    fastRejoinSection.Name = "FastRejoinSection"
+    fastRejoinSection.Size = UDim2.new(1, 0, 0, 36)
+    fastRejoinSection.Position = UDim2.new(0, 0, 0, yPos)
+    fastRejoinSection.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    fastRejoinSection.BorderSizePixel = 0
+    fastRejoinSection.Parent = settingsContent
+
+    local frCorner = Instance.new("UICorner")
+    frCorner.CornerRadius = UDim.new(0, 6)
+    frCorner.Parent = fastRejoinSection
+
+    local frTitle = Instance.new("TextLabel")
+    frTitle.Size = UDim2.new(0.5, 0, 1, 0)
+    frTitle.Position = UDim2.new(0, 10, 0, 0)
+    frTitle.BackgroundTransparency = 1
+    frTitle.Text = "Fast Rejoin"
+    frTitle.TextColor3 = Color3.fromRGB(255, 200, 50)
+    frTitle.TextSize = 12
+    frTitle.Font = Enum.Font.GothamBold
+    frTitle.TextXAlignment = Enum.TextXAlignment.Left
+    frTitle.Parent = fastRejoinSection
+
+    local frBtn = Instance.new("TextButton")
+    frBtn.Name = "FastRejoinBtn"
+    frBtn.Size = UDim2.new(0, 50, 0, 22)
+    frBtn.Position = UDim2.new(1, -56, 0.5, -11)
+    frBtn.BackgroundColor3 = Settings.FastRejoin and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+    frBtn.BorderSizePixel = 0
+    frBtn.Text = Settings.FastRejoin and "ON" or "OFF"
+    frBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    frBtn.TextSize = 11
+    frBtn.Font = Enum.Font.GothamBold
+    frBtn.Parent = fastRejoinSection
+
+    local frBtnCorner = Instance.new("UICorner")
+    frBtnCorner.CornerRadius = UDim.new(0, 4)
+    frBtnCorner.Parent = frBtn
+
+    frBtn.MouseButton1Click:Connect(function()
+        Settings.FastRejoin = not Settings.FastRejoin
+        frBtn.Text = Settings.FastRejoin and "ON" or "OFF"
+        frBtn.BackgroundColor3 = Settings.FastRejoin and Color3.fromRGB(0, 160, 0) or Color3.fromRGB(160, 0, 0)
+        saveSettings()
+        if Settings.FastRejoin then
+            startFastRejoin()
+        else
+            stopFastRejoin()
+        end
+    end)
+
+    yPos = yPos + 36
+
     settingsContent.Size = UDim2.new(1, 0, 0, yPos + 20)
 
     minBtn.MouseButton1Click:Connect(function()
@@ -1954,6 +2039,13 @@ local function init()
     end
     if Settings.AutoLevelUp then
         startAutoLevelUp()
+    end
+    if Settings.FastRejoin then
+        task.delay(10, function()
+            if Settings.FastRejoin then
+                startFastRejoin()
+            end
+        end)
     end
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if not gameProcessed and input.KeyCode == Enum.KeyCode.Insert then
