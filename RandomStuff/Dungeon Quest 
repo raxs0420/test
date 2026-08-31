@@ -1,4 +1,5 @@
 local success, err = pcall(function()
+    print("[DQR] Script starting...")
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -23,19 +24,26 @@ local success, err = pcall(function()
         FarmingMode = "Orbit",
         OrbitSpeed = 12,
         OrbitRadius = 7,
-        OrbitYOffset = -7,
+        OrbitYOffset = -8,
         UnderOffset = -7,
         RotationDirection = "Counterclockwise",
         AutoDodge = false,
         AutoAbility = true,
         AbilityCycleDelay = 0,
-        AutoHealSelf = false,
+        AutoHealSelf = true,
         SelfHealThreshold = 80,
         AutoHealTeam = false,
-        TeamHealThreshold = 70,
+        TeamHealThreshold = 75,
         TeamHealDistance = 0,
         FastRejoin = true,
         ForceRejoin = false,
+        BossRejoin = false,
+        AutoMinimize = false,
+        EquipBestArmor = false,
+        EquipBestWeapon = false,
+        AutoSell = false,
+        SelectedQualities = {common=false, uncommon=false, rare=false, epic=false, legendary=false, ultimate=false},
+        SellTypes = {weapon=true, ability=true, chest=true, helmet=true},
     }
 
     local LOBBY_PLACE_ID = 77649408247578
@@ -71,6 +79,16 @@ local success, err = pcall(function()
     local SkillList = { "spellPower", "stamina", "physicalPower" }
     local ModeList = { "Orbit", "Under", "Top", "TopOrbit" }
     local DirectionList = { "Counterclockwise", "Clockwise" }
+    local QualityList = { "common", "uncommon", "rare", "epic", "legendary", "ultimate" }
+    local QualityColors = {
+        common = Color3.fromRGB(152, 152, 152),
+        uncommon = Color3.fromRGB(91, 194, 80),
+        rare = Color3.fromRGB(75, 77, 195),
+        epic = Color3.fromRGB(146, 70, 159),
+        legendary = Color3.fromRGB(244, 154, 9),
+        ultimate = Color3.fromRGB(255, 0, 0),
+    }
+    local TypeList = {"weapon", "ability", "chest", "helmet"}
 
     local attackConnection = nil
     local farmConnection = nil
@@ -119,7 +137,7 @@ local success, err = pcall(function()
     local orbitAngle = 0
     local cachedCluster = nil
     local lastEnemyUpdate = 0
-    local ENEMY_UPDATE_INTERVAL = 0.1
+    local ENEMY_UPDATE_INTERVAL = 0.05
     local projectileConnection = nil
     local activeProjectiles = {}
     local cachedProjectileNames = {}
@@ -128,8 +146,8 @@ local success, err = pcall(function()
     local transitionTween = nil
     local noclipEnabled = false
     local noclipCharConnection = nil
-    local DODGE_SAFE_MARGIN = 4
-    local DODGE_DANGER_ZONE = 4
+    local DODGE_SAFE_MARGIN = 3
+    local DODGE_DANGER_ZONE = 3
     local dodgeState = { isDodging = false, stablePosition = nil, desiredOrbitPos = nil, currentEnemy = nil }
 
     local C_BG = Color3.fromRGB(18, 18, 22)
@@ -224,8 +242,8 @@ local success, err = pcall(function()
 
     local antiFlingConnection = nil
     local lastCheck = 0
-    local FLING_VEL_THRESHOLD = 200 -- linear velocity threshold
-    local FLING_ANG_THRESHOLD = 50  -- angular velocity threshold
+    local FLING_VEL_THRESHOLD = 200 
+    local FLING_ANG_THRESHOLD = 50 
     local COOLDOWN = 0.1
 
     local function startAntiFling()
@@ -629,7 +647,7 @@ local success, err = pcall(function()
         healConnection = RunService.Heartbeat:Connect(function()
             if game.PlaceId == LOBBY_PLACE_ID then return end
             local now = tick()
-            if now - lastHealCast < 1 then return end
+            if now - lastHealCast < 0.1 then return end
             local abilities = getEquippedAbilities()
             local heals = {}
             for _, a in ipairs(abilities) do if a.isHealing then table.insert(heals, a) end end
@@ -891,9 +909,8 @@ local function isGhastlyHarbor()
             end
 
             hrp = getHrp()
-            if not hrp then task.wait(0.1); continue end
-
-            local pickupRing = Workspace:FindFirstChild("playerPickupCannonballRing")
+            if hrp then
+                local pickupRing = Workspace:FindFirstChild("playerPickupCannonballRing")
             local pickupPos = pickupRing and pickupRing.Position + Vector3.new(0, 1, 0)
             if pickupPos and not cannonballStopSignal then
                 pcall(function() tweenTo(pickupPos, 2.4) end)
@@ -910,6 +927,7 @@ local function isGhastlyHarbor()
                 if waitForTweenOrStop() then break end
             end
 
+            end
             task.wait(0.05)
         end
 
@@ -1023,6 +1041,12 @@ local function isGhastlyHarbor()
         if attackToggle then attackToggle.Text = "ON"; attackToggle.BackgroundColor3 = C_GREEN end
         if autoStartToggle then autoStartToggle.Text = "Running" end
         startAutoAttack(); startAutoFarm()
+        if Settings.EquipBestWeapon then
+            task.delay(0.5, function() pcall(equipBestWeapon) end)
+        end
+        if Settings.EquipBestArmor then
+            task.delay(0.5, function() pcall(equipBestArmor) end)
+        end
     end
 
     local function autoStartSequence()
@@ -1086,6 +1110,11 @@ local function isGhastlyHarbor()
                 if farmToggle then farmToggle.Text = "OFF"; farmToggle.BackgroundColor3 = C_RED end
                 if attackToggle then attackToggle.Text = "OFF"; attackToggle.BackgroundColor3 = C_RED end
                 if autoStartToggle and Settings.AutoStart then autoStartToggle.Text = "ON" end
+                if Settings.AutoSell then
+                    task.delay(1, function()
+                        autoSellItems()
+                    end)
+                end
             end
         end)
     end
@@ -1107,7 +1136,23 @@ local function isGhastlyHarbor()
         return s
     end
 
-    local function createToggle(parent, text, settingKey, callback, yPos)
+        local hoverConnections = {}
+    local function setupButtonHover(btn, normalColor, hoverColor)
+        if hoverConnections[btn] then
+            for _, conn in ipairs(hoverConnections[btn]) do
+                pcall(function() conn:Disconnect() end)
+            end
+        end
+        hoverConnections[btn] = {}
+        table.insert(hoverConnections[btn], btn.MouseEnter:Connect(function()
+            btn.BackgroundColor3 = hoverColor
+        end))
+        table.insert(hoverConnections[btn], btn.MouseLeave:Connect(function()
+            btn.BackgroundColor3 = normalColor
+        end))
+    end
+
+local function createToggle(parent, text, settingKey, callback, yPos)
         local frame = Instance.new("Frame")
         frame.Size = UDim2.new(1, 0, 0, 36)
         frame.Position = yPos or UDim2.new()
@@ -1129,6 +1174,7 @@ local function isGhastlyHarbor()
         label.Parent = frame
 
         local btn = Instance.new("TextButton")
+        btn.AutoButtonColor = false
         btn.Size = UDim2.new(0, 56, 0, 26)
         btn.Position = UDim2.new(1, -66, 0.5, -13)
         btn.BackgroundColor3 = Settings[settingKey] and C_GREEN or C_RED
@@ -1140,11 +1186,21 @@ local function isGhastlyHarbor()
         btn.Parent = frame
         corner(btn, 6)
 
+        local function updateToggleHover()
+            if Settings[settingKey] then
+                setupButtonHover(btn, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(btn, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateToggleHover()
+
         btn.MouseButton1Click:Connect(function()
             Settings[settingKey] = not Settings[settingKey]
             btn.Text = Settings[settingKey] and "ON" or "OFF"
             btn.BackgroundColor3 = Settings[settingKey] and C_GREEN or C_RED
             saveSettings()
+            updateToggleHover()
             if callback then callback(Settings[settingKey]) end
         end)
 
@@ -1385,6 +1441,7 @@ local function isGhastlyHarbor()
         label.Parent = frame
 
         local btn = Instance.new("TextButton")
+        btn.AutoButtonColor = false
         btn.Size = UDim2.new(0, 140, 0, 26)
         btn.Position = UDim2.new(1, -150, 0.5, -13)
         btn.BackgroundColor3 = Color3.fromRGB(40, 40, 48)
@@ -1434,6 +1491,7 @@ local function isGhastlyHarbor()
 
         for i, item in ipairs(items) do
             local itemBtn = Instance.new("TextButton")
+            itemBtn.AutoButtonColor = false
             itemBtn.Size = UDim2.new(1, 0, 0, 24)
             itemBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
             itemBtn.BorderSizePixel = 0
@@ -1444,6 +1502,7 @@ local function isGhastlyHarbor()
             itemBtn.ZIndex = 202
             itemBtn.Parent = scroll
             corner(itemBtn, 4)
+            setupButtonHover(itemBtn, Color3.fromRGB(50, 50, 58), Color3.fromRGB(70, 70, 80))
 
             itemBtn.MouseButton1Click:Connect(function()
                 btn.Text = item
@@ -1471,6 +1530,248 @@ local function isGhastlyHarbor()
         return frame, btn
     end
 
+    local equipConnection = nil
+    local lastEquippedWeapon = nil
+    local lastEquippedArmor = nil
+
+    local function autoSellItems()
+        if game.PlaceId ~= LOBBY_PLACE_ID then return end
+        if not Settings.AutoSell then return end
+        local rs = ReplicatedStorage:FindFirstChild("remotes")
+        local ri = rs and rs:FindFirstChild("reloadInvy")
+        local sellRemote = rs and rs:FindFirstChild("sellItemEvent")
+        if not ri or not sellRemote then
+            warn("[DQR] Sell remote not found")
+            return
+        end
+        local ok, inv = pcall(function() return ri:InvokeServer() end)
+        if not ok or not inv then
+            warn("[DQR] Failed to get inventory")
+            return
+        end
+
+        local toSell = {helmet = {}, ability = {}, chest = {}, weapon = {}}
+
+        local function collectItems(itemTable, outputCategory)
+            for key, item in pairs(itemTable or {}) do
+                local isEquipped = false
+                if type(item.equipped) == "table" then
+                    for _, v in pairs(item.equipped) do
+                        if v == true then isEquipped = true; break end
+                    end
+                else
+                    isEquipped = item.equipped == true
+                end
+                if item.rarity and Settings.SelectedQualities[item.rarity] and not isEquipped then
+                    local num = tonumber(key:match("%d+"))
+                    if num then
+                        table.insert(toSell[outputCategory], num)
+                        print("[DQR] Queued " .. outputCategory .. " #" .. num .. " (" .. item.rarity .. ")")
+                    end
+                end
+            end
+        end
+
+        if Settings.SellTypes.weapon then collectItems(inv.weapons, "weapon") end
+        if Settings.SellTypes.helmet then collectItems(inv.helmets, "helmet") end
+        if Settings.SellTypes.chest then collectItems(inv.chests, "chest") end
+        if Settings.SellTypes.ability then collectItems(inv.abilities, "ability") end
+
+        local totalItems = #toSell.weapon + #toSell.ability + #toSell.helmet + #toSell.chest
+        if totalItems > 0 then
+            print("[DQR] Selling " .. totalItems .. " items...")
+            print("[DQR] Payload: " .. HttpService:JSONEncode(toSell))
+            local sellOk, sellErr = pcall(function()
+                sellRemote:FireServer(toSell)
+            end)
+            if not sellOk then
+                warn("[DQR] Sell failed: " .. tostring(sellErr))
+            else
+                print("[DQR] Sell request sent successfully")
+            end
+        else
+            print("[DQR] No items to sell")
+        end
+    end
+
+    local function equipBestWeapon()
+        local lp = Players.LocalPlayer
+        local sp = lp:FindFirstChild("spellPower")
+        local pp = lp:FindFirstChild("physicalPower")
+        local useSpell = false
+        if sp and pp then
+            useSpell = sp.Value > pp.Value
+        elseif sp then
+            useSpell = true
+        end
+        local rs = ReplicatedStorage:FindFirstChild("remotes")
+        local ri = rs and rs:FindFirstChild("reloadInvy")
+        local ei = rs and rs:FindFirstChild("equipItem")
+        if not ri or not ei then return end
+        local ok, inv = pcall(function() return ri:InvokeServer() end)
+        if not ok or not inv or not inv.weapons then return end
+        local bestNum, bestVal, equippedNum = nil, -1, nil
+        for key, item in pairs(inv.weapons) do
+            local num = tonumber(key:match("weapon_(%d+)"))
+            if num then
+                if item.equipped then
+                    equippedNum = num
+                end
+                local val = useSpell and (item.spellPower or 0) or (item.physicalDamage or 0)
+                if val > bestVal then
+                    bestVal = val
+                    bestNum = num
+                end
+            end
+        end
+        if bestNum and bestNum ~= equippedNum then
+            pcall(function() ei:InvokeServer("weapon", bestNum) end)
+        end
+    end
+
+    local function getBestArmorIndex()
+        local lp = Players.LocalPlayer
+        local sp = lp:FindFirstChild("spellPower")
+        local pp = lp:FindFirstChild("physicalPower")
+        local useSpell = false
+        if sp and pp then
+            useSpell = sp.Value > pp.Value
+        elseif sp then
+            useSpell = true
+        end
+        local rs = ReplicatedStorage:FindFirstChild("remotes")
+        local ri = rs and rs:FindFirstChild("reloadInvy")
+        if not ri then return nil end
+        local ok, inv = pcall(function() return ri:InvokeServer() end)
+        if not ok or not inv then return nil end
+
+        local function collectArmors(armorTable, prefix)
+            local list = {}
+            for key, item in pairs(armorTable or {}) do
+                local num = tonumber(key:match(prefix .. "_(%d+)"))
+                if num then
+                    table.insert(list, {
+                        num = num,
+                        name = item.name,
+                        physicalPower = item.physicalPower or 0,
+                        spellPower = item.spellPower or 0,
+                        health = item.health or 0,
+                        equipped = item.equipped,
+                        rarity = item.rarity
+                    })
+                end
+            end
+            return list
+        end
+
+        local allArmors = {}
+        local helmets = collectArmors(inv.helmets, "helmet")
+        local chests = collectArmors(inv.chests, "chest")
+        for _, a in ipairs(helmets) do table.insert(allArmors, a) end
+        for _, a in ipairs(chests) do table.insert(allArmors, a) end
+
+        if #allArmors == 0 then return nil end
+
+        table.sort(allArmors, function(a, b)
+            if useSpell then
+                return a.spellPower > b.spellPower
+            else
+                return a.physicalPower > b.physicalPower
+            end
+        end)
+
+        return allArmors[1].num
+    end
+
+    local function equipBestArmor()
+        local lp = Players.LocalPlayer
+        local sp = lp:FindFirstChild("spellPower")
+        local pp = lp:FindFirstChild("physicalPower")
+        local useSpell = false
+        if sp and pp then
+            useSpell = sp.Value > pp.Value
+        elseif sp then
+            useSpell = true
+        end
+        local rs = ReplicatedStorage:FindFirstChild("remotes")
+        local ri = rs and rs:FindFirstChild("reloadInvy")
+        local ei = rs and rs:FindFirstChild("equipItem")
+        if not ri or not ei then return end
+        local ok, inv = pcall(function() return ri:InvokeServer() end)
+        if not ok or not inv then return end
+
+        local function findBest(itemTable, prefix)
+            local bestNum, bestVal, equippedNum = nil, -1, nil
+            for key, item in pairs(itemTable or {}) do
+                local num = tonumber(key:match(prefix .. "_(%d+)"))
+                if num then
+                    if item.equipped then
+                        equippedNum = num
+                    end
+                    local val = useSpell and (item.spellPower or 0) or (item.physicalPower or 0)
+                    if val > bestVal then
+                        bestVal = val
+                        bestNum = num
+                    end
+                end
+            end
+            return bestNum, equippedNum
+        end
+
+        local bestHelmet, equippedHelmet = findBest(inv.helmets, "helmet")
+        local bestChest, equippedChest = findBest(inv.chests, "chest")
+
+        if bestHelmet and bestHelmet ~= equippedHelmet then
+            pcall(function() ei:InvokeServer("helmet", bestHelmet) end)
+        end
+        if bestChest and bestChest ~= equippedChest then
+            pcall(function() ei:InvokeServer("chest", bestChest) end)
+        end
+    end
+
+    local function startAutoEquip()
+        if equipConnection then return end
+        if Settings.EquipBestWeapon then
+            task.delay(0.5, function()
+                pcall(equipBestWeapon)
+            end)
+        end
+        if Settings.EquipBestArmor then
+            task.delay(0.5, function()
+                pcall(equipBestArmor)
+            end)
+        end
+        equipConnection = task.spawn(function()
+            while true do
+                task.wait(5)
+                if not Settings.EquipBestWeapon and not Settings.EquipBestArmor then
+                    continue
+                end
+                local rs = ReplicatedStorage:FindFirstChild("remotes")
+                local ri = rs and rs:FindFirstChild("reloadInvy")
+                if not ri then
+                    continue
+                end
+                local ok, inv = pcall(function() return ri:InvokeServer() end)
+                if not ok or not inv then
+                    continue
+                end
+                if Settings.EquipBestWeapon then
+                    pcall(equipBestWeapon)
+                end
+                if Settings.EquipBestArmor then
+                    pcall(equipBestArmor)
+                end
+            end
+        end)
+    end
+
+    local function stopAutoEquip()
+        if equipConnection then
+            equipConnection = nil
+        end
+    end
+
     local function createUI()
         local screenGui = Instance.new("ScreenGui")
         screenGui.Name = "DungeonQuestUI"
@@ -1481,7 +1782,7 @@ local function isGhastlyHarbor()
 
         mainFrame = Instance.new("Frame")
         mainFrame.Name = "MainFrame"
-        mainFrame.Size = UDim2.new(0, 480, 0, 520)
+        mainFrame.Size = Settings.AutoMinimize and UDim2.new(0, 480, 0, 40) or UDim2.new(0, 480, 0, 520)
         mainFrame.Position = UDim2.new(0.5, -240, 0.5, -310)
         mainFrame.BackgroundColor3 = C_BG
         mainFrame.BorderSizePixel = 0
@@ -1511,18 +1812,22 @@ local function isGhastlyHarbor()
         title.Parent = titleBar
 
         local minBtn = Instance.new("TextButton")
+        minBtn.AutoButtonColor = false
         minBtn.Size = UDim2.new(0, 32, 0, 28)
         minBtn.Position = UDim2.new(1, -72, 0.5, -14)
         minBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 58)
         minBtn.BorderSizePixel = 0
-        minBtn.Text = "−"
+        minBtn.Text = Settings.AutoMinimize and "+" or "−"
         minBtn.TextColor3 = C_WHITE
         minBtn.TextSize = 18
         minBtn.Font = Enum.Font.GothamBold
         minBtn.Parent = titleBar
         corner(minBtn, 6)
 
+        local isMinimized = Settings.AutoMinimize
+
         local closeBtn = Instance.new("TextButton")
+        closeBtn.AutoButtonColor = false
         closeBtn.Size = UDim2.new(0, 32, 0, 28)
         closeBtn.Position = UDim2.new(1, -36, 0.5, -14)
         closeBtn.BackgroundColor3 = C_RED_DARK
@@ -1540,6 +1845,7 @@ local function isGhastlyHarbor()
         tabBar.Position = UDim2.new(0, 8, 0, 44)
         tabBar.BackgroundTransparency = 1
         tabBar.BorderSizePixel = 0
+        tabBar.Visible = not Settings.AutoMinimize
         tabBar.Parent = mainFrame
 
         local tabLayout = Instance.new("UIListLayout")
@@ -1554,8 +1860,11 @@ local function isGhastlyHarbor()
 
         for i, name in ipairs(tabNames) do
             local tbtn = Instance.new("TextButton")
+            tbtn.AutoButtonColor = false
             tbtn.Size = UDim2.new(0, 100, 1, 0)
-            tbtn.BackgroundColor3 = name == "Main" and C_PANEL or Color3.fromRGB(35, 35, 42)
+            local normalColor = name == "Main" and C_PANEL or Color3.fromRGB(35, 35, 42)
+            local hoverColor = name == "Main" and Color3.fromRGB(48, 48, 56) or Color3.fromRGB(50, 50, 58)
+            tbtn.BackgroundColor3 = normalColor
             tbtn.BorderSizePixel = 0
             tbtn.Text = name
             tbtn.TextColor3 = name == "Main" and C_WHITE or C_TEXT_DIM
@@ -1563,6 +1872,7 @@ local function isGhastlyHarbor()
             tbtn.Font = Enum.Font.GothamBold
             tbtn.Parent = tabBar
             corner(tbtn, 8)
+            setupButtonHover(tbtn, normalColor, hoverColor)
             tabs[name] = tbtn
         end
 
@@ -1572,6 +1882,7 @@ local function isGhastlyHarbor()
         contentFrame.Position = UDim2.new(0, 8, 0, 84)
         contentFrame.BackgroundTransparency = 1
         contentFrame.BorderSizePixel = 0
+        contentFrame.Visible = not Settings.AutoMinimize
         contentFrame.Parent = mainFrame
 
         local mainTab = Instance.new("ScrollingFrame")
@@ -1581,7 +1892,7 @@ local function isGhastlyHarbor()
         mainTab.BorderSizePixel = 0
         mainTab.ScrollBarThickness = 3
         mainTab.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
-        mainTab.CanvasSize = UDim2.new(0, 0, 0, 500)
+        mainTab.CanvasSize = UDim2.new(0, 0, 0, 650)
         mainTab.Visible = true
         mainTab.Parent = contentFrame
         tabContents["Main"] = mainTab
@@ -1637,11 +1948,21 @@ local function isGhastlyHarbor()
         attackToggle.Parent = atkFrame
         corner(attackToggle, 6)
 
+        local function updateAttackHover()
+            if Settings.AutoAttack then
+                setupButtonHover(attackToggle, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(attackToggle, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateAttackHover()
+
         attackToggle.MouseButton1Click:Connect(function()
             Settings.AutoAttack = not Settings.AutoAttack
             attackToggle.Text = Settings.AutoAttack and "ON" or "OFF"
             attackToggle.BackgroundColor3 = Settings.AutoAttack and C_GREEN or C_RED
             saveSettings()
+            updateAttackHover()
             if Settings.AutoAttack then
                 if game.PlaceId ~= LOBBY_PLACE_ID then startAutoAttack() end
             else
@@ -1680,11 +2001,21 @@ local function isGhastlyHarbor()
         abilityToggle.Parent = abFrame
         corner(abilityToggle, 6)
 
+        local function updateAbilityHover()
+            if Settings.AutoAbility then
+                setupButtonHover(abilityToggle, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(abilityToggle, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateAbilityHover()
+
         abilityToggle.MouseButton1Click:Connect(function()
             Settings.AutoAbility = not Settings.AutoAbility
             abilityToggle.Text = Settings.AutoAbility and "ON" or "OFF"
             abilityToggle.BackgroundColor3 = Settings.AutoAbility and C_GREEN or C_RED
             saveSettings()
+            updateAbilityHover()
             if Settings.AutoAbility then startAutoAbility() else stopAutoAbility() end
         end)
 
@@ -1732,11 +2063,21 @@ local function isGhastlyHarbor()
         selfHealToggle.Parent = shToggleFrame
         corner(selfHealToggle, 6)
 
+        local function updateSelfHealHover()
+            if Settings.AutoHealSelf then
+                setupButtonHover(selfHealToggle, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(selfHealToggle, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateSelfHealHover()
+
         selfHealToggle.MouseButton1Click:Connect(function()
             Settings.AutoHealSelf = not Settings.AutoHealSelf
             selfHealToggle.Text = Settings.AutoHealSelf and "ON" or "OFF"
             selfHealToggle.BackgroundColor3 = Settings.AutoHealSelf and C_GREEN or C_RED
             saveSettings()
+            updateSelfHealHover()
             if Settings.AutoHealSelf or Settings.AutoHealTeam then startAutoHeal() else stopAutoHeal() end
         end)
 
@@ -1881,6 +2222,396 @@ local function isGhastlyHarbor()
             saveSettings()
         end)
 
+        local equipRow = Instance.new("Frame")
+        equipRow.Size = UDim2.new(1, 0, 0, 36)
+        equipRow.BackgroundTransparency = 1
+        equipRow.Parent = mainTab
+
+        local eqLayout = Instance.new("UIListLayout")
+        eqLayout.FillDirection = Enum.FillDirection.Horizontal
+        eqLayout.Padding = UDim.new(0, 6)
+        eqLayout.Parent = equipRow
+
+        local armorBtn = Instance.new("TextButton")
+        armorBtn.AutoButtonColor = false
+        armorBtn.Size = UDim2.new(0.5, -3, 1, 0)
+        armorBtn.BackgroundColor3 = Settings.EquipBestArmor and C_GREEN or C_RED
+        armorBtn.BorderSizePixel = 0
+        armorBtn.Text = Settings.EquipBestArmor and "Equip Armor: ON" or "Equip Armor: OFF"
+        armorBtn.TextColor3 = C_WHITE
+        armorBtn.TextSize = 11
+        armorBtn.Font = Enum.Font.GothamBold
+        armorBtn.Parent = equipRow
+        corner(armorBtn, 8)
+
+        local function updateArmorHover()
+            if Settings.EquipBestArmor then
+                setupButtonHover(armorBtn, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(armorBtn, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateArmorHover()
+
+        armorBtn.MouseButton1Click:Connect(function()
+            Settings.EquipBestArmor = not Settings.EquipBestArmor
+            armorBtn.Text = Settings.EquipBestArmor and "Equip Armor: ON" or "Equip Armor: OFF"
+            armorBtn.BackgroundColor3 = Settings.EquipBestArmor and C_GREEN or C_RED
+            saveSettings()
+            updateArmorHover()
+            if Settings.EquipBestArmor then
+                task.delay(0.3, function() pcall(equipBestArmor) end)
+            end
+        end)
+
+        local weaponBtn = Instance.new("TextButton")
+        weaponBtn.AutoButtonColor = false
+        weaponBtn.Size = UDim2.new(0.5, -3, 1, 0)
+        weaponBtn.BackgroundColor3 = Settings.EquipBestWeapon and C_GREEN or C_RED
+        weaponBtn.BorderSizePixel = 0
+        weaponBtn.Text = Settings.EquipBestWeapon and "Equip Weapon: ON" or "Equip Weapon: OFF"
+        weaponBtn.TextColor3 = C_WHITE
+        weaponBtn.TextSize = 11
+        weaponBtn.Font = Enum.Font.GothamBold
+        weaponBtn.Parent = equipRow
+        corner(weaponBtn, 8)
+
+        local function updateWeaponHover()
+            if Settings.EquipBestWeapon then
+                setupButtonHover(weaponBtn, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(weaponBtn, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateWeaponHover()
+
+        weaponBtn.MouseButton1Click:Connect(function()
+            Settings.EquipBestWeapon = not Settings.EquipBestWeapon
+            weaponBtn.Text = Settings.EquipBestWeapon and "Equip Weapon: ON" or "Equip Weapon: OFF"
+            weaponBtn.BackgroundColor3 = Settings.EquipBestWeapon and C_GREEN or C_RED
+            saveSettings()
+            updateWeaponHover()
+            if Settings.EquipBestWeapon then
+                task.delay(0.3, function() pcall(equipBestWeapon) end)
+            end
+        end)
+
+        local sellRow = Instance.new("Frame")
+        sellRow.Size = UDim2.new(1, 0, 0, 36)
+        sellRow.BackgroundTransparency = 1
+        sellRow.Parent = mainTab
+
+        local sellLayout = Instance.new("UIListLayout")
+        sellLayout.FillDirection = Enum.FillDirection.Horizontal
+        sellLayout.Padding = UDim.new(0, 6)
+        sellLayout.Parent = sellRow
+
+        local sellDropdownFrame = Instance.new("Frame")
+        sellDropdownFrame.Size = UDim2.new(0.35, -3, 1, 0)
+        sellDropdownFrame.BackgroundColor3 = C_PANEL
+        sellDropdownFrame.BorderSizePixel = 0
+        sellDropdownFrame.Parent = sellRow
+        corner(sellDropdownFrame, 8)
+        stroke(sellDropdownFrame, Color3.fromRGB(50, 50, 60), 1)
+
+        local sellBtn = Instance.new("TextButton")
+        sellBtn.AutoButtonColor = false
+        sellBtn.Size = UDim2.new(1, 0, 1, 0)
+        sellBtn.BackgroundTransparency = 1
+        sellBtn.Text = "Qualities"
+        sellBtn.TextColor3 = C_TEXT
+        sellBtn.TextSize = 11
+        sellBtn.Font = Enum.Font.GothamBold
+        sellBtn.Parent = sellDropdownFrame
+
+        local sellMenu = Instance.new("Frame")
+        sellMenu.Name = "SellDropdownMenu"
+        sellMenu.Size = UDim2.new(0, 140, 0, 156)
+        sellMenu.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+        sellMenu.BorderSizePixel = 0
+        sellMenu.Visible = false
+        sellMenu.ZIndex = 250
+        sellMenu.Parent = uiScreenGui
+        corner(sellMenu, 6)
+        stroke(sellMenu, Color3.fromRGB(80, 80, 90), 1)
+
+        local sellListLayout = Instance.new("UIListLayout")
+        sellListLayout.Padding = UDim.new(0, 2)
+        sellListLayout.Parent = sellMenu
+
+        local qualityBtns = {}
+        local menuPosConnection = nil
+
+        for _, quality in ipairs(QualityList) do
+            local qBtn = Instance.new("TextButton")
+            qBtn.AutoButtonColor = false
+            qBtn.Size = UDim2.new(1, 0, 0, 24)
+            qBtn.BackgroundColor3 = QualityColors[quality]
+            qBtn.BackgroundTransparency = Settings.SelectedQualities[quality] and 0 or 0.7
+            qBtn.BorderSizePixel = 0
+            qBtn.Text = quality
+            qBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+            qBtn.TextSize = 11
+            qBtn.Font = Enum.Font.GothamBold
+            qBtn.ZIndex = 251
+            qBtn.Parent = sellMenu
+            corner(qBtn, 4)
+
+            local qTextStroke = Instance.new("UIStroke")
+            qTextStroke.Color = Color3.fromRGB(255, 255, 255)
+            qTextStroke.Thickness = 0.1
+            qTextStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+            qTextStroke.Parent = qBtn
+
+            local qBtnStroke = Instance.new("UIStroke")
+            qBtnStroke.Color = Settings.SelectedQualities[quality] and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(60, 60, 70)
+            qBtnStroke.Thickness = Settings.SelectedQualities[quality] and 2 or 1
+            qBtnStroke.Parent = qBtn
+
+            qualityBtns[quality] = qBtn
+
+            qBtn.MouseEnter:Connect(function()
+                qBtn.BackgroundTransparency = 0
+            end)
+            qBtn.MouseLeave:Connect(function()
+                if not Settings.SelectedQualities[quality] then
+                    qBtn.BackgroundTransparency = 0.7
+                end
+            end)
+
+            qBtn.MouseButton1Click:Connect(function()
+                Settings.SelectedQualities[quality] = not Settings.SelectedQualities[quality]
+                for q, btn in pairs(qualityBtns) do
+                    if Settings.SelectedQualities[q] then
+                        btn.BackgroundTransparency = 0
+                        btn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(255, 255, 255)
+                        btn:FindFirstChildOfClass("UIStroke").Thickness = 2
+                    else
+                        btn.BackgroundTransparency = 0.7
+                        btn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(60, 60, 70)
+                        btn:FindFirstChildOfClass("UIStroke").Thickness = 1
+                    end
+                end
+                saveSettings()
+            end)
+        end
+
+        local function updateMenuPosition()
+            if not sellMenu.Visible then return end
+            local ap = sellDropdownFrame.AbsolutePosition
+            local as = sellDropdownFrame.AbsoluteSize
+            sellMenu.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
+        end
+
+        local function updateSelectedQualities()
+            for q, btn in pairs(qualityBtns) do
+                if Settings.SelectedQualities[q] then
+                    btn.BackgroundTransparency = 0
+                    btn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(255, 255, 255)
+                    btn:FindFirstChildOfClass("UIStroke").Thickness = 2
+                else
+                    btn.BackgroundTransparency = 0.7
+                    btn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(60, 60, 70)
+                    btn:FindFirstChildOfClass("UIStroke").Thickness = 1
+                end
+            end
+        end
+
+        updateSelectedQualities()
+
+        sellBtn.MouseButton1Click:Connect(function()
+            local wasOpen = sellMenu.Visible
+            for _, c in pairs(uiScreenGui:GetDescendants()) do
+                if c.Name == "SellDropdownMenu" and c:IsA("Frame") then
+                    c.Visible = false
+                end
+                if c.Name == "TypeDropdownMenu" and c:IsA("Frame") then
+                    c.Visible = false
+                end
+            end
+            if not wasOpen then
+                updateMenuPosition()
+                sellMenu.Visible = true
+                updateSelectedQualities()
+                if menuPosConnection then menuPosConnection:Disconnect() end
+                menuPosConnection = RunService.Heartbeat:Connect(updateMenuPosition)
+            else
+                if menuPosConnection then
+                    menuPosConnection:Disconnect()
+                    menuPosConnection = nil
+                end
+            end
+        end)
+
+        local typeDropdownFrame = Instance.new("Frame")
+        typeDropdownFrame.Size = UDim2.new(0.4, -3, 1, 0)
+        typeDropdownFrame.BackgroundColor3 = C_PANEL
+        typeDropdownFrame.BorderSizePixel = 0
+        typeDropdownFrame.Parent = sellRow
+        corner(typeDropdownFrame, 8)
+        stroke(typeDropdownFrame, Color3.fromRGB(50, 50, 60), 1)
+
+        local typeBtn = Instance.new("TextButton")
+        typeBtn.AutoButtonColor = false
+        typeBtn.Size = UDim2.new(1, 0, 1, 0)
+        typeBtn.BackgroundTransparency = 1
+        typeBtn.Text = "Types"
+        typeBtn.TextColor3 = C_TEXT
+        typeBtn.TextSize = 11
+        typeBtn.Font = Enum.Font.GothamBold
+        typeBtn.Parent = typeDropdownFrame
+
+        local typeMenu = Instance.new("Frame")
+        typeMenu.Name = "TypeDropdownMenu"
+        typeMenu.Size = UDim2.new(0, 140, 0, 110)
+        typeMenu.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+        typeMenu.BorderSizePixel = 0
+        typeMenu.Visible = false
+        typeMenu.ZIndex = 250
+        typeMenu.Parent = uiScreenGui
+        corner(typeMenu, 6)
+        stroke(typeMenu, Color3.fromRGB(80, 80, 90), 1)
+
+        local typeListLayout = Instance.new("UIListLayout")
+        typeListLayout.Padding = UDim.new(0, 2)
+        typeListLayout.Parent = typeMenu
+
+        local typeBtns = {}
+        local typeMenuPosConnection = nil
+        local TYPE_GRAY = Color3.fromRGB(60, 60, 70)
+        local TYPE_GREEN = C_GREEN
+
+        for _, tName in ipairs(TypeList) do
+            local tBtn = Instance.new("TextButton")
+            tBtn.AutoButtonColor = false
+            tBtn.Size = UDim2.new(1, 0, 0, 24)
+            tBtn.BackgroundColor3 = Settings.SellTypes[tName] and TYPE_GREEN or TYPE_GRAY
+            tBtn.BorderSizePixel = 0
+            tBtn.Text = tName
+            tBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+            tBtn.TextSize = 11
+            tBtn.Font = Enum.Font.GothamBold
+            tBtn.ZIndex = 251
+            tBtn.Parent = typeMenu
+            corner(tBtn, 4)
+
+            local tTextStroke = Instance.new("UIStroke")
+            tTextStroke.Color = Color3.fromRGB(255, 255, 255)
+            tTextStroke.Thickness = 0.1
+            tTextStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual
+            tTextStroke.Parent = tBtn
+
+            local tBtnStroke = Instance.new("UIStroke")
+            tBtnStroke.Color = Settings.SellTypes[tName] and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(60, 60, 70)
+            tBtnStroke.Thickness = Settings.SellTypes[tName] and 2 or 1
+            tBtnStroke.Parent = tBtn
+
+            typeBtns[tName] = tBtn
+
+            tBtn.MouseEnter:Connect(function()
+                tBtn.BackgroundColor3 = Settings.SellTypes[tName] and Color3.fromRGB(70, 220, 100) or Color3.fromRGB(80, 80, 90)
+            end)
+            tBtn.MouseLeave:Connect(function()
+                tBtn.BackgroundColor3 = Settings.SellTypes[tName] and TYPE_GREEN or TYPE_GRAY
+            end)
+
+            tBtn.MouseButton1Click:Connect(function()
+                Settings.SellTypes[tName] = not Settings.SellTypes[tName]
+                for tn, btn in pairs(typeBtns) do
+                    if Settings.SellTypes[tn] then
+                        btn.BackgroundColor3 = TYPE_GREEN
+                        btn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(255, 255, 255)
+                        btn:FindFirstChildOfClass("UIStroke").Thickness = 2
+                    else
+                        btn.BackgroundColor3 = TYPE_GRAY
+                        btn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(60, 60, 70)
+                        btn:FindFirstChildOfClass("UIStroke").Thickness = 1
+                    end
+                end
+                saveSettings()
+                print("[DQR] SellTypes: " .. HttpService:JSONEncode(Settings.SellTypes))
+            end)
+        end
+
+        local function updateTypeMenuPosition()
+            if not typeMenu.Visible then return end
+            local ap = typeDropdownFrame.AbsolutePosition
+            local as = typeDropdownFrame.AbsoluteSize
+            typeMenu.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
+        end
+
+        local function updateSelectedTypes()
+            for tn, btn in pairs(typeBtns) do
+                if Settings.SellTypes[tn] then
+                    btn.BackgroundColor3 = TYPE_GREEN
+                    btn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(255, 255, 255)
+                    btn:FindFirstChildOfClass("UIStroke").Thickness = 2
+                else
+                    btn.BackgroundColor3 = TYPE_GRAY
+                    btn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(60, 60, 70)
+                    btn:FindFirstChildOfClass("UIStroke").Thickness = 1
+                end
+            end
+        end
+
+        updateSelectedTypes()
+
+        typeBtn.MouseButton1Click:Connect(function()
+            local wasOpen = typeMenu.Visible
+            for _, c in pairs(uiScreenGui:GetDescendants()) do
+                if c.Name == "SellDropdownMenu" and c:IsA("Frame") then
+                    c.Visible = false
+                end
+                if c.Name == "TypeDropdownMenu" and c:IsA("Frame") then
+                    c.Visible = false
+                end
+            end
+            if not wasOpen then
+                updateTypeMenuPosition()
+                typeMenu.Visible = true
+                updateSelectedTypes()
+                if typeMenuPosConnection then typeMenuPosConnection:Disconnect() end
+                typeMenuPosConnection = RunService.Heartbeat:Connect(updateTypeMenuPosition)
+            else
+                if typeMenuPosConnection then
+                    typeMenuPosConnection:Disconnect()
+                    typeMenuPosConnection = nil
+                end
+            end
+        end)
+
+        local sellToggleBtn = Instance.new("TextButton")
+        sellToggleBtn.AutoButtonColor = false
+        sellToggleBtn.Size = UDim2.new(0.25, -3, 1, 0)
+        sellToggleBtn.BackgroundColor3 = Settings.AutoSell and C_GREEN or C_RED
+        sellToggleBtn.BorderSizePixel = 0
+        sellToggleBtn.Text = Settings.AutoSell and "Sell: ON" or "Sell: OFF"
+        sellToggleBtn.TextColor3 = C_WHITE
+        sellToggleBtn.TextSize = 11
+        sellToggleBtn.Font = Enum.Font.GothamBold
+        sellToggleBtn.Parent = sellRow
+        corner(sellToggleBtn, 8)
+
+        local function updateSellToggleHover()
+            if Settings.AutoSell then
+                setupButtonHover(sellToggleBtn, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(sellToggleBtn, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateSellToggleHover()
+
+        sellToggleBtn.MouseButton1Click:Connect(function()
+            Settings.AutoSell = not Settings.AutoSell
+            sellToggleBtn.Text = Settings.AutoSell and "Sell: ON" or "Sell: OFF"
+            sellToggleBtn.BackgroundColor3 = Settings.AutoSell and C_GREEN or C_RED
+            saveSettings()
+            updateSellToggleHover()
+            if Settings.AutoSell then
+                task.spawn(autoSellItems)
+            end
+        end)
+
         local listHeader = Instance.new("TextLabel")
         listHeader.Size = UDim2.new(1, 0, 0, 20)
         listHeader.BackgroundTransparency = 1
@@ -1955,7 +2686,7 @@ local function isGhastlyHarbor()
         farmTab.BorderSizePixel = 0
         farmTab.ScrollBarThickness = 3
         farmTab.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
-        farmTab.CanvasSize = UDim2.new(0, 0, 0, 350)
+        farmTab.CanvasSize = UDim2.new(0, 0, 0, 500)
         farmTab.Visible = false
         farmTab.Parent = contentFrame
         tabContents["Farming"] = farmTab
@@ -2009,11 +2740,21 @@ local function isGhastlyHarbor()
         hardcoreToggle.Parent = hcFrame
         corner(hardcoreToggle, 6)
 
+        local function updateHardcoreHover()
+            if Settings.Hardcore then
+                setupButtonHover(hardcoreToggle, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(hardcoreToggle, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateHardcoreHover()
+
         hardcoreToggle.MouseButton1Click:Connect(function()
             Settings.Hardcore = not Settings.Hardcore
             hardcoreToggle.Text = Settings.Hardcore and "ON" or "OFF"
             hardcoreToggle.BackgroundColor3 = Settings.Hardcore and C_GREEN or C_RED
             saveSettings()
+            updateHardcoreHover()
         end)
 
         local raidFrame = Instance.new("Frame")
@@ -2047,11 +2788,21 @@ local function isGhastlyHarbor()
         raidToggle.Parent = raidFrame
         corner(raidToggle, 6)
 
+        local function updateRaidHover()
+            if Settings.Raid then
+                setupButtonHover(raidToggle, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(raidToggle, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateRaidHover()
+
         raidToggle.MouseButton1Click:Connect(function()
             Settings.Raid = not Settings.Raid
             raidToggle.Text = Settings.Raid and "ON" or "OFF"
             raidToggle.BackgroundColor3 = Settings.Raid and C_GREEN or C_RED
             saveSettings()
+            updateRaidHover()
         end)
 
         local farmToggleFrame = Instance.new("Frame")
@@ -2085,11 +2836,21 @@ local function isGhastlyHarbor()
         farmToggle.Parent = farmToggleFrame
         corner(farmToggle, 6)
 
+        local function updateFarmHover()
+            if Settings.AutoFarm then
+                setupButtonHover(farmToggle, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(farmToggle, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateFarmHover()
+
         farmToggle.MouseButton1Click:Connect(function()
             Settings.AutoFarm = not Settings.AutoFarm
             farmToggle.Text = Settings.AutoFarm and "ON" or "OFF"
             farmToggle.BackgroundColor3 = Settings.AutoFarm and C_GREEN or C_RED
             saveSettings()
+            updateFarmHover()
             if Settings.AutoFarm then
                 Settings.AutoAttack = true
                 if attackToggle then attackToggle.Text = "ON"; attackToggle.BackgroundColor3 = C_GREEN end
@@ -2131,11 +2892,21 @@ local function isGhastlyHarbor()
         dodgeToggle.Parent = dodgeToggleFrame
         corner(dodgeToggle, 6)
 
+        local function updateDodgeHover()
+            if Settings.AutoDodge then
+                setupButtonHover(dodgeToggle, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(dodgeToggle, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateDodgeHover()
+
         dodgeToggle.MouseButton1Click:Connect(function()
             Settings.AutoDodge = not Settings.AutoDodge
             dodgeToggle.Text = Settings.AutoDodge and "ON" or "OFF"
             dodgeToggle.BackgroundColor3 = Settings.AutoDodge and C_GREEN or C_RED
             saveSettings()
+            updateDodgeHover()
         end)
 
         local autoStartFrame = Instance.new("Frame")
@@ -2169,11 +2940,21 @@ local function isGhastlyHarbor()
         autoStartToggle.Parent = autoStartFrame
         corner(autoStartToggle, 6)
 
+        local function updateAutoStartHover()
+            if Settings.AutoStart then
+                setupButtonHover(autoStartToggle, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(autoStartToggle, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateAutoStartHover()
+
         autoStartToggle.MouseButton1Click:Connect(function()
             Settings.AutoStart = not Settings.AutoStart
             autoStartToggle.Text = Settings.AutoStart and "ON" or "OFF"
             autoStartToggle.BackgroundColor3 = Settings.AutoStart and C_GREEN or C_RED
             saveSettings()
+            updateAutoStartHover()
             if Settings.AutoStart and not isInDungeon and not autoStartRunning then
                 task.spawn(autoStartSequence)
             end
@@ -2186,7 +2967,7 @@ local function isGhastlyHarbor()
         settingsTab.BorderSizePixel = 0
         settingsTab.ScrollBarThickness = 3
         settingsTab.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
-        settingsTab.CanvasSize = UDim2.new(0, 0, 0, 500)
+        settingsTab.CanvasSize = UDim2.new(0, 0, 0, 650)
         settingsTab.Visible = false
         settingsTab.Parent = contentFrame
         tabContents["Settings"] = settingsTab
@@ -2223,11 +3004,11 @@ local function isGhastlyHarbor()
 
         local rjLayout = Instance.new("UIListLayout")
         rjLayout.FillDirection = Enum.FillDirection.Horizontal
-        rjLayout.Padding = UDim.new(0, 6)
+        rjLayout.Padding = UDim.new(0, 4)
         rjLayout.Parent = rejoinRow
 
         local forceFrame = Instance.new("Frame")
-        forceFrame.Size = UDim2.new(0.5, -3, 1, 0)
+        forceFrame.Size = UDim2.new(0.333, -3, 1, 0)
         forceFrame.BackgroundColor3 = C_PANEL
         forceFrame.BorderSizePixel = 0
         forceFrame.Parent = rejoinRow
@@ -2235,37 +3016,97 @@ local function isGhastlyHarbor()
         stroke(forceFrame, Color3.fromRGB(50, 50, 60), 1)
 
         local forceLabel = Instance.new("TextLabel")
-        forceLabel.Size = UDim2.new(1, -70, 1, 0)
-        forceLabel.Position = UDim2.new(0, 10, 0, 0)
+        forceLabel.Size = UDim2.new(1, -56, 1, 0)
+        forceLabel.Position = UDim2.new(0, 8, 0, 0)
         forceLabel.BackgroundTransparency = 1
-        forceLabel.Text = "Force Rejoin"
+        forceLabel.Text = "Force"
         forceLabel.TextColor3 = C_TEXT
-        forceLabel.TextSize = 12
+        forceLabel.TextSize = 11
         forceLabel.Font = Enum.Font.GothamBold
         forceLabel.TextXAlignment = Enum.TextXAlignment.Left
         forceLabel.Parent = forceFrame
 
         local forceBtn = Instance.new("TextButton")
-        forceBtn.Size = UDim2.new(0, 56, 0, 26)
-        forceBtn.Position = UDim2.new(1, -66, 0.5, -13)
+        forceBtn.AutoButtonColor = false
+        forceBtn.Size = UDim2.new(0, 44, 0, 24)
+        forceBtn.Position = UDim2.new(1, -50, 0.5, -12)
         forceBtn.BackgroundColor3 = Settings.ForceRejoin and C_GREEN or C_RED
         forceBtn.BorderSizePixel = 0
         forceBtn.Text = Settings.ForceRejoin and "ON" or "OFF"
         forceBtn.TextColor3 = C_WHITE
-        forceBtn.TextSize = 11
+        forceBtn.TextSize = 10
         forceBtn.Font = Enum.Font.GothamBold
         forceBtn.Parent = forceFrame
         corner(forceBtn, 6)
+
+        local function updateForceHover()
+            if Settings.ForceRejoin then
+                setupButtonHover(forceBtn, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(forceBtn, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateForceHover()
 
         forceBtn.MouseButton1Click:Connect(function()
             Settings.ForceRejoin = not Settings.ForceRejoin
             forceBtn.Text = Settings.ForceRejoin and "ON" or "OFF"
             forceBtn.BackgroundColor3 = Settings.ForceRejoin and C_GREEN or C_RED
             saveSettings()
+            updateForceHover()
+        end)
+
+        local bossFrame = Instance.new("Frame")
+        bossFrame.Size = UDim2.new(0.333, -3, 1, 0)
+        bossFrame.BackgroundColor3 = C_PANEL
+        bossFrame.BorderSizePixel = 0
+        bossFrame.Parent = rejoinRow
+        corner(bossFrame, 8)
+        stroke(bossFrame, Color3.fromRGB(50, 50, 60), 1)
+
+        local bossLabel = Instance.new("TextLabel")
+        bossLabel.Size = UDim2.new(1, -56, 1, 0)
+        bossLabel.Position = UDim2.new(0, 8, 0, 0)
+        bossLabel.BackgroundTransparency = 1
+        bossLabel.Text = "Boss"
+        bossLabel.TextColor3 = C_TEXT
+        bossLabel.TextSize = 11
+        bossLabel.Font = Enum.Font.GothamBold
+        bossLabel.TextXAlignment = Enum.TextXAlignment.Left
+        bossLabel.Parent = bossFrame
+
+        local bossBtn = Instance.new("TextButton")
+        bossBtn.AutoButtonColor = false
+        bossBtn.Size = UDim2.new(0, 44, 0, 24)
+        bossBtn.Position = UDim2.new(1, -50, 0.5, -12)
+        bossBtn.BackgroundColor3 = Settings.BossRejoin and C_GREEN or C_RED
+        bossBtn.BorderSizePixel = 0
+        bossBtn.Text = Settings.BossRejoin and "ON" or "OFF"
+        bossBtn.TextColor3 = C_WHITE
+        bossBtn.TextSize = 10
+        bossBtn.Font = Enum.Font.GothamBold
+        bossBtn.Parent = bossFrame
+        corner(bossBtn, 6)
+
+        local function updateBossHover()
+            if Settings.BossRejoin then
+                setupButtonHover(bossBtn, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(bossBtn, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateBossHover()
+
+        bossBtn.MouseButton1Click:Connect(function()
+            Settings.BossRejoin = not Settings.BossRejoin
+            bossBtn.Text = Settings.BossRejoin and "ON" or "OFF"
+            bossBtn.BackgroundColor3 = Settings.BossRejoin and C_GREEN or C_RED
+            saveSettings()
+            updateBossHover()
         end)
 
         local fastFrame = Instance.new("Frame")
-        fastFrame.Size = UDim2.new(0.5, -3, 1, 0)
+        fastFrame.Size = UDim2.new(0.333, -3, 1, 0)
         fastFrame.BackgroundColor3 = C_PANEL
         fastFrame.BorderSizePixel = 0
         fastFrame.Parent = rejoinRow
@@ -2273,66 +3114,287 @@ local function isGhastlyHarbor()
         stroke(fastFrame, Color3.fromRGB(50, 50, 60), 1)
 
         local fastLabel = Instance.new("TextLabel")
-        fastLabel.Size = UDim2.new(1, -70, 1, 0)
-        fastLabel.Position = UDim2.new(0, 10, 0, 0)
+        fastLabel.Size = UDim2.new(1, -56, 1, 0)
+        fastLabel.Position = UDim2.new(0, 8, 0, 0)
         fastLabel.BackgroundTransparency = 1
-        fastLabel.Text = "Fast Rejoin"
+        fastLabel.Text = "Fast"
         fastLabel.TextColor3 = C_TEXT
-        fastLabel.TextSize = 12
+        fastLabel.TextSize = 11
         fastLabel.Font = Enum.Font.GothamBold
         fastLabel.TextXAlignment = Enum.TextXAlignment.Left
         fastLabel.Parent = fastFrame
 
         local fastBtn = Instance.new("TextButton")
-        fastBtn.Size = UDim2.new(0, 56, 0, 26)
-        fastBtn.Position = UDim2.new(1, -66, 0.5, -13)
+        fastBtn.AutoButtonColor = false
+        fastBtn.Size = UDim2.new(0, 44, 0, 24)
+        fastBtn.Position = UDim2.new(1, -50, 0.5, -12)
         fastBtn.BackgroundColor3 = Settings.FastRejoin and C_GREEN or C_RED
         fastBtn.BorderSizePixel = 0
         fastBtn.Text = Settings.FastRejoin and "ON" or "OFF"
         fastBtn.TextColor3 = C_WHITE
-        fastBtn.TextSize = 11
+        fastBtn.TextSize = 10
         fastBtn.Font = Enum.Font.GothamBold
         fastBtn.Parent = fastFrame
         corner(fastBtn, 6)
+
+        local function updateFastHover()
+            if Settings.FastRejoin then
+                setupButtonHover(fastBtn, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(fastBtn, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateFastHover()
 
         fastBtn.MouseButton1Click:Connect(function()
             Settings.FastRejoin = not Settings.FastRejoin
             fastBtn.Text = Settings.FastRejoin and "ON" or "OFF"
             fastBtn.BackgroundColor3 = Settings.FastRejoin and C_GREEN or C_RED
             saveSettings()
+            updateFastHover()
         end)
 
-        local rejoinStartTime = tick()
+        local autoMinFrame = Instance.new("Frame")
+        autoMinFrame.Size = UDim2.new(1, 0, 0, 36)
+        autoMinFrame.BackgroundColor3 = C_PANEL
+        autoMinFrame.BorderSizePixel = 0
+        autoMinFrame.Parent = settingsTab
+        corner(autoMinFrame, 8)
+        stroke(autoMinFrame, Color3.fromRGB(50, 50, 60), 1)
 
-        local function setupFastRejoinListener()
-            if fastRejoinConnection then return end
+        local autoMinLabel = Instance.new("TextLabel")
+        autoMinLabel.Size = UDim2.new(0.6, -10, 1, 0)
+        autoMinLabel.Position = UDim2.new(0, 10, 0, 0)
+        autoMinLabel.BackgroundTransparency = 1
+        autoMinLabel.Text = "Auto Minimize"
+        autoMinLabel.TextColor3 = C_TEXT
+        autoMinLabel.TextSize = 12
+        autoMinLabel.Font = Enum.Font.GothamBold
+        autoMinLabel.TextXAlignment = Enum.TextXAlignment.Left
+        autoMinLabel.Parent = autoMinFrame
+
+        local autoMinBtn = Instance.new("TextButton")
+        autoMinBtn.AutoButtonColor = false
+        autoMinBtn.Size = UDim2.new(0, 56, 0, 26)
+        autoMinBtn.Position = UDim2.new(1, -66, 0.5, -13)
+        autoMinBtn.BackgroundColor3 = Settings.AutoMinimize and C_GREEN or C_RED
+        autoMinBtn.BorderSizePixel = 0
+        autoMinBtn.Text = Settings.AutoMinimize and "ON" or "OFF"
+        autoMinBtn.TextColor3 = C_WHITE
+        autoMinBtn.TextSize = 11
+        autoMinBtn.Font = Enum.Font.GothamBold
+        autoMinBtn.Parent = autoMinFrame
+        corner(autoMinBtn, 6)
+
+        local function updateAutoMinHover()
+            if Settings.AutoMinimize then
+                setupButtonHover(autoMinBtn, C_GREEN, Color3.fromRGB(70, 220, 100))
+            else
+                setupButtonHover(autoMinBtn, C_RED, Color3.fromRGB(220, 80, 80))
+            end
+        end
+        updateAutoMinHover()
+
+        autoMinBtn.MouseButton1Click:Connect(function()
+            Settings.AutoMinimize = not Settings.AutoMinimize
+            autoMinBtn.Text = Settings.AutoMinimize and "ON" or "OFF"
+            autoMinBtn.BackgroundColor3 = Settings.AutoMinimize and C_GREEN or C_RED
+            saveSettings()
+            updateAutoMinHover()
+        end)
+
+        local function doRejoin()
             local r = ReplicatedStorage:FindFirstChild("remotes")
-            local sjr = r and r:FindFirstChild("showJoinRequest")
-            if not sjr then return end
-            fastRejoinConnection = sjr.OnClientEvent:Connect(function(...)
-                if tick() - rejoinStartTime < 30 then return end
+            local rd = r and r:FindFirstChild("replayDungeon")
+            if not rd then
+                warn("[DQR] replayDungeon remote not found!")
+                return
+            end
+            local hc = Workspace:FindFirstChild("hardcore")
+            local isHc = hc and hc.Value or false
+            local dn = Workspace:FindFirstChild("dungeonName")
+            local dName = dn and dn.Value or Settings.SelectedDungeon
+            local payload = {
+                dungeonProgress = "bossKilled",
+                dungeonStarted = true,
+                hardcore = isHc,
+                dungeonFinished = true,
+                dungeonName = dName,
+                isHardcore = isHc,
+                fightingBoss = true
+            }
+            print("[DQR] Sending replayDungeon with dungeonName=" .. tostring(dName) .. ", hardcore=" .. tostring(isHc))
+            local ok, err = pcall(function()
+                rd:FireServer(payload)
+            end)
+            if not ok then
+                warn("[DQR] replayDungeon failed: " .. tostring(err))
+            else
+                print("[DQR] replayDungeon sent successfully")
+            end
+        end
+
+        local forceRejoinConnection = nil
+        local fastRejoinConnection = nil
+
+        local function setupForceRejoinListener()
+            if forceRejoinConnection then return end
+            local dp = Workspace:FindFirstChild("dungeonProgress")
+            if not dp then
+                warn("[DQR] dungeonProgress not found for Force Rejoin")
+                return
+            end
+            print("[DQR] Force Rejoin listener active")
+            forceRejoinConnection = dp:GetPropertyChangedSignal("Value"):Connect(function()
                 if Settings.Raid then return end
-                local shouldRejoin = Settings.ForceRejoin or (Settings.FastRejoin and Settings.AutoStart)
-                if not shouldRejoin then return end
-                local rd = r:FindFirstChild("replayDungeon")
-                if rd then
-                    rd:FireServer({dungeonProgress="bossKilled", dungeonStarted=true, hardcore=Settings.Hardcore, dungeonFinished=true, dungeonName=Settings.SelectedDungeon, isHardcore=Settings.Hardcore, fightingBoss=true})
+                if not Settings.ForceRejoin then return end
+                if game.PlaceId == LOBBY_PLACE_ID then return end
+                local val = dp.Value
+                print("[DQR] dungeonProgress changed to: " .. tostring(val) .. " (Force Rejoin)")
+                if val == "bossKilled" then
+                    print("[DQR] Force Rejoin triggered!")
+                    doRejoin()
                 end
             end)
         end
 
+        local function setupFastRejoinListener()
+            if fastRejoinConnection then return end
+            local dp = Workspace:FindFirstChild("dungeonProgress")
+            if not dp then
+                warn("[DQR] dungeonProgress not found for Fast Rejoin")
+                return
+            end
+            print("[DQR] Fast Rejoin listener active (AutoStart=" .. tostring(Settings.AutoStart) .. ")")
+            fastRejoinConnection = dp:GetPropertyChangedSignal("Value"):Connect(function()
+                if Settings.Raid then return end
+                if not (Settings.FastRejoin and Settings.AutoStart) then
+                    return
+                end
+                if game.PlaceId == LOBBY_PLACE_ID then return end
+                local val = dp.Value
+                print("[DQR] dungeonProgress changed to: " .. tostring(val) .. " (Fast Rejoin)")
+                if val == "bossKilled" then
+                    print("[DQR] Fast Rejoin triggered!")
+                    doRejoin()
+                end
+            end)
+        end
+
+        setupForceRejoinListener()
         setupFastRejoinListener()
+
+        local bossRejoinConnection = nil
+        local lastDungeonProgress = nil
+
+        local function setupBossRejoinListener()
+            if bossRejoinConnection then return end
+            local dp = Workspace:FindFirstChild("dungeonProgress")
+            if not dp then
+                warn("[DQR] dungeonProgress not found for Boss Rejoin")
+                return
+            end
+            print("[DQR] Boss Rejoin listener active")
+            bossRejoinConnection = dp:GetPropertyChangedSignal("Value"):Connect(function()
+                if not Settings.BossRejoin then return end
+                if game.PlaceId == LOBBY_PLACE_ID then return end
+                local progress = dp.Value
+                print("[DQR] dungeonProgress changed to: " .. tostring(progress) .. " (Boss Rejoin)")
+                if progress == "bossKilled" and lastDungeonProgress ~= "bossKilled" then
+                    lastDungeonProgress = progress
+                    task.wait(0.2)
+                    print("[DQR] Boss Rejoin triggered!")
+                    doRejoin()
+                else
+                    lastDungeonProgress = progress
+                end
+            end)
+        end
+
+        setupBossRejoinListener()
+
+        local inventoryMonitorConnection = nil
+        local lastInventoryCheck = 0
+        local INVENTORY_CHECK_INTERVAL = 5
+        local INVENTORY_FULL_THRESHOLD = 250
+        local wasFastRejoinBeforeFull = nil
+        local lastAutoSellTime = 0
+        local AUTO_SELL_INTERVAL = 5
+
+        local function getInventoryItemCount()
+            if game.PlaceId ~= LOBBY_PLACE_ID then return 0 end
+            local rs = ReplicatedStorage:FindFirstChild("remotes")
+            local ri = rs and rs:FindFirstChild("reloadInvy")
+            if not ri then return 0 end
+            local ok, inv = pcall(function() return ri:InvokeServer() end)
+            if not ok or not inv then return 0 end
+            local count = 0
+            local function countItems(itemTable)
+                for _, item in pairs(itemTable or {}) do
+                    count = count + 1
+                end
+            end
+            if Settings.SellTypes.weapon then countItems(inv.weapons) end
+            if Settings.SellTypes.helmet then countItems(inv.helmets) end
+            if Settings.SellTypes.chest then countItems(inv.chests) end
+            if Settings.SellTypes.ability then countItems(inv.abilities) end
+            return count
+        end
+
+        local function startInventoryMonitor()
+            if inventoryMonitorConnection then return end
+            inventoryMonitorConnection = RunService.Heartbeat:Connect(function()
+                local now = tick()
+                if now - lastInventoryCheck < INVENTORY_CHECK_INTERVAL then return end
+                lastInventoryCheck = now
+                if game.PlaceId ~= LOBBY_PLACE_ID then return end
+                local itemCount = getInventoryItemCount()
+                print("[DQR] Inventory count: " .. itemCount .. "/" .. INVENTORY_FULL_THRESHOLD)
+                if itemCount >= INVENTORY_FULL_THRESHOLD then
+                    if wasFastRejoinBeforeFull == nil then
+                        wasFastRejoinBeforeFull = Settings.FastRejoin
+                        print("[DQR] Inventory FULL! Pausing fast rejoin...")
+                    end
+                    if Settings.FastRejoin then
+                        Settings.FastRejoin = false
+                    end
+                    if Settings.AutoSell then
+                        autoSellItems()
+                    end
+                else
+                    if wasFastRejoinBeforeFull ~= nil then
+                        if wasFastRejoinBeforeFull and not Settings.FastRejoin then
+                            Settings.FastRejoin = true
+                            print("[DQR] Inventory cleared. Fast rejoin restored.")
+                        end
+                        wasFastRejoinBeforeFull = nil
+                    end
+                    if Settings.AutoSell and (now - lastAutoSellTime >= AUTO_SELL_INTERVAL) then
+                        lastAutoSellTime = now
+                        autoSellItems()
+                    end
+                end
+            end)
+        end
+
+        local function stopInventoryMonitor()
+            if inventoryMonitorConnection then
+                inventoryMonitorConnection:Disconnect()
+                inventoryMonitorConnection = nil
+            end
+        end
+
+        startInventoryMonitor()
+        setupBossRejoinListener()
 
         local function switchTab(tabName)
             currentTab = tabName
             for name, btn in pairs(tabs) do
-                if name == tabName then
-                    btn.BackgroundColor3 = C_PANEL
-                    btn.TextColor3 = C_WHITE
-                else
-                    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
-                    btn.TextColor3 = C_TEXT_DIM
-                end
+                local normalColor = name == tabName and C_PANEL or Color3.fromRGB(35, 35, 42)
+                local hoverColor = name == tabName and Color3.fromRGB(48, 48, 56) or Color3.fromRGB(50, 50, 58)
+                btn.BackgroundColor3 = normalColor
+                btn.TextColor3 = name == tabName and C_WHITE or C_TEXT_DIM
+                setupButtonHover(btn, normalColor, hoverColor)
             end
             for name, content in pairs(tabContents) do
                 content.Visible = (name == tabName)
@@ -2343,10 +3405,30 @@ local function isGhastlyHarbor()
             btn.MouseButton1Click:Connect(function() switchTab(name) end)
         end
 
-        local isMinimized = false
+        setupButtonHover(minBtn, Color3.fromRGB(50, 50, 58), Color3.fromRGB(70, 70, 78))
+
         minBtn.MouseButton1Click:Connect(function()
             isMinimized = not isMinimized
             if isMinimized then
+                for _, c in pairs(uiScreenGui:GetDescendants()) do
+                    if c.Name == "SellDropdownMenu" and c:IsA("Frame") then
+                        c.Visible = false
+                    end
+                    if c.Name == "TypeDropdownMenu" and c:IsA("Frame") then
+                        c.Visible = false
+                    end
+                    if c.Name == "DropdownMenu" and c:IsA("Frame") then
+                        c.Visible = false
+                    end
+                end
+                if menuPosConnection then
+                    menuPosConnection:Disconnect()
+                    menuPosConnection = nil
+                end
+                if typeMenuPosConnection then
+                    typeMenuPosConnection:Disconnect()
+                    typeMenuPosConnection = nil
+                end
                 contentFrame.Visible = false
                 tabBar.Visible = false
                 mainFrame.Size = UDim2.new(0, 480, 0, 40)
@@ -2358,6 +3440,8 @@ local function isGhastlyHarbor()
                 minBtn.Text = "−"
             end
         end)
+
+        setupButtonHover(closeBtn, C_RED_DARK, Color3.fromRGB(160, 50, 50))
 
         closeBtn.MouseButton1Click:Connect(function()
             screenGui.Enabled = false
@@ -2448,7 +3532,7 @@ local function isGhastlyHarbor()
             if game.PlaceId ~= LOBBY_PLACE_ID then startAutoAttack() end
         end
         if Settings.AutoAbility then
-            if abilityToggle then abilityToggle.Text = "ON"; abilityToggle.BackgroundColor3 = C_GREEN end
+            if abilityToggle then attackToggle.Text = "ON"; attackToggle.BackgroundColor3 = C_GREEN end
             startAutoAbility()
         end
         if Settings.AutoHealSelf or Settings.AutoHealTeam then
@@ -2460,12 +3544,34 @@ local function isGhastlyHarbor()
             task.spawn(autoStartSequence)
         end
         if Settings.AutoLevelUp then startAutoLevelUp() end
-        setupFastRejoinListener()
+        startAutoEquip()
+        if Settings.EquipBestWeapon then
+            task.delay(1, function()
+                pcall(equipBestWeapon)
+            end)
+        end
+        if Settings.EquipBestArmor then
+            task.delay(1, function()
+                pcall(equipBestArmor)
+            end)
+        end
+        if Settings.AutoSell and game.PlaceId == LOBBY_PLACE_ID then
+            task.delay(2, function()
+                autoSellItems()
+            end)
+        end
+
     end
 
     init()
+    print("[DQR] Init completed")
 end)
 
 if not success then
     warn("Script error: " .. tostring(err))
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "DQR Error",
+        Text = tostring(err),
+        Duration = 10
+    })
 end
