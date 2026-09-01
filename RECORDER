@@ -673,8 +673,7 @@ local function handle_namecall(remote, method, args, results)
             record_action("TDS:Ready()")
             addLog("Ready up", Color3.fromRGB(130, 220, 130))
         else
-            record_action("TDS:VoteSkip(" .. current_wave .. ")")
-            addLog("Skip wave " .. current_wave, Color3.fromRGB(220, 180, 100))
+            addLog("Skip wave " .. current_wave .. " (not recorded)", Color3.fromRGB(220, 180, 100))
         end
         handled = true
         return
@@ -887,6 +886,42 @@ copyBtn.MouseButton1Click:Connect(function()
         return
     end
 
+    local function applyCloneYOffset(scriptText)
+        local lines = {}
+        for line in scriptText:gmatch("[^\r\n]+") do
+            if line:find("TDS:Ability") and line:find("[Hh]ologram") then
+                line = line:gsub(
+                    "(towerPosition%s*=%s*Vector3%.new%()([^,]+),%s*([^,]+),%s*([^%)]+)(%))",
+                    function(pre, xVal, yVal, zVal, close)
+                        local yNum = tonumber(yVal)
+                        if yNum then
+                            return pre .. xVal .. ", " .. tostring(yNum + 45) .. ", " .. zVal .. close
+                        end
+                        return pre .. xVal .. ", " .. yVal .. ", " .. zVal .. close
+                    end
+                )
+                line = line:gsub(
+                    "(towerPosition%s*=%s*%{)(.-)(%})",
+                    function(pre, positions, close)
+                        local adjusted = positions:gsub(
+                            "(Vector3%.new%()([^,]+),%s*([^,]+),%s*([^%)]+)(%))",
+                            function(vpre, xVal, yVal, zVal, vclose)
+                                local yNum = tonumber(yVal)
+                                if yNum then
+                                    return vpre .. xVal .. ", " .. tostring(yNum + 45) .. ", " .. zVal .. vclose
+                                end
+                                return vpre .. xVal .. ", " .. yVal .. ", " .. zVal .. vclose
+                            end
+                        )
+                        return pre .. adjusted .. close
+                    end
+                )
+            end
+            table.insert(lines, line)
+        end
+        return table.concat(lines, "\n")
+    end
+
     local current_mode = "Unknown"
     local current_map = "Unknown"
     local skip_game_info = false
@@ -952,6 +987,8 @@ copyBtn.MouseButton1Click:Connect(function()
             script_to_copy = fullScript:gsub('(TDS:Mode%(".-"%)\n)', "%1" .. game_info_str .. "\n")
         end
     end
+
+    script_to_copy = applyCloneYOffset(script_to_copy)
 
     local success = copyToClipboard(script_to_copy)
     if success then
