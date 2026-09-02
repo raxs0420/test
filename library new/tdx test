@@ -44,8 +44,10 @@ local function getRemote(name)
 end
 
 local function getCash()
-    if not player or not player.leaderstats then return 0 end
-    local cash = player.leaderstats:FindFirstChild("Cash")
+    if not player then return 0 end
+    local leaderstats = player:FindFirstChild("leaderstats")
+    if not leaderstats then return 0 end
+    local cash = leaderstats:FindFirstChild("Cash")
     return cash and cash.Value or 0
 end
 
@@ -53,7 +55,15 @@ local function isPartAlive(part)
     if not part or not part.Parent then return false end
     local ring = part:FindFirstChild("Ring")
     if not ring then return false end
-    local beam = ring:FindFirstChildWhichIsA("Beam")
+
+    local beam = nil
+    for _, child in ipairs(ring:GetChildren()) do
+        if child:IsA("Beam") then
+            beam = child
+            break
+        end
+    end
+
     if not beam then return false end
     local seq = beam.Color
     if seq and seq.Keypoints and #seq.Keypoints > 0 then
@@ -227,23 +237,33 @@ RunService.Stepped:Connect(syncAllTowers)
 local function checkGameOver()
     if gameOverTriggered then return end
 
-    local playerGui = player:FindFirstChild("PlayerGui")
-    if not playerGui then return end
-
-    local interface = playerGui:FindFirstChild("Interface")
-    if not interface then return end
-
-    local gameOverScreen = interface:FindFirstChild("GameOverScreen")
-
-    if not gameOverScreen then
-        task.spawn(function()
-            task.wait(10)
-            checkGameOver() -- re-check after delay
-        end)
-        return
-    end
-
     task.spawn(function()
+        local playerGui
+        local attempts = 0
+        repeat
+            playerGui = player:FindFirstChild("PlayerGui")
+            if not playerGui then
+                task.wait(0.5)
+                attempts = attempts + 1
+            end
+        until playerGui or attempts > 60 or gameOverTriggered
+
+        if not playerGui then return end
+
+        local interface = playerGui:FindFirstChild("Interface")
+        if not interface then
+            task.wait(10)
+            interface = playerGui:FindFirstChild("Interface")
+            if not interface then return end
+        end
+
+        local gameOverScreen = interface:FindFirstChild("GameOverScreen")
+        if not gameOverScreen then
+            task.wait(10)
+            gameOverScreen = interface:FindFirstChild("GameOverScreen")
+            if not gameOverScreen then return end
+        end
+
         while not gameOverTriggered do
             if gameOverScreen.Visible then
                 gameOverTriggered = true
@@ -263,7 +283,15 @@ function TDX:Place(name, x, y, z, rot, cost, expectedId)
     local remote = getRemote("PlaceTower")
     if not remote then return nil end
     local pos = Vector3.new(x, y, z)
-    while getCash() < cost do task.wait() end
+
+    while getCash() < cost do
+        if not player:FindFirstChild("leaderstats") then
+            task.wait(0.1)
+        else
+            task.wait()
+        end
+    end
+
     local ok, res = pcall(function()
         return remote:InvokeServer(rot or 0, name, pos, 0)
     end)
@@ -341,8 +369,10 @@ function TDX:Ability(macroId, slot, loop)
     local remote = ReplicatedStorage:FindFirstChild("Remotes")
     if remote then
         local req = remote:FindFirstChild("TowerUseAbilityRequest")
-        if req then
+        if req and req:IsA("RemoteFunction") then
             pcall(function() req:InvokeServer(actualId, slot) end)
+        elseif req and req:IsA("RemoteEvent") then
+            pcall(function() req:FireServer(actualId, slot) end)
         end
     end
 end
@@ -351,36 +381,35 @@ local upgradeQueue = {}
 local isProcessing = false
 
 function TDX:TowerUpgrade(TowerName, Skill)
-
     table.insert(upgradeQueue, {TowerName = TowerName, Skill = Skill})
 
     if not isProcessing then
-    task.spawn(function()
-    isProcessing = true
+        task.spawn(function()
+            isProcessing = true
 
-    while #upgradeQueue > 0 do
-    local upgrade = table.remove(upgradeQueue, 1)
-    local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
+            while #upgradeQueue > 0 do
+                local upgrade = table.remove(upgradeQueue, 1)
+                local remote = game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("UpgradeShopOperationRequest")
 
-        local upgraded = false
-        while not upgraded do
-        local success, result = pcall(function()
-        return remote:InvokeServer(upgrade.TowerName, upgrade.Skill)
-    end)
+                local upgraded = false
+                while not upgraded do
+                    local success, result = pcall(function()
+                        return remote:InvokeServer(upgrade.TowerName, upgrade.Skill)
+                    end)
 
-        if success and result == true then
-        upgraded = true
-        print(string.format("[TDX] Upgraded %s: %s", upgrade.TowerName, upgrade.Skill))
-        else
-        task.wait(1)
-        end
-    end
+                    if success and result == true then
+                        upgraded = true
+                        print(string.format("[TDX] Upgraded %s: %s", upgrade.TowerName, upgrade.Skill))
+                    else
+                        task.wait(1)
+                    end
+                end
 
-        task.wait(0.5) 
-    end
+                task.wait(0.5)
+            end
 
-        isProcessing = false
-    end)
+            isProcessing = false
+        end)
     end
 end
 
@@ -528,7 +557,7 @@ function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop, cycleDelay)
         task.spawn(function()
             while active do
                 for macroId = startMacroId, endMacroId do
-                    TDX:Ability(macroId, slot, false)
+                    self:Ability(macroId, slot, false)
                 end
                 task.wait(cycleDelay)
             end
@@ -536,7 +565,7 @@ function TDX:AbilitySpamRange(startMacroId, endMacroId, slot, loop, cycleDelay)
         return function() active = false end
     else
         for macroId = startMacroId, endMacroId do
-            TDX:Ability(macroId, slot, false)
+            self:Ability(macroId, slot, false)
         end
     end
 end
@@ -547,7 +576,7 @@ function TDX:AbilitySpamList(macroIds, slot, loop)
         task.spawn(function()
             while active do
                 for _, macroId in ipairs(macroIds) do
-                    TDX:Ability(macroId, slot, false)
+                    self:Ability(macroId, slot, false)
                     task.wait(0.05)
                 end
                 task.wait(0.1)
@@ -556,7 +585,7 @@ function TDX:AbilitySpamList(macroIds, slot, loop)
         return function() active = false end
     else
         for _, macroId in ipairs(macroIds) do
-            TDX:Ability(macroId, slot, false)
+            self:Ability(macroId, slot, false)
             task.wait(0.05)
         end
     end
@@ -623,51 +652,51 @@ function TDX:JoinMapViaAPC(mapName)
                 return false
             end
             task.wait()
-            continue
-        end
-
-        for _, slot in ipairs(apcsFolder:GetChildren()) do
-            local attr = slot:GetAttribute("MapName") or ""
-            if attr == mapName then
-                local detector = slot:FindFirstChild("Detector")
-                if not detector and slot:FindFirstChild("APC") then
-                    detector = slot.APC:FindFirstChild("Detector")
-                end
-                if detector then
-                    local char = player.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        char.HumanoidRootPart.CFrame = detector.CFrame
-                        task.wait(2)
-                        return true
+        else
+            for _, slot in ipairs(apcsFolder:GetChildren()) do
+                local attr = slot:GetAttribute("MapName") or ""
+                if attr == mapName then
+                    local detector = slot:FindFirstChild("Detector")
+                    if not detector and slot:FindFirstChild("APC") then
+                        detector = slot.APC:FindFirstChild("Detector")
+                    end
+                    if detector then
+                        local char = player.Character
+                        if char and char:FindFirstChild("HumanoidRootPart") then
+                            char.HumanoidRootPart.CFrame = detector.CFrame
+                            task.wait(2)
+                            return true
+                        end
                     end
                 end
             end
-        end
 
-        if level >= 31 then
-            local apcs2Folder = Workspace:FindFirstChild("APCs2")
-            if apcs2Folder then
-                for _, slot in ipairs(apcs2Folder:GetChildren()) do
-                    local attr = slot:GetAttribute("MapName") or ""
-                    if attr == mapName then
-                        local detector = slot:FindFirstChild("Detector")
-                        if not detector and slot:FindFirstChild("APC") then
-                            detector = slot.APC:FindFirstChild("Detector")
-                        end
-                        if detector then
-                            local char = player.Character
-                            if char and char:FindFirstChild("HumanoidRootPart") then
-                                char.HumanoidRootPart.CFrame = detector.CFrame
-                                task.wait(2)
-                                return true
+            if level >= 31 then
+                local apcs2Folder = Workspace:FindFirstChild("APCs2")
+                if apcs2Folder then
+                    for _, slot in ipairs(apcs2Folder:GetChildren()) do
+                        local attr = slot:GetAttribute("MapName") or ""
+                        if attr == mapName then
+                            local detector = slot:FindFirstChild("Detector")
+                            if not detector and slot:FindFirstChild("APC") then
+                                detector = slot.APC:FindFirstChild("Detector")
+                            end
+                            if detector then
+                                local char = player.Character
+                                if char and char:FindFirstChild("HumanoidRootPart") then
+                                    char.HumanoidRootPart.CFrame = detector.CFrame
+                                    task.wait(2)
+                                    return true
+                                end
                             end
                         end
                     end
                 end
             end
+
+            startTime = tick()
         end
 
-        startTime = tick()
         task.wait()
     end
 end
@@ -701,36 +730,48 @@ local function startCoinCollector()
 end
 
 local function removeFolders()
-    local gameFolder = workspace:FindFirstChild("Game")
-    if gameFolder then
-        local enemies = gameFolder:FindFirstChild("Enemies")
-        if enemies then
-            enemies:Destroy()
+    pcall(function()
+        local gameFolder = workspace:FindFirstChild("Game")
+        if gameFolder then
+            local enemies = gameFolder:FindFirstChild("Enemies")
+            if enemies then
+                enemies:Destroy()
+            end
         end
-    end
+    end)
 
-    local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
-    if tdxShared then
-        local common = tdxShared:FindFirstChild("Common")
-        if common then
-            local resources = common:FindFirstChild("Resources")
-            if resources then
-                local deathEffects = resources:FindFirstChild("DeathEffects")
-                if deathEffects then
-                    deathEffects:Destroy()
+    pcall(function()
+        local tdxShared = ReplicatedStorage:FindFirstChild("TDX_Shared")
+        if tdxShared then
+            local common = tdxShared:FindFirstChild("Common")
+            if common then
+                local resources = common:FindFirstChild("Resources")
+                if resources then
+                    local deathEffects = resources:FindFirstChild("DeathEffects")
+                    if deathEffects then
+                        deathEffects:Destroy()
+                    end
                 end
             end
         end
+    end)
+end
+
+local function safeDelay(delayTime, callback)
+    if task and task.delay then
+        task.delay(delayTime, callback)
+    else
+        delay(delayTime, callback)
     end
 end
 
-task.delay(13, function()
+safeDelay(13, function()
     local lastCheck = 0
     RunService.Heartbeat:Connect(function(deltaTime)
         lastCheck = lastCheck + deltaTime
         if lastCheck >= 0.5 then
             lastCheck = 0
-            removeFolders()
+            pcall(removeFolders)
         end
     end)
 end)
