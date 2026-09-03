@@ -1,0 +1,94 @@
+_G.AutoPickups = true
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoSkip = true
+_G.AutoReady = true
+_G.AutoMercenary = true
+_G.MercDistance = 190
+_G.Webhook = "https://discord.com/api/webhooks/1453744281851396168/GylYXMlIGppS5P12R9s_i7rI0ZD2ITk3Dl3_H93Pv987JzzCf2kBavWqCoFVsi2z5nWF"
+
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+
+TDS:Loadout("Trapper", "Hacker", "Gatling Gun", "Mercenary Base", "Firework Technician")
+TDS:Mode("Fallen")
+TDS:GameInfo("Lay By", {HiddenEnemies = true, Glass = true, Limitation = true, Committed = true, Fog = true, ExplodingEnemies = true, Quarantine = true})
+
+TDS:Place("Trapper", 3.0718679428100586, 288.00001525878906, 217.0688934326172)
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
+
+TDS:Place("Trapper", -3.2366867065429688, 287.99998474121094, 217.0634765625)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:SetOption(2, "Trap", "Landmine")
+TDS:Upgrade(1)
+TDS:SetOption(1, "Trap", "Landmine")
+
+TDS:Place("Gatling Gun", -2.705148, 250, 206.403676)
+
+for i = 1, 2 do
+    TDS:Upgrade(3)
+end
+
+TDS:Place("Hacker", -2.840099, 250, 282.345397)
+TDS:Place("Hacker", 3.378773, 250, 268.003313)
+
+for i = 4, 5 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+for i = 1, 2 do
+    TDS:Upgrade(3)
+end
+
+TDS:Place("Firework Technician", 2.705148, 250, 206.4036767)
+
+for i = 1, 4 do
+    TDS:Upgrade(6)
+end
+
+for i = 1, 2 do
+    TDS:Upgrade(3)
+end
+
+for i = 4, 5 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i, 2)
+end
+
+TDS:Place("Mercenary Base", -2.705148, 250, 206.403676)
+for i = 1, 6 do
+    TDS:Upgrade(7)
+end
+
+TDS:Place("Mercenary Base", -2.705148, 250, 206.403676)
+for i = 1, 4 do
+    TDS:Upgrade(8)
+end
+
+TDS:SetOption(7, "Unit 1", "Riot Guard")
+TDS:SetOption(7, "Unit 2", "Riot Guard")
+TDS:SetOption(7, "Unit 3", "Riot Guard")
+TDS:SetOption(8, "Unit 1", "Riot Guard")
+TDS:SetOption(8, "Unit 2", "Riot Guard")
+TDS:SetOption(8, "Unit 3", "Riot Guard")
+
+TDS:Place("Mercenary Base", -2.705148, 250, 206.403676)
+for i = 1, 2 do
+    TDS:Upgrade(8)
+end
+
+for i = 1, 6 do
+    TDS:Upgrade(9)
+end
+
+TDS:SetOption(9, "Unit 1", "Riot Guard")
+TDS:SetOption(9, "Unit 2", "Riot Guard")
+TDS:SetOption(9, "Unit 3", "Riot Guard")
+
+TDS:Ability(4, "Hologram Tower", {towerPosition = Vector3.new(3.742042, 250, 206.780052), towerToClone = 3}, true)
+TDS:Ability(5, "Hologram Tower", {towerPosition = {Vector3.new(4.394114, 250, 159.113632), Vector3.new(4.057164, 250, 165.466261), Vector3.new(-2.705148, 250, 165.466261)}, towerToClone = 8}, true)
