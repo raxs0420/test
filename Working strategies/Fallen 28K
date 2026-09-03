@@ -5,7 +5,7 @@ _G.AutoSkip = true
 _G.AutoReady = true
 _G.AutoMercenary = true
 _G.MercDistance = 190
-_G.Webhook = "https://discord.com/api/webhooks/1453744281851396168/GylYXMlIGppS5P12R9s_i7rI0ZD2ITk3Dl3_H93Pv987JzzCf2kBavWqCoFVsi2z5nWF"
+_G.Webhook = "Web_Hook"
 
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
