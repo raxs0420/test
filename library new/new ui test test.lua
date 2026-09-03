@@ -85,11 +85,11 @@ local MAIN = {
 }
 
 local EVOLVED_XP = {
-    ["rbxassetid://16742136768"] = "Scout XP",
+    ["rbxassetid://99276263993721"] = "Scout XP",
     ["rbxassetid://16742109340"] = "Minigunner XP",
     ["rbxassetid://16742038000"] = "Crook Boss XP",
     ["rbxassetid://94394209436954"] = "Operator XP",
-    ["rbxassetid://131022816552952"] = "Juggernaut XP",
+    ["rbxassetid://127024651233382"] = "Juggernaut XP",
     ["rbxassetid://74602401810472"] = "Kingpin XP",
 }
 
