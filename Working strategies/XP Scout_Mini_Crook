@@ -6,31 +6,135 @@ _G.AutoReady = true
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
-TDS:Loadout("Crook Boss", "Minigunner", "Scout", "", "")
+TDS:Loadout("Farm", "Shotgunner", "Crook Boss", "Scout", "Minigunner")
 TDS:Mode("Hardcore")
 TDS:GameInfo("Wretched Front", {})
 
 local function Strategy()
-TDS:Place("Scout", -1.439609, 60, -31.376158)
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+
+TDS:Ready()
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+
+
+
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
+TDS:Place("Farm", -12.500856399536133, 46.5512660741806, 26.795265197753906)
 TDS:Upgrade(1)
-TDS:Upgrade(1)
-TDS:UnlockTimeScale()
-TDS:TimeScale(2) 
-        for i = 2, 7 do
-            TDS:Place("Scout", -1.439609, 60, -31.376158)
-            TDS:Upgrade(i)
-            TDS:Upgrade(i)
-        end
-TDS:Place("Crook Boss", -1.089815, 60, -24.921052)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
 TDS:Upgrade(8)
-TDS:Place("Minigunner", -1.120044, 60, -24.433111)
 TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(5)
+TDS:Upgrade(9)
+
+TDS:Place("Scout", 6.819697, 60, 22.372892)
+TDS:Place("Scout", 6.819697, 60, 22.372892)
+TDS:Place("Scout", 6.819697, 60, 22.372892)
+TDS:Place("Scout", 6.819697, 60, 22.372892)
+TDS:Place("Scout", 6.819697, 60, 22.372892)
+
+for i = 11, 15 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(10)
+
+TDS:Place("Crook Boss", 6.819697, 60, 22.372892)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:SetTarget(16, "Strongest")
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+
+for i = 11, 15 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+TDS:Place("Shotgunner", 10.916370391845703, 45.28825703263283, 10.296428680419922)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+TDS:Place("Shotgunner", 15.799493789672852, 45.39278891682625, 14.850383758544922)
+TDS:Upgrade(18)
+TDS:Upgrade(18)
+TDS:Place("Shotgunner", 12.246450424194336, 45.610064804553986, 17.292055130004883)
+TDS:Upgrade(19)
+TDS:Upgrade(19)
+TDS:Place("Shotgunner", 7.083468437194824, 45.36740705370903, 14.746389389038086)
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+
+for i = 21, 30 do
+    TDS:Place("Scout", 6.819697, 60, 22.372892)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+for i = 17, 20 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+    TDS:SetTarget(i, "Random")
+end
+
+TDS:Place("Crook Boss", 6.819697, 60, 22.372892)
+TDS:Place("Crook Boss", 6.819697, 60, 22.372892)
+TDS:Place("Crook Boss", 6.819697, 60, 22.372892)
+TDS:Place("Crook Boss", 6.819697, 60, 22.372892)
+
+for i = 31, 34 do
+    TDS:Upgrade(i)
+    TDS:Upgrade(i)
+end
+
+TDS:Place("Minigunner", 6.819697, 60, 22.372892)
+
 end
 
 task.spawn(function()
     while true do
         Strategy()
         TDS:HandleGameEnd() 
-        task.wait(1)
     end
 end)
+
