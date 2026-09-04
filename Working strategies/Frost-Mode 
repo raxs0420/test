@@ -1,74 +1,197 @@
--- [[ CONFIGURATION ]]
 _G.AntiLag = true
+_G.AutoSmartSkip = true
+_G.AutoDJ = true
+_G.AutoPickups = true
 _G.ClaimRewards = true
-_G.AutoRejoin = true
+_G.AutoReady = true
 
--- [[ WEBHOOK SETTINGS ]]
-_G.SendWebhook = false
-_G.Webhook = "YOUR-WEBHOOK-URL-HERE"
-
--- [[ INITIALIZE LIBRARY ]]
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
-local function startMatch()
-    TDS:Loadout("Firework Technician", "Gatling Gun", "Hacker", "Scout", "EvolvedJuggernaut")
-    TDS:Mode("Frost")
+TDS:Loadout("EvolvedOperator", "EvolvedJuggernaut", "Hacker", "Firework Technician", "DJ Booth")
+TDS:Mode("Frost")
+TDS:GameInfo("Cataclysm", {
+    HiddenEnemies = true, 
+    Glass = true, 
+    Limitation = true, 
+    Committed = true, 
+    Quarantine = true
+})
 
-    local function WinterAbyssStrategy()
-        TDS:AutoSkip(true)
-        TDS:UnlockTimeScale()  
-        TDS:TimeScale(2) 
-        for i = 1, 8 do TDS:Place("Scout", -3.446479, 60, 43.919820) end
-        for i = 1, 8 do TDS:Upgrade(i) TDS:Upgrade(i) end
-        for i = 1, 8 do TDS:Place("Scout", -4.179082, 60, 54.208679) end
-        for i = 9, 16 do TDS:Upgrade(i) TDS:Upgrade(i) end
-        TDS:Place("Hacker", -4.662402, 60, 48.980261)
-        for i = 1, 2 do TDS:Upgrade(17) end
-        TDS:Place("Gatling Gun", -7.657363, 60, 33.675670)
-        for i = 1, 3 do TDS:Upgrade(18) end
-        TDS:Place("Firework Technician", -3.446479, 60, 43.919820)
-        for i = 1, 2 do TDS:Upgrade(19) end
-        for i = 1, 16 do TDS:Upgrade(i) TDS:Upgrade(i) end
-        TDS:Upgrade(18)
-        for i = 1, 2 do TDS:Upgrade(19) end
-        for i = 1, 2 do TDS:Upgrade(17) end
-        TDS:Upgrade(17, 2)
-        TDS:SetTarget(1, "Weakest")
-        TDS:SetTarget(2, "Weakest")
-        TDS:SetTarget(3, "Weakest")
-        TDS:SetTarget(4, "Weakest")
-        TDS:SetTarget(5, "Weakest")
-        TDS:SetTarget(6, "Weakest")
-        TDS:SetTarget(7, "Weakest")
-        TDS:SetTarget(8, "Weakest")
-        TDS:SetTarget(9, "Weakest")
-        TDS:SetTarget(10, "Weakest")
-        TDS:SetTarget(11, "Weakest")
-        TDS:SetTarget(12, "Weakest")
-        for i = 1, 2 do TDS:Upgrade(18) end
-        TDS:Place("EvolvedJuggernaut", -7.657363, 60, 33.675670)
-        for i = 1, 3 do TDS:Upgrade(20) end
-        for i = 1, 4 do TDS:Upgrade(20, 2) end
-        TDS:Place("Hacker", -4.662402, 60, 48.980261)
-        for i = 1, 4 do TDS:Upgrade(21) end
-        TDS:Upgrade(21, 2)
-        TDS:Ability(17, "Hologram Tower", { towerToClone = 18, towerPosition = Vector3.new(-9.871734, 60, 40.533802) }, true)
-        TDS:Ability(21, "Hologram Tower", { towerToClone = 20, towerPosition = Vector3.new(-13.164421, 60, 33.483294) }, true)
-    end
+TDS:Place("EvolvedOperator", 3.1154298782348633, 8, 23.578699111938477)
+TDS:Place("EvolvedOperator", 0.5645773410797119, 8, 23.391822814941406)
+TDS:Place("EvolvedOperator", 1.7080879211425781, 8, 25.65617561340332)
+TDS:Place("EvolvedOperator", -0.8076252937316895, 8, 25.59488296508789)
+TDS:Place("EvolvedOperator", -1.969688892364502, 8, 23.240869522094727)
+TDS:Place("EvolvedOperator", 3.6496102809906006, 8, 19.0484619140625)
 
-    TDS.pending_strategy = WinterAbyssStrategy
-    TDS:GameInfo("Winter Abyss", {
-        Quarantine = true,
-        Limitation = true, 
-        HiddenEnemies = true,
-        Committed = true,
-        Glass = true
-    })
-    
-loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
-    
-end
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
 
-TDS.ReplayCallback = startMatch
+TDS:Place("Hacker", -4.493656158447266, 8, 24.374759674072266)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
 
-startMatch()
+TDS:Place("EvolvedOperator", 3.1154298782348633, 8, 23.578699111938477)
+TDS:Place("EvolvedOperator", 0.5645773410797119, 8, 23.391822814941406)
+TDS:Place("EvolvedOperator", 1.7080879211425781, 8, 25.65617561340332)
+TDS:Place("EvolvedOperator", -0.8076252937316895, 8, 25.59488296508789)
+TDS:Place("EvolvedOperator", -1.969688892364502, 8, 23.240869522094727)
+TDS:Place("EvolvedOperator", 3.1154298782348633, 8, 23.578699111938477)
+
+-- Added 2 extra Operators in the second badge
+TDS:Place("EvolvedOperator", -1.969688892364502, 8, 23.240869522094727)
+TDS:Place("EvolvedOperator", 3.1154298782348633, 8, 23.578699111938477)
+
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+
+TDS:Place("DJ Booth", -2.995666265487671, 8, 19.530080795288086)
+TDS:Upgrade(16)
+TDS:Upgrade(16)
+TDS:SetOption(16, "Track", "Green")
+TDS:Upgrade(16)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+
+TDS:Place("Firework Technician", 1.106241226196289, 8, 20.57649803161621)
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+
+TDS:Upgrade(16)
+
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:SetTarget(4, "Random")
+TDS:SetTarget(8, "Random")
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(8)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+
+TDS:Place("EvolvedOperator", 5.677188873291016, 8, 4.697739601135254)
+TDS:Place("EvolvedOperator", 3.911076545715332, 8, -13.063552856445312)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+
+TDS:Place("Hacker", -0.4067564010620117, 8, 10.975227355957031)
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+
+TDS:Upgrade(16)
+
+TDS:Upgrade(17)
+TDS:Upgrade(17)
+
+TDS:Upgrade(6)
+TDS:Upgrade(18)
+TDS:Upgrade(19)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+
+TDS:Place("EvolvedJuggernaut", -0.4067564010620117, 8, 10.975227355957031)
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Upgrade(21)
+TDS:Upgrade(21, 2)
+
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+
+TDS:SetOption(16, "Track", "Red")
+
+TDS:Upgrade(21, 2)
+TDS:Upgrade(21, 2)
+
+TDS:Upgrade(20)
+TDS:Upgrade(20)
+
+TDS:Upgrade(20, 1)
+TDS:Upgrade(7, 1)
+
+TDS:Upgrade(21, 2)
+
+TDS:Upgrade(8)
+TDS:Upgrade(9)
+TDS:Upgrade(10)
+TDS:Upgrade(11)
+TDS:Upgrade(12)
+TDS:Upgrade(13)
+TDS:Upgrade(14)
+TDS:Upgrade(15)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+
+TDS:Ability(20, "Hologram Tower", {towerPosition = Vector3.new(-0.4067564010620117, 8, 10.975227355957031), towerToClone = 21}, true)
+TDS:Ability(7, "Hologram Tower", {towerPosition = Vector3.new(-0.4067564010620117, 8, 10.975227355957031), towerToClone = 21}, true)
+
+
