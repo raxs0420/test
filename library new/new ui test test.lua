@@ -558,7 +558,6 @@ local function check_res_ok(data)
 end
 
 local function SmartTeleportToLobby()
-    if not _G.AutoRejoin then return end
     local lobbyId = 3260590327
     local IsMobile = game:GetService("UserInputService").TouchEnabled
     Globals = Globals or {}
@@ -2642,7 +2641,7 @@ local function create_buttons()
             rejoinButton.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
             rejoinButton.Text = "Auto Rejoin: OFF"
         end
-        save_auto_rejoin_state(_G.AutoRejoin)
+        save_auto_rejoin_state(_G.AutoRejoin, _G.AutoRejoinTimerStart)
     end
 
     rejoinButton.MouseButton1Click:Connect(function()
