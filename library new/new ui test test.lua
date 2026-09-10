@@ -3,22 +3,38 @@ if not game:IsLoaded() then game.Loaded:Wait() end
 shared = shared or {}
 _G = _G or {}
 
-local function save_auto_rejoin_state(state)
+local function save_auto_rejoin_state(state, timerStart)
     if not writefile then return end
-    pcall(function() writefile("TDS_AutoRejoin.txt", tostring(state)) end)
+    local content = tostring(state)
+    if timerStart then
+        content = content .. "|" .. tostring(timerStart)
+    end
+    pcall(function() writefile("TDS_AutoRejoin.txt", content) end)
 end
 
 local function load_auto_rejoin_state()
-    if not readfile then return true end
+    if not readfile then return true, nil end
     local saved = true
+    local timerStart = nil
     pcall(function()
         local content = readfile("TDS_AutoRejoin.txt")
-        if content == "false" then saved = false end
+        if content then
+            local stateStr, timerStr = content:match("^(.-)|(.*)$")
+            if stateStr then
+                saved = stateStr == "true"
+                if timerStr and timerStr ~= "" then
+                    timerStart = tonumber(timerStr)
+                end
+            else
+                saved = content == "true"
+            end
+        end
     end)
-    return saved
+    return saved, timerStart
 end
 
-_G.AutoRejoin = load_auto_rejoin_state()
+_G.AutoRejoin, _G.AutoRejoinTimerStart = load_auto_rejoin_state()
+_G.LobbyRejoin = _G.LobbyRejoin or 120  
 _G.LastPlayedMode = nil 
 
 local function identify_game_state()
@@ -36,6 +52,12 @@ local function identify_game_state()
 end
 
 game_state = identify_game_state()
+
+if game_state == "LOBBY" then
+    _G.AutoRejoin = true
+    _G.AutoRejoinTimerStart = nil
+    save_auto_rejoin_state(_G.AutoRejoin, _G.AutoRejoinTimerStart)
+end
 
 local HttpService = game:GetService("HttpService")
 local send_request = request or http_request or httprequest
@@ -553,6 +575,35 @@ local function SmartTeleportToLobby()
     end)
 end
 
+local function check_lobby_rejoin_timer()
+    if not _G.LobbyRejoin or _G.LobbyRejoin <= 0 then return false end
+    if not _G.AutoRejoin then return false end
+
+    if game.PlaceId == 3260590327 then
+        if _G.AutoRejoinTimerStart then
+            _G.AutoRejoinTimerStart = nil
+            save_auto_rejoin_state(_G.AutoRejoin, _G.AutoRejoinTimerStart)
+        end
+        return false
+    end
+
+    if not _G.AutoRejoinTimerStart then
+        _G.AutoRejoinTimerStart = os.time()
+        save_auto_rejoin_state(_G.AutoRejoin, _G.AutoRejoinTimerStart)
+        return false
+    end
+    
+    local elapsed = os.time() - _G.AutoRejoinTimerStart
+    if elapsed >= _G.LobbyRejoin * 60 then
+        _G.AutoRejoin = false
+        _G.AutoRejoinTimerStart = nil
+        save_auto_rejoin_state(_G.AutoRejoin, _G.AutoRejoinTimerStart)
+        SmartTeleportToLobby()  
+        return true
+    end
+    return false
+end
+
 local function rejoin_match()
     if not _G.AutoRejoin then return end
     local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
@@ -621,65 +672,69 @@ local function start_auto_rejoin_monitor()
 
     task.spawn(function()
         while true do
-            local playerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
-            if playerGui then
-                local isInGame = playerGui:FindFirstChild("ReactUniversalHotbar") ~= nil
-                if isInGame then
-                    local uiRoot = playerGui:FindFirstChild("ReactGameNewRewards")
-                    if uiRoot then
-                        local mainFrame = uiRoot:FindFirstChild("Frame")
-                        if mainFrame and mainFrame.Visible then
-                            local gameOver = mainFrame:FindFirstChild("gameOver")
-                            if gameOver and gameOver.Visible then
-                                local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
-                                if rewardsScreen and rewardsScreen.Visible then
-                                    local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
-                                    if topBanner then
-                                        local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
-                                        if label then
-                                            local txt = label.Text:upper()
-                                            if txt ~= "" and (txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") or txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL")) then
-                                                local wave = "0"
-                                                local top = playerGui:FindFirstChild("ReactGameTopGameDisplay")
-                                                if top then
-                                                    local f = top:FindFirstChild("Frame")
-                                                    if f then
-                                                        local w = f:FindFirstChild("wave")
-                                                        if w then
-                                                            local c = w:FindFirstChild("container")
-                                                            if c then
-                                                                local v = c:FindFirstChild("value")
-                                                                if v and v:IsA("TextLabel") then
-                                                                    wave = v.Text:match("^(%d+)") or "0"
+            if check_lobby_rejoin_timer() then
+                task.wait(1)
+            else
+                local playerGui = game.Players.LocalPlayer:FindFirstChild("PlayerGui")
+                if playerGui then
+                    local isInGame = playerGui:FindFirstChild("ReactUniversalHotbar") ~= nil
+                    if isInGame then
+                        local uiRoot = playerGui:FindFirstChild("ReactGameNewRewards")
+                        if uiRoot then
+                            local mainFrame = uiRoot:FindFirstChild("Frame")
+                            if mainFrame and mainFrame.Visible then
+                                local gameOver = mainFrame:FindFirstChild("gameOver")
+                                if gameOver and gameOver.Visible then
+                                    local rewardsScreen = gameOver:FindFirstChild("RewardsScreen")
+                                    if rewardsScreen and rewardsScreen.Visible then
+                                        local topBanner = rewardsScreen:FindFirstChild("RewardBanner")
+                                        if topBanner then
+                                            local label = topBanner:FindFirstChild("textLabel") or topBanner:FindFirstChildOfClass("TextLabel")
+                                            if label then
+                                                local txt = label.Text:upper()
+                                                if txt ~= "" and (txt:find("TRIUMPH") or txt:find("VICTORY") or txt:find("WIN") or txt:find("LOST") or txt:find("DEFEAT") or txt:find("FAIL")) then
+                                                    local wave = "0"
+                                                    local top = playerGui:FindFirstChild("ReactGameTopGameDisplay")
+                                                    if top then
+                                                        local f = top:FindFirstChild("Frame")
+                                                        if f then
+                                                            local w = f:FindFirstChild("wave")
+                                                            if w then
+                                                                local c = w:FindFirstChild("container")
+                                                                if c then
+                                                                    local v = c:FindFirstChild("value")
+                                                                    if v and v:IsA("TextLabel") then
+                                                                        wave = v.Text:match("^(%d+)") or "0"
+                                                                    end
                                                                 end
                                                             end
                                                         end
                                                     end
-                                                end
-                                                local current_key = txt .. "_" .. wave .. "_" .. tostring(game.PlaceId)
-                                                if current_key ~= last_webhook_key then
-                                                    last_webhook_key = current_key
-                                                    task.spawn(function()
-                                                        local found_section = false
-                                                        repeat
-                                                            task.wait(0.1)
-                                                            local f = uiRoot:FindFirstChild("Frame")
-                                                            local g = f and f:FindFirstChild("gameOver")
-                                                            local s = g and g:FindFirstChild("RewardsScreen")
-                                                            if s and s:FindFirstChild("RewardsSection") then
-                                                                found_section = true
-                                                            end
-                                                        until found_section
+                                                    local current_key = txt .. "_" .. wave .. "_" .. tostring(game.PlaceId)
+                                                    if current_key ~= last_webhook_key then
+                                                        last_webhook_key = current_key
+                                                        task.spawn(function()
+                                                            local found_section = false
+                                                            repeat
+                                                                task.wait(0.1)
+                                                                local f = uiRoot:FindFirstChild("Frame")
+                                                                local g = f and f:FindFirstChild("gameOver")
+                                                                local s = g and g:FindFirstChild("RewardsScreen")
+                                                                if s and s:FindFirstChild("RewardsSection") then
+                                                                    found_section = true
+                                                                end
+                                                            until found_section
                                                             task.wait(0.5)
-                                                        local data = tds_collect()
-                                                        if data then
-                                                            send_embed(data, "TDS")
-                                                        end
-                                                        if _G.AutoRejoin then
-                                                            task.wait(0.2)
-                                                            rejoin_match()
-                                                        end
-                                                    end)
+                                                            local data = tds_collect()
+                                                            if data then
+                                                                send_embed(data, "TDS")
+                                                            end
+                                                            if _G.AutoRejoin then
+                                                                task.wait(0.2)
+                                                                rejoin_match()
+                                                            end
+                                                        end)
+                                                    end
                                                 end
                                             end
                                         end
@@ -689,8 +744,8 @@ local function start_auto_rejoin_monitor()
                         end
                     end
                 end
+                task.wait(0.2)
             end
-            task.wait(0.2)
         end
     end)
 end
