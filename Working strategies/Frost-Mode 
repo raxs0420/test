@@ -2,8 +2,10 @@ _G.AntiLag = true
 _G.AutoSmartSkip = true
 _G.AutoDJ = true
 _G.AutoPickups = true
-_G.ClaimRewards = true
 _G.AutoReady = true
+_G.ClaimRewards = true
+_G.LobbyRejoin = 90  
+_G.Webhook = ""
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
 
@@ -18,6 +20,7 @@ TDS:GameInfo("Cataclysm", {
 })
 
 TDS:Place("EvolvedOperator", 3.1154298782348633, 8, 23.578699111938477)
+TDS:AutoSkip(true)
 TDS:Place("EvolvedOperator", 0.5645773410797119, 8, 23.391822814941406)
 TDS:Place("EvolvedOperator", 1.7080879211425781, 8, 25.65617561340332)
 TDS:Place("EvolvedOperator", -0.8076252937316895, 8, 25.59488296508789)
@@ -175,6 +178,8 @@ TDS:Ability(20, "Hologram Tower", {towerPosition = Vector3.new(-0.40675640106201
 TDS:Upgrade(20, 1)
 TDS:Upgrade(7, 1)
 
+TDS:AutoSkip(false)
+
 TDS:Upgrade(21, 2)
 
 TDS:Upgrade(8)
@@ -193,5 +198,3 @@ TDS:Upgrade(5)
 
 TDS:Ability(20, "Hologram Tower", {towerPosition = Vector3.new(-0.4067564010620117, 8, 10.975227355957031), towerToClone = 21}, true)
 TDS:Ability(7, "Hologram Tower", {towerPosition = Vector3.new(-0.4067564010620117, 8, 10.975227355957031), towerToClone = 21}, true)
-
-
