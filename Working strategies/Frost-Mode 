@@ -41,8 +41,6 @@ TDS:Place("EvolvedOperator", 1.7080879211425781, 8, 25.65617561340332)
 TDS:Place("EvolvedOperator", -0.8076252937316895, 8, 25.59488296508789)
 TDS:Place("EvolvedOperator", -1.969688892364502, 8, 23.240869522094727)
 TDS:Place("EvolvedOperator", 3.1154298782348633, 8, 23.578699111938477)
-
--- Added 2 extra Operators in the second badge
 TDS:Place("EvolvedOperator", -1.969688892364502, 8, 23.240869522094727)
 TDS:Place("EvolvedOperator", 3.1154298782348633, 8, 23.578699111938477)
 
@@ -171,6 +169,8 @@ TDS:Upgrade(21, 2)
 
 TDS:Upgrade(20)
 TDS:Upgrade(20)
+
+TDS:Ability(20, "Hologram Tower", {towerPosition = Vector3.new(-0.4067564010620117, 8, 10.975227355957031), towerToClone = 21})
 
 TDS:Upgrade(20, 1)
 TDS:Upgrade(7, 1)
