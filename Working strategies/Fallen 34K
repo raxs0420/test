@@ -6,6 +6,7 @@ _G.AutoReady = true
 _G.AutoMercenary = true
 _G.MercDistance = 190
 _G.AutoDJ = true
+_G.LobbyRejoin = 120  
 
 
 local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
