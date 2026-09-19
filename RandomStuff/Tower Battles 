@@ -1,0 +1,104 @@
+local LOBBY_ID = 45146873
+local GAME_ID = 49707852
+
+while true do
+    if game.PlaceId == LOBBY_ID then
+        task.spawn(function()
+            while game.PlaceId == LOBBY_ID do
+                pcall(function()
+                    workspace.SurvivalAnalysis:InvokeServer()
+                end)
+                task.wait(3)
+            end
+        end)
+
+        while game.PlaceId == LOBBY_ID do
+            pcall(function()
+                workspace.Enter:InvokeServer("SurvivalSolo", 1)
+            end)
+            
+            task.wait(0.3)
+            
+            pcall(function()
+                workspace.BeginSurvivalGame:InvokeServer("SurvivalSolo", 1)
+            end)
+            
+            task.wait(2)
+        end
+    end
+
+    if game.PlaceId == GAME_ID then
+        local hasVoted = false
+        
+        while game.PlaceId == GAME_ID do
+            if not hasVoted then
+                local lowestLength = math.huge
+                local bestMapToVote = nil
+
+                for i = 1, 3 do
+                    local mapFolder = workspace:FindFirstChild("Map" .. i)
+                    if mapFolder then
+                        local typeObj = mapFolder:FindFirstChild("Type")
+                        if typeObj and typeObj:IsA("StringValue") then
+                            local mapName = typeObj.Value
+                            
+                            local mapsInfo = workspace:FindFirstChild("MapsInformation")
+                            if mapsInfo then
+                                local mapInfo = mapsInfo:FindFirstChild(mapName)
+                                if mapInfo then
+                                    local lengthObj = mapInfo:FindFirstChild("Length")
+                                    if lengthObj then
+                                        local len = lengthObj.Value
+                                        if len < lowestLength then
+                                            lowestLength = len
+                                            bestMapToVote = "Map" .. i
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+
+                local VoteRemote = workspace:FindFirstChild("Vote")
+                
+                if VoteRemote then
+                    if bestMapToVote and lowestLength < 151 then
+                        VoteRemote:InvokeServer(bestMapToVote)
+                        
+                        task.wait(0.3)
+                        
+                        pcall(function()
+                            workspace.SkipWaitVote:InvokeServer()
+                        end)
+                        
+                        hasVoted = true
+                    else
+                        VoteRemote:InvokeServer("Veto")
+                        task.wait(2)
+                    end
+                else
+                    task.wait(2)
+                end
+            else
+                local playerGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+                if playerGui then
+                    local stats = playerGui:FindFirstChild("Stats")
+                    if stats then
+                        local defeat = stats:FindFirstChild("Defeat")
+                        if defeat and defeat.Visible then
+                            task.wait(1)
+                            pcall(function()
+                                game:GetService("TeleportService"):Teleport(LOBBY_ID)
+                            end)
+                            break
+                        end
+                    end
+                end
+                task.wait(1)
+            end
+        end
+    end
+
+    task.wait(2)
+end
