@@ -1,0 +1,161 @@
+local function identify_game_state()
+    local players = game:GetService("Players")
+    local temp_player = players.LocalPlayer or players.PlayerAdded:Wait()
+    local temp_gui = temp_player:WaitForChild("PlayerGui")
+    while true do
+        if temp_gui:FindFirstChild("ReactLobbyHud") then
+            return "LOBBY"
+        elseif temp_gui:FindFirstChild("ReactUniversalHotbar") then
+            return "GAME"
+        end
+        task.wait(1)
+    end
+end
+
+game_state = identify_game_state()
+
+if game_state == "LOBBY" then
+    local Players = game:GetService("Players")
+    local player = Players.LocalPlayer
+    
+    local function teleport(character)
+        local hrp = character:WaitForChild("HumanoidRootPart")
+        hrp.CFrame = CFrame.new(-54.250335693359375, 8.161823272705078, -31.4095401763916)
+    end
+    
+    if player.Character then
+        teleport(player.Character)
+    end
+    
+    player.CharacterAdded:Connect(teleport)
+    
+    task.wait(0.5)
+    
+    local Event = game:GetService("ReplicatedStorage").RemoteFunction
+    Event:InvokeServer(
+        "Multiplayer",
+        "v2:start",
+        {
+            count = 1,
+            mode = "nil_zone_ii"
+        }
+    )
+    
+    task.wait(0.5)
+end
+
+local Event = game:GetService("ReplicatedStorage").Network.PlayerManager["RE:UserLoadout"]
+Event:FireServer()
+
+_G.AntiLag = true
+_G.AutoSmartSkip = true
+_G.AutoDJ = true
+_G.AutoPickups = true
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/new%20ui%20test%20test.lua"))()
+TDS:Loadout("Demoman", "Hacker", "EvolvedKingpin", "Gatling Gun", "DJ Booth")
+
+TDS:Ready()
+
+TDS:Place("Demoman", -14.87753963470459, 45.199999928474426, 2.2827043533325195)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
+
+TDS:Upgrade(1)
+TDS:Place("Demoman", -11.957094192504883, 44.999999940395355, 1.2624764442443848)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Place("DJ Booth", -0.9322412014007568, 44.999999940395355, -7.369664192199707)
+TDS:SetOption(3, "Track", "Green")
+TDS:Place("EvolvedKingpin", -4.124975681304932, 44.999999940395355, -3.9406681060791016)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Place("EvolvedKingpin", -4.036370277404785, 44.999999940395355, -0.8253798484802246)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+TDS:Place("EvolvedKingpin", -7.15320348739624, 44.999999940395355, -3.8987624645233154)
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Place("EvolvedKingpin", -7.231030464172363, 44.999999940395355, -0.7375321388244629)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(7)
+TDS:Place("Gatling Gun", 4.306730270385742, 48.60000014305115, -5.9122467041015625)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(4, 2)
+TDS:Upgrade(4, 2)
+TDS:Upgrade(4, 2)
+TDS:SetOption(4, "Unit 1", "Contractor")
+TDS:SetOption(4, "Unit 2", "Contractor")
+TDS:SetOption(4, "Unit 3", "Contractor")
+TDS:Upgrade(5, 2)
+TDS:Upgrade(5, 2)
+TDS:Upgrade(5, 2)
+TDS:SetOption(5, "Unit 1", "Contractor")
+TDS:SetOption(5, "Unit 2", "Contractor")
+TDS:SetOption(5, "Unit 3", "Contractor")
+TDS:Upgrade(6, 2)
+TDS:Upgrade(6, 2)
+TDS:Upgrade(6, 2)
+TDS:SetOption(6, "Unit 1", "Contractor")
+TDS:SetOption(6, "Unit 2", "Contractor")
+TDS:SetOption(6, "Unit 3", "Contractor")
+TDS:Upgrade(7, 2)
+TDS:Upgrade(7, 2)
+TDS:Upgrade(7, 2)
+TDS:SetOption(7, "Unit 1", "Contractor")
+TDS:SetOption(7, "Unit 2", "Contractor")
+TDS:SetOption(7, "Unit 3", "Contractor")
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+TDS:Place("Hacker", -12.686199188232422, 45.39999979734421, -1.7380104064941406)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+TDS:Upgrade(9, 2)
+TDS:Place("Hacker", 8.505311965942383, 45.199999928474426, -4.73486328125)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Upgrade(10, 2)
+TDS:SetOption(3, "Track", "Red")
+TDS:Place("Demoman", 2.8452320098876953, 44.999999940395355, -2.4637765884399414)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Place("Demoman", 6.439290523529053, 44.999999940395355, 0.3993511199951172)
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+TDS:Upgrade(12)
+
+TDS:Ability(10, "Hologram Tower", {towerPosition = Vector3.new(13.365884780883789, 44.999999940395355, 1.2973127365112305), towerToClone = 8}, true)
+
+TDS:Ability(9, "Hologram Tower", {towerPosition = {Vector3.new(-7.231030464172363, 44.999999940395355, -0.7375321388244629), Vector3.new(-4.124975681304932, 44.999999940395355, -3.9406681060791016), Vector3.new(-4.036370277404785, 44.999999940395355, -0.8253798484802246)}, towerToClone = 5}, true)
+
+for i = 13, 50 do
+TDS:Place("Demoman", 6.439290523529053, 44.999999940395355, 0.3993511199951172)
+TDS:Upgrade(i)
+TDS:Upgrade(i)
+TDS:Upgrade(i)
+TDS:Upgrade(i)
+end
