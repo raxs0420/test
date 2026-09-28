@@ -130,8 +130,10 @@ end
 
 function TDX:Wait(seconds)
     seconds = tonumber(seconds) or 0
-    if seconds > 0 then
-        task.wait(seconds)
+    if seconds <= 0 then return end
+    local target = workspace:GetServerTimeNow() + seconds
+    while workspace:GetServerTimeNow() < target do
+        task.wait(0.02)
     end
 end
 
@@ -149,7 +151,7 @@ function TDX:Place(name, timer, pos, rebuild, aim)
         return nil
     end
 
-    local timerArg = workspace.DistributedGameTime
+    local timerArg = workspace:GetServerTimeNow()
     local pending = { name = name, pos = pos, resolved = false, id = nil }
     table.insert(TDX._pendingPlaces, pending)
 
