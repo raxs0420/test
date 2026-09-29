@@ -1,3 +1,6 @@
+local _settings = (getgenv and getgenv().TDX_SETTINGS) or _G.TDX_SETTINGS or {}
+local NO_WAIT = _settings.NoWait == true
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
@@ -129,6 +132,7 @@ local function remapId(recorded)
 end
 
 function TDX:Wait(seconds)
+    if NO_WAIT then return end
     seconds = tonumber(seconds) or 0
     if seconds <= 0 then return end
     local target = workspace:GetServerTimeNow() + seconds
@@ -369,6 +373,10 @@ end
 if getgenv then getgenv().TDX = TDX end
 _G.TDX = TDX
 
-log("Loaded")
+if NO_WAIT then
+    log("Library loaded. Wait commands disabled.")
+else
+    log("Library loaded.")
+end
 
 return TDX
