@@ -156,6 +156,10 @@ local performAutoReplace
 local function scheduleAutoReplace(slotId, hash)
     local slot = TDX._slots[slotId]
     if not slot then return end
+    if not slot.autoReplace then
+        log(string.format("Slot %s (ID %s) died, auto-replace disabled", tostring(slotId), tostring(hash)))
+        return
+    end
     if slot.replaceScheduled then return end
 
     local lvl = TDX._levelCache[hash] or { slot.lastT or 0, slot.lastB or 0 }
@@ -190,7 +194,7 @@ if TowerAliveStateChanged then
 
         if data.IsAlive == false then
             TDX._aliveState[hash] = false
-            local slotId, slot = findSlotByActualId(hash)
+            local slotId = findSlotByActualId(hash)
             if slotId then
                 scheduleAutoReplace(slotId, hash)
             end
@@ -350,6 +354,7 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         pos = pos,
         aim = aim,
         rebuild = rebuild,
+        autoReplace = rebuild,
         actualId = newId,
         lastT = 0,
         lastB = 0,
@@ -363,7 +368,8 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         recordedId = slotId,
     }
 
-    log(string.format("Placed %s (slot %s -> ID %s)", name, tostring(slotId), tostring(newId)))
+    log(string.format("Placed %s (slot %s -> ID %s, auto-replace %s)",
+        name, tostring(slotId), tostring(newId), tostring(rebuild)))
     return newId
 end
 
@@ -425,6 +431,7 @@ function TDX:Sell(hash)
     local slotId, slot = findSlotByActualId(actual)
     if slotId and slot then
         slot.replaceScheduled = false
+        slot.autoReplace = false
     end
 
     return true
