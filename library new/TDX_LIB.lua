@@ -30,7 +30,8 @@ local RetargetTower = grab(Remotes, "RetargetTower")
 local ChangeQueryType = grab(Remotes, "ChangeQueryType")
 local TowerQueryTypeIndexChanged = grab(Remotes, "TowerQueryTypeIndexChanged")
 
-local RETRY_DELAY = 0.5
+local RETRY_DELAY = 1
+local POLL_INTERVAL = 0.05
 local FACTORY_TIMEOUT = 8
 local MATCH_DISTANCE = 8
 
@@ -232,7 +233,14 @@ function TDX:Upgrade(hash, patch, count)
             TowerUpgradeRequest:FireServer(actual, patch, count)
         end)
 
-        task.wait(RETRY_DELAY)
+        local waitStart = tick()
+        while tick() - waitStart < RETRY_DELAY do
+            local cur = TDX._levelCache[actual]
+            if cur and cur[1] >= expectT and cur[2] >= expectB then
+                return true
+            end
+            task.wait(POLL_INTERVAL)
+        end
     end
 end
 
@@ -264,17 +272,21 @@ function TDX:Skip(wave)
         return false
     end
 
-    TDX._skipSuccess = false
+    while true do
+        if TDX._skipSuccess then return true end
 
-    while not TDX._skipSuccess do
+        TDX._skipSuccess = false
+
         pcall(function()
             SkipWaveVoteCast:FireServer(true)
         end)
 
-        task.wait(RETRY_DELAY)
+        local waitStart = tick()
+        while tick() - waitStart < RETRY_DELAY do
+            if TDX._skipSuccess then return true end
+            task.wait(POLL_INTERVAL)
+        end
     end
-
-    return true
 end
 
 function TDX:Ability(hash, slot, pos)
@@ -351,7 +363,13 @@ function TDX:Target(hash, queryType)
             ChangeQueryType:FireServer(actual, queryType)
         end)
 
-        task.wait(RETRY_DELAY)
+        local waitStart = tick()
+        while tick() - waitStart < RETRY_DELAY do
+            if TDX._targetCache[actual] == queryType then
+                return true
+            end
+            task.wait(POLL_INTERVAL)
+        end
     end
 end
 
