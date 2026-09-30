@@ -35,9 +35,10 @@ local RETRY_DELAY = 2
 local MIN_FIRE_GAP = 0.2
 local POLL_INTERVAL = 0.01
 local FACTORY_TIMEOUT = 8
-local MATCH_DISTANCE = 5
-local REVIVE_WAIT = 5
+local MATCH_DISTANCE = 8
+local REVIVE_WAIT = 8
 local SELL_DELAY = 1
+local PLACE_RETRY_CAP = 3
 
 local TDX = {}
 
@@ -185,7 +186,7 @@ local function scheduleAutoReplace(slotId, hash)
     slot.replaceScheduled = true
     slot.deathTime = tick()
 
-    log(string.format("Slot %s (ID %s) died at %d/%d, checking for revive in %ds",
+    log(string.format("Slot %s (ID %s) died at %d/%d, replacing in %ds",
         tostring(slotId), tostring(hash), slot.deathLevel[1], slot.deathLevel[2], REVIVE_WAIT))
 
     task.spawn(function()
@@ -194,11 +195,6 @@ local function scheduleAutoReplace(slotId, hash)
         if not s then return end
         if not s.replaceScheduled then return end
         if s.actualId ~= hash then return end
-        if TDX._aliveState[hash] == true then
-            s.replaceScheduled = false
-            log(string.format("Slot %s revived, cancelling auto-replace", tostring(slotId)))
-            return
-        end
         s.replaceScheduled = false
         performAutoReplace(slotId)
     end)
@@ -218,11 +214,6 @@ if TowerAliveStateChanged then
             end
         elseif data.IsAlive == true then
             TDX._aliveState[hash] = true
-            local slotId, slot = findSlotByActualId(hash)
-            if slotId and slot and slot.replaceScheduled then
-                slot.replaceScheduled = false
-                log(string.format("Slot %s revived (event), cancelling auto-replace", tostring(slotId)))
-            end
         end
     end)
 end
@@ -248,7 +239,9 @@ local function placeInternal(name, pos, aim, rebuild)
     local pending = { name = name, pos = pos, resolved = false, id = nil }
     table.insert(TDX._pendingPlaces, pending)
 
-    while true do
+    local attempts = 0
+    while attempts < PLACE_RETRY_CAP do
+        attempts = attempts + 1
         local timerArg = workspace:GetServerTimeNow()
         local ok, result = pcall(function()
             if aim and typeof(aim) == "Vector3" then
@@ -258,7 +251,20 @@ local function placeInternal(name, pos, aim, rebuild)
         end)
 
         if ok and result == true then break end
-        task.wait(RETRY_DELAY)
+
+        if attempts < PLACE_RETRY_CAP then
+            task.wait(RETRY_DELAY)
+        end
+    end
+
+    if attempts >= PLACE_RETRY_CAP and not pending.resolved then
+        for i, p in ipairs(TDX._pendingPlaces) do
+            if p == pending then
+                table.remove(TDX._pendingPlaces, i)
+                break
+            end
+        end
+        return nil
     end
 
     local start = tick()
@@ -295,13 +301,8 @@ performAutoReplace = function(slotId)
 
     local newId = placeInternal(slot.name, slot.pos, slot.aim, slot.rebuild)
     if not newId then
-        warnUser("Auto-replace place failed for slot", slotId, "- will retry in 2s")
+        warnUser("Auto-replace failed for slot", slotId, "(slot likely occupied)")
         slot.autoReplacing = false
-        task.delay(2, function()
-            if TDX._slots[slotId] == slot and not slot.replaceScheduled then
-                scheduleAutoReplace(slotId, slot.actualId)
-            end
-        end)
         return
     end
 
