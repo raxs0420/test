@@ -1,5 +1,5 @@
-local _settings = (getgenv and getgenv().TDX_SETTINGS) or _G.TDX_SETTINGS or {}
-local NO_WAIT = _settings.NoWait == true
+local _recSettings = (getgenv and getgenv().TDX_RECORDER) or _G.TDX_RECORDER or {}
+local SKIP_WAITS = _recSettings.SkipWaits == true
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -132,7 +132,7 @@ local function remapId(recorded)
 end
 
 function TDX:Wait(seconds)
-    if NO_WAIT then return end
+    if SKIP_WAITS then return end
     seconds = tonumber(seconds) or 0
     if seconds <= 0 then return end
     local target = workspace:GetServerTimeNow() + seconds
@@ -141,7 +141,7 @@ function TDX:Wait(seconds)
     end
 end
 
-function TDX:Place(name, timer, pos, rebuild, aim)
+function TDX:Place(name, timer, pos, rebuild, aim, slotId)
     name = tostring(name or "Unknown")
     timer = tonumber(timer) or 0
     rebuild = (rebuild == true)
@@ -153,6 +153,11 @@ function TDX:Place(name, timer, pos, rebuild, aim)
     if typeof(pos) ~= "Vector3" then
         warnUser("Place: pos must be Vector3")
         return nil
+    end
+
+    slotId = tonumber(slotId)
+    if slotId == nil then
+        slotId = TDX._placeCount + 1
     end
 
     local timerArg = workspace:GetServerTimeNow()
@@ -192,14 +197,13 @@ function TDX:Place(name, timer, pos, rebuild, aim)
     end
 
     TDX._placeCount = TDX._placeCount + 1
-    local recordedId = TDX._placeCount
-    TDX._idRemap[recordedId] = pending.id
-    TDX._placeHistory[TDX._placeCount] = {
+    TDX._idRemap[slotId] = pending.id
+    TDX._placeHistory[slotId] = {
         name = name,
         actualId = pending.id,
-        recordedId = recordedId,
+        recordedId = slotId,
     }
-    log(string.format("Placed %s (recorded ID %s -> actual %s)", name, tostring(recordedId), tostring(pending.id)))
+    log(string.format("Placed %s (recorded ID %s -> actual %s)", name, tostring(slotId), tostring(pending.id)))
     return pending.id
 end
 
@@ -373,10 +377,10 @@ end
 if getgenv then getgenv().TDX = TDX end
 _G.TDX = TDX
 
-if NO_WAIT then
-    log("Library loaded. Wait commands disabled.")
+if SKIP_WAITS then
+    log("Library loaded. Waits will be skipped.")
 else
-    log("Library loaded.")
+    log("Library loaded. Waits will be honored.")
 end
 
 return TDX
