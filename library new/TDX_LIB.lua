@@ -31,11 +31,13 @@ local ChangeQueryType = grab(Remotes, "ChangeQueryType")
 local TowerQueryTypeIndexChanged = grab(Remotes, "TowerQueryTypeIndexChanged")
 local TowerAliveStateChanged = grab(Remotes, "TowerAliveStateChanged")
 
-local RETRY_DELAY = 1
-local POLL_INTERVAL = 0.05
+local RETRY_DELAY = 2
+local MIN_FIRE_GAP = 0.2
+local POLL_INTERVAL = 0.01
 local FACTORY_TIMEOUT = 8
-local MATCH_DISTANCE = 8
+local MATCH_DISTANCE = 5
 local REVIVE_WAIT = 5
+local SELL_DELAY = 1
 
 local TDX = {}
 
@@ -48,6 +50,8 @@ TDX._idRemap = {}
 TDX._placeCount = 0
 TDX._pendingPlaces = {}
 TDX._skipSuccess = false
+TDX._pendingUpgrades = {}
+TDX._lastFire = {}
 
 local function log(...)
     print("[TDX]", ...)
@@ -55,6 +59,20 @@ end
 
 local function warnUser(...)
     warn("[TDX]", ...)
+end
+
+local function waitMinFireGap(key)
+    local last = TDX._lastFire[key]
+    if last then
+        local elapsed = tick() - last
+        if elapsed < MIN_FIRE_GAP then
+            task.wait(MIN_FIRE_GAP - elapsed)
+        end
+    end
+end
+
+local function markFire(key)
+    TDX._lastFire[key] = tick()
 end
 
 if TowerFactoryQueueUpdated then
@@ -227,11 +245,11 @@ end
 local function placeInternal(name, pos, aim, rebuild)
     if not PlaceTower then return nil end
 
-    local timerArg = workspace:GetServerTimeNow()
     local pending = { name = name, pos = pos, resolved = false, id = nil }
     table.insert(TDX._pendingPlaces, pending)
 
     while true do
+        local timerArg = workspace:GetServerTimeNow()
         local ok, result = pcall(function()
             if aim and typeof(aim) == "Vector3" then
                 return PlaceTower:InvokeServer(timerArg, name, pos, rebuild and 1 or 0, aim)
@@ -245,7 +263,7 @@ local function placeInternal(name, pos, aim, rebuild)
 
     local start = tick()
     while not pending.resolved and tick() - start < FACTORY_TIMEOUT do
-        task.wait(0.05)
+        task.wait(POLL_INTERVAL)
     end
 
     for i, p in ipairs(TDX._pendingPlaces) do
@@ -255,7 +273,10 @@ local function placeInternal(name, pos, aim, rebuild)
         end
     end
 
-    if not pending.resolved then return nil end
+    if not pending.resolved then
+        warnUser("Place succeeded but no factory confirm:", name)
+        return nil
+    end
     return pending.id
 end
 
@@ -274,7 +295,7 @@ performAutoReplace = function(slotId)
 
     local newId = placeInternal(slot.name, slot.pos, slot.aim, slot.rebuild)
     if not newId then
-        warnUser("Auto-replace place failed for slot", slotId, "- will retry")
+        warnUser("Auto-replace place failed for slot", slotId, "- will retry in 2s")
         slot.autoReplacing = false
         task.delay(2, function()
             if TDX._slots[slotId] == slot and not slot.replaceScheduled then
@@ -286,6 +307,7 @@ performAutoReplace = function(slotId)
 
     TDX._idRemap[slotId] = newId
     TDX._aliveState[newId] = true
+    TDX._levelCache[newId] = { 0, 0 }
     slot.actualId = newId
     slot.lastT = 0
     slot.lastB = 0
@@ -348,6 +370,7 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
     TDX._placeCount = TDX._placeCount + 1
     TDX._idRemap[slotId] = newId
     TDX._aliveState[newId] = true
+    TDX._levelCache[newId] = { 0, 0 }
 
     TDX._slots[slotId] = {
         name = name,
@@ -384,28 +407,47 @@ function TDX:Upgrade(hash, patch, count)
     end
 
     local actual = remapId(hash)
-    local before = TDX._levelCache[actual] or { 0, 0 }
-    local expectT = before[1] + (patch == 1 and count or 0)
-    local expectB = before[2] + (patch == 2 and count or 0)
 
     while true do
-        local lvl = TDX._levelCache[actual]
-        if lvl and lvl[1] >= expectT and lvl[2] >= expectB then
+        while TDX._pendingUpgrades[actual] and TDX._pendingUpgrades[actual] > 0 do
+            task.wait(POLL_INTERVAL)
+        end
+
+        local before = TDX._levelCache[actual] or { 0, 0 }
+        local expectT = before[1] + (patch == 1 and count or 0)
+        local expectB = before[2] + (patch == 2 and count or 0)
+
+        if before[1] >= expectT and before[2] >= expectB then
             return true
         end
+
+        waitMinFireGap("upgrade_" .. tostring(actual))
+
+        TDX._pendingUpgrades[actual] = (TDX._pendingUpgrades[actual] or 0) + 1
+        markFire("upgrade_" .. tostring(actual))
 
         pcall(function()
             TowerUpgradeRequest:FireServer(actual, patch, count)
         end)
 
-        local waitStart = tick()
-        while tick() - waitStart < RETRY_DELAY do
-            local cur = TDX._levelCache[actual]
-            if cur and cur[1] >= expectT and cur[2] >= expectB then
-                return true
+        local start = tick()
+        local confirmed = false
+        while tick() - start < RETRY_DELAY do
+            local lvl = TDX._levelCache[actual]
+            if lvl and lvl[1] >= expectT and lvl[2] >= expectB then
+                confirmed = true
+                break
             end
             task.wait(POLL_INTERVAL)
         end
+
+        TDX._pendingUpgrades[actual] = math.max(0, (TDX._pendingUpgrades[actual] or 1) - 1)
+
+        if confirmed then
+            return true
+        end
+
+        warnUser("Upgrade not confirmed within " .. RETRY_DELAY .. "s on ID", actual, "- retrying")
     end
 end
 
@@ -423,7 +465,7 @@ function TDX:Sell(hash)
         SellTower:FireServer(actual)
     end)
 
-    task.wait(RETRY_DELAY)
+    task.wait(SELL_DELAY)
     TDX._levelCache[actual] = nil
     TDX._targetCache[actual] = nil
     TDX._aliveState[actual] = false
@@ -450,15 +492,28 @@ function TDX:Skip(wave)
 
         TDX._skipSuccess = false
 
+        waitMinFireGap("skip")
+        markFire("skip")
+
         pcall(function()
             SkipWaveVoteCast:FireServer(true)
         end)
 
-        local waitStart = tick()
-        while tick() - waitStart < RETRY_DELAY do
-            if TDX._skipSuccess then return true end
+        local start = tick()
+        local confirmed = false
+        while tick() - start < RETRY_DELAY do
+            if TDX._skipSuccess then
+                confirmed = true
+                break
+            end
             task.wait(POLL_INTERVAL)
         end
+
+        if confirmed then
+            return true
+        end
+
+        warnUser("Skip not confirmed within " .. RETRY_DELAY .. "s - retrying")
     end
 end
 
@@ -474,6 +529,9 @@ function TDX:Ability(hash, slot, pos)
     local actual = remapId(hash)
 
     while true do
+        waitMinFireGap("ability_" .. tostring(actual))
+        markFire("ability_" .. tostring(actual))
+
         local ok, result = pcall(function()
             if pos and typeof(pos) == "Vector3" then
                 return TowerUseAbilityRequest:InvokeServer(actual, slot, pos)
@@ -504,6 +562,9 @@ function TDX:Retarget(hash, pos)
     local actual = remapId(hash)
 
     while true do
+        waitMinFireGap("retarget_" .. tostring(actual))
+        markFire("retarget_" .. tostring(actual))
+
         local ok, result = pcall(function()
             return RetargetTower:InvokeServer(actual, pos)
         end)
@@ -532,17 +593,28 @@ function TDX:Target(hash, queryType)
             return true
         end
 
+        waitMinFireGap("target_" .. tostring(actual))
+        markFire("target_" .. tostring(actual))
+
         pcall(function()
             ChangeQueryType:FireServer(actual, queryType)
         end)
 
-        local waitStart = tick()
-        while tick() - waitStart < RETRY_DELAY do
+        local start = tick()
+        local confirmed = false
+        while tick() - start < RETRY_DELAY do
             if TDX._targetCache[actual] == queryType then
-                return true
+                confirmed = true
+                break
             end
             task.wait(POLL_INTERVAL)
         end
+
+        if confirmed then
+            return true
+        end
+
+        warnUser("Target not confirmed within " .. RETRY_DELAY .. "s on ID", actual, "- retrying")
     end
 end
 
@@ -567,6 +639,8 @@ function TDX:Reset()
     TDX._idRemap = {}
     TDX._placeCount = 0
     TDX._pendingPlaces = {}
+    TDX._pendingUpgrades = {}
+    TDX._lastFire = {}
 end
 
 if getgenv then getgenv().TDX = TDX end
