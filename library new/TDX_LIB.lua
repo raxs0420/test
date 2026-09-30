@@ -31,8 +31,8 @@ local ChangeQueryType = grab(Remotes, "ChangeQueryType")
 local TowerQueryTypeIndexChanged = grab(Remotes, "TowerQueryTypeIndexChanged")
 local TowerAliveStateChanged = grab(Remotes, "TowerAliveStateChanged")
 
-local RETRY_DELAY = 2
-local MIN_FIRE_GAP = 0.2
+local RETRY_DELAY = 2.5
+local MIN_FIRE_GAP = 0.3
 local POLL_INTERVAL = 0.01
 local FACTORY_TIMEOUT = 8
 local MATCH_DISTANCE = 8
