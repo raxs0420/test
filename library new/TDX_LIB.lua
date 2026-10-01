@@ -987,21 +987,20 @@ function TDX:TimeScale(speed)
 end
 
 function TDX:AutoSkip(enabled)
-    task.spawn(function()
-        while enabled do
-            local skip = getRemote("SkipWaveVoteCast")
-            if skip then
-                pcall(function() skip:FireServer(true) end)
+    if enabled then
+        task.spawn(function()
+            local remote = Remotes:FindFirstChild("SkipWaveVoteCast")
+            if not remote then
+                warnUser("SkipWaveVoteCast remote missing")
+                return
             end
-
-            local cutscene = getRemote("CutsceneVoteCast")
-            if cutscene then
-                pcall(function() cutscene:FireServer(true) end)
+            
+            while enabled do
+                remote:FireServer(true)
+                task.wait(0.3)
             end
-
-            task.wait(0.1)
-        end
-    end)
+        end)
+    end
     return true
 end
 
