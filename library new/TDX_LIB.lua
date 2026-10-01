@@ -544,6 +544,51 @@ if TowerReviveStateChanged then
     end)
 end
 
+local function checkGameOver()
+    if gameOverTriggered then return end
+
+    task.spawn(function()
+        local playerGui
+        local attempts = 0
+        repeat
+            playerGui = player:FindFirstChild("PlayerGui")
+            if not playerGui then
+                task.wait(0.5)
+                attempts = attempts + 1
+            end
+        until playerGui or attempts > 60 or gameOverTriggered
+
+        if not playerGui then return end
+
+        local interface = playerGui:FindFirstChild("Interface")
+        if not interface then
+            task.wait(10)
+            interface = playerGui:FindFirstChild("Interface")
+            if not interface then return end
+        end
+
+        local gameOverScreen = interface:FindFirstChild("GameOverScreen")
+        if not gameOverScreen then
+            task.wait(10)
+            gameOverScreen = interface:FindFirstChild("GameOverScreen")
+            if not gameOverScreen then return end
+        end
+
+        while not gameOverTriggered do
+            if gameOverScreen.Visible then
+                gameOverTriggered = true
+                print("[TDX] Game Over! Teleporting...")
+                task.wait(2)
+                pcall(function()
+                    TeleportService:Teleport(9503261072)
+                end)
+                break
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
 local function slotReady(slot)
     return slot
         and slot.actualId
