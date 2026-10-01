@@ -987,15 +987,20 @@ function TDX:TimeScale(speed)
 end
 
 function TDX:AutoSkip(enabled)
+    if TDX._autoSkipConnection then
+        TDX._autoSkipConnection:Disconnect()
+        TDX._autoSkipConnection = nil
+    end
+    
     if enabled then
-        task.spawn(function()
-            local remote = Remotes:FindFirstChild("SkipWaveVoteCast")
-            if not remote then
-                warnUser("SkipWaveVoteCast remote missing")
-                return
-            end
-            
-            while enabled do
+        local remote = Remotes:FindFirstChild("SkipWaveVoteCast")
+        if not remote then
+            warnUser("SkipWaveVoteCast remote missing")
+            return false
+        end
+        
+        TDX._autoSkipConnection = task.spawn(function()
+            while true do
                 remote:FireServer(true)
                 task.wait(0.3)
             end
@@ -1003,6 +1008,7 @@ function TDX:AutoSkip(enabled)
     end
     return true
 end
+
 
 function TDX:Ability(hash, slot, pos)
     hash = tonumber(hash) or hash
