@@ -961,6 +961,43 @@ function TDX:Skip(wave)
     return true
 end
 
+function TDX:TimeScale(speed)
+    if speed == CurrentSpeed then return true end
+    local remote = getRemote("SoloToggleSpeedControl")
+    if remote then
+        if speed == 1 then
+            remote:FireServer(false)
+        elseif speed == 1.5 then
+            remote:FireServer(true, true)
+        elseif speed == 0.5 then
+            remote:FireServer(true, false)
+        else
+            return false
+        end
+        CurrentSpeed = speed
+    end
+    return true
+end
+
+function TDX:AutoSkip(enabled)
+    task.spawn(function()
+        while enabled do
+            local skip = getRemote("SkipWaveVoteCast")
+            if skip then
+                pcall(function() skip:FireServer(true) end)
+            end
+
+            local cutscene = getRemote("CutsceneVoteCast")
+            if cutscene then
+                pcall(function() cutscene:FireServer(true) end)
+            end
+
+            task.wait(0.1)
+        end
+    end)
+    return true
+end
+
 function TDX:Ability(hash, slot, pos)
     hash = tonumber(hash) or hash
     slot = tonumber(slot) or 1
