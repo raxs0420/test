@@ -1031,11 +1031,10 @@ function TDX:TimeScale(speed)
     return true
 end
 
+TDX._autoSkipToken = 0
+
 function TDX:AutoSkip(enabled)
-    if TDX._autoSkipConnection then
-        TDX._autoSkipConnection:Disconnect()
-        TDX._autoSkipConnection = nil
-    end
+    TDX._autoSkipToken = TDX._autoSkipToken + 1
     
     if enabled then
         local remote = Remotes:FindFirstChild("SkipWaveVoteCast")
@@ -1044,8 +1043,9 @@ function TDX:AutoSkip(enabled)
             return false
         end
         
-        TDX._autoSkipConnection = task.spawn(function()
-            while true do
+        local token = TDX._autoSkipToken
+        task.spawn(function()
+            while token == TDX._autoSkipToken do
                 remote:FireServer(true)
                 task.wait(0.3)
             end
