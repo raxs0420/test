@@ -13,14 +13,14 @@ local REBUILD_PRIORITY = {
 }
 
 local RETRY_DELAY = 3
-local MIN_FIRE_GAP = 0.2
-local POLL_INTERVAL = 0.05
+local MIN_FIRE_GAP = 0.3
+local POLL_INTERVAL = 0.01
 local FACTORY_TIMEOUT = 8
 local MATCH_DISTANCE = 8
-local REVIVE_WAIT = 6
+local REVIVE_WAIT = 7
 local SELL_DELAY = 1
-local PLACE_RETRY_CAP = 3
-local REPLACE_RETRY_DELAY = 10
+local PLACE_RETRY_CAP = 1
+local REPLACE_RETRY_DELAY = 7
 
 local function grab(parent, name, timeout)
     local c = parent:FindFirstChild(name)
