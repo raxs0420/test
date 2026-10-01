@@ -468,7 +468,7 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         end
     end
 
-    local newId = placeInternal(name, pos, aim, rebuild, PLACE_RETRY_CAP)
+    local newId = placeInternal(name, pos, aim, rebuild)
     if not newId then
         warnUser("Place failed:", name)
         return nil
