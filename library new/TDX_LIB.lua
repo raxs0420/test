@@ -7,8 +7,8 @@ local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Refractor" }
 local RETRY_DELAY = 3
 local MIN_FIRE_GAP = 0.3
 local MATCH_DISTANCE = 8
-local IDLE_POLL = 0.05
-local PLACE_MAX_ATTEMPTS = 5
+local IDLE_POLL = 0.01
+local PLACE_MAX_ATTEMPTS = 10
 local DEBUG_MAX = 1000
 
 local Players = game:GetService("Players")
@@ -39,17 +39,12 @@ local TowerQueryTypeIndexChanged = grab(Remotes, "TowerQueryTypeIndexChanged")
 local TowerAliveStateChanged = grab(Remotes, "TowerAliveStateChanged")
 local TowerReviveStateChanged = grab(Remotes, "TowerReviveStateChanged")
 
--- ============================================================
--- Debug UI
--- ============================================================
-
 local _debugScroll
 local _debugStatus
 local _debugOrder = 0
 
 local function createDebugUI()
     if not SHOW_DEBUG_UI then return end
-
     local ok, err = pcall(function()
         local parent
         if gethui then
@@ -144,7 +139,6 @@ local function createDebugUI()
         padding.PaddingRight = UDim.new(0, 4)
         padding.Parent = scroll
     end)
-
     if not ok then
         warn("[TDX] debug UI failed:", err)
     end
@@ -232,11 +226,12 @@ local function action(...)
     pushDebug(nowStamp() .. " > " .. msg, Color3.fromRGB(150, 230, 160))
 end
 
-createDebugUI()
+local function retryMsg(...)
+    local msg = fmt(...)
+    pushDebug(nowStamp() .. " ~ " .. msg, Color3.fromRGB(255, 210, 130))
+end
 
--- ============================================================
--- State
--- ============================================================
+createDebugUI()
 
 local TDX = {}
 
@@ -323,22 +318,6 @@ local function remapId(recorded)
     return TDX._idRemap[recorded] or recorded
 end
 
-local function makeDeferred()
-    local d = { done = false, result = nil, event = Instance.new("BindableEvent") }
-    return d,
-        function(v)
-            if d.done then return end
-            d.done = true
-            d.result = v
-            d.event:Fire()
-        end,
-        function()
-            if d.done then return d.result end
-            d.event.Event:Wait()
-            return d.result
-        end
-end
-
 local function resolveKey(tbl, key)
     local list = tbl[key]
     if not list then return end
@@ -349,13 +328,39 @@ local function resolveKey(tbl, key)
 end
 
 local function awaitEvent(tbl, key, timeout)
-    local _, resolve, await = makeDeferred()
-    tbl[key] = tbl[key] or {}
-    table.insert(tbl[key], resolve)
-    if timeout then
-        task.delay(timeout, resolve)
+    local d = { done = false, result = nil, event = Instance.new("BindableEvent") }
+    local function resolve(v)
+        if d.done then return end
+        d.done = true
+        d.result = v
+        d.event:Fire()
     end
-    return await()
+
+    local list = tbl[key]
+    if not list then
+        list = {}
+        tbl[key] = list
+    end
+    table.insert(list, resolve)
+
+    if timeout then
+        task.delay(math.max(0, timeout), resolve)
+    end
+
+    if not d.done then
+        d.event.Event:Wait()
+    end
+
+    for i = #list, 1, -1 do
+        if list[i] == resolve then
+            table.remove(list, i)
+        end
+    end
+    if #list == 0 and tbl[key] == list then
+        tbl[key] = nil
+    end
+
+    return d.result
 end
 
 local function acquirePlaceLock()
@@ -368,10 +373,6 @@ end
 local function releasePlaceLock()
     TDX._placeLock = false
 end
-
--- ============================================================
--- Remote handlers
--- ============================================================
 
 if TowerFactoryQueueUpdated then
     TowerFactoryQueueUpdated.OnClientEvent:Connect(function(data)
@@ -539,10 +540,6 @@ if TowerReviveStateChanged then
     end)
 end
 
--- ============================================================
--- Waiters
--- ============================================================
-
 local function slotReady(slot)
     return slot
         and slot.actualId
@@ -560,7 +557,7 @@ local function awaitAlive(slotId)
         if not slot then return nil end
         if slotReady(slot) then return slot.actualId end
         if not slot.autoReplace and not slot.actualId then return nil end
-        if not slot.autoReplace and TDX._aliveState[slot.actualId] == false then return nil end
+        if not slot.autoReplace and slot.actualId and TDX._aliveState[slot.actualId] == false then return nil end
         if not announced then
             setStatus("waiting on slot " .. tostring(slotId))
             action(string.format("waiting for slot %s to be ready", tostring(slotId)))
@@ -570,26 +567,34 @@ local function awaitAlive(slotId)
     end
 end
 
-local function awaitLevelChange(actualId, before)
+local function awaitLevelChange(actualId, before, timeout)
+    local deadline = tick() + (timeout or RETRY_DELAY)
     while true do
         local lvl = TDX._levelCache[actualId]
-        if lvl and (lvl[1] > before[1] or lvl[2] > before[2]) then return lvl end
-        if TDX._aliveState[actualId] == false then return nil end
-        awaitEvent(TDX._levelWaiters, actualId, RETRY_DELAY)
+        if lvl and (lvl[1] > before[1] or lvl[2] > before[2]) then
+            return lvl
+        end
+        if TDX._aliveState[actualId] == false then
+            return nil
+        end
+        local remaining = deadline - tick()
+        if remaining <= 0 then
+            return nil
+        end
+        awaitEvent(TDX._levelWaiters, actualId, remaining)
     end
 end
 
-local function awaitTarget(actualId, queryType)
+local function awaitTarget(actualId, queryType, timeout)
+    local deadline = tick() + (timeout or RETRY_DELAY)
     while true do
         if TDX._targetCache[actualId] == queryType then return true end
         if TDX._aliveState[actualId] == false then return false end
-        awaitEvent(TDX._targetWaiters, actualId, RETRY_DELAY)
+        local remaining = deadline - tick()
+        if remaining <= 0 then return false end
+        awaitEvent(TDX._targetWaiters, actualId, remaining)
     end
 end
-
--- ============================================================
--- Rebuild worker
--- ============================================================
 
 ensureWorker = function()
     if TDX._rebuildWorkerRunning then return end
@@ -622,17 +627,13 @@ ensureWorker = function()
                     local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild)
                     local sl = TDX._slots[sid]
 
-                    local function cancel()
-                        queueRemove(sid)
-                    end
-
                     if not sl then
-                        cancel()
+                        queueRemove(sid)
                     elseif sl.deadId ~= deadId or sl.actualId ~= deadId
                         or sl.awaitingRevive or sl.reviving then
                         log(string.format("Slot %s state changed during placement, cancelled",
                             tostring(sid)))
-                        cancel()
+                        queueRemove(sid)
                     elseif newId then
                         TDX._idRemap[sid] = newId
                         TDX._aliveState[newId] = true
@@ -671,7 +672,7 @@ ensureWorker = function()
                             sl.deathLevel = nil
                             sl.deathTime = nil
                         end
-                        cancel()
+                        queueRemove(sid)
                     end
                 end
             end
@@ -688,7 +689,21 @@ placeInternal = function(name, pos, aim, rebuild)
         acquirePlaceLock()
 
         local pending = { name = name, pos = pos, id = nil, resolve = nil }
-        local _, resolve, await = makeDeferred()
+        local _, resolve, await = (function()
+            local d = { done = false, result = nil, event = Instance.new("BindableEvent") }
+            return d,
+                function(v)
+                    if d.done then return end
+                    d.done = true
+                    d.result = v
+                    d.event:Fire()
+                end,
+                function()
+                    if d.done then return d.result end
+                    d.event.Event:Wait()
+                    return d.result
+                end
+        end)()
         pending.resolve = resolve
         table.insert(TDX._pendingPlaces, pending)
 
@@ -746,14 +761,12 @@ restoreLevel = function(slotId, targetT, targetB)
         markFire("upgrade_" .. tostring(actual))
         pcall(function() TowerUpgradeRequest:FireServer(actual, patch, need) end)
 
-        local after = awaitLevelChange(actual, lvl)
-        if not after then return false end
+        local after = awaitLevelChange(actual, lvl, RETRY_DELAY)
+        if not after and TDX._aliveState[actual] == false then
+            return false
+        end
     end
 end
-
--- ============================================================
--- Public API
--- ============================================================
 
 function TDX:Wait(seconds)
     if SKIP_WAITS then return end
@@ -856,7 +869,9 @@ function TDX:Upgrade(hash, patch, count)
 
     action(string.format("UPGRADE slot=%s patch=%d count=%d", tostring(hash), patch, count))
 
+    local attempts = 0
     while true do
+        attempts = attempts + 1
         local actual = awaitAlive(hash)
         if not actual then
             warnUser("Upgrade: slot " .. tostring(hash) .. " is gone")
@@ -868,7 +883,8 @@ function TDX:Upgrade(hash, patch, count)
         local target = cur + count
         if cur >= target then return true end
 
-        setStatus(string.format("upgrading ID %s patch %d", tostring(actual), patch))
+        setStatus(string.format("upgrading ID %s patch %d (%d/%d)",
+            tostring(actual), patch, before[1], before[2]))
         waitMinFireGap("upgrade_" .. tostring(actual))
         markFire("upgrade_" .. tostring(actual))
 
@@ -876,11 +892,18 @@ function TDX:Upgrade(hash, patch, count)
             TowerUpgradeRequest:FireServer(actual, patch, target - cur)
         end)
 
-        local after = awaitLevelChange(actual, before)
+        local after = awaitLevelChange(actual, before, RETRY_DELAY)
         if after then
             local newCur = after[patch] or 0
             if newCur >= target then return true end
             count = target - newCur
+            attempts = 0
+        elseif TDX._aliveState[actual] == false then
+            retryMsg(string.format("ID %s died mid-upgrade, awaiting rebuild", tostring(actual)))
+            attempts = 0
+        else
+            retryMsg(string.format("ID %s patch %d not confirmed, retry #%d",
+                tostring(actual), patch, attempts))
         end
     end
 end
@@ -1009,7 +1032,9 @@ function TDX:Target(hash, queryType)
 
     action(string.format("TARGET slot=%s type=%d", tostring(hash), queryType))
 
+    local attempts = 0
     while true do
+        attempts = attempts + 1
         local actual = awaitAlive(hash)
         if not actual then return false end
 
@@ -1022,7 +1047,17 @@ function TDX:Target(hash, queryType)
             ChangeQueryType:FireServer(actual, queryType)
         end)
 
-        if awaitTarget(actual, queryType) then return true end
+        if awaitTarget(actual, queryType, RETRY_DELAY) then
+            return true
+        end
+
+        if TDX._aliveState[actual] == false then
+            retryMsg(string.format("ID %s died mid-target, awaiting rebuild", tostring(actual)))
+            attempts = 0
+        else
+            retryMsg(string.format("ID %s target %d not confirmed, retry #%d",
+                tostring(actual), queryType, attempts))
+        end
     end
 end
 
