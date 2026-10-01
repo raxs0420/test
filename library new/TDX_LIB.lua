@@ -1138,49 +1138,60 @@ function TDX:Loadout(id)
     task.wait(0.5)
 end
 
-function TDX:VoteDifficulty(diff)
-    task.wait(0.5)
-    local vote = Remotes:FindFirstChild("DifficultyVoteCast")
-    if vote then
-        vote:FireServer(diff)
-    end
-    task.wait(0.2)
-    local ready = Remotes:FindFirstChild("DifficultyVoteReady")
-    if ready then
-        ready:InvokeServer()
-    end
-    task.wait(0.5)
-end
-
 function TDX:VoteMap(map, attempts)
     attempts = attempts or 3
-    for _ = 1, attempts do
-        local vote = grab(Remotes, "MapVoteCast")
-        if vote then
-            vote:FireServer(map)
-            task.wait(0.2)
-            TDX:Ready()
-            return true
-        end
-        local change = grab(Remotes, "MapChangeVoteCast")
-        if change then
-            change:FireServer(true)
-        end
-        task.wait(0.5)
+    
+    local vote = Remotes:FindFirstChild("MapVoteCast")
+    if not vote then
+        warnUser("MapVoteCast remote missing")
+        return false
     end
+    
+    for i = 1, attempts do
+        vote:FireServer(map)
+        task.wait(0.3)
+    end
+    
+    task.wait(1.5)
+    
+    local ready = Remotes:FindFirstChild("MapVoteReady")
+    if ready then
+        for i = 1, 3 do
+            ready:FireServer()
+            task.wait(0.3)
+        end
+        return true
+    end
+    
     return false
 end
 
-function TDX:Ready()
-    local ready = Remotes:FindFirstChild("MapVoteReady")
-    if not ready then
-        ready = Remotes:WaitForChild("MapVoteReady", 3)
+function TDX:VoteDifficulty(diff)
+    local vote = Remotes:FindFirstChild("DifficultyVoteCast")
+    if not vote then
+        warnUser("DifficultyVoteCast remote missing")
+        return false
     end
+    
+    for i = 1, 3 do
+        vote:FireServer(diff)
+        task.wait(0.3)
+    end
+    
+    task.wait(1.5)
+    
+    local ready = Remotes:FindFirstChild("DifficultyVoteReady")
     if ready then
-        ready:InvokeServer()
+        for i = 1, 3 do
+            ready:FireServer()
+            task.wait(0.3)
+        end
+        return true
     end
-    task.wait(0.3)
+    
+    return false
 end
+
 
 function TDX:Equip(items)
     local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
