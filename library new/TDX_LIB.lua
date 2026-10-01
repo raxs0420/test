@@ -6,6 +6,22 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local LocalPlayer = Players.LocalPlayer
 
+local REBUILD_PRIORITY = {
+    "EDJ", 
+    "Combat Medic",
+    "Refractor",
+}
+
+local RETRY_DELAY = 3
+local MIN_FIRE_GAP = 0.2
+local POLL_INTERVAL = 0.05
+local FACTORY_TIMEOUT = 8
+local MATCH_DISTANCE = 8
+local REVIVE_WAIT = 6
+local SELL_DELAY = 1
+local PLACE_RETRY_CAP = 3
+local REPLACE_RETRY_DELAY = 10
+
 local function grab(parent, name, timeout)
     local c = parent:FindFirstChild(name)
     if c then return c end
@@ -31,15 +47,6 @@ local ChangeQueryType = grab(Remotes, "ChangeQueryType")
 local TowerQueryTypeIndexChanged = grab(Remotes, "TowerQueryTypeIndexChanged")
 local TowerAliveStateChanged = grab(Remotes, "TowerAliveStateChanged")
 
-local RETRY_DELAY = 2.5
-local MIN_FIRE_GAP = 0.3
-local POLL_INTERVAL = 0.01
-local FACTORY_TIMEOUT = 8
-local MATCH_DISTANCE = 8
-local REVIVE_WAIT = 8
-local SELL_DELAY = 1
-local PLACE_RETRY_CAP = 3
-
 local TDX = {}
 
 TDX._levelCache = {}
@@ -53,6 +60,8 @@ TDX._pendingPlaces = {}
 TDX._skipSuccess = false
 TDX._pendingUpgrades = {}
 TDX._lastFire = {}
+TDX._rebuildQueue = {}
+TDX._rebuildWorkerRunning = false
 
 local function log(...)
     print("[TDX]", ...)
@@ -74,6 +83,42 @@ end
 
 local function markFire(key)
     TDX._lastFire[key] = tick()
+end
+
+local function priorityIndex(name)
+    for i, n in ipairs(REBUILD_PRIORITY) do
+        if n == name then return i end
+    end
+    return math.huge
+end
+
+local function queueAdd(slotId)
+    for _, id in ipairs(TDX._rebuildQueue) do
+        if id == slotId then return end
+    end
+    table.insert(TDX._rebuildQueue, slotId)
+end
+
+local function queueRemove(slotId)
+    for i, id in ipairs(TDX._rebuildQueue) do
+        if id == slotId then
+            table.remove(TDX._rebuildQueue, i)
+            return
+        end
+    end
+end
+
+local function queueSort()
+    table.sort(TDX._rebuildQueue, function(a, b)
+        local sa = TDX._slots[a]
+        local sb = TDX._slots[b]
+        if not sa then return false end
+        if not sb then return true end
+        local pa = priorityIndex(sa.name)
+        local pb = priorityIndex(sb.name)
+        if pa ~= pb then return pa < pb end
+        return a < b
+    end)
 end
 
 if TowerFactoryQueueUpdated then
@@ -170,36 +215,6 @@ local function findSlotByActualId(actualId)
     return nil, nil
 end
 
-local performAutoReplace
-
-local function scheduleAutoReplace(slotId, hash)
-    local slot = TDX._slots[slotId]
-    if not slot then return end
-    if not slot.autoReplace then
-        log(string.format("Slot %s (ID %s) died, auto-replace disabled", tostring(slotId), tostring(hash)))
-        return
-    end
-    if slot.replaceScheduled then return end
-
-    local lvl = TDX._levelCache[hash] or { slot.lastT or 0, slot.lastB or 0 }
-    slot.deathLevel = { lvl[1] or 0, lvl[2] or 0 }
-    slot.replaceScheduled = true
-    slot.deathTime = tick()
-
-    log(string.format("Slot %s (ID %s) died at %d/%d, replacing in %ds",
-        tostring(slotId), tostring(hash), slot.deathLevel[1], slot.deathLevel[2], REVIVE_WAIT))
-
-    task.spawn(function()
-        task.wait(REVIVE_WAIT)
-        local s = TDX._slots[slotId]
-        if not s then return end
-        if not s.replaceScheduled then return end
-        if s.actualId ~= hash then return end
-        s.replaceScheduled = false
-        performAutoReplace(slotId)
-    end)
-end
-
 if TowerAliveStateChanged then
     TowerAliveStateChanged.OnClientEvent:Connect(function(data)
         if type(data) ~= "table" then return end
@@ -208,9 +223,84 @@ if TowerAliveStateChanged then
 
         if data.IsAlive == false then
             TDX._aliveState[hash] = false
-            local slotId = findSlotByActualId(hash)
-            if slotId then
-                scheduleAutoReplace(slotId, hash)
+            local slotId, slot = findSlotByActualId(hash)
+            if slotId and slot and slot.autoReplace then
+                local lvl = TDX._levelCache[hash] or { slot.lastT or 0, slot.lastB or 0 }
+                slot.deathLevel = { lvl[1] or 0, lvl[2] or 0 }
+                slot.deadId = hash
+                slot.deathTime = tick()
+
+                log(string.format("Slot %s (ID %s) died at %d/%d",
+                    tostring(slotId), tostring(hash), slot.deathLevel[1], slot.deathLevel[2]))
+
+                queueAdd(slotId)
+
+                if not TDX._rebuildWorkerRunning then
+                    TDX._rebuildWorkerRunning = true
+                    task.spawn(function()
+                        while true do
+                            if #TDX._rebuildQueue == 0 then
+                                task.wait(1)
+                            else
+                                queueSort()
+                                local sid = TDX._rebuildQueue[1]
+                                local s = TDX._slots[sid]
+
+                                if not s or not s.deadId then
+                                    queueRemove(sid)
+                                elseif s.actualId ~= s.deadId then
+                                    log(string.format("Slot %s re-placed by recording, dropping from rebuild queue", tostring(sid)))
+                                    s.deadId = nil
+                                    queueRemove(sid)
+                                else
+                                    local remain = (s.deathTime + REVIVE_WAIT) - tick()
+                                    if remain > 0 then
+                                        task.wait(remain)
+                                    end
+
+                                    local targetT = s.deathLevel and s.deathLevel[1] or 0
+                                    local targetB = s.deathLevel and s.deathLevel[2] or 0
+                                    local deadId = s.deadId
+
+                                    log(string.format("Auto-replacing slot %s: %s -> restore %d/%d",
+                                        tostring(sid), tostring(s.name), targetT, targetB))
+
+                                    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild, 1)
+
+                                    if newId then
+                                        TDX._idRemap[sid] = newId
+                                        TDX._aliveState[newId] = true
+                                        TDX._levelCache[newId] = { 0, 0 }
+                                        s.actualId = newId
+                                        s.deadId = nil
+                                        s.lastT = 0
+                                        s.lastB = 0
+                                        queueRemove(sid)
+
+                                        log(string.format("Auto-replace placed %s (slot %s -> new ID %s)",
+                                            s.name, tostring(sid), tostring(newId)))
+
+                                        if targetT > 0 or targetB > 0 then
+                                            task.spawn(function()
+                                                restoreLevel(sid, targetT, targetB)
+                                                log(string.format("Auto-replace slot %s restored to %d/%d",
+                                                    tostring(sid), targetT, targetB))
+                                            end)
+                                        end
+                                    else
+                                        if deadId and s.actualId ~= deadId then
+                                            s.deadId = nil
+                                            queueRemove(sid)
+                                        else
+                                            warnUser("Auto-replace failed for slot", sid, "- retrying in", REPLACE_RETRY_DELAY, "s")
+                                            task.wait(REPLACE_RETRY_DELAY)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
             end
         elseif data.IsAlive == true then
             TDX._aliveState[hash] = true
@@ -233,14 +323,17 @@ function TDX:Wait(seconds)
     end
 end
 
-local function placeInternal(name, pos, aim, rebuild)
+function placeInternal(name, pos, aim, rebuild, maxAttempts)
     if not PlaceTower then return nil end
+
+    maxAttempts = maxAttempts or PLACE_RETRY_CAP
 
     local pending = { name = name, pos = pos, resolved = false, id = nil }
     table.insert(TDX._pendingPlaces, pending)
 
+    local success = false
     local attempts = 0
-    while attempts < PLACE_RETRY_CAP do
+    while attempts < maxAttempts and not success do
         attempts = attempts + 1
         local timerArg = workspace:GetServerTimeNow()
         local ok, result = pcall(function()
@@ -250,14 +343,14 @@ local function placeInternal(name, pos, aim, rebuild)
             return PlaceTower:InvokeServer(timerArg, name, pos, rebuild and 1 or 0)
         end)
 
-        if ok and result == true then break end
-
-        if attempts < PLACE_RETRY_CAP then
+        if ok and result == true then
+            success = true
+        elseif attempts < maxAttempts then
             task.wait(RETRY_DELAY)
         end
     end
 
-    if attempts >= PLACE_RETRY_CAP and not pending.resolved then
+    if not success then
         for i, p in ipairs(TDX._pendingPlaces) do
             if p == pending then
                 table.remove(TDX._pendingPlaces, i)
@@ -286,48 +379,51 @@ local function placeInternal(name, pos, aim, rebuild)
     return pending.id
 end
 
-performAutoReplace = function(slotId)
+function restoreLevel(slotId, targetT, targetB)
     local slot = TDX._slots[slotId]
-    if not slot then return end
-    if slot.autoReplacing then return end
+    if not slot then return false end
+    local actual = slot.actualId
 
-    slot.autoReplacing = true
-
-    local targetT = slot.deathLevel and slot.deathLevel[1] or 0
-    local targetB = slot.deathLevel and slot.deathLevel[2] or 0
-
-    log(string.format("Auto-replacing slot %s: %s -> restore %d/%d",
-        tostring(slotId), tostring(slot.name), targetT, targetB))
-
-    local newId = placeInternal(slot.name, slot.pos, slot.aim, slot.rebuild)
-    if not newId then
-        warnUser("Auto-replace failed for slot", slotId, "(slot likely occupied)")
-        slot.autoReplacing = false
-        return
+    local function currentLevel()
+        return TDX._levelCache[actual] or { 0, 0 }
     end
 
-    TDX._idRemap[slotId] = newId
-    TDX._aliveState[newId] = true
-    TDX._levelCache[newId] = { 0, 0 }
-    slot.actualId = newId
-    slot.lastT = 0
-    slot.lastB = 0
-    slot.autoReplacing = false
-
-    log(string.format("Auto-replace placed %s (slot %s -> new ID %s)", slot.name, tostring(slotId), tostring(newId)))
-
-    if targetT > 0 then
-        task.spawn(function()
-            TDX:Upgrade(slotId, 1, targetT)
-            log(string.format("Auto-replace slot %s restored top to %d", tostring(slotId), targetT))
-        end)
+    local function levelOk()
+        local lvl = currentLevel()
+        return lvl[1] >= targetT and lvl[2] >= targetB
     end
-    if targetB > 0 then
-        task.spawn(function()
-            TDX:Upgrade(slotId, 2, targetB)
-            log(string.format("Auto-replace slot %s restored bottom to %d", tostring(slotId), targetB))
-        end)
+
+    while not levelOk() do
+        local s = TDX._slots[slotId]
+        if not s or s.actualId ~= actual then
+            return false
+        end
+
+        local lvl = currentLevel()
+
+        if lvl[1] < targetT then
+            local need = targetT - lvl[1]
+            waitMinFireGap("upgrade_" .. tostring(actual))
+            markFire("upgrade_" .. tostring(actual))
+            pcall(function()
+                TowerUpgradeRequest:FireServer(actual, 1, need)
+            end)
+        elseif lvl[2] < targetB then
+            local need = targetB - lvl[2]
+            waitMinFireGap("upgrade_" .. tostring(actual))
+            markFire("upgrade_" .. tostring(actual))
+            pcall(function()
+                TowerUpgradeRequest:FireServer(actual, 2, need)
+            end)
+        end
+
+        local pollStart = tick()
+        while tick() - pollStart < RETRY_DELAY and not levelOk() do
+            task.wait(POLL_INTERVAL)
+        end
     end
+
+    return true
 end
 
 function TDX:Place(name, timer, pos, rebuild, aim, slotId)
@@ -351,9 +447,10 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
 
     local existing = TDX._slots[slotId]
     if existing then
-        if existing.replaceScheduled then
-            existing.replaceScheduled = false
-            log(string.format("Slot %s auto-replace cancelled by explicit place", tostring(slotId)))
+        if existing.deadId then
+            existing.deadId = nil
+            queueRemove(slotId)
+            log(string.format("Slot %s rebuild cancelled by explicit place", tostring(slotId)))
         end
         if existing.actualId and TDX._aliveState[existing.actualId] == true then
             log(string.format("Slot %s already alive (ID %s), skipping explicit place",
@@ -362,7 +459,7 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         end
     end
 
-    local newId = placeInternal(name, pos, aim, rebuild)
+    local newId = placeInternal(name, pos, aim, rebuild, PLACE_RETRY_CAP)
     if not newId then
         warnUser("Place failed:", name)
         return nil
@@ -380,10 +477,11 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         rebuild = rebuild,
         autoReplace = rebuild,
         actualId = newId,
+        deadId = nil,
         lastT = 0,
         lastB = 0,
-        replaceScheduled = false,
-        autoReplacing = false,
+        deathLevel = nil,
+        deathTime = nil,
     }
 
     TDX._placeHistory[slotId] = {
@@ -473,8 +571,9 @@ function TDX:Sell(hash)
 
     local slotId, slot = findSlotByActualId(actual)
     if slotId and slot then
-        slot.replaceScheduled = false
+        slot.deadId = nil
         slot.autoReplace = false
+        queueRemove(slotId)
     end
 
     return true
@@ -628,6 +727,7 @@ function TDX:GetStatus()
         targetCache = TDX._targetCache,
         aliveState = TDX._aliveState,
         slots = TDX._slots,
+        rebuildQueue = TDX._rebuildQueue,
     }
 end
 
@@ -642,6 +742,7 @@ function TDX:Reset()
     TDX._pendingPlaces = {}
     TDX._pendingUpgrades = {}
     TDX._lastFire = {}
+    TDX._rebuildQueue = {}
 end
 
 if getgenv then getgenv().TDX = TDX end
