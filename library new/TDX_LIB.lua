@@ -1099,7 +1099,7 @@ function TDX:Target(hash, queryType)
 end
 
 function TDX:Mode(mode)
-    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    local net = ReplicatedStorage:FindFirstChild("Network")
     if net then
         local partyType = net:FindFirstChild("ClientChangePartyTypeRequest")
         local partyMap = net:FindFirstChild("ClientChangePartyMapRequest")
@@ -1114,7 +1114,7 @@ function TDX:Mode(mode)
 end
 
 function TDX:StartMatchmaking()
-    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    local net = ReplicatedStorage:FindFirstChild("Network")
     if net then
         local start = net:FindFirstChild("ClientStartGameRequest")
         if start then
