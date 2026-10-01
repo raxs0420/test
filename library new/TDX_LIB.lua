@@ -1173,6 +1173,28 @@ function TDX:VoteDifficulty(diff)
         return false
     end
     
+    local stateUpdate = Remotes:FindFirstChild("DifficultyVoteStateUpdate")
+    if stateUpdate then
+        local waiting = true
+        local connection
+        connection = stateUpdate.OnClientEvent:Connect(function(data)
+            if type(data) == "table" and data.WaitingForFirstVote == false then
+                waiting = false
+                if connection then
+                    connection:Disconnect()
+                end
+            end
+        end)
+        
+        local timeout = tick() + 33
+        while waiting and tick() < timeout do
+            task.wait(0.3)
+        end
+        if connection then
+            connection:Disconnect()
+        end
+    end
+    
     for i = 1, 3 do
         vote:FireServer(diff)
         task.wait(0.3)
@@ -1191,6 +1213,7 @@ function TDX:VoteDifficulty(diff)
     
     return false
 end
+
 
 
 function TDX:Equip(items)
