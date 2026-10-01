@@ -1139,19 +1139,18 @@ function TDX:Loadout(id)
 end
 
 function TDX:VoteDifficulty(diff)
-    task.wait(5.5)
-    local vote = grab(Remotes, "DifficultyVoteCast")
+    task.wait(0.5)
+    local vote = Remotes:FindFirstChild("DifficultyVoteCast")
     if vote then
         vote:FireServer(diff)
     end
     task.wait(0.2)
-    local ready = grab(Remotes, "DifficultyVoteReady")
+    local ready = Remotes:FindFirstChild("DifficultyVoteReady")
     if ready then
-        ready:FireServer(diff)
+        ready:InvokeServer()
     end
     task.wait(0.5)
 end
-
 
 function TDX:VoteMap(map, attempts)
     attempts = attempts or 3
@@ -1172,11 +1171,13 @@ function TDX:VoteMap(map, attempts)
     return false
 end
 
-
 function TDX:Ready()
-    local ready = getRemote("MapVoteReady")
+    local ready = Remotes:FindFirstChild("MapVoteReady")
+    if not ready then
+        ready = Remotes:WaitForChild("MapVoteReady", 3)
+    end
     if ready then
-        ready:FireServer()
+        ready:InvokeServer()
     end
     task.wait(0.3)
 end
