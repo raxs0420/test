@@ -1,13 +1,8 @@
 local _recSettings = (getgenv and getgenv().TDX_RECORDER) or _G.TDX_RECORDER or {}
 local SKIP_WAITS = _recSettings.SkipWaits == true
 
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local LocalPlayer = Players.LocalPlayer
-
 local REBUILD_PRIORITY = {
-    "EDJ", 
+    "EDJ",
     "Combat Medic",
     "Refractor",
 }
@@ -19,8 +14,13 @@ local FACTORY_TIMEOUT = 8
 local MATCH_DISTANCE = 8
 local REVIVE_WAIT = 7
 local SELL_DELAY = 1
-local PLACE_RETRY_CAP = 1
+local PLACE_RETRY_CAP = 3
 local REPLACE_RETRY_DELAY = 7
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
 
 local function grab(parent, name, timeout)
     local c = parent:FindFirstChild(name)
@@ -112,6 +112,7 @@ local function queueSort()
     table.sort(TDX._rebuildQueue, function(a, b)
         local sa = TDX._slots[a]
         local sb = TDX._slots[b]
+        if not sa and not sb then return a < b end
         if not sa then return false end
         if not sb then return true end
         local pa = priorityIndex(sa.name)
@@ -215,6 +216,91 @@ local function findSlotByActualId(actualId)
     return nil, nil
 end
 
+local placeInternal
+local restoreLevel
+
+local function rebuildWorkerLoop()
+    while true do
+        if #TDX._rebuildQueue == 0 then
+            task.wait(1)
+        else
+            queueSort()
+            local sid = TDX._rebuildQueue[1]
+            local s = TDX._slots[sid]
+
+            if not s or not s.deadId then
+                queueRemove(sid)
+            elseif s.actualId ~= s.deadId then
+                log(string.format("Slot %s re-placed by recording, dropping from rebuild queue", tostring(sid)))
+                s.deadId = nil
+                queueRemove(sid)
+            else
+                local remain = (s.deathTime + REVIVE_WAIT) - tick()
+                if remain > 0 then
+                    task.wait(remain)
+                end
+
+                s = TDX._slots[sid]
+                if not s or not s.deadId then
+                    if s then s.deadId = nil end
+                    queueRemove(sid)
+                elseif s.actualId ~= s.deadId then
+                    log(string.format("Slot %s re-placed during revive wait, dropping from rebuild queue", tostring(sid)))
+                    s.deadId = nil
+                    queueRemove(sid)
+                else
+                    local targetT = s.deathLevel and s.deathLevel[1] or 0
+                    local targetB = s.deathLevel and s.deathLevel[2] or 0
+                    local deadId = s.deadId
+
+                    log(string.format("Auto-replacing slot %s: %s -> restore %d/%d",
+                        tostring(sid), tostring(s.name), targetT, targetB))
+
+                    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild, 1)
+
+                    if newId then
+                        TDX._idRemap[sid] = newId
+                        TDX._aliveState[newId] = true
+                        TDX._levelCache[newId] = { 0, 0 }
+                        s.actualId = newId
+                        s.deadId = nil
+                        s.lastT = 0
+                        s.lastB = 0
+                        queueRemove(sid)
+
+                        log(string.format("Auto-replace placed %s (slot %s -> new ID %s)",
+                            s.name, tostring(sid), tostring(newId)))
+
+                        if targetT > 0 or targetB > 0 then
+                            task.spawn(function()
+                                restoreLevel(sid, targetT, targetB)
+                                log(string.format("Auto-replace slot %s restored to %d/%d",
+                                    tostring(sid), targetT, targetB))
+                            end)
+                        end
+                    else
+                        s = TDX._slots[sid]
+                        if not s or s.actualId ~= deadId then
+                            if s then s.deadId = nil end
+                            queueRemove(sid)
+                        else
+                            log(string.format("Auto-replace failed for slot %s - retrying in %ds",
+                                tostring(sid), REPLACE_RETRY_DELAY))
+                            task.wait(REPLACE_RETRY_DELAY)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+local function ensureWorker()
+    if TDX._rebuildWorkerRunning then return end
+    TDX._rebuildWorkerRunning = true
+    task.spawn(rebuildWorkerLoop)
+end
+
 if TowerAliveStateChanged then
     TowerAliveStateChanged.OnClientEvent:Connect(function(data)
         if type(data) ~= "table" then return end
@@ -230,77 +316,11 @@ if TowerAliveStateChanged then
                 slot.deadId = hash
                 slot.deathTime = tick()
 
-                log(string.format("Slot %s (ID %s) died at %d/%d",
+                log(string.format("Slot %s (ID %s) died at %d/%d, queued for rebuild",
                     tostring(slotId), tostring(hash), slot.deathLevel[1], slot.deathLevel[2]))
 
                 queueAdd(slotId)
-
-                if not TDX._rebuildWorkerRunning then
-                    TDX._rebuildWorkerRunning = true
-                    task.spawn(function()
-                        while true do
-                            if #TDX._rebuildQueue == 0 then
-                                task.wait(1)
-                            else
-                                queueSort()
-                                local sid = TDX._rebuildQueue[1]
-                                local s = TDX._slots[sid]
-
-                                if not s or not s.deadId then
-                                    queueRemove(sid)
-                                elseif s.actualId ~= s.deadId then
-                                    log(string.format("Slot %s re-placed by recording, dropping from rebuild queue", tostring(sid)))
-                                    s.deadId = nil
-                                    queueRemove(sid)
-                                else
-                                    local remain = (s.deathTime + REVIVE_WAIT) - tick()
-                                    if remain > 0 then
-                                        task.wait(remain)
-                                    end
-
-                                    local targetT = s.deathLevel and s.deathLevel[1] or 0
-                                    local targetB = s.deathLevel and s.deathLevel[2] or 0
-                                    local deadId = s.deadId
-
-                                    log(string.format("Auto-replacing slot %s: %s -> restore %d/%d",
-                                        tostring(sid), tostring(s.name), targetT, targetB))
-
-                                    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild, 1)
-
-                                    if newId then
-                                        TDX._idRemap[sid] = newId
-                                        TDX._aliveState[newId] = true
-                                        TDX._levelCache[newId] = { 0, 0 }
-                                        s.actualId = newId
-                                        s.deadId = nil
-                                        s.lastT = 0
-                                        s.lastB = 0
-                                        queueRemove(sid)
-
-                                        log(string.format("Auto-replace placed %s (slot %s -> new ID %s)",
-                                            s.name, tostring(sid), tostring(newId)))
-
-                                        if targetT > 0 or targetB > 0 then
-                                            task.spawn(function()
-                                                restoreLevel(sid, targetT, targetB)
-                                                log(string.format("Auto-replace slot %s restored to %d/%d",
-                                                    tostring(sid), targetT, targetB))
-                                            end)
-                                        end
-                                    else
-                                        if deadId and s.actualId ~= deadId then
-                                            s.deadId = nil
-                                            queueRemove(sid)
-                                        else
-                                            warnUser("Auto-replace failed for slot", sid, "- retrying in", REPLACE_RETRY_DELAY, "s")
-                                            task.wait(REPLACE_RETRY_DELAY)
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end)
-                end
+                ensureWorker()
             end
         elseif data.IsAlive == true then
             TDX._aliveState[hash] = true
@@ -323,7 +343,7 @@ function TDX:Wait(seconds)
     end
 end
 
-function placeInternal(name, pos, aim, rebuild, maxAttempts)
+placeInternal = function(name, pos, aim, rebuild, maxAttempts)
     if not PlaceTower then return nil end
 
     maxAttempts = maxAttempts or PLACE_RETRY_CAP
@@ -379,7 +399,7 @@ function placeInternal(name, pos, aim, rebuild, maxAttempts)
     return pending.id
 end
 
-function restoreLevel(slotId, targetT, targetB)
+restoreLevel = function(slotId, targetT, targetB)
     local slot = TDX._slots[slotId]
     if not slot then return false end
     local actual = slot.actualId
