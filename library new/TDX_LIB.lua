@@ -1061,6 +1061,93 @@ function TDX:Target(hash, queryType)
     end
 end
 
+function TDX:Mode(mode)
+    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    if net then
+        local partyType = net:FindFirstChild("ClientChangePartyTypeRequest")
+        local partyMap = net:FindFirstChild("ClientChangePartyMapRequest")
+        if partyType and partyMap then
+            partyType:FireServer("Party")
+            task.wait(0.5)
+            partyMap:FireServer(mode)
+            task.wait(0.5)
+            TDX:StartMatchmaking()
+        end
+    end
+end
+
+function TDX:StartMatchmaking()
+    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    if net then
+        local start = net:FindFirstChild("ClientStartGameRequest")
+        if start then
+            start:FireServer()
+        end
+    end
+    task.wait(0.5)
+end
+
+function TDX:Loadout(id)
+    task.wait(2)
+    local load = getRemote("LoadoutSelectionChanged")
+    if load then
+        load:FireServer(id)
+    end
+    task.wait(0.5)
+end
+
+function TDX:VoteDifficulty(diff)
+    task.wait(5.5)
+    local vote = getRemote("DifficultyVoteCast")
+    if vote then
+        vote:FireServer(diff)
+    end
+    task.wait(0.5)
+    local ready = getRemote("DifficultyVoteReady")
+    if ready then
+        ready:FireServer(diff)
+    end
+    task.wait(1)
+end
+
+function TDX:VoteMap(map, attempts)
+    attempts = attempts or 10
+    for _ = 1, attempts do
+        local vote = getRemote("MapVoteCast")
+        if vote then
+            vote:FireServer(map)
+            task.wait(0.5)
+            TDX:Ready()
+            return true
+        end
+        local change = getRemote("MapChangeVoteCast")
+        if change then
+            change:FireServer(true)
+        end
+        task.wait(1)
+    end
+    return false
+end
+
+function TDX:Ready()
+    local ready = getRemote("MapVoteReady")
+    if ready then
+        ready:FireServer()
+    end
+    task.wait(0.3)
+end
+
+function TDX:Equip(items)
+    local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
+    if net then
+        local eq = net:FindFirstChild("UpdateLoadout")
+        if eq then
+            eq:FireServer(items)
+        end
+    end
+    task.wait(0.5)
+end
+
 function TDX:ForceRebuild(slotId)
     slotId = tonumber(slotId)
     if not slotId then return false end
