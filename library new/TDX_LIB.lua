@@ -966,20 +966,23 @@ function TDX:Skip(wave)
 end
 
 function TDX:TimeScale(speed)
-    if speed == CurrentSpeed then return true end
-    local remote = getRemote("SoloToggleSpeedControl")
-    if remote then
-        if speed == 1 then
-            remote:FireServer(false)
-        elseif speed == 1.5 then
-            remote:FireServer(true, true)
-        elseif speed == 0.5 then
-            remote:FireServer(true, false)
-        else
-            return false
-        end
-        CurrentSpeed = speed
+    local remote = Remotes:FindFirstChild("SoloToggleSpeedControl")
+    if not remote then
+        warnUser("SoloToggleSpeedControl remote missing")
+        return false
     end
+    
+    if speed == 1 then
+        remote:FireServer(false)
+    elseif speed == 1.5 then
+        remote:FireServer(true, true)
+    elseif speed == 0.5 then
+        remote:FireServer(true, false)
+    else
+        warnUser("Invalid speed:", speed)
+        return false
+    end
+    
     return true
 end
 
@@ -1186,9 +1189,9 @@ function TDX:VoteDifficulty(diff)
             end
         end)
         
-        local timeout = tick() + 33
+        local timeout = tick() + 5
         while waiting and tick() < timeout do
-            task.wait(0.3)
+            task.wait(0.2)
         end
         if connection then
             connection:Disconnect()
