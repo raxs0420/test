@@ -14,7 +14,6 @@ local FACTORY_TIMEOUT = 8
 local MATCH_DISTANCE = 8
 local REVIVE_WAIT = 7
 local SELL_DELAY = 1
-local PLACE_RETRY_CAP = 3
 local REPLACE_RETRY_DELAY = 7
 
 local Players = game:GetService("Players")
@@ -346,14 +345,13 @@ end
 placeInternal = function(name, pos, aim, rebuild, maxAttempts)
     if not PlaceTower then return nil end
 
-    maxAttempts = maxAttempts or PLACE_RETRY_CAP
-
     local pending = { name = name, pos = pos, resolved = false, id = nil }
     table.insert(TDX._pendingPlaces, pending)
 
     local success = false
     local attempts = 0
-    while attempts < maxAttempts and not success do
+
+    while not success do
         attempts = attempts + 1
         local timerArg = workspace:GetServerTimeNow()
         local ok, result = pcall(function()
@@ -365,19 +363,10 @@ placeInternal = function(name, pos, aim, rebuild, maxAttempts)
 
         if ok and result == true then
             success = true
-        elseif attempts < maxAttempts then
+        else
+            warnUser(string.format("[TDX] Place failed for %s (Result: %s). Retrying in %ds... Attempt: %d", tostring(name), tostring(result), RETRY_DELAY, attempts))
             task.wait(RETRY_DELAY)
         end
-    end
-
-    if not success then
-        for i, p in ipairs(TDX._pendingPlaces) do
-            if p == pending then
-                table.remove(TDX._pendingPlaces, i)
-                break
-            end
-        end
-        return nil
     end
 
     local start = tick()
