@@ -22,22 +22,26 @@ local function grab(parent, name, timeout)
     return ok and res or nil
 end
 
-local Remotes = grab(ReplicatedStorage, "Remotes", 30)
-if not Remotes then error("[TDX] Remotes folder not found") end
+local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
+if not Remotes then
+    Remotes = ReplicatedStorage:WaitForChild("Remotes", 5)
+    if not Remotes then error("[TDX] Remotes folder not found") end
+end
 
-local PlaceTower = grab(Remotes, "PlaceTower")
-local TowerUpgradeRequest = grab(Remotes, "TowerUpgradeRequest")
-local TowerUpgradeQueueUpdated = grab(Remotes, "TowerUpgradeQueueUpdated")
-local TowerFactoryQueueUpdated = grab(Remotes, "TowerFactoryQueueUpdated")
-local SellTower = grab(Remotes, "SellTower")
-local TowerUseAbilityRequest = grab(Remotes, "TowerUseAbilityRequest")
-local SkipWaveVoteCast = grab(Remotes, "SkipWaveVoteCast")
-local SkipWaveVoteStateUpdate = grab(Remotes, "SkipWaveVoteStateUpdate")
-local RetargetTower = grab(Remotes, "RetargetTower")
-local ChangeQueryType = grab(Remotes, "ChangeQueryType")
-local TowerQueryTypeIndexChanged = grab(Remotes, "TowerQueryTypeIndexChanged")
-local TowerAliveStateChanged = grab(Remotes, "TowerAliveStateChanged")
-local TowerReviveStateChanged = grab(Remotes, "TowerReviveStateChanged")
+local PlaceTower = Remotes:FindFirstChild("PlaceTower")
+local TowerUpgradeRequest = Remotes:FindFirstChild("TowerUpgradeRequest")
+local TowerUpgradeQueueUpdated = Remotes:FindFirstChild("TowerUpgradeQueueUpdated")
+local TowerFactoryQueueUpdated = Remotes:FindFirstChild("TowerFactoryQueueUpdated")
+local SellTower = Remotes:FindFirstChild("SellTower")
+local TowerUseAbilityRequest = Remotes:FindFirstChild("TowerUseAbilityRequest")
+local SkipWaveVoteCast = Remotes:FindFirstChild("SkipWaveVoteCast")
+local SkipWaveVoteStateUpdate = Remotes:FindFirstChild("SkipWaveVoteStateUpdate")
+local RetargetTower = Remotes:FindFirstChild("RetargetTower")
+local ChangeQueryType = Remotes:FindFirstChild("ChangeQueryType")
+local TowerQueryTypeIndexChanged = Remotes:FindFirstChild("TowerQueryTypeIndexChanged")
+local TowerAliveStateChanged = Remotes:FindFirstChild("TowerAliveStateChanged")
+local TowerReviveStateChanged = Remotes:FindFirstChild("TowerReviveStateChanged")
+
 
 local _debugScroll
 local _debugStatus
@@ -1107,7 +1111,7 @@ function TDX:Mode(mode)
             partyType:FireServer("Party")
             task.wait(0.5)
             partyMap:FireServer(mode)
-            task.wait(0.5)
+            task.wait(0.2)
             TDX:StartMatchmaking()
         end
     end
@@ -1121,8 +1125,9 @@ function TDX:StartMatchmaking()
             start:FireServer()
         end
     end
-    task.wait(0.5)
+    task.wait(0.2)
 end
+
 
 function TDX:Loadout(id)
     task.wait(2)
@@ -1135,36 +1140,38 @@ end
 
 function TDX:VoteDifficulty(diff)
     task.wait(5.5)
-    local vote = getRemote("DifficultyVoteCast")
+    local vote = grab(Remotes, "DifficultyVoteCast")
     if vote then
         vote:FireServer(diff)
     end
-    task.wait(0.5)
-    local ready = getRemote("DifficultyVoteReady")
+    task.wait(0.2)
+    local ready = grab(Remotes, "DifficultyVoteReady")
     if ready then
         ready:FireServer(diff)
     end
-    task.wait(1)
+    task.wait(0.5)
 end
 
+
 function TDX:VoteMap(map, attempts)
-    attempts = attempts or 10
+    attempts = attempts or 3
     for _ = 1, attempts do
-        local vote = getRemote("MapVoteCast")
+        local vote = grab(Remotes, "MapVoteCast")
         if vote then
             vote:FireServer(map)
-            task.wait(0.5)
+            task.wait(0.2)
             TDX:Ready()
             return true
         end
-        local change = getRemote("MapChangeVoteCast")
+        local change = grab(Remotes, "MapChangeVoteCast")
         if change then
             change:FireServer(true)
         end
-        task.wait(1)
+        task.wait(0.5)
     end
     return false
 end
+
 
 function TDX:Ready()
     local ready = getRemote("MapVoteReady")
