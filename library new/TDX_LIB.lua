@@ -2,7 +2,7 @@ local _recSettings = (getgenv and getgenv().TDX_RECORDER) or _G.TDX_RECORDER or 
 local SKIP_WAITS = _recSettings.SkipWaits == true
 local SHOW_DEBUG_UI = _recSettings.DebugUI ~= false
 
-local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Refractor" }
+local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Medic" }
 
 local RETRY_DELAY = 3
 local MIN_FIRE_GAP = 0.3
