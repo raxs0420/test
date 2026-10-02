@@ -237,6 +237,83 @@ end
 
 createDebugUI()
 
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+local AutoSkipActive = false
+local ReverseAutoSkipActive = false
+local CurrentWave = 0
+local WaveConnection = nil
+
+local function parseWave(text)
+    if not text then return 0 end
+    local num = text:match("%d+")
+    return tonumber(num) or 0
+end
+
+local function isInWaveList(wave, list)
+    if not list then return false end
+    for _, w in ipairs(list) do
+        if w == wave then return true end
+    end
+    return false
+end
+
+local function updateAutoSkip()
+    local vip = LocalPlayer:GetAttribute("VIP")
+    if not vip then return end
+    
+    local shouldSkip = false
+    
+    if _G.AutoSkip then
+        shouldSkip = isInWaveList(CurrentWave, _G.AutoSkip)
+    elseif _G.ReverseAutoSkip then
+        shouldSkip = not isInWaveList(CurrentWave, _G.ReverseAutoSkip)
+    end
+    
+    local remote = Remotes:FindFirstChild("RequestUpdateSetting")
+    if remote and AutoSkipActive ~= shouldSkip then
+        AutoSkipActive = shouldSkip
+        remote:FireServer("AutoSkip", shouldSkip)
+        log(string.format("AutoSkip %s on wave %d", shouldSkip and "enabled" or "disabled", CurrentWave))
+    end
+end
+
+local function startWaveWatcher()
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    local interface = playerGui:WaitForChild("Interface")
+    local gameInfoBar = interface:WaitForChild("GameInfoBar")
+    local default = gameInfoBar:WaitForChild("Default")
+    local wave = default:WaitForChild("Wave")
+    local waveText = wave:WaitForChild("WaveText")
+    
+    CurrentWave = parseWave(waveText.Text)
+    
+    WaveConnection = waveText:GetPropertyChangedSignal("Text"):Connect(function()
+        CurrentWave = parseWave(waveText.Text)
+        updateAutoSkip()
+    end)
+    
+    updateAutoSkip()
+end
+
+if _G.AutoSkip or _G.ReverseAutoSkip then
+    task.spawn(function()
+        local timeout = tick() + 10
+        while not LocalPlayer:GetAttribute("VIP") and tick() < timeout do
+            task.wait(0.2)
+        end
+        
+        if LocalPlayer:GetAttribute("VIP") then
+            log("VIP detected, starting AutoSkip watcher")
+            startWaveWatcher()
+        else
+            warnUser("VIP attribute not found, AutoSkip disabled")
+        end
+    end)
+end
+
+
 local TDX = {}
 
 TDX._levelCache = {}
@@ -1030,30 +1107,6 @@ function TDX:TimeScale(speed)
     
     return true
 end
-
-TDX._autoSkipToken = 0
-
-function TDX:AutoSkip(enabled)
-    TDX._autoSkipToken = TDX._autoSkipToken + 1
-    
-    if enabled then
-        local remote = Remotes:FindFirstChild("SkipWaveVoteCast")
-        if not remote then
-            warnUser("SkipWaveVoteCast remote missing")
-            return false
-        end
-        
-        local token = TDX._autoSkipToken
-        task.spawn(function()
-            while token == TDX._autoSkipToken do
-                remote:FireServer(true)
-                task.wait(0.3)
-            end
-        end)
-    end
-    return true
-end
-
 
 function TDX:Ability(hash, slot, pos)
     hash = tonumber(hash) or hash
