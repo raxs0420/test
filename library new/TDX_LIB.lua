@@ -1,6 +1,7 @@
 local _recSettings = (getgenv and getgenv().TDX_RECORDER) or _G.TDX_RECORDER or {}
 local SKIP_WAITS = _recSettings.SkipWaits == true
 local SHOW_DEBUG_UI = _recSettings.DebugUI ~= false
+local AUTO_REJOIN = _recSettings.AutoRejoin ~= false
 
 local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Medic" }
 
@@ -262,15 +263,15 @@ end
 local function updateAutoSkip()
     local vip = LocalPlayer:GetAttribute("VIP")
     if not vip then return end
-    
+
     local shouldSkip = false
-    
+
     if _G.AutoSkip then
         shouldSkip = isInWaveList(CurrentWave, _G.AutoSkip)
     elseif _G.ReverseAutoSkip then
         shouldSkip = not isInWaveList(CurrentWave, _G.ReverseAutoSkip)
     end
-    
+
     local remote = Remotes:FindFirstChild("RequestUpdateSetting")
     if remote and AutoSkipActive ~= shouldSkip then
         AutoSkipActive = shouldSkip
@@ -286,14 +287,14 @@ local function startWaveWatcher()
     local default = gameInfoBar:WaitForChild("Default")
     local wave = default:WaitForChild("Wave")
     local waveText = wave:WaitForChild("WaveText")
-    
+
     CurrentWave = parseWave(waveText.Text)
-    
+
     WaveConnection = waveText:GetPropertyChangedSignal("Text"):Connect(function()
         CurrentWave = parseWave(waveText.Text)
         updateAutoSkip()
     end)
-    
+
     updateAutoSkip()
 end
 
@@ -303,7 +304,7 @@ if _G.AutoSkip or _G.ReverseAutoSkip then
         while not LocalPlayer:GetAttribute("VIP") and tick() < timeout do
             task.wait(0.2)
         end
-        
+
         if LocalPlayer:GetAttribute("VIP") then
             log("VIP detected, starting AutoSkip watcher")
             startWaveWatcher()
@@ -505,8 +506,12 @@ if TowerUpgradeQueueUpdated then
                 TDX._levelCache[hash] = { lvl[1] or 0, lvl[2] or 0 }
                 for _, slot in pairs(TDX._slots) do
                     if slot.actualId == hash then
-                        slot.lastT = lvl[1] or 0
-                        slot.lastB = lvl[2] or 0
+                        local t = lvl[1] or 0
+                        local b = lvl[2] or 0
+                        slot.lastT = t
+                        slot.lastB = b
+                        if t > (slot.peakT or 0) then slot.peakT = t end
+                        if b > (slot.peakB or 0) then slot.peakB = b end
                         break
                     end
                 end
@@ -563,7 +568,11 @@ if TowerAliveStateChanged then
             if slot.deadId == hash then return end
 
             local lvl = TDX._levelCache[hash] or { slot.lastT or 0, slot.lastB or 0 }
-            slot.deathLevel = { lvl[1] or 0, lvl[2] or 0 }
+            local t = lvl[1] or 0
+            local b = lvl[2] or 0
+            if t > (slot.peakT or 0) then slot.peakT = t end
+            if b > (slot.peakB or 0) then slot.peakB = b end
+            slot.deathLevel = { slot.peakT or t, slot.peakB or b }
             slot.deadId = hash
             slot.deathTime = tick()
             slot.reviving = false
@@ -622,6 +631,10 @@ if TowerReviveStateChanged then
 end
 
 local function startAutoRejoin()
+    if not AUTO_REJOIN then
+        log("Auto-rejoin disabled by settings")
+        return
+    end
     local remotes = Remotes
     if not remotes then return end
     local stateChanged = remotes:FindFirstChild("GameStateChanged")
@@ -946,6 +959,8 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         deadId = nil,
         lastT = 0,
         lastB = 0,
+        peakT = 0,
+        peakB = 0,
         deathLevel = nil,
         deathTime = nil,
         restoring = false,
@@ -962,6 +977,56 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
     log(string.format("Placed %s (slot %s -> ID %s, auto-replace %s)",
         name, tostring(slotId), tostring(newId), tostring(rebuild)))
     return newId
+end
+
+function TDX:Register(name, pos, id, rebuild)
+    if not name or not id then return nil end
+    if typeof(pos) ~= "Vector3" then return nil end
+    local slotId = id
+    if TDX._slots[slotId] then return slotId end
+
+    TDX._idRemap[slotId] = id
+    TDX._aliveState[id] = true
+    TDX._levelCache[id] = TDX._levelCache[id] or { 0, 0 }
+
+    TDX._slots[slotId] = {
+        name = name, pos = pos, aim = nil,
+        rebuild = rebuild ~= false, autoReplace = rebuild ~= false,
+        actualId = id, deadId = nil, lastT = 0, lastB = 0,
+        peakT = 0, peakB = 0,
+        deathLevel = nil, deathTime = nil,
+        restoring = false, reviving = false, awaitingRevive = false,
+    }
+
+    TDX._placeHistory[slotId] = { name = name, actualId = id, recordedId = slotId }
+    return slotId
+end
+
+function TDX:SetAutoReplace(slotId, enabled)
+    local slot = TDX._slots[slotId]
+    if not slot then return false end
+    slot.autoReplace = enabled == true
+    if not slot.autoReplace and slot.deadId then
+        slot.deadId = nil
+        slot.deathLevel = nil
+        slot.deathTime = nil
+        queueRemove(slotId)
+    end
+    return true
+end
+
+function TDX:SetAutoReplaceByName(name, enabled)
+    for slotId, slot in pairs(TDX._slots) do
+        if slot.name == name then
+            slot.autoReplace = enabled == true
+            if not slot.autoReplace and slot.deadId then
+                slot.deadId = nil
+                slot.deathLevel = nil
+                slot.deathTime = nil
+                queueRemove(slotId)
+            end
+        end
+    end
 end
 
 function TDX:Upgrade(hash, patch, count)
@@ -1074,7 +1139,7 @@ function TDX:TimeScale(speed)
         warnUser("SoloToggleSpeedControl remote missing")
         return false
     end
-    
+
     if speed == 1 then
         remote:FireServer(false)
     elseif speed == 1.5 then
@@ -1085,7 +1150,7 @@ function TDX:TimeScale(speed)
         warnUser("Invalid speed:", speed)
         return false
     end
-    
+
     return true
 end
 
@@ -1227,20 +1292,20 @@ end
 
 function TDX:VoteMap(map, attempts)
     attempts = attempts or 3
-    
+
     local vote = Remotes:FindFirstChild("MapVoteCast")
     if not vote then
         warnUser("MapVoteCast remote missing")
         return false
     end
-    
+
     for i = 1, attempts do
         vote:FireServer(map)
         task.wait(0.3)
     end
-    
+
     task.wait(1.5)
-    
+
     local ready = Remotes:FindFirstChild("MapVoteReady")
     if ready then
         for i = 1, 3 do
@@ -1249,7 +1314,7 @@ function TDX:VoteMap(map, attempts)
         end
         return true
     end
-    
+
     return false
 end
 
@@ -1259,7 +1324,7 @@ function TDX:VoteDifficulty(diff)
         warnUser("DifficultyVoteCast remote missing")
         return false
     end
-    
+
     local stateUpdate = Remotes:FindFirstChild("DifficultyVoteStateUpdate")
     if stateUpdate then
         local waiting = true
@@ -1272,7 +1337,7 @@ function TDX:VoteDifficulty(diff)
                 end
             end
         end)
-        
+
         local timeout = tick() + 5
         while waiting and tick() < timeout do
             task.wait(0.2)
@@ -1281,14 +1346,14 @@ function TDX:VoteDifficulty(diff)
             connection:Disconnect()
         end
     end
-    
+
     for i = 1, 3 do
         vote:FireServer(diff)
         task.wait(0.3)
     end
-    
+
     task.wait(1.5)
-    
+
     local ready = Remotes:FindFirstChild("DifficultyVoteReady")
     if ready then
         for i = 1, 3 do
@@ -1297,7 +1362,7 @@ function TDX:VoteDifficulty(diff)
         end
         return true
     end
-    
+
     return false
 end
 
