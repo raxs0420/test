@@ -621,50 +621,31 @@ if TowerReviveStateChanged then
     end)
 end
 
-local function checkGameOver()
-    if gameOverTriggered then return end
-
-    task.spawn(function()
-        local playerGui
-        local attempts = 0
-        repeat
-            playerGui = player:FindFirstChild("PlayerGui")
-            if not playerGui then
-                task.wait(0.5)
-                attempts = attempts + 1
-            end
-        until playerGui or attempts > 60 or gameOverTriggered
-
-        if not playerGui then return end
-
-        local interface = playerGui:FindFirstChild("Interface")
-        if not interface then
-            task.wait(10)
-            interface = playerGui:FindFirstChild("Interface")
-            if not interface then return end
-        end
-
-        local gameOverScreen = interface:FindFirstChild("GameOverScreen")
-        if not gameOverScreen then
-            task.wait(10)
-            gameOverScreen = interface:FindFirstChild("GameOverScreen")
-            if not gameOverScreen then return end
-        end
-
-        while not gameOverTriggered do
-            if gameOverScreen.Visible then
-                gameOverTriggered = true
-                print("[TDX] Game Over! Teleporting...")
-                task.wait(2)
-                pcall(function()
-                    TeleportService:Teleport(9503261072)
-                end)
-                break
-            end
-            task.wait(0.5)
+local function startAutoRejoin()
+    local remotes = Remotes
+    if not remotes then return end
+    local stateChanged = remotes:FindFirstChild("GameStateChanged")
+    local rejoinRemote = remotes:FindFirstChild("RequestTeleportToLobby")
+    if not stateChanged or not rejoinRemote then return end
+    local triggered = false
+    stateChanged.OnClientEvent:Connect(function(state)
+        if triggered or state ~= "EndScreen" then return end
+        triggered = true
+        action("ENDSCREEN detected, rejoining in 5s")
+        setStatus("auto-rejoin pending")
+        task.wait(5)
+        local ok, err = pcall(function()
+            rejoinRemote:FireServer()
+        end)
+        if ok then
+            log("RequestTeleportToLobby fired")
+        else
+            warnUser("rejoin fire failed:", err)
         end
     end)
 end
+
+startAutoRejoin()
 
 local function slotReady(slot)
     return slot
