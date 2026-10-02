@@ -1,0 +1,230 @@
+_G.AutoSkip = nil
+_G.ReverseAutoSkip = {26, 30, 37}
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/TDX_LIB.lua"))()
+
+TDX:Equip({"Refractor", "EDJ", "Combat Medic", "Golden Mobster", "Grenadier", "Behemoth Factory"})
+TDX:Mode("TBPart2")
+TDX:VoteMap("Exegesis", 3)
+TDX:VoteDifficulty("TBPart2Casual")
+
+TDX:TimeScale(1.5)
+TDX:Place("Grenadier", 1558.7379194009991, Vector3.new(241.48365783691406, 39.476055145263672, 51.67034912109375), true, nil, 1) -- ID: 1
+TDX:Target(1, 2)
+TDX:Upgrade(1, 1) -- 1 0/0 --> 1/0
+TDX:Upgrade(1, 1) -- 1 1/0 --> 2/0
+TDX:Upgrade(1, 2) -- 1 2/0 --> 3/0
+TDX:Upgrade(1, 2) -- 1 3/0 --> 4/0
+TDX:Upgrade(1, 2) -- 1 4/0 --> 4/1
+TDX:Place("EDJ", 1733.495010257, Vector3.new(220.53938293457031, 40.399036407470703, 54.33978271484375), true, nil, 2) -- ID: 2
+TDX:Upgrade(2, 2) -- 2 0/0 --> 0/1
+TDX:Upgrade(2, 2) -- 2 0/1 --> 0/2
+TDX:Upgrade(2, 2) -- 2 0/2 --> 0/3
+TDX:Upgrade(2, 1) -- 2 0/3 --> 1/3
+TDX:Place("Golden Mobster", 1571.7049655549927, Vector3.new(228.71484375, 39.476078033447266, 56.556747436523438), true, nil, 3) -- ID: 3
+TDX:Upgrade(3, 1) -- 3 0/0 --> 1/0
+TDX:Upgrade(3, 1) -- 3 1/0 --> 2/0
+TDX:Upgrade(3, 1) -- 3 2/0 --> 3/0
+TDX:Upgrade(3, 2) -- 3 3/0 --> 3/1
+TDX:Upgrade(3, 2) -- 3 3/1 --> 3/2
+TDX:Place("Golden Mobster", 1626.6106597889884, Vector3.new(228.83934020996094, 39.476032257080078, 53.519805908203125), true, nil, 4) -- ID: 4
+TDX:Upgrade(4, 1) -- 4 0/0 --> 1/0
+TDX:Upgrade(4, 1) -- 4 1/0 --> 2/0
+TDX:Upgrade(4, 1) -- 4 2/0 --> 3/0
+TDX:Upgrade(4, 2) -- 4 3/0 --> 3/1
+TDX:Upgrade(4, 2) -- 4 3/1 --> 3/2
+TDX:Place("Golden Mobster", 1638.7143830979912, Vector3.new(228.60287475585938, 39.47601318359375, 50.494434356689453), true, nil, 5) -- ID: 5 
+TDX:Upgrade(5, 1) -- 5 0/0 --> 1/0
+TDX:Upgrade(5, 1) -- 5 1/0 --> 2/0
+TDX:Place("Combat Medic", 1656.3118837910006, Vector3.new(228.33218383789062, 39.47601318359375, 47.675827026367188), true, nil, 6) -- ID: 6
+TDX:Upgrade(6, 1) -- 6 0/0 --> 1/0
+TDX:Upgrade(6, 1) -- 6 1/0 --> 2/0
+TDX:Place("Combat Medic", 1661.7867464839946, Vector3.new(228.33058166503906, 39.476093292236328, 59.219108581542969), true, nil, 7) -- ID: 7
+TDX:Upgrade(7, 1) -- 7 0/0 --> 1/0
+TDX:Upgrade(7, 1) -- 7 1/0 --> 2/0
+TDX:Upgrade(5, 1) -- 5 2/0 --> 3/0
+TDX:Upgrade(5, 2) -- 5 3/0 --> 3/1
+TDX:Upgrade(5, 2) -- 5 3/1 --> 3/2
+TDX:Place("Golden Mobster", 1683.2881372539996, Vector3.new(231.55343627929688, 39.476127624511719, 55.179527282714844), true, nil, 8) -- ID: 8 
+TDX:Upgrade(8, 1) -- 8 0/0 --> 1/0
+TDX:Upgrade(8, 1) -- 8 1/0 --> 2/0
+TDX:Upgrade(8, 2) -- 8 2/0 --> 2/1
+TDX:Upgrade(8, 2) -- 8 2/1 --> 2/2
+TDX:Upgrade(8, 1) -- 8 2/2 --> 3/2
+TDX:Place("Golden Mobster", 1703.3172421789932, Vector3.new(231.60134887695312, 39.476119995117188, 51.938163757324219), true, nil, 9) -- ID: 9
+TDX:Upgrade(9, 1) -- 9 0/0 --> 1/0
+TDX:Upgrade(9, 1) -- 9 1/0 --> 2/0
+TDX:Upgrade(9, 2) -- 9 2/0 --> 2/1
+TDX:Upgrade(9, 2) -- 9 2/1 --> 2/2
+TDX:Upgrade(9, 1) -- 9 2/2 --> 3/2
+TDX:Upgrade(2, 2) -- 2 1/3 --> 1/4
+TDX:Upgrade(2, 2) -- 2 1/4 --> 1/5
+TDX:Place("EDJ", 1773.8500375669973, Vector3.new(219.06118774414062, 40.385200500488281, 58.263332366943359), true, nil, 10) -- ID: 10
+TDX:Upgrade(10, 1) -- 10 0/0 --> 1/0
+TDX:Upgrade(10, 1) -- 10 1/0 --> 2/0
+TDX:Upgrade(10, 1) -- 10 2/0 --> 3/0
+TDX:Upgrade(10, 2) -- 10 3/0 --> 3/1
+TDX:Upgrade(10, 2) -- 10 3/1 --> 3/2
+TDX:Upgrade(3, 1) -- 3 3/2 --> 4/2
+TDX:Upgrade(4, 1) -- 4 3/2 --> 4/2
+TDX:Upgrade(5, 1) -- 5 3/2 --> 4/2
+TDX:Upgrade(8, 1) -- 8 3/2 --> 4/2
+TDX:Upgrade(9, 1) -- 9 3/2 --> 4/2
+TDX:Upgrade(10, 1) -- 10 3/2 --> 4/2
+TDX:Upgrade(10, 1) -- 10 4/2 --> 5/2
+TDX:Upgrade(6, 2) -- 6 2/0 --> 2/1
+TDX:Upgrade(6, 2) -- 6 2/1 --> 2/2
+TDX:Upgrade(6, 2) -- 6 2/2 --> 2/3
+TDX:Upgrade(7, 2) -- 7 2/0 --> 2/1
+TDX:Upgrade(7, 2) -- 7 2/1 --> 2/2
+TDX:Upgrade(7, 2) -- 7 2/2 --> 2/3
+TDX:Upgrade(1, 2) -- 1 4/2 --> 5/2
+TDX:Upgrade(1, 2) -- 1 4/1 --> 4/2
+TDX:Place("Grenadier", 1883.6715838050004, Vector3.new(231.52647399902344, 39.476005554199219, 48.784297943115234), true, nil, 11) -- ID: 11
+TDX:Target(11, 4)
+TDX:Upgrade(11, 2, 5) -- 11 0/0 --> 0/5
+TDX:Upgrade(11, 1, 2) -- 11 0/5 --> 2/5
+TDX:Place("Grenadier", 1890.0168333439942, Vector3.new(231.53311157226562, 39.476119995117188, 58.302093505859375), true, nil, 12) -- ID: 12
+TDX:Target(12, 4)
+TDX:Upgrade(12, 2, 4) -- 12 0/0 --> 0/4
+TDX:Upgrade(12, 2) -- 12 0/4 --> 0/5
+TDX:Upgrade(12, 1) -- 12 0/5 --> 1/5
+TDX:Upgrade(12, 1) -- 12 1/5 --> 2/5
+TDX:Upgrade(6, 2) -- 6 2/3 --> 2/4
+TDX:Upgrade(6, 2) -- 6 2/4 --> 2/5
+TDX:Upgrade(7, 2) -- 7 2/0 --> 2/1
+TDX:Upgrade(7, 2) -- 7 2/1 --> 2/2
+TDX:Place("Refractor", 1964.2559283479932, Vector3.new(221.459228515625, 39.47601318359375, 46.353660583496094), true, nil, 13) -- ID: 13
+TDX:Upgrade(13, 2) -- 13 0/0 --> 0/1
+TDX:Upgrade(13, 2) -- 13 0/1 --> 0/2
+TDX:Upgrade(13, 2) -- 13 0/2 --> 0/3
+TDX:Upgrade(13, 1) -- 13 0/3 --> 1/3
+TDX:Upgrade(13, 1) -- 13 1/3 --> 2/3
+TDX:Upgrade(13, 2) -- 13 2/3 --> 2/4
+TDX:Place("Grenadier", 1993.4731938879995, Vector3.new(231.39804077148438, 39.476119995117188, 61.426284790039062), true, nil, 14) -- ID: 14
+TDX:Target(14, 4)
+TDX:Upgrade(14, 2, 5) -- 14 0/0 --> 0/5
+TDX:Upgrade(14, 1, 2) -- 14 0/5 --> 2/5
+TDX:Place("Grenadier", 2000.174250889002, Vector3.new(231.46803283691406, 39.476005554199219, 45.615463256835938), true, nil, 15) -- ID: 15
+TDX:Target(15, 4)
+TDX:Upgrade(15, 2, 5) -- 15 0/0 --> 0/5
+TDX:Upgrade(15, 1, 2) -- 15 0/5 --> 2/5
+TDX:Place("Grenadier", 2006.9131065809925, Vector3.new(238.36003112792969, 39.476127624511719, 57.820873260498047), true, nil, 16) -- ID: 16
+TDX:Target(16, 4)
+TDX:Upgrade(16, 2) -- 16 0/0 --> 0/1
+TDX:Upgrade(16, 2, 4) -- 16 0/1 --> 0/5
+TDX:Upgrade(16, 1, 2) -- 16 0/5 --> 2/5
+TDX:Upgrade(9, 1) -- 9 3/2 --> 4/2
+TDX:Upgrade(5, 1) -- 2 4/2 --> 5/2
+TDX:Upgrade(3, 1) -- 3 4/2 --> 5/2
+TDX:Upgrade(4, 1) -- 4 4/2 --> 5/2
+TDX:Upgrade(8, 1) -- 8 4/2 --> 5/2
+TDX:Place("Combat Medic", 2089.3811538939917, Vector3.new(217.65788269042969, 40.673980712890625, 55.495559692382812), true, nil, 17) -- ID: 17
+TDX:Upgrade(17, 1, 5) -- 17 0/0 --> 5/0
+TDX:Upgrade(17, 2, 2) -- 17 5/0 --> 5/2
+TDX:Place("Refractor", 2169.1927751289913, Vector3.new(218.07037353515625, 40.225509643554688, 50.611980438232422), true, nil, 18) -- ID: 18
+TDX:Upgrade(18, 2) -- 18 0/0 --> 0/1
+TDX:Upgrade(18, 2) -- 18 0/1 --> 0/2
+TDX:Upgrade(18, 2) -- 18 0/2 --> 0/3
+TDX:Upgrade(18, 2) -- 18 0/3 --> 0/4
+TDX:Upgrade(18, 1) -- 18 0/4 --> 1/4
+TDX:Upgrade(18, 1) -- 18 1/4 --> 2/4
+TDX:Place("Refractor", 2182.5585695920017, Vector3.new(214.70523071289062, 40.381000518798828, 57.887355804443359), true, nil, 19) -- ID: 19
+TDX:Upgrade(19, 2) -- 19 0/0 --> 0/1
+TDX:Upgrade(19, 2) -- 19 0/1 --> 0/2
+TDX:Upgrade(19, 2) -- 19 0/2 --> 0/3
+TDX:Upgrade(19, 2) -- 19 0/3 --> 0/4
+TDX:Upgrade(19, 1) -- 19 0/4 --> 1/4
+TDX:Upgrade(19, 1) -- 19 1/4 --> 2/4
+TDX:Place("Refractor", 2192.1977797459986, Vector3.new(221.72720336914062, 39.475894927978516, 62.264232635498047), true, nil, 20) -- ID: 20
+TDX:Upgrade(20, 2) -- 20 0/0 --> 0/1
+TDX:Upgrade(20, 2) -- 20 0/1 --> 0/2
+TDX:Upgrade(20, 2) -- 20 0/2 --> 0/3
+TDX:Upgrade(20, 2) -- 20 0/3 --> 0/4
+TDX:Upgrade(20, 1) -- 20 0/4 --> 1/4
+TDX:Upgrade(20, 1) -- 20 1/4 --> 2/4
+TDX:Place("Refractor", 2201.7682016699982, Vector3.new(221.10321044921875, 39.475894927978516, 67.110191345214844), true, nil, 21) -- ID: 21
+TDX:Upgrade(21, 2) -- 21 0/0 --> 0/1
+TDX:Upgrade(21, 2) -- 21 0/1 --> 0/2
+TDX:Upgrade(21, 2) -- 21 0/2 --> 0/3
+TDX:Upgrade(21, 2) -- 21 0/3 --> 0/4
+TDX:Upgrade(21, 1) -- 21 0/4 --> 1/4
+TDX:Upgrade(21, 1) -- 21 1/4 --> 2/4
+TDX:Place("Refractor", 2216.251719516993, Vector3.new(216.40107727050781, 39.475894927978516, 64.758094787597656), true, nil, 22) -- ID: 22
+TDX:Upgrade(22, 2) -- 22 0/0 --> 0/1
+TDX:Upgrade(22, 2) -- 22 0/1 --> 0/2
+TDX:Upgrade(22, 2) -- 22 0/2 --> 0/3
+TDX:Upgrade(22, 2) -- 22 0/3 --> 0/4
+TDX:Upgrade(22, 1) -- 22 0/4 --> 1/4
+TDX:Upgrade(22, 1) -- 22 1/4 --> 2/4
+TDX:Place("Refractor", 2232.1984656720015, Vector3.new(221.00674438476562, 40.024555206298828, 72.054084777832031), true, nil, 23) -- ID: 23
+TDX:Upgrade(23, 2, 4) -- 23 0/0 --> 0/4
+TDX:Upgrade(23, 1) -- 23 0/4 --> 1/4
+TDX:Upgrade(23, 1) -- 23 1/4 --> 2/4
+TDX:Place("Refractor", 2240.3591637489881, Vector3.new(211.9775390625, 39.476085662841797, 62.427524566650391), true, nil, 24) -- ID: 24
+TDX:Upgrade(24, 2, 4) -- 24 0/0 --> 0/4
+TDX:Upgrade(24, 1) -- 24 0/4 --> 1/4
+TDX:Upgrade(24, 1) -- 24 1/4 --> 2/4
+TDX:Place("Combat Medic", 2255.8864483649959, Vector3.new(217.59457397460938, 40.158100128173828, 61.209785461425781), true, nil, 25) -- ID: 25
+TDX:Upgrade(25, 1, 5) -- 25 0/0 --> 5/0
+TDX:Upgrade(25, 2, 2) -- 25 5/0 --> 5/2
+TDX:Place("Combat Medic", 2259.0063687499933, Vector3.new(217.27607727050781, 39.475894927978516, 68.238006591796875), true, nil, 26) -- ID: 26
+TDX:Upgrade(26, 1, 5) -- 26 0/0 --> 5/0
+TDX:Upgrade(26, 2, 2) -- 26 5/0 --> 5/2
+TDX:Place("Combat Medic", 2267.3832927509939, Vector3.new(214.44245910644531, 39.886661529541016, 53.130023956298828), true, nil, 27) -- ID: 27
+TDX:Upgrade(27, 1, 5) -- 27 0/0 --> 5/0
+TDX:Upgrade(27, 2, 2) -- 27 5/0 --> 5/2
+TDX:Place("Combat Medic", 2277.0745376739942, Vector3.new(211.17611694335938, 39.476009368896484, 58.320446014404297), true, nil, 28) -- ID: 28
+TDX:Upgrade(28, 1) -- 28 0/0 --> 1/0
+TDX:Upgrade(28, 1, 4) -- 28 1/0 --> 5/0
+TDX:Upgrade(28, 2, 2) -- 28 5/0 --> 5/2
+TDX:Upgrade(24, 2) -- 24 2/4 --> 2/5
+TDX:Upgrade(22, 2) -- 22 2/4 --> 2/5
+TDX:Upgrade(19, 2) -- 19 2/4 --> 2/5
+TDX:Place("Behemoth Factory", 2342.373982293997, Vector3.new(127.91623687744141, 39.475914001464844, 76.30755615234375), true, nil, 29) -- ID: 29
+TDX:Upgrade(29, 1, 5) -- 29 0/0 --> 5/0
+TDX:Upgrade(29, 2, 2) -- 29 5/0 --> 5/2
+TDX:Place("Behemoth Factory", 2366.0654902179958, Vector3.new(151.64450073242188, 39.47607421875, 81.894035339355469), true, nil, 30) -- ID: 30
+TDX:Upgrade(30, 1, 4) -- 30 0/0 --> 4/0
+TDX:Upgrade(30, 2) -- 30 4/0 --> 4/1
+TDX:Upgrade(30, 2) -- 30 4/1 --> 4/2
+TDX:Upgrade(30, 1) -- 30 4/2 --> 5/2
+TDX:Place("Behemoth Factory", 2442.4421927609947, Vector3.new(116.71414184570312, 39.476009368896484, 74.108474731445312), true, nil, 31) -- ID: 31
+TDX:Upgrade(31, 1, 3) -- 31 0/0 --> 3/0
+TDX:Upgrade(31, 2) -- 31 3/0 --> 3/1
+TDX:Upgrade(31, 2) -- 31 3/1 --> 3/2
+TDX:Upgrade(31, 1) -- 31 3/2 --> 4/2
+TDX:Upgrade(31, 1) -- 31 4/2 --> 5/2
+TDX:Place("Behemoth Factory", 2452.060423531002, Vector3.new(125.13558197021484, 39.475914001464844, 64.434738159179688), true, nil, 32) -- ID: 32
+TDX:Upgrade(32, 1, 5) -- 32 0/0 --> 5/0
+TDX:Upgrade(32, 2, 2) -- 32 5/0 --> 5/2
+TDX:Place("Behemoth Factory", 2469.3422148399986, Vector3.new(136.64530944824219, 39.475902557373047, 66.467399597167969), true, nil, 33) -- ID: 33
+TDX:Upgrade(33, 1, 5) -- 33 0/0 --> 5/0
+TDX:Upgrade(33, 2, 2) -- 33 5/0 --> 5/2
+TDX:Place("Behemoth Factory", 2487.356586533002, Vector3.new(133.0947265625, 39.475780487060547, 55.336654663085938), true, nil, 34) -- ID: 34
+TDX:Upgrade(34, 1, 5) -- 34 0/0 --> 5/0
+TDX:Upgrade(34, 2, 2) -- 34 5/0 --> 5/2
+TDX:Place("Refractor", 2511.9013656109892, Vector3.new(202.10906982421875, 40.300937652587891, 56.414772033691406), true, nil, 35) -- ID: 35
+TDX:Upgrade(35, 2, 5) -- 35 0/0 --> 0/5
+TDX:Upgrade(35, 1, 2) -- 35 0/5 --> 2/5
+TDX:Place("Refractor", 2528.8842317660019, Vector3.new(203.37393188476562, 40.226360321044922, 51.362419128417969), true, nil, 36) -- ID: 36
+TDX:Upgrade(36, 2, 4) -- 36 0/0 --> 0/4
+TDX:Upgrade(36, 1) -- 36 0/4 --> 1/4
+TDX:Upgrade(36, 1) -- 36 1/4 --> 2/4
+TDX:Place("Refractor", 2542.1275290749909, Vector3.new(225.92996215820312, 40.184043884277344, 71.704261779785156), true, nil, 37) -- ID: 37
+TDX:Upgrade(37, 2, 4) -- 37 0/0 --> 0/4
+TDX:Upgrade(37, 1) -- 37 0/4 --> 1/4
+TDX:Upgrade(37, 1) -- 37 1/4 --> 2/4
+TDX:Place("Refractor", 2554.0406283829943, Vector3.new(208.12644958496094, 39.602550506591797, 49.507251739501953), true, nil, 38) -- ID: 38
+TDX:Upgrade(38, 2, 4) -- 38 0/0 --> 0/4
+TDX:Upgrade(38, 1) -- 38 0/4 --> 1/4
+TDX:Upgrade(38, 1) -- 38 1/4 --> 2/4
+TDX:Place("Refractor", 2570.7439225379931, Vector3.new(210.47103881835938, 39.596389770507812, 45.260963439941406), true, nil, 39) -- ID: 39
+TDX:Upgrade(39, 2) -- 39 0/0 --> 0/1
+TDX:Upgrade(39, 1) -- 39 0/1 --> 1/1
+TDX:Upgrade(39, 1) -- 39 1/1 --> 2/1
+TDX:Upgrade(39, 2) -- 39 2/4 --> 2/5
+TDX:Upgrade(36, 2) -- 36 2/4 --> 2/5
+TDX:Upgrade(38, 2) -- 38 2/4 --> 2/5
+TDX:Upgrade(18, 2) -- 18 2/4 --> 2/5
+TDX:Upgrade(13, 2) -- 13 2/4 --> 2/5
