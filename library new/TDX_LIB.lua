@@ -43,7 +43,6 @@ local TowerQueryTypeIndexChanged = Remotes:FindFirstChild("TowerQueryTypeIndexCh
 local TowerAliveStateChanged = Remotes:FindFirstChild("TowerAliveStateChanged")
 local TowerReviveStateChanged = Remotes:FindFirstChild("TowerReviveStateChanged")
 
-
 local _debugScroll
 local _debugStatus
 local _debugOrder = 0
@@ -314,7 +313,6 @@ if _G.AutoSkip or _G.ReverseAutoSkip then
     end)
 end
 
-
 local TDX = {}
 
 TDX._levelCache = {}
@@ -475,6 +473,13 @@ if TowerFactoryQueueUpdated then
                 TDX._aliveState[id] = true
                 if type(lvl) == "table" then
                     TDX._levelCache[id] = { lvl[1] or 0, lvl[2] or 0 }
+                    for _, slot in pairs(TDX._slots) do
+                        if slot.actualId == id then
+                            if lvl[1] and lvl[1] > (slot.peakT or 0) then slot.peakT = lvl[1] end
+                            if lvl[2] and lvl[2] > (slot.peakB or 0) then slot.peakB = lvl[2] end
+                            break
+                        end
+                    end
                 end
                 resolveKey(TDX._levelWaiters, id)
             end
@@ -982,6 +987,12 @@ end
 function TDX:Register(name, pos, id, rebuild)
     if not name or not id then return nil end
     if typeof(pos) ~= "Vector3" then return nil end
+
+    local existingSlotId, existingSlot = findSlotByActualId(id)
+    if existingSlotId and existingSlot then
+        return existingSlotId
+    end
+
     local slotId = id
     if TDX._slots[slotId] then return slotId end
 
@@ -989,11 +1000,19 @@ function TDX:Register(name, pos, id, rebuild)
     TDX._aliveState[id] = true
     TDX._levelCache[id] = TDX._levelCache[id] or { 0, 0 }
 
+    local lvl = TDX._levelCache[id]
+    local peakT = 0
+    local peakB = 0
+    if lvl then
+        peakT = lvl[1] or 0
+        peakB = lvl[2] or 0
+    end
+
     TDX._slots[slotId] = {
         name = name, pos = pos, aim = nil,
         rebuild = rebuild ~= false, autoReplace = rebuild ~= false,
         actualId = id, deadId = nil, lastT = 0, lastB = 0,
-        peakT = 0, peakB = 0,
+        peakT = peakT, peakB = peakB,
         deathLevel = nil, deathTime = nil,
         restoring = false, reviving = false, awaitingRevive = false,
     }
