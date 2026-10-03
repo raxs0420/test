@@ -9,7 +9,7 @@ local RETRY_DELAY = 3
 local MIN_FIRE_GAP = 0.3
 local MATCH_DISTANCE = 8
 local IDLE_POLL = 0.01
-local PLACE_MAX_ATTEMPTS = 6
+local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
 
 local Players = game:GetService("Players")
