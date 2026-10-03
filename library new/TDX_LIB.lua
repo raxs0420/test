@@ -11,6 +11,7 @@ local MATCH_DISTANCE = 8
 local IDLE_POLL = 0.01
 local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
+local REBUILD_WAIT = 7
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -41,7 +42,6 @@ local RetargetTower = Remotes:FindFirstChild("RetargetTower")
 local ChangeQueryType = Remotes:FindFirstChild("ChangeQueryType")
 local TowerQueryTypeIndexChanged = Remotes:FindFirstChild("TowerQueryTypeIndexChanged")
 local TowerAliveStateChanged = Remotes:FindFirstChild("TowerAliveStateChanged")
-local TowerReviveStateChanged = Remotes:FindFirstChild("TowerReviveStateChanged")
 
 local _debugScroll
 local _debugStatus
@@ -236,9 +236,6 @@ local function retryMsg(...)
 end
 
 createDebugUI()
-
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
 
 local AutoSkipActive = false
 local ReverseAutoSkipActive = false
@@ -569,22 +566,38 @@ if TowerAliveStateChanged then
             resolveKey(TDX._targetWaiters, hash)
 
             local slotId, slot = findSlotByActualId(hash)
-            if not slotId or not slot or not slot.autoReplace then return end
-            if slot.deadId == hash then return end
+            if not slotId or not slot then return end
+            if not slot.autoReplace then return end
 
             local lvl = TDX._levelCache[hash] or { slot.lastT or 0, slot.lastB or 0 }
             local t = lvl[1] or 0
             local b = lvl[2] or 0
             if t > (slot.peakT or 0) then slot.peakT = t end
             if b > (slot.peakB or 0) then slot.peakB = b end
+
+            if data.CanRebuild == true then
+                slot.awaitingGameRevive = true
+                slot.deadId = nil
+                slot.deathLevel = nil
+                slot.deathTime = nil
+                queueRemove(slotId)
+                log(string.format("Slot %s (ID %s) has in-game rebuilds (%s left, %ss), skipping",
+                    tostring(slotId), tostring(hash),
+                    tostring(data.RebuildsLeft or "?"),
+                    tostring(data.RebuildTime or "?")))
+                return
+            end
+
+            if slot.deadId == hash then return end
+
+            slot.awaitingGameRevive = false
             slot.deathLevel = { slot.peakT or t, slot.peakB or b }
             slot.deadId = hash
             slot.deathTime = tick()
-            slot.reviving = false
-            slot.awaitingRevive = false
 
-            log(string.format("Slot %s (ID %s) died at %d/%d, queued for rebuild",
-                tostring(slotId), tostring(hash), slot.deathLevel[1], slot.deathLevel[2]))
+            log(string.format("Slot %s (ID %s) died at %d/%d, queued (waiting %ds)",
+                tostring(slotId), tostring(hash),
+                slot.deathLevel[1], slot.deathLevel[2], REBUILD_WAIT))
 
             queueAdd(slotId)
             ensureWorker()
@@ -592,44 +605,16 @@ if TowerAliveStateChanged then
             TDX._aliveState[hash] = true
             local slotId, slot = findSlotByActualId(hash)
             if slotId and slot then
-                if slot.deadId == hash then
-                    log(string.format("Slot %s revived (ID %s)", tostring(slotId), tostring(hash)))
-                    slot.deadId = nil
-                    slot.deathLevel = nil
-                    slot.deathTime = nil
-                end
-                slot.awaitingRevive = false
-                slot.reviving = false
+                local wasPending = (slot.deadId == hash) or slot.awaitingGameRevive
+                slot.deadId = nil
+                slot.deathLevel = nil
+                slot.deathTime = nil
+                slot.awaitingGameRevive = false
                 queueRemove(slotId)
                 resolveKey(TDX._aliveWaiters, slotId)
-            end
-        end
-    end)
-end
-
-if TowerReviveStateChanged then
-    TowerReviveStateChanged.OnClientEvent:Connect(function(data)
-        if type(data) ~= "table" then return end
-        local hash = tonumber(data.Hash)
-        if hash == nil then return end
-
-        local slotId, slot = findSlotByActualId(hash)
-        if not slotId or not slot then return end
-
-        if data.Reviving == true then
-            slot.reviving = true
-            slot.awaitingRevive = true
-            queueRemove(slotId)
-            log(string.format("Slot %s (ID %s) is reviving, rebuild cancelled",
-                tostring(slotId), tostring(hash)))
-        elseif data.Reviving == false then
-            slot.reviving = false
-            if slot.deadId == hash and TDX._aliveState[hash] == false then
-                slot.awaitingRevive = false
-                log(string.format("Slot %s (ID %s) revive failed, queued for rebuild",
-                    tostring(slotId), tostring(hash)))
-                queueAdd(slotId)
-                ensureWorker()
+                if wasPending then
+                    log(string.format("Slot %s (ID %s) is alive", tostring(slotId), tostring(hash)))
+                end
             end
         end
     end)
@@ -670,8 +655,7 @@ local function slotReady(slot)
         and slot.actualId
         and not slot.deadId
         and not slot.restoring
-        and not slot.awaitingRevive
-        and not slot.reviving
+        and not slot.awaitingGameRevive
         and TDX._aliveState[slot.actualId] == true
 end
 
@@ -732,14 +716,45 @@ ensureWorker = function()
                 queueSort()
                 local sid = TDX._rebuildQueue[1]
                 local s = TDX._slots[sid]
+                local shouldProcess = true
 
-                if not s or not s.deadId or s.awaitingRevive or s.reviving or not s.autoReplace then
+                if not s or not s.deadId or not s.autoReplace then
                     queueRemove(sid)
+                    shouldProcess = false
                 elseif s.actualId ~= s.deadId then
                     log(string.format("Slot %s re-placed externally, dropping from queue", tostring(sid)))
                     s.deadId = nil
                     queueRemove(sid)
+                    shouldProcess = false
                 else
+                    local remain = (s.deathTime + REBUILD_WAIT) - tick()
+                    if remain > 0 then
+                        local elapsed = 0
+                        while elapsed < remain do
+                            local chk = TDX._slots[sid]
+                            if not chk or not chk.deadId or chk.awaitingGameRevive then
+                                break
+                            end
+                            if chk.deadId ~= s.deadId then
+                                break
+                            end
+                            local step = math.min(0.2, remain - elapsed)
+                            task.wait(step)
+                            elapsed = elapsed + step
+                        end
+                        s = TDX._slots[sid]
+                        if not s or not s.deadId or not s.autoReplace or s.awaitingGameRevive then
+                            queueRemove(sid)
+                            shouldProcess = false
+                        elseif s.actualId ~= s.deadId then
+                            s.deadId = nil
+                            queueRemove(sid)
+                            shouldProcess = false
+                        end
+                    end
+                end
+
+                if shouldProcess then
                     local deadId = s.deadId
                     local targetT = s.deathLevel and s.deathLevel[1] or 0
                     local targetB = s.deathLevel and s.deathLevel[2] or 0
@@ -754,8 +769,7 @@ ensureWorker = function()
 
                     if not sl then
                         queueRemove(sid)
-                    elseif sl.deadId ~= deadId or sl.actualId ~= deadId
-                        or sl.awaitingRevive or sl.reviving then
+                    elseif sl.deadId ~= deadId or sl.actualId ~= deadId then
                         log(string.format("Slot %s state changed during placement, cancelled",
                             tostring(sid)))
                         queueRemove(sid)
@@ -767,8 +781,7 @@ ensureWorker = function()
                         sl.deadId = nil
                         sl.deathLevel = nil
                         sl.deathTime = nil
-                        sl.awaitingRevive = false
-                        sl.reviving = false
+                        sl.awaitingGameRevive = false
                         sl.lastT = 0
                         sl.lastB = 0
                         queueRemove(sid)
@@ -790,8 +803,7 @@ ensureWorker = function()
                             end)
                         end
                     else
-                        log(string.format("Slot %s place failed (likely still alive/reviving), dropping from queue",
-                            tostring(sid)))
+                        log(string.format("Slot %s place failed, dropping from queue", tostring(sid)))
                         if sl and sl.deadId == deadId then
                             sl.deadId = nil
                             sl.deathLevel = nil
@@ -931,8 +943,7 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
             existing.deadId = nil
             existing.deathLevel = nil
             existing.deathTime = nil
-            existing.awaitingRevive = false
-            existing.reviving = false
+            existing.awaitingGameRevive = false
             queueRemove(slotId)
             log(string.format("Slot %s rebuild cancelled by explicit place", tostring(slotId)))
         end
@@ -969,8 +980,7 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         deathLevel = nil,
         deathTime = nil,
         restoring = false,
-        reviving = false,
-        awaitingRevive = false,
+        awaitingGameRevive = false,
     }
 
     TDX._placeHistory[slotId] = {
@@ -1014,7 +1024,7 @@ function TDX:Register(name, pos, id, rebuild)
         actualId = id, deadId = nil, lastT = 0, lastB = 0,
         peakT = peakT, peakB = peakB,
         deathLevel = nil, deathTime = nil,
-        restoring = false, reviving = false, awaitingRevive = false,
+        restoring = false, awaitingGameRevive = false,
     }
 
     TDX._placeHistory[slotId] = { name = name, actualId = id, recordedId = slotId }
@@ -1124,8 +1134,7 @@ function TDX:Sell(hash)
         slot.deadId = nil
         slot.deathLevel = nil
         slot.deathTime = nil
-        slot.awaitingRevive = false
-        slot.reviving = false
+        slot.awaitingGameRevive = false
         slot.autoReplace = false
         queueRemove(slotId)
         resolveKey(TDX._aliveWaiters, slotId)
@@ -1299,7 +1308,6 @@ function TDX:StartMatchmaking()
     task.wait(0.2)
 end
 
-
 function TDX:Loadout(id)
     task.wait(2)
     local load = getRemote("LoadoutSelectionChanged")
@@ -1385,8 +1393,6 @@ function TDX:VoteDifficulty(diff)
     return false
 end
 
-
-
 function TDX:Equip(items)
     local net = ReplicatedStorage:FindFirstChild("Network") or ReplicatedStorage:FindFirstChild("Remotes")
     if net then
@@ -1403,9 +1409,20 @@ function TDX:ForceRebuild(slotId)
     if not slotId then return false end
     local slot = TDX._slots[slotId]
     if not slot then return false end
-    slot.awaitingRevive = false
-    slot.reviving = false
+
+    if slot.awaitingGameRevive and slot.actualId then
+        slot.awaitingGameRevive = false
+        slot.deadId = slot.actualId
+        slot.deathTime = tick() - REBUILD_WAIT
+        slot.deathLevel = { slot.peakT or 0, slot.peakB or 0 }
+        action("FORCE REBUILD slot=" .. tostring(slotId))
+        queueAdd(slotId)
+        ensureWorker()
+        return true
+    end
+
     if slot.deadId then
+        slot.deathTime = tick() - REBUILD_WAIT
         action("FORCE REBUILD slot=" .. tostring(slotId))
         queueAdd(slotId)
         ensureWorker()
