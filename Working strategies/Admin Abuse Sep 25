@@ -20,7 +20,7 @@ if game_state == "LOBBY" then
     
     local function teleport(character)
         local hrp = character:WaitForChild("HumanoidRootPart")
-        hrp.CFrame = CFrame.new(45, 8, -31)
+        hrp.CFrame = CFrame.new(-53.2442017, 9.24604034, -31.2411156, 0.507939816, -0.0115512423, 0.861315131, -0.00180743122, 0.999893606, 0.0144756306, -0.86139071, -0.0089095179, 0.507864892)
     end
     
     if player.Character then
