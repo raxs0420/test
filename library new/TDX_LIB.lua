@@ -325,6 +325,7 @@ TDX._lastFire = {}
 TDX._rebuildQueue = {}
 TDX._rebuildWorkerRunning = false
 TDX._placeLock = false
+TDX._rebuildUrgent = 0
 
 TDX._aliveWaiters = {}
 TDX._levelWaiters = {}
@@ -719,7 +720,7 @@ local function doRebuildSlot(slotId)
     setStatus("rebuilding slot " .. tostring(slotId) .. " (" .. tostring(s.name) .. ")")
     action(string.format("REBUILD slot %s %s", tostring(slotId), tostring(s.name)))
 
-    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild)
+    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild, true)
     local sl = TDX._slots[slotId]
 
     if not sl then return end
@@ -772,26 +773,36 @@ ensureWorker = function()
             local didWork = false
             if #TDX._rebuildQueue > 0 then
                 queueSort()
-                for i = #TDX._rebuildQueue, 1, -1 do
+                local toRemove = {}
+                local ready = {}
+                for i = 1, #TDX._rebuildQueue do
                     local sid = TDX._rebuildQueue[i]
                     local s = TDX._slots[sid]
 
                     if not s or not s.deadId or not s.autoReplace or s.awaitingGameRevive then
-                        table.remove(TDX._rebuildQueue, i)
+                        table.insert(toRemove, i)
                         didWork = true
                     elseif s.actualId ~= s.deadId then
                         s.deadId = nil
-                        table.remove(TDX._rebuildQueue, i)
+                        table.insert(toRemove, i)
                         didWork = true
                     elseif (tick() - (s.deathTime or 0)) >= REBUILD_WAIT then
-                        table.remove(TDX._rebuildQueue, i)
+                        table.insert(ready, sid)
+                        table.insert(toRemove, i)
                         didWork = true
-                        local sidLocal = sid
-                        task.spawn(function()
-                            local ok, err = pcall(doRebuildSlot, sidLocal)
-                            if not ok then warnUser("doRebuildSlot error:", err) end
-                        end)
                     end
+                end
+                for j = #toRemove, 1, -1 do
+                    table.remove(TDX._rebuildQueue, toRemove[j])
+                end
+                for _, sid in ipairs(ready) do
+                    TDX._rebuildUrgent = TDX._rebuildUrgent + 1
+                    local sidLocal = sid
+                    task.spawn(function()
+                        local ok, err = pcall(doRebuildSlot, sidLocal)
+                        TDX._rebuildUrgent = TDX._rebuildUrgent - 1
+                        if not ok then warnUser("doRebuildSlot error:", err) end
+                    end)
                 end
             end
             if not didWork then
@@ -801,8 +812,15 @@ ensureWorker = function()
     end)
 end
 
-placeInternal = function(name, pos, aim, rebuild)
+placeInternal = function(name, pos, aim, rebuild, priority)
     if not PlaceTower then return nil end
+
+    if not priority then
+        local deadline = tick() + 30
+        while TDX._rebuildUrgent > 0 and tick() < deadline do
+            task.wait(0.05)
+        end
+    end
 
     local attempts = 0
     while attempts < PLACE_MAX_ATTEMPTS do
@@ -945,7 +963,7 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         end
     end
 
-    local newId = placeInternal(name, pos, aim, rebuild)
+    local newId = placeInternal(name, pos, aim, rebuild, false)
     if not newId then
         warnUser("Place failed:", name)
         return nil
@@ -1450,6 +1468,7 @@ function TDX:Reset()
     TDX._levelWaiters = {}
     TDX._targetWaiters = {}
     TDX._placeLock = false
+    TDX._rebuildUrgent = 0
 end
 
 if getgenv then getgenv().TDX = TDX end
