@@ -326,6 +326,7 @@ TDX._rebuildQueue = {}
 TDX._rebuildWorkerRunning = false
 TDX._placeLock = false
 TDX._rebuildUrgent = 0
+TDX._towerCosts = {}
 
 TDX._aliveWaiters = {}
 TDX._levelWaiters = {}
@@ -451,6 +452,49 @@ end
 local function releasePlaceLock()
     TDX._placeLock = false
 end
+
+local function getCashValue()
+    local ls = LocalPlayer:FindFirstChild("leaderstats")
+    if not ls then return 0 end
+    local c = ls:FindFirstChild("Cash")
+    return c and c.Value or 0
+end
+
+local function scanTowerCosts()
+    local pg = LocalPlayer:FindFirstChild("PlayerGui")
+    local iface = pg and pg:FindFirstChild("Interface")
+    local bb = iface and iface:FindFirstChild("BottomBar")
+    local tb = bb and bb:FindFirstChild("TowersBar")
+    if not tb then return 0 end
+    local found = 0
+    for _, towerFrame in ipairs(tb:GetChildren()) do
+        if towerFrame:IsA("GuiObject") then
+            local costFrame = towerFrame:FindFirstChild("CostFrame")
+            local costText = costFrame and costFrame:FindFirstChild("CostText")
+            if costText and costText:IsA("TextLabel") then
+                local raw = costText.Text or ""
+                local num = tonumber((raw:gsub("[%$,%s]", "")))
+                if num and num > 0 then
+                    TDX._towerCosts[towerFrame.Name] = num
+                    found = found + 1
+                end
+            end
+        end
+    end
+    return found
+end
+
+task.spawn(function()
+    local deadline = tick() + 30
+    while tick() < deadline do
+        if scanTowerCosts() > 0 then break end
+        task.wait(1)
+    end
+    while true do
+        task.wait(60)
+        scanTowerCosts()
+    end
+end)
 
 if TowerFactoryQueueUpdated then
     TowerFactoryQueueUpdated.OnClientEvent:Connect(function(data)
@@ -720,7 +764,10 @@ local function doRebuildSlot(slotId)
     setStatus("rebuilding slot " .. tostring(slotId) .. " (" .. tostring(s.name) .. ")")
     action(string.format("REBUILD slot %s %s", tostring(slotId), tostring(s.name)))
 
-    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild, true)
+    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild, true, function()
+        local cur = TDX._slots[slotId]
+        return cur and cur.deadId == deadId and cur.autoReplace and not cur.awaitingGameRevive
+    end)
     local sl = TDX._slots[slotId]
 
     if not sl then return end
@@ -812,7 +859,7 @@ ensureWorker = function()
     end)
 end
 
-placeInternal = function(name, pos, aim, rebuild, priority)
+placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
     if not PlaceTower then return nil end
 
     if not priority then
@@ -824,6 +871,30 @@ placeInternal = function(name, pos, aim, rebuild, priority)
 
     local attempts = 0
     while attempts < PLACE_MAX_ATTEMPTS do
+        local cost = TDX._towerCosts[name]
+        if cost and cost > 0 then
+            local loggedWait = false
+            while getCashValue() < cost do
+                if shouldContinue and not shouldContinue() then
+                    if loggedWait then
+                        log(string.format("Cash wait for %s aborted (slot state changed)", name))
+                    end
+                    return nil
+                end
+                if not loggedWait then
+                    setStatus(string.format("waiting for cash: %s needs %d (have %d)",
+                        name, cost, getCashValue()))
+                    action(string.format("WAIT CASH %s -> need %d, have %d",
+                        name, cost, getCashValue()))
+                    loggedWait = true
+                end
+                task.wait(0.05)
+            end
+            if loggedWait then
+                log(string.format("Cash ready for %s (%d), proceeding", name, cost))
+            end
+        end
+
         attempts = attempts + 1
         acquirePlaceLock()
 
@@ -963,7 +1034,7 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         end
     end
 
-    local newId = placeInternal(name, pos, aim, rebuild, false)
+    local newId = placeInternal(name, pos, aim, rebuild, false, nil)
     if not newId then
         warnUser("Place failed:", name)
         return nil
@@ -1065,6 +1136,14 @@ function TDX:SetAutoReplaceByName(name, enabled)
             end
         end
     end
+end
+
+function TDX:GetTowerCost(name)
+    return TDX._towerCosts[name]
+end
+
+function TDX:RescanTowerCosts()
+    return scanTowerCosts()
 end
 
 function TDX:Upgrade(hash, patch, count)
@@ -1450,6 +1529,7 @@ function TDX:GetStatus()
         aliveState = TDX._aliveState,
         slots = TDX._slots,
         rebuildQueue = TDX._rebuildQueue,
+        towerCosts = TDX._towerCosts,
     }
 end
 
