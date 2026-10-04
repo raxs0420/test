@@ -3,7 +3,7 @@ local SKIP_WAITS = _recSettings.SkipWaits == true
 local SHOW_DEBUG_UI = _recSettings.DebugUI ~= false
 local AUTO_REJOIN = _recSettings.AutoRejoin ~= false
 
-local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Medic","Commander" }
+local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Medic", "Commander" }
 
 local RETRY_DELAY = 3
 local MIN_FIRE_GAP = 0.3
