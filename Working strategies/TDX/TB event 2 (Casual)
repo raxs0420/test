@@ -2,8 +2,8 @@ do
     getgenv().TDX_RECORDER = getgenv().TDX_RECORDER or {}
     local rec = getgenv().TDX_RECORDER
 
-    rec.DebugUI = true
-    rec.AutoRejoin = true
+    rawset(rec, "DebugUI", nil)
+    rawset(rec, "AutoRejoin", nil)
 
     local old_mt = getmetatable(rec)
     local old_index = old_mt and old_mt.__index
