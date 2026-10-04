@@ -1,241 +1,1291 @@
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local TowersFolder = workspace:FindFirstChild("Game") and workspace.Game:FindFirstChild("Towers")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-if not TowersFolder then
-    warn("workspace.Game.Towers not found")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+
+local function grab(parent, name)
+    local c = parent:FindFirstChild(name)
+    if c then return c end
+    local ok, res = pcall(function() return parent:WaitForChild(name, 10) end)
+    return ok and res or nil
 end
+
+local PlaceTower = grab(Remotes, "PlaceTower")
+local TowerUpgradeRequest = grab(Remotes, "TowerUpgradeRequest")
+local TowerUpgradeQueueUpdated = grab(Remotes, "TowerUpgradeQueueUpdated")
+local TowerFactoryQueueUpdated = grab(Remotes, "TowerFactoryQueueUpdated")
+local SellTower = grab(Remotes, "SellTower")
+local TowerUseAbilityRequest = grab(Remotes, "TowerUseAbilityRequest")
+local TowerAbilityUsed = grab(Remotes, "TowerAbilityUsed")
+local SkipWaveVoteCast = grab(Remotes, "SkipWaveVoteCast")
+local SkipWaveVoteStateUpdate = grab(Remotes, "SkipWaveVoteStateUpdate")
+local RetargetTower = grab(Remotes, "RetargetTower")
+local ChangeQueryType = grab(Remotes, "ChangeQueryType")
+local TowerQueryTypeIndexChanged = grab(Remotes, "TowerQueryTypeIndexChanged")
+local TowerAviatorFlightSync = grab(Remotes, "TowerAviatorFlightSync")
+
+local COLORS = {
+    bg = Color3.fromRGB(22, 22, 27),
+    header = Color3.fromRGB(33, 33, 41),
+    body = Color3.fromRGB(15, 15, 19),
+    text = Color3.fromRGB(226, 232, 240),
+    good = Color3.fromRGB(134, 239, 172),
+    bad = Color3.fromRGB(248, 113, 113),
+    dim = Color3.fromRGB(120, 128, 145),
+    button = Color3.fromRGB(46, 46, 58),
+    accent = Color3.fromRGB(96, 165, 250),
+    copy = Color3.fromRGB(74, 222, 128),
+    copyText = Color3.fromRGB(15, 46, 26),
+    pending = Color3.fromRGB(250, 204, 21),
+    tabActive = Color3.fromRGB(96, 165, 250),
+    tabInactive = Color3.fromRGB(46, 46, 58),
+    toggleOn = Color3.fromRGB(74, 222, 128),
+    toggleOff = Color3.fromRGB(46, 46, 58),
+    toggleOnText = Color3.fromRGB(15, 46, 26),
+    toggleOffText = Color3.fromRGB(226, 232, 240),
+    rowBg = Color3.fromRGB(28, 28, 35),
+}
+
+local TARGET_TYPES = {
+    [0] = "First",
+    [1] = "Last",
+    [2] = "Strong",
+    [3] = "Weak",
+    [4] = "Random",
+}
+
+local function targetName(t)
+    if t == nil then return "none" end
+    return TARGET_TYPES[tonumber(t)] or ("Type" .. tostring(t))
+end
+
+local function preciseNumber(n)
+    local short = string.format("%.14g", n)
+    if tonumber(short) == n then return short end
+    return string.format("%.17g", n)
+end
+
+local function vectorShort(v)
+    return string.format("Vector3.new(%.1f, %.1f, %.1f)", v.X, v.Y, v.Z)
+end
+
+local function vectorPrecise(v)
+    return string.format("Vector3.new(%s, %s, %s)",
+        preciseNumber(v.X), preciseNumber(v.Y), preciseNumber(v.Z))
+end
+
+local function wallClock()
+    if type(tick) == "function" then
+        return tick()
+    end
+    return os.clock()
+end
+
+local logToggles = {
+    logWaits = true,
+    logAbilities = true,
+    logWaveSkips = true,
+    logSells = true,
+    logTargets = true,
+    forceAutoRebuild = false,
+}
+
+local WAIT_MIN = 0.15
+local lastCommandClock = nil
+
+local entries, entryCounter = {}, 0
+local levels = {}
+local targetTypes = {}
+local towerNames = {}
+local aviatorPatch = {}
+local pendingUpgrades = {}
+local pendingPlaces = {}
+local pendingSkips = {}
+local pendingTargets = {}
+local factoryBuffer = {}
+
+local FACTORY_BUFFER_MAX = 30
+local FACTORY_BUFFER_TTL = 6
+local MATCH_DISTANCE = 8
+
+local viewport = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 450)
+local WIDTH = math.clamp(math.floor(viewport.X * 0.55), 300, 470)
+local HEIGHT = math.clamp(math.floor(viewport.Y * 0.55), 280, 400)
+local HEADER_H = 30
+local TABBAR_H = 30
+local FOOTER_H = 36
+local CORNER = 12
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "TDXRecorder"
-gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gui.DisplayOrder = 9999
+gui.Parent = PlayerGui
 
-local frame = Instance.new("Frame", gui)
-frame.Size = UDim2.new(0, 450, 0, 500)
-frame.Position = UDim2.new(0.5, -225, 0.5, -250)
-frame.BackgroundColor3 = Color3.fromRGB(30,30,30)
-frame.Active = true
-frame.Draggable = true
-Instance.new("UICorner", frame)
+local main = Instance.new("Frame")
+main.Position = UDim2.new(0, 16, 0, 80)
+main.Size = UDim2.fromOffset(WIDTH, HEIGHT)
+main.BackgroundColor3 = COLORS.bg
+main.BorderSizePixel = 0
+main.ClipsDescendants = true
+main.Active = true
+main.Parent = gui
 
-local title = Instance.new("TextLabel", frame)
-title.Size = UDim2.new(1, -50, 0, 30)
-title.Position = UDim2.new(0, 10, 0, 5)
-title.Text = "TDX Recorder"
-title.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", main).CornerRadius = UDim.new(0, CORNER)
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, HEADER_H)
+header.BackgroundColor3 = COLORS.header
+header.BorderSizePixel = 0
+header.Active = true
+header.Parent = main
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, CORNER)
+headerCorner.Parent = header
+
+local headerFix = Instance.new("Frame")
+headerFix.Position = UDim2.new(0, 0, 0.5, 0)
+headerFix.Size = UDim2.new(1, 0, 0.5, 0)
+headerFix.BackgroundColor3 = COLORS.header
+headerFix.BorderSizePixel = 0
+headerFix.Parent = header
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -80, 1, 0)
+title.Position = UDim2.fromOffset(14, 0)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
-title.TextSize = 18
+title.TextSize = 13
+title.TextColor3 = COLORS.text
 title.TextXAlignment = Enum.TextXAlignment.Left
+title.Text = "TDX Recorder"
+title.ZIndex = 2
+title.Parent = header
 
-local closeBtn = Instance.new("TextButton", frame)
-closeBtn.Size = UDim2.new(0, 30, 0, 30)
-closeBtn.Position = UDim2.new(1, -35, 0, 5)
-closeBtn.Text = "×"
-closeBtn.TextColor3 = Color3.fromRGB(255,100,100)
-closeBtn.BackgroundColor3 = Color3.fromRGB(60,20,20)
-Instance.new("UICorner", closeBtn)
+local minBtn = Instance.new("TextButton")
+minBtn.Size = UDim2.fromOffset(30, 22)
+minBtn.Position = UDim2.new(1, -38, 0, 4)
+minBtn.BackgroundColor3 = COLORS.button
+minBtn.BorderSizePixel = 0
+minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 14
+minBtn.TextColor3 = COLORS.text
+minBtn.Text = "-"
+minBtn.ZIndex = 3
+minBtn.Parent = header
+Instance.new("UICorner", minBtn).CornerRadius = UDim.new(0, 8)
 
-local recordBtn = Instance.new("TextButton", frame)
-recordBtn.Size = UDim2.new(0, 130, 0, 35)
-recordBtn.Position = UDim2.new(0, 20, 0, 40)
-recordBtn.Text = "START RECORDING"
-recordBtn.BackgroundColor3 = Color3.fromRGB(46,204,113)
-Instance.new("UICorner", recordBtn)
+local tabBar = Instance.new("Frame")
+tabBar.Position = UDim2.fromOffset(0, HEADER_H)
+tabBar.Size = UDim2.new(1, 0, 0, TABBAR_H)
+tabBar.BackgroundColor3 = COLORS.header
+tabBar.BorderSizePixel = 0
+tabBar.Parent = main
 
-local copyBtn = Instance.new("TextButton", frame)
-copyBtn.Size = UDim2.new(0, 130, 0, 35)
-copyBtn.Position = UDim2.new(1, -150, 0, 40)
-copyBtn.Text = "COPY SCRIPT"
-copyBtn.BackgroundColor3 = Color3.fromRGB(52,152,219)
-Instance.new("UICorner", copyBtn)
+local tabBarPad = Instance.new("UIPadding")
+tabBarPad.PaddingTop = UDim.new(0, 4)
+tabBarPad.PaddingBottom = UDim.new(0, 4)
+tabBarPad.PaddingLeft = UDim.new(0, 8)
+tabBarPad.PaddingRight = UDim.new(0, 8)
+tabBarPad.Parent = tabBar
 
-local logBox = Instance.new("ScrollingFrame", frame)
-logBox.Size = UDim2.new(1, -20, 1, -100)
-logBox.Position = UDim2.new(0, 10, 0, 85)
-logBox.BackgroundColor3 = Color3.fromRGB(20,20,20)
-logBox.ScrollBarThickness = 4
-logBox.CanvasSize = UDim2.new(0, 0, 0, 0)
-Instance.new("UICorner", logBox)
+local logTabBtn = Instance.new("TextButton")
+logTabBtn.Size = UDim2.fromOffset(70, 22)
+logTabBtn.Position = UDim2.fromOffset(0, 0)
+logTabBtn.BackgroundColor3 = COLORS.tabActive
+logTabBtn.BorderSizePixel = 0
+logTabBtn.Font = Enum.Font.GothamBold
+logTabBtn.TextSize = 12
+logTabBtn.TextColor3 = COLORS.bg
+logTabBtn.Text = "Log"
+logTabBtn.Parent = tabBar
+Instance.new("UICorner", logTabBtn).CornerRadius = UDim.new(0, 6)
 
-local logLayout = Instance.new("UIListLayout", logBox)
-logLayout.Padding = UDim.new(0, 2)
-logLayout.SortOrder = Enum.SortOrder.LayoutOrder
+local settingsTabBtn = Instance.new("TextButton")
+settingsTabBtn.Size = UDim2.fromOffset(80, 22)
+settingsTabBtn.Position = UDim2.fromOffset(76, 0)
+settingsTabBtn.BackgroundColor3 = COLORS.tabInactive
+settingsTabBtn.BorderSizePixel = 0
+settingsTabBtn.Font = Enum.Font.GothamBold
+settingsTabBtn.TextSize = 12
+settingsTabBtn.TextColor3 = COLORS.text
+settingsTabBtn.Text = "Settings"
+settingsTabBtn.Parent = tabBar
+Instance.new("UICorner", settingsTabBtn).CornerRadius = UDim.new(0, 6)
 
-local recording = false
-local actions = {}
-local nextMacroId = 1
-local nextRealId = 1
-local freeRealIds = {}         
-local realIdToMacroId = {}
-local macroIdToRealId = {}     
-local pendingUpgrade = nil
+local CONTENT_Y = HEADER_H + TABBAR_H
 
-local function addLog(msg, color)
-    local label = Instance.new("TextLabel", logBox)
-    label.Size = UDim2.new(1, -10, 0, 14)
-    label.Text = msg
-    label.TextColor3 = color or Color3.fromRGB(200,200,200)
-    label.TextSize = 10
+local scroll = Instance.new("ScrollingFrame")
+scroll.Position = UDim2.fromOffset(0, CONTENT_Y)
+scroll.Size = UDim2.new(1, 0, 1, -(CONTENT_Y + FOOTER_H))
+scroll.BackgroundColor3 = COLORS.body
+scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 4
+scroll.ScrollBarImageColor3 = COLORS.dim
+scroll.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+scroll.ScrollingDirection = Enum.ScrollingDirection.Y
+scroll.ElasticBehavior = Enum.ElasticBehavior.Never
+scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroll.Parent = main
+
+local layout = Instance.new("UIListLayout")
+layout.Padding = UDim.new(0, 5)
+layout.SortOrder = Enum.SortOrder.LayoutOrder
+layout.Parent = scroll
+
+local pad = Instance.new("UIPadding")
+pad.PaddingTop = UDim.new(0, 6)
+pad.PaddingBottom = UDim.new(0, 6)
+pad.PaddingLeft = UDim.new(0, 8)
+pad.PaddingRight = UDim.new(0, 8)
+pad.Parent = scroll
+
+local settingsFrame = Instance.new("ScrollingFrame")
+settingsFrame.Position = UDim2.fromOffset(0, CONTENT_Y)
+settingsFrame.Size = UDim2.new(1, 0, 1, -(CONTENT_Y + FOOTER_H))
+settingsFrame.BackgroundColor3 = COLORS.body
+settingsFrame.BorderSizePixel = 0
+settingsFrame.ScrollBarThickness = 4
+settingsFrame.ScrollBarImageColor3 = COLORS.dim
+settingsFrame.VerticalScrollBarInset = Enum.ScrollBarInset.ScrollBar
+settingsFrame.ScrollingDirection = Enum.ScrollingDirection.Y
+settingsFrame.ElasticBehavior = Enum.ElasticBehavior.Never
+settingsFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+settingsFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+settingsFrame.Visible = false
+settingsFrame.Parent = main
+
+local settingsLayout = Instance.new("UIListLayout")
+settingsLayout.Padding = UDim.new(0, 6)
+settingsLayout.SortOrder = Enum.SortOrder.LayoutOrder
+settingsLayout.Parent = settingsFrame
+
+local settingsPad = Instance.new("UIPadding")
+settingsPad.PaddingTop = UDim.new(0, 8)
+settingsPad.PaddingBottom = UDim.new(0, 8)
+settingsPad.PaddingLeft = UDim.new(0, 10)
+settingsPad.PaddingRight = UDim.new(0, 10)
+settingsPad.Parent = settingsFrame
+
+local footer = Instance.new("Frame")
+footer.AnchorPoint = Vector2.new(0, 1)
+footer.Position = UDim2.new(0, 0, 1, 0)
+footer.Size = UDim2.new(1, 0, 0, FOOTER_H)
+footer.BackgroundColor3 = COLORS.header
+footer.BorderSizePixel = 0
+footer.Parent = main
+
+local footerCorner = Instance.new("UICorner")
+footerCorner.CornerRadius = UDim.new(0, CORNER)
+footerCorner.Parent = footer
+
+local footerFix = Instance.new("Frame")
+footerFix.Position = UDim2.new(0, 0, 0, 0)
+footerFix.Size = UDim2.new(1, 0, 0.5, 0)
+footerFix.BackgroundColor3 = COLORS.header
+footerFix.BorderSizePixel = 0
+footerFix.Parent = footer
+
+local copyBtn = Instance.new("TextButton")
+copyBtn.Size = UDim2.new(1, -78, 1, -10)
+copyBtn.Position = UDim2.fromOffset(6, 5)
+copyBtn.BackgroundColor3 = COLORS.copy
+copyBtn.BorderSizePixel = 0
+copyBtn.Font = Enum.Font.GothamBold
+copyBtn.TextSize = 13
+copyBtn.TextColor3 = COLORS.copyText
+copyBtn.Text = "Copy"
+copyBtn.ZIndex = 2
+copyBtn.Parent = footer
+Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 8)
+
+local clearBtn = Instance.new("TextButton")
+clearBtn.Size = UDim2.fromOffset(66, FOOTER_H - 10)
+clearBtn.Position = UDim2.new(1, -72, 0, 5)
+clearBtn.BackgroundColor3 = COLORS.button
+clearBtn.BorderSizePixel = 0
+clearBtn.Font = Enum.Font.GothamBold
+clearBtn.TextSize = 13
+clearBtn.TextColor3 = COLORS.text
+clearBtn.Text = "Clear"
+clearBtn.ZIndex = 2
+clearBtn.Parent = footer
+Instance.new("UICorner", clearBtn).CornerRadius = UDim.new(0, 8)
+
+local function makeToggleRow(key, labelText, order)
+    local row = Instance.new("Frame")
+    row.Size = UDim2.new(1, 0, 0, 34)
+    row.BackgroundColor3 = COLORS.rowBg
+    row.BorderSizePixel = 0
+    row.LayoutOrder = order
+    row.Parent = settingsFrame
+    Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -90, 1, 0)
+    label.Position = UDim2.fromOffset(12, 0)
     label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold
+    label.TextSize = 12
+    label.TextColor3 = COLORS.text
     label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Font = Enum.Font.Code
-    task.wait()
-    logBox.CanvasSize = UDim2.new(0, 0, 0, logLayout.AbsoluteContentSize.Y)
-    logBox.CanvasPosition = Vector2.new(0, logBox.CanvasSize.Y.Offset)
-    return label
+    label.Text = labelText
+    label.Parent = row
+
+    local toggle = Instance.new("TextButton")
+    toggle.Size = UDim2.fromOffset(64, 22)
+    toggle.Position = UDim2.new(1, -74, 0.5, -11)
+    toggle.BorderSizePixel = 0
+    toggle.Font = Enum.Font.GothamBold
+    toggle.TextSize = 12
+    toggle.Parent = row
+    Instance.new("UICorner", toggle).CornerRadius = UDim.new(0, 6)
+
+    local function refresh()
+        if logToggles[key] then
+            toggle.Text = "ON"
+            toggle.BackgroundColor3 = COLORS.toggleOn
+            toggle.TextColor3 = COLORS.toggleOnText
+        else
+            toggle.Text = "OFF"
+            toggle.BackgroundColor3 = COLORS.toggleOff
+            toggle.TextColor3 = COLORS.toggleOffText
+        end
+    end
+
+    toggle.MouseButton1Click:Connect(function()
+        logToggles[key] = not logToggles[key]
+        if key == "logWaits" and logToggles[key] then
+            lastCommandClock = wallClock()
+        end
+        refresh()
+    end)
+
+    refresh()
 end
 
-local function allocateRealId()
-    if #freeRealIds > 0 then
-        return table.remove(freeRealIds)
+makeToggleRow("logWaits", "Log Waits", 1)
+makeToggleRow("logAbilities", "Log Abilities", 2)
+makeToggleRow("logWaveSkips", "Log Wave Skips", 3)
+makeToggleRow("logSells", "Log Sells", 4)
+makeToggleRow("logTargets", "Log Targets", 5)
+makeToggleRow("forceAutoRebuild", "Force Auto Rebuild", 6)
+
+local currentTab = "log"
+
+local function setTab(tab)
+    currentTab = tab
+    if tab == "log" then
+        scroll.Visible = true
+        settingsFrame.Visible = false
+        logTabBtn.BackgroundColor3 = COLORS.tabActive
+        logTabBtn.TextColor3 = COLORS.bg
+        settingsTabBtn.BackgroundColor3 = COLORS.tabInactive
+        settingsTabBtn.TextColor3 = COLORS.text
     else
-        local id = nextRealId
-        nextRealId = nextRealId + 1
-        return id
+        scroll.Visible = false
+        settingsFrame.Visible = true
+        logTabBtn.BackgroundColor3 = COLORS.tabInactive
+        logTabBtn.TextColor3 = COLORS.text
+        settingsTabBtn.BackgroundColor3 = COLORS.tabActive
+        settingsTabBtn.TextColor3 = COLORS.bg
     end
 end
 
-local function freeRealId(id)
-    table.insert(freeRealIds, id)
-end
+logTabBtn.MouseButton1Click:Connect(function() setTab("log") end)
+settingsTabBtn.MouseButton1Click:Connect(function() setTab("settings") end)
 
-local function monitorUpgrades()
+local function scrollToBottom()
     task.spawn(function()
-        while recording do
-            task.wait(0.01)
-            if pendingUpgrade then
-                local cmd = string.format('TDX:Upgrade(%d, %s, %d)', pendingUpgrade.macroId, pendingUpgrade.path, pendingUpgrade.level)
-                table.insert(actions, cmd)
-                addLog(cmd, Color3.fromRGB(150, 255, 150))
-                pendingUpgrade = nil
-            end
-        end
+        task.wait()
+        scroll.CanvasPosition = Vector2.new(0, scroll.AbsoluteCanvasSize.Y)
     end)
 end
 
-if TowersFolder then
-    TowersFolder.ChildAdded:Connect(function(part)
-        if not recording then return end
-        if not part:IsA("BasePart") then return end
-        task.wait(0.05)
-        if not part.Parent then return end
+local function addEntry(displayText, exactText, color, include)
+    entryCounter += 1
+    local label = Instance.new("TextLabel")
+    label.BackgroundTransparency = 1
+    label.Size = UDim2.new(1, 0, 0, 0)
+    label.AutomaticSize = Enum.AutomaticSize.Y
+    label.Font = Enum.Font.Code
+    label.TextSize = 12
+    label.TextColor3 = color or COLORS.text
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.TextYAlignment = Enum.TextYAlignment.Top
+    label.TextWrapped = true
+    label.Text = displayText
+    label.LayoutOrder = entryCounter
+    label.Parent = scroll
 
-        local name = part.Name
-        local pos = part.Position
+    local entry = {
+        label = label,
+        exact = exactText or "",
+        include = include ~= false,
+    }
+    table.insert(entries, entry)
 
-        local realId = allocateRealId()
-
-        local macroId = nextMacroId
-        nextMacroId = nextMacroId + 1
-
-        realIdToMacroId[realId] = macroId
-        macroIdToRealId[macroId] = realId
-
-        local cmd = string.format('TDX:Place("%s", %.6f, %.6f, %.6f, %d)', name, pos.X, pos.Y, pos.Z, macroId)
-        table.insert(actions, cmd)
-        addLog(cmd, Color3.fromRGB(100, 255, 100))
-        addLog(string.format("  → Real ID: %d → Macro ID: %d", realId, macroId), Color3.fromRGB(150, 150, 150))
-    end)
+    scrollToBottom()
+    return entry
 end
 
-local oldNamecall
-oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
-    local method = getnamecallmethod()
-    local args = {...}
+local function buildWaitPrefix()
+    local now = wallClock()
+    local prev = lastCommandClock
+    lastCommandClock = now
+    if not logToggles.logWaits then return "" end
+    if prev == nil then return "" end
+    local delta = now - prev
+    if delta < WAIT_MIN then return "" end
+    return string.format("TDX:Wait(%.2f)\n", delta)
+end
 
-    if recording and (method == "FireServer" or method == "InvokeServer") then
-        if self.Name == "TowerUpgradeRequest" then
-            local realId = args[1]
-            local path = args[2] or 1
-            local level = args[3] or 1
-            local macroId = realIdToMacroId[realId]
-            if macroId then
-                pendingUpgrade = {macroId = macroId, path = path, level = level}
-            end
+local dragging, dragStart, startPos = false, nil, nil
 
-        elseif self.Name == "SellTower" then
-            local realId = args[1]
-            local macroId = realIdToMacroId[realId]
-            if macroId then
-                local cmd = string.format('TDX:Sell(%d)', macroId)
-                table.insert(actions, cmd)
-                addLog(cmd, Color3.fromRGB(255, 150, 100))
-                freeRealId(realId)
-                realIdToMacroId[realId] = nil
-                macroIdToRealId[macroId] = nil
+local function clampPosition(x, y)
+    local vp = workspace.CurrentCamera and workspace.CurrentCamera.ViewportSize or Vector2.new(800, 450)
+    x = math.clamp(x, -(WIDTH - 70), vp.X - 70)
+    y = math.clamp(y, 0, math.max(0, vp.Y - HEADER_H))
+    return x, y
+end
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = main.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
             end
-        end
+        end)
     end
-
-    return oldNamecall(self, ...)
 end)
 
-local function generateScript()
-    local lines = {
-        "local TDX = loadstring(game:HttpGet(\"https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/tdx%20test%20test\"))()",
-        "TDX:SetupUpgradeListener()",
-        "task.wait(2)",
-        ""
+UserInputService.InputChanged:Connect(function(input)
+    if not dragging then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement
+    and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    local delta = input.Position - dragStart
+    local nx, ny = clampPosition(startPos.X.Offset + delta.X, startPos.Y.Offset + delta.Y)
+    main.Position = UDim2.new(startPos.X.Scale, nx, startPos.Y.Scale, ny)
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+local minimized = false
+local FULL_SIZE = UDim2.fromOffset(WIDTH, HEIGHT)
+local MINI_SIZE = UDim2.fromOffset(WIDTH, HEADER_H)
+
+local function setMinimized(state)
+    minimized = state
+    if state then
+        main.Size = MINI_SIZE
+        scroll.Visible = false
+        settingsFrame.Visible = false
+        tabBar.Visible = false
+        footer.Visible = false
+        minBtn.Text = "+"
+    else
+        main.Size = FULL_SIZE
+        scroll.Visible = (currentTab == "log")
+        settingsFrame.Visible = (currentTab == "settings")
+        tabBar.Visible = true
+        footer.Visible = true
+        minBtn.Text = "-"
+    end
+    local nx, ny = clampPosition(main.Position.X.Offset, main.Position.Y.Offset)
+    main.Position = UDim2.new(0, nx, 0, ny)
+end
+
+minBtn.MouseButton1Click:Connect(function()
+    setMinimized(not minimized)
+end)
+
+local copyToken = 0
+
+local function copyToClipboard(text)
+    if type(setclipboard) == "function" then
+        return pcall(setclipboard, text)
+    elseif type(toclipboard) == "function" then
+        return pcall(toclipboard, text)
+    end
+    return false
+end
+
+copyBtn.MouseButton1Click:Connect(function()
+    local ok = copyToClipboard(TDX:GetLog())
+    copyBtn.Text = ok and "Copied!" or "No clipboard"
+    copyToken += 1
+    local t = copyToken
+    task.delay(1.2, function()
+        if t == copyToken then copyBtn.Text = "Copy" end
+    end)
+end)
+
+clearBtn.MouseButton1Click:Connect(function()
+    for _, e in ipairs(entries) do
+        if e.label then e.label:Destroy() end
+    end
+    entries, entryCounter = {}, 0
+    lastCommandClock = nil
+    for i = #pendingUpgrades, 1, -1 do
+        pendingUpgrades[i].resolved = true
+        table.remove(pendingUpgrades, i)
+    end
+    for i = #pendingPlaces, 1, -1 do
+        pendingPlaces[i].resolved = true
+        table.remove(pendingPlaces, i)
+    end
+    for i = #pendingSkips, 1, -1 do
+        pendingSkips[i].resolved = true
+        table.remove(pendingSkips, i)
+    end
+    for i = #pendingTargets, 1, -1 do
+        pendingTargets[i].resolved = true
+        table.remove(pendingTargets, i)
+    end
+    scroll.CanvasPosition = Vector2.new(0, 0)
+end)
+
+local function getLevel(hash, patch)
+    local l = levels[hash]
+    if not l then return 0 end
+    return l[patch] or 0
+end
+
+local function getCurrentWave()
+    local ok, text = pcall(function()
+        return LocalPlayer.PlayerGui.Interface.GameInfoBar.Default.Wave.WaveText.Text
+    end)
+    if not ok or type(text) ~= "string" then return nil end
+    local n = tonumber(text:match("%d+"))
+    return n
+end
+
+local function resolvePendingUpgrades(hash)
+    for i = #pendingUpgrades, 1, -1 do
+        local p = pendingUpgrades[i]
+        if p.hash == hash and not p.resolved then
+            local cur = getLevel(hash, p.patch)
+            if cur >= p.expected then
+                p.resolved = true
+                p.entry.include = true
+                p.entry.label.TextColor3 = COLORS.good
+                p.entry.label.Text = p.successText()
+                table.remove(pendingUpgrades, i)
+            end
+        end
+    end
+end
+
+local function buildPlaceCommand(name, timer, pos, rebuild, aim, id)
+    local effective = logToggles.forceAutoRebuild and true or rebuild
+    if aim then
+        return string.format('TDX:Place("%s", %s, %s, %s, %s, %s) -- ID: %s',
+            name, preciseNumber(timer), vectorPrecise(pos), tostring(effective),
+            vectorPrecise(aim), tostring(id), tostring(id))
+    end
+    return string.format('TDX:Place("%s", %s, %s, %s, nil, %s) -- ID: %s',
+        name, preciseNumber(timer), vectorPrecise(pos), tostring(effective),
+        tostring(id), tostring(id))
+end
+
+local function buildPlaceDisplay(name, timer, pos, rebuild, aim, id)
+    local effective = logToggles.forceAutoRebuild and true or rebuild
+    if aim then
+        return string.format('TDX:Place("%s", %s, %s, %s, %s, %s) -- ID: %s',
+            name, preciseNumber(timer), vectorShort(pos), tostring(effective),
+            vectorShort(aim), tostring(id), tostring(id))
+    end
+    return string.format('TDX:Place("%s", %s, %s, %s, nil, %s) -- ID: %s',
+        name, preciseNumber(timer), vectorShort(pos), tostring(effective),
+        tostring(id), tostring(id))
+end
+
+local function consumeFactoryMatch(record, info)
+    local id = info.id
+    local lvl = info.lvl
+
+    record.resolved = true
+    record.entry.include = true
+    record.entry.label.TextColor3 = COLORS.good
+
+    local display = buildPlaceDisplay(
+        record.name, record.timer, record.pos, record.rebuild, record.aim, id)
+    local exact = buildPlaceCommand(
+        record.name, record.timer, record.pos, record.rebuild, record.aim, id)
+
+    if record.waitPrefix and record.waitPrefix ~= "" then
+        display = record.waitPrefix .. display
+        exact = record.waitPrefix .. exact
+    end
+
+    record.entry.label.Text = display
+    record.entry.exact = exact
+
+    if id ~= nil and type(lvl) == "table" then
+        levels[id] = { lvl[1] or 0, lvl[2] or 0 }
+    end
+    if id ~= nil and info.name then
+        towerNames[id] = info.name
+    end
+
+    for i = #pendingPlaces, 1, -1 do
+        if pendingPlaces[i] == record then
+            table.remove(pendingPlaces, i)
+            break
+        end
+    end
+end
+
+local function tryMatchPendingAgainstBuffer()
+    for i = #pendingPlaces, 1, -1 do
+        local record = pendingPlaces[i]
+        if not record.resolved then
+            local bestIdx, bestDist = nil, MATCH_DISTANCE
+            for j, buffered in ipairs(factoryBuffer) do
+                if not buffered.consumed and buffered.info.name == record.name then
+                    local d = (buffered.info.pos - record.pos).Magnitude
+                    if d < bestDist then
+                        bestIdx, bestDist = j, d
+                    end
+                end
+            end
+            if bestIdx then
+                local buffered = factoryBuffer[bestIdx]
+                buffered.consumed = true
+                consumeFactoryMatch(record, buffered.info)
+                table.remove(factoryBuffer, bestIdx)
+            end
+        end
+    end
+end
+
+local function pruneFactoryBuffer()
+    local now = tick()
+    for i = #factoryBuffer, 1, -1 do
+        if now - factoryBuffer[i].timestamp > FACTORY_BUFFER_TTL then
+            table.remove(factoryBuffer, i)
+        end
+    end
+    while #factoryBuffer > FACTORY_BUFFER_MAX do
+        table.remove(factoryBuffer, 1)
+    end
+end
+
+local function parseFactoryInfo(raw)
+    if type(raw) ~= "table" then return nil end
+    local info = raw[1]
+    if type(info) ~= "table" then return nil end
+    local pos = info[4]
+    if typeof(pos) ~= "Vector3" then return nil end
+    return {
+        id = info[1],
+        name = info[2],
+        pos = pos,
+        username = info[7],
+        lvl = info[8],
+        timer = raw[2],
     }
-    for _, cmd in ipairs(actions) do
-        table.insert(lines, cmd)
+end
+
+if TowerFactoryQueueUpdated then
+    TowerFactoryQueueUpdated.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        pruneFactoryBuffer()
+        for _, item in ipairs(data) do
+            if type(item) == "table" and item.Creation then
+                local parsed = parseFactoryInfo(item.Data)
+                if parsed then
+                    if parsed.id ~= nil and type(parsed.lvl) == "table" then
+                        levels[parsed.id] = { parsed.lvl[1] or 0, parsed.lvl[2] or 0 }
+                    end
+                    if parsed.id ~= nil and parsed.name then
+                        towerNames[parsed.id] = parsed.name
+                    end
+
+                    if parsed.username == LocalPlayer.Name then
+                        local matched = false
+                        local bestIdx, bestDist = nil, MATCH_DISTANCE
+                        for i, record in ipairs(pendingPlaces) do
+                            if not record.resolved and record.name == parsed.name then
+                                local d = (parsed.pos - record.pos).Magnitude
+                                if d < bestDist then
+                                    bestIdx, bestDist = i, d
+                                end
+                            end
+                        end
+                        if bestIdx then
+                            local record = pendingPlaces[bestIdx]
+                            consumeFactoryMatch(record, parsed)
+                            matched = true
+                        end
+
+                        if not matched then
+                            table.insert(factoryBuffer, {
+                                info = parsed,
+                                timestamp = tick(),
+                                consumed = false,
+                            })
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+if TowerUpgradeQueueUpdated then
+    TowerUpgradeQueueUpdated.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        for _, item in ipairs(data) do
+            if type(item) == "table" and item.Hash ~= nil then
+                local lvl = item.LevelReplicationData
+                if type(lvl) == "table" then
+                    levels[item.Hash] = { lvl[1] or 0, lvl[2] or 0 }
+                    resolvePendingUpgrades(item.Hash)
+                end
+            end
+        end
+    end)
+end
+
+if TowerAviatorFlightSync then
+    TowerAviatorFlightSync.OnClientEvent:Connect(function(entries)
+        if type(entries) ~= "table" then return end
+        for _, entry in pairs(entries) do
+            local towerId = tonumber(entry[1])
+            local segment = tonumber(entry[2])
+            if towerId and segment then
+                if segment >= 2 then
+                    aviatorPatch[towerId] = "Figure 8"
+                elseif segment >= 0 then
+                    aviatorPatch[towerId] = "Circle"
+                end
+            end
+        end
+    end)
+end
+
+local function resolvePendingSkips(votes)
+    for i = #pendingSkips, 1, -1 do
+        local p = pendingSkips[i]
+        if not p.resolved and votes >= 1 then
+            p.resolved = true
+            p.entry.include = true
+            p.entry.label.TextColor3 = COLORS.good
+
+            local line, exact
+            if p.wave then
+                line = string.format("TDX:Skip(%d) -- skipped wave %d", p.wave, p.wave)
+                exact = string.format("TDX:Skip(%d)", p.wave)
+            else
+                line = "TDX:Skip() -- yes votes: " .. tostring(votes)
+                exact = "TDX:Skip()"
+            end
+
+            if p.waitPrefix and p.waitPrefix ~= "" then
+                line = p.waitPrefix .. line
+                exact = p.waitPrefix .. exact
+            end
+
+            p.entry.label.Text = line
+            p.entry.exact = exact
+
+            table.remove(pendingSkips, i)
+        end
+    end
+end
+
+if SkipWaveVoteStateUpdate then
+    SkipWaveVoteStateUpdate.OnClientEvent:Connect(function(state)
+        if type(state) ~= "table" then return end
+        local yesVotes = tonumber(state.YesVotes)
+        if yesVotes == nil then return end
+        resolvePendingSkips(yesVotes)
+    end)
+end
+
+local function resolvePendingTargets(hash, newType)
+    for i = #pendingTargets, 1, -1 do
+        local p = pendingTargets[i]
+        if p.hash == hash and not p.resolved and p.expected == newType then
+            p.resolved = true
+            p.entry.include = true
+            p.entry.label.TextColor3 = COLORS.good
+            p.entry.label.Text = p.successText()
+            table.remove(pendingTargets, i)
+        end
+    end
+end
+
+if TowerQueryTypeIndexChanged then
+    TowerQueryTypeIndexChanged.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        for _, entry in ipairs(data) do
+            local hash, newType
+            local ok = pcall(function()
+                hash = entry.X
+                newType = entry.Y
+            end)
+            if ok and hash ~= nil and newType ~= nil then
+                targetTypes[hash] = newType
+                resolvePendingTargets(hash, newType)
+            end
+        end
+    end)
+end
+
+local function logPlace(args)
+    local timer = tonumber(args[1]) or 0
+    local name = tostring(args[2] or "Unknown")
+    local pos = typeof(args[3]) == "Vector3" and args[3] or Vector3.new(0, 0, 0)
+    local rebuild = (args[4] == true or args[4] == 1)
+    local aim = typeof(args[5]) == "Vector3" and args[5] or nil
+
+    local waitPrefix
+    if lastCommandClock == nil then
+        lastCommandClock = wallClock()
+        waitPrefix = ""
+    else
+        waitPrefix = buildWaitPrefix()
+    end
+
+    local pendingDisplay = waitPrefix .. "\u{2026} Placing " .. name .. "..."
+    local entry = addEntry(pendingDisplay, "", COLORS.pending, false)
+
+    local record = {
+        name = name,
+        pos = pos,
+        timer = timer,
+        rebuild = rebuild,
+        aim = aim,
+        waitPrefix = waitPrefix,
+        entry = entry,
+        resolved = false,
+    }
+    table.insert(pendingPlaces, record)
+
+    task.defer(tryMatchPendingAgainstBuffer)
+
+    task.delay(6, function()
+        if not record.resolved then
+            record.resolved = true
+            entry.label.TextColor3 = COLORS.bad
+            entry.label.Text = waitPrefix .. "\u{2717} Place " .. name .. " -- not confirmed"
+            for i = #pendingPlaces, 1, -1 do
+                if pendingPlaces[i] == record then
+                    table.remove(pendingPlaces, i)
+                    break
+                end
+            end
+        end
+    end)
+end
+
+local function logUpgrade(args)
+    local hash = tonumber(args[1]) or 0
+    local patch = tonumber(args[2]) or 1
+    local count = tonumber(args[3]) or 1
+
+    local beforeT = getLevel(hash, 1)
+    local beforeB = getLevel(hash, 2)
+
+    for _, p in ipairs(pendingUpgrades) do
+        if p.hash == hash and not p.resolved then
+            if p.patch == 1 then beforeT = beforeT + p.count end
+            if p.patch == 2 then beforeB = beforeB + p.count end
+        end
+    end
+
+    local afterT, afterB = beforeT, beforeB
+    if patch == 1 then
+        afterT = afterT + count
+    elseif patch == 2 then
+        afterB = afterB + count
+    end
+
+    local fromStr = string.format("%d/%d", beforeT, beforeB)
+    local toStr = string.format("%d/%d", afterT, afterB)
+
+    local callText
+    if count == 1 then
+        callText = string.format("TDX:Upgrade(%s, %s)", tostring(hash), tostring(patch))
+    else
+        callText = string.format("TDX:Upgrade(%s, %s, %s)", tostring(hash), tostring(patch), tostring(count))
+    end
+
+    local commentText = string.format(" -- %s %s --> %s", tostring(hash), fromStr, toStr)
+
+    local waitPrefix = buildWaitPrefix()
+
+    local exact = waitPrefix .. callText .. commentText
+    local successDisplay = waitPrefix .. callText .. commentText
+    local pendingDisplay = waitPrefix .. "\u{2026} " .. callText .. " -- " .. tostring(hash) .. " " .. fromStr .. " --> " .. toStr
+
+    local entry = addEntry(pendingDisplay, exact, COLORS.pending, false)
+
+    local expected = (patch == 1 and afterT or afterB)
+
+    local record = {
+        hash = hash,
+        patch = patch,
+        count = count,
+        expected = expected,
+        resolved = false,
+        entry = entry,
+        successText = function()
+            return successDisplay
+        end,
+    }
+    table.insert(pendingUpgrades, record)
+
+    task.delay(4, function()
+        if not record.resolved then
+            record.resolved = true
+            entry.label.TextColor3 = COLORS.bad
+            entry.label.Text = waitPrefix .. "\u{2717} " .. callText .. " -- " .. tostring(hash) .. " " .. fromStr .. " --> " .. toStr .. " (unconfirmed)"
+            for i = #pendingUpgrades, 1, -1 do
+                if pendingUpgrades[i] == record then
+                    table.remove(pendingUpgrades, i)
+                    break
+                end
+            end
+        end
+    end)
+end
+
+local function logSell(args)
+    if not logToggles.logSells then return end
+    local hash = tonumber(args[1]) or args[1] or 0
+    local waitPrefix = buildWaitPrefix()
+    local text = waitPrefix .. string.format("TDX:Sell(%s)", tostring(hash))
+    addEntry(text, text, COLORS.text, true)
+    levels[hash] = nil
+    targetTypes[hash] = nil
+    towerNames[hash] = nil
+    aviatorPatch[hash] = nil
+end
+
+local function logAbility(args)
+    if not logToggles.logAbilities then return end
+    local hash = tonumber(args[1]) or 0
+    local slot = tonumber(args[2]) or 1
+    local pos = typeof(args[3]) == "Vector3" and args[3] or nil
+
+    local isAviatorSwitch = (slot == 1) and (towerNames[hash] == "Aviator")
+    local patchBefore = isAviatorSwitch and (aviatorPatch[hash] or "Circle") or nil
+    local patchAfter = nil
+    if isAviatorSwitch then
+        patchAfter = (patchBefore == "Circle") and "Figure 8" or "Circle"
+    end
+
+    local callText
+    local displayText
+    if pos then
+        callText = string.format("TDX:Ability(%s, %s, %s)",
+            tostring(hash), tostring(slot), vectorPrecise(pos))
+        displayText = string.format("TDX:Ability(%s, %s, %s) -- ID: %s",
+            tostring(hash), tostring(slot), vectorShort(pos), tostring(hash))
+    else
+        callText = string.format("TDX:Ability(%s, %s)",
+            tostring(hash), tostring(slot))
+        displayText = callText .. " -- ID: " .. tostring(hash)
+    end
+
+    if isAviatorSwitch then
+        callText = callText .. string.format(" -- Aviator: %s -> %s", patchBefore, patchAfter)
+        displayText = displayText .. string.format(" [%s -> %s]", patchBefore, patchAfter)
+    end
+
+    local waitPrefix = buildWaitPrefix()
+    addEntry(waitPrefix .. displayText, waitPrefix .. callText, COLORS.good, true)
+end
+
+local function logRetarget(args)
+    if not logToggles.logAbilities then return end
+    local hash = tonumber(args[1]) or 0
+    local pos = typeof(args[2]) == "Vector3" and args[2] or nil
+
+    local callText
+    local displayText
+    if pos then
+        callText = string.format("TDX:Retarget(%s, %s)",
+            tostring(hash), vectorPrecise(pos))
+        displayText = string.format("TDX:Retarget(%s, %s) -- ID: %s",
+            tostring(hash), vectorShort(pos), tostring(hash))
+    else
+        callText = string.format("TDX:Retarget(%s)", tostring(hash))
+        displayText = callText .. " -- ID: " .. tostring(hash)
+    end
+
+    local waitPrefix = buildWaitPrefix()
+    addEntry(waitPrefix .. displayText, waitPrefix .. callText, COLORS.good, true)
+end
+
+local function logTarget(args)
+    if not logToggles.logTargets then return end
+    local hash = tonumber(args[1]) or 0
+    local newType = tonumber(args[2]) or 0
+
+    local oldType = targetTypes[hash]
+    local fromStr = targetName(oldType)
+    local toStr = targetName(newType)
+
+    local callText = string.format("TDX:Target(%s, %s)", tostring(hash), tostring(newType))
+    local commentText = string.format(" -- %s %s --> %s", tostring(hash), fromStr, toStr)
+
+    local waitPrefix = buildWaitPrefix()
+
+    local exact = waitPrefix .. callText
+    local successDisplay = waitPrefix .. callText .. commentText
+    local pendingDisplay = waitPrefix .. "\u{2026} " .. callText .. " -- " .. tostring(hash) .. " " .. fromStr .. " --> " .. toStr
+
+    local entry = addEntry(pendingDisplay, exact, COLORS.pending, false)
+
+    local record = {
+        hash = hash,
+        expected = newType,
+        resolved = false,
+        entry = entry,
+        successText = function()
+            return successDisplay
+        end,
+    }
+    table.insert(pendingTargets, record)
+
+    task.delay(4, function()
+        if not record.resolved then
+            record.resolved = true
+            entry.label.TextColor3 = COLORS.bad
+            entry.label.Text = waitPrefix .. "\u{2717} " .. callText .. " -- " .. tostring(hash) .. " " .. fromStr .. " --> " .. toStr .. " (unconfirmed)"
+            for i = #pendingTargets, 1, -1 do
+                if pendingTargets[i] == record then
+                    table.remove(pendingTargets, i)
+                    break
+                end
+            end
+        end
+    end)
+end
+
+local function logSkip()
+    if not logToggles.logWaveSkips then return end
+    local wave = getCurrentWave()
+    local waitPrefix = buildWaitPrefix()
+
+    local pendingText
+    if wave then
+        pendingText = string.format("\u{2026} Skip vote casting (wave %d)...", wave)
+    else
+        pendingText = "\u{2026} Skip vote casting..."
+    end
+
+    local fallbackExact = wave and string.format("TDX:Skip(%d)", wave) or "TDX:Skip()"
+    local entry = addEntry(waitPrefix .. pendingText, waitPrefix .. fallbackExact, COLORS.pending, false)
+
+    local record = {
+        wave = wave,
+        resolved = false,
+        entry = entry,
+        waitPrefix = waitPrefix,
+    }
+    table.insert(pendingSkips, record)
+
+    task.delay(4, function()
+        if not record.resolved then
+            record.resolved = true
+            entry.label.TextColor3 = COLORS.bad
+            if wave then
+                entry.label.Text = waitPrefix .. string.format("\u{2717} TDX:Skip(%d) -- not confirmed", wave)
+            else
+                entry.label.Text = waitPrefix .. "\u{2717} TDX:Skip() -- not confirmed"
+            end
+            for i = #pendingSkips, 1, -1 do
+                if pendingSkips[i] == record then
+                    table.remove(pendingSkips, i)
+                    break
+                end
+            end
+        end
+    end)
+end
+
+local hooked = false
+
+local function installHook()
+    if hooked then return true end
+
+    local oldNamecall
+    local newNamecall = newcclosure(function(self, ...)
+        local method = getnamecallmethod()
+
+        if method == "FireServer" then
+            if self == TowerUpgradeRequest then
+                local args = table.pack(...)
+                oldNamecall(self, ...)
+                pcall(logUpgrade, args)
+                return
+            elseif self == SellTower then
+                local args = table.pack(...)
+                oldNamecall(self, ...)
+                pcall(logSell, args)
+                return
+            elseif self == SkipWaveVoteCast then
+                local args = table.pack(...)
+                oldNamecall(self, ...)
+                if args[1] == true then
+                    pcall(logSkip)
+                end
+                return
+            elseif self == ChangeQueryType then
+                local args = table.pack(...)
+                oldNamecall(self, ...)
+                pcall(logTarget, args)
+                return
+            end
+
+        elseif method == "InvokeServer" then
+            if self == PlaceTower then
+                local args = table.pack(...)
+                local results = table.pack(oldNamecall(self, ...))
+                if results[1] == true then
+                    pcall(logPlace, args)
+                else
+                    pcall(function()
+                        addEntry("\u{2717} PlaceTower call rejected", "", COLORS.bad, false)
+                    end)
+                end
+                return table.unpack(results, 1, results.n)
+
+            elseif self == TowerUseAbilityRequest then
+                local args = table.pack(...)
+                local results = table.pack(oldNamecall(self, ...))
+                if results[1] == true then
+                    pcall(logAbility, args)
+                end
+                return table.unpack(results, 1, results.n)
+
+            elseif self == RetargetTower then
+                local args = table.pack(...)
+                local results = table.pack(oldNamecall(self, ...))
+                if results[1] == true then
+                    pcall(logRetarget, args)
+                end
+                return table.unpack(results, 1, results.n)
+            end
+        end
+
+        return oldNamecall(self, ...)
+    end)
+
+    if type(hookmetamethod) == "function" then
+        local ok = pcall(function()
+            oldNamecall = hookmetamethod(game, "__namecall", newNamecall)
+        end)
+        if ok and oldNamecall then
+            hooked = true
+            return true
+        end
+    end
+
+    if type(getrawmetatable) == "function" and type(setreadonly) == "function" then
+        local ok = pcall(function()
+            local mt = getrawmetatable(game)
+            oldNamecall = mt.__namecall
+            setreadonly(mt, false)
+            mt.__namecall = newNamecall
+            setreadonly(mt, true)
+        end)
+        if ok then
+            hooked = true
+            return true
+        end
+    end
+
+    return false
+end
+
+local success = installHook()
+
+if success then
+    addEntry("Hook installed \u{2014} recording.", "", COLORS.dim, false)
+else
+    addEntry("Failed to install hook.", "", COLORS.bad, false)
+end
+
+addEntry("Waits recorded; toggle options under Settings tab.", "", COLORS.dim, false)
+
+local TDX = {}
+
+function TDX:GetLog()
+    local header = [[
+do
+    getgenv().TDX_RECORDER = getgenv().TDX_RECORDER or {}
+    local rec = getgenv().TDX_RECORDER
+
+    rawset(rec, "DebugUI", nil)
+    rawset(rec, "AutoRejoin", nil)
+
+    local old_mt = getmetatable(rec)
+    local old_index = old_mt and old_mt.__index
+    local old_newindex = old_mt and old_mt.__newindex
+
+    setmetatable(rec, {
+        __index = function(t, k)
+            if k == "DebugUI" or k == "AutoRejoin" then return true end
+            if old_index then return old_index(t, k) end
+            return rawget(t, k)
+        end,
+        __newindex = function(t, k, v)
+            if k == "DebugUI" or k == "AutoRejoin" then return end
+            if old_newindex then old_newindex(t, k, v) else rawset(t, k, v) end
+        end,
+    })
+end
+
+_G.AutoSkip = nil -- {26, 30, 37}
+_G.ReverseAutoSkip = nil -- {26, 30, 37}
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/TDX_LIB.lua"))()]]
+
+    local lines = { header }
+    for _, e in ipairs(entries) do
+        if e.include and e.exact ~= "" then
+            table.insert(lines, e.exact)
+        end
     end
     return table.concat(lines, "\n")
 end
 
-local function startRecording()
-    recording = true
-    actions = {}
-    nextMacroId = 1
-    nextRealId = 1
-    freeRealIds = {}
-    realIdToMacroId = {}
-    macroIdToRealId = {}
-    pendingUpgrade = nil
-    recordBtn.Text = "STOP RECORDING"
-    recordBtn.BackgroundColor3 = Color3.fromRGB(231,76,60)
-    addLog("=== RECORDING STARTED ===", Color3.fromRGB(100, 255, 100))
-    addLog("Macro IDs are SEQUENTIAL (1,2,3...)", Color3.fromRGB(255, 200, 100))
-    monitorUpgrades()
-end
-
-local function stopRecording()
-    recording = false
-    recordBtn.Text = "START RECORDING"
-    recordBtn.BackgroundColor3 = Color3.fromRGB(46,204,113)
-    if #actions > 0 then
-        addLog(string.format("=== RECORDING STOPPED - %d actions ===", #actions), Color3.fromRGB(100, 255, 100))
-        addLog(string.format("Macro IDs used: 1 through %d", nextMacroId - 1), Color3.fromRGB(255, 200, 100))
-    else
-        addLog("=== RECORDING STOPPED - No actions ===", Color3.fromRGB(255, 200, 100))
+function TDX:Clear()
+    for _, e in ipairs(entries) do
+        if e.label then e.label:Destroy() end
     end
+    entries, entryCounter = {}, 0
+    lastCommandClock = nil
 end
 
-local function copyScript()
-    local scriptText = generateScript()
-    if setclipboard then
-        setclipboard(scriptText)
-        addLog(string.format("✓ Script copied! (%d actions)", #actions), Color3.fromRGB(100, 255, 100))
-        local oldColor = copyBtn.BackgroundColor3
-        copyBtn.BackgroundColor3 = Color3.fromRGB(39,174,96)
-        copyBtn.Text = "COPIED!"
-        task.wait(0.5)
-        copyBtn.BackgroundColor3 = oldColor
-        copyBtn.Text = "COPY SCRIPT"
-    else
-        addLog("✗ No clipboard access - printed to console", Color3.fromRGB(255, 100, 100))
-        print(scriptText)
-    end
+function TDX:Minimize(state)
+    setMinimized(state == nil and not minimized or state)
 end
 
-recordBtn.MouseButton1Click:Connect(function()
-    if recording then stopRecording() else startRecording() end
-end)
-copyBtn.MouseButton1Click:Connect(copyScript)
-closeBtn.MouseButton1Click:Connect(function()
-    recording = false
-    gui:Destroy()
-end)
+if getgenv then getgenv().TDX = TDX end
+_G.TDX = TDX
 
-addLog("=== READY ===", Color3.fromRGB(100, 255, 100))
+return TDX
