@@ -1,3 +1,27 @@
+do
+    getgenv().TDX_RECORDER = getgenv().TDX_RECORDER or {}
+    local rec = getgenv().TDX_RECORDER
+
+    rec.DebugUI = true
+    rec.AutoRejoin = true
+
+    local old_mt = getmetatable(rec)
+    local old_index = old_mt and old_mt.__index
+    local old_newindex = old_mt and old_mt.__newindex
+
+    setmetatable(rec, {
+        __index = function(t, k)
+            if k == "DebugUI" or k == "AutoRejoin" then return true end
+            if old_index then return old_index(t, k) end
+            return rawget(t, k)
+        end,
+        __newindex = function(t, k, v)
+            if k == "DebugUI" or k == "AutoRejoin" then return end
+            if old_newindex then old_newindex(t, k, v) else rawset(t, k, v) end
+        end,
+    })
+end
+
 _G.AutoSkip = nil
 _G.ReverseAutoSkip = {26, 30, 37}
 
