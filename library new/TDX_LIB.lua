@@ -649,6 +649,39 @@ end
 
 startAutoRejoin()
 
+do
+    local SellTowerRemote = Remotes:FindFirstChild("SellTower")
+    if SellTowerRemote and hookmetamethod and getnamecallmethod then
+        local oldNamecall
+        local ok = pcall(function()
+            oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+                if self == SellTowerRemote and getnamecallmethod() == "FireServer" then
+                    local hash = tonumber((...))
+                    if hash then
+                        local slotId, slot = findSlotByActualId(hash)
+                        if slotId and slot then
+                            log(string.format("User sold slot %s (ID %s), disabling auto-rebuild",
+                                tostring(slotId), tostring(hash)))
+                            slot.autoReplace = false
+                            slot.deadId = nil
+                            slot.deathLevel = nil
+                            slot.deathTime = nil
+                            slot.awaitingGameRevive = false
+                            queueRemove(slotId)
+                            TDX._levelCache[hash] = nil
+                            TDX._aliveState[hash] = false
+                        end
+                    end
+                end
+                return oldNamecall(self, ...)
+            end)
+        end)
+        if not ok then
+            warn("[TDX] Sell hook failed - auto-rebuild will not skip sold towers")
+        end
+    end
+end
+
 local function slotReady(slot)
     return slot
         and slot.actualId
@@ -1010,6 +1043,36 @@ function TDX:Register(name, pos, id, rebuild)
     local existingSlotId, existingSlot = findSlotByActualId(id)
     if existingSlotId and existingSlot then
         return existingSlotId
+    end
+
+    if TDX._slots[id] then return id end
+
+    local cleanupIds = {}
+    for slotId, slot in pairs(TDX._slots) do
+        if slot.actualId ~= id and slot.pos and typeof(slot.pos) == "Vector3" then
+            local d = (slot.pos - pos).Magnitude
+            if d < MATCH_DISTANCE then
+                local isDead = slot.deadId ~= nil
+                    or slot.awaitingGameRevive
+                    or TDX._aliveState[slot.actualId] == false
+                if isDead then
+                    table.insert(cleanupIds, slotId)
+                end
+            end
+        end
+    end
+    for _, sid in ipairs(cleanupIds) do
+        local slot = TDX._slots[sid]
+        if slot then
+            log(string.format("Cleaning up dead slot %s at same position as new %s",
+                tostring(sid), name))
+            queueRemove(sid)
+            if slot.actualId then
+                TDX._aliveState[slot.actualId] = nil
+                TDX._levelCache[slot.actualId] = nil
+            end
+            TDX._slots[sid] = nil
+        end
     end
 
     local slotId = id
