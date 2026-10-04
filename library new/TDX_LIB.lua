@@ -7,7 +7,7 @@ local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Medic" }
 
 local RETRY_DELAY = 3
 local MIN_FIRE_GAP = 0.3
-local MATCH_DISTANCE = 0.1
+local MATCH_DISTANCE = 0.01
 local IDLE_POLL = 0.01
 local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
