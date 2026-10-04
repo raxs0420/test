@@ -158,6 +158,12 @@ local function pushDebug(text, color)
     if not _debugScroll then return end
     _debugOrder = _debugOrder + 1
 
+    local wasAtBottom = true
+    local maxY = _debugScroll.AbsoluteCanvasSize.Y - _debugScroll.AbsoluteWindowSize.Y
+    if maxY > 0 then
+        wasAtBottom = (_debugScroll.CanvasPosition.Y >= maxY - 20)
+    end
+
     local label = Instance.new("TextLabel")
     label.Name = "Entry"
     label.BackgroundTransparency = 1
@@ -190,11 +196,13 @@ local function pushDebug(text, color)
         if not removed then break end
     end
 
-    task.defer(function()
-        if _debugScroll then
-            _debugScroll.CanvasPosition = Vector2.new(0, _debugScroll.AbsoluteCanvasSize.Y)
-        end
-    end)
+    if wasAtBottom then
+        task.defer(function()
+            if _debugScroll then
+                _debugScroll.CanvasPosition = Vector2.new(0, _debugScroll.AbsoluteCanvasSize.Y)
+            end
+        end)
+    end
 end
 
 local function nowStamp()
@@ -236,6 +244,13 @@ local function retryMsg(...)
 end
 
 createDebugUI()
+
+task.spawn(function()
+    while true do
+        pcall(function() LocalPlayer:SetAttribute("VIP", true) end)
+        task.wait(5)
+    end
+end)
 
 local AutoSkipActive = false
 local ReverseAutoSkipActive = false
