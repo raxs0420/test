@@ -11,7 +11,7 @@ local MATCH_DISTANCE = 0.5
 local IDLE_POLL = 0.01
 local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
-local REBUILD_WAIT = 7
+local REBUILD_WAIT = 8
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
