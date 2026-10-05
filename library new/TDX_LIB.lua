@@ -8,6 +8,7 @@ local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Medic", "Commander" }
 local RETRY_DELAY = 3
 local MIN_FIRE_GAP = 0.3
 local MATCH_DISTANCE = 0.01
+local COLLISION_DISTANCE = 0.5
 local IDLE_POLL = 0.01
 local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
@@ -244,13 +245,6 @@ local function retryMsg(...)
 end
 
 createDebugUI()
-
-task.spawn(function()
-    while true do
-        pcall(function() LocalPlayer:SetAttribute("VIP", true) end)
-        task.wait(5)
-    end
-end)
 
 local AutoSkipActive = false
 local ReverseAutoSkipActive = false
@@ -791,10 +785,15 @@ local function doRebuildSlot(slotId)
         return
     end
     if not newId then
-        log(string.format("Slot %s place failed, dropping", tostring(slotId)))
-        sl.deadId = nil
-        sl.deathLevel = nil
-        sl.deathTime = nil
+        local cur = TDX._slots[slotId]
+        if not cur or cur.deadId ~= deadId or cur.awaitingGameRevive then
+            log(string.format("Slot %s abandoned (state changed)", tostring(slotId)))
+            return
+        end
+
+        log(string.format("Slot %s place failed, requeuing for retry", tostring(slotId)))
+        cur.deathTime = tick()
+        queueAdd(slotId)
         return
     end
 
@@ -887,6 +886,7 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
     local attempts = 0
     while attempts < PLACE_MAX_ATTEMPTS do
         local cost = TDX._towerCosts[name]
+
         if cost and cost > 0 then
             local loggedWait = false
             while getCashValue() < cost do
@@ -897,9 +897,7 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
                     return nil
                 end
                 if not loggedWait then
-                    setStatus(string.format("waiting for cash: %s needs %d (have %d)",
-                        name, cost, getCashValue()))
-                    action(string.format("WAIT CASH %s -> need %d, have %d",
+                    log(string.format("WAIT CASH %s -> need %d, have %d",
                         name, cost, getCashValue()))
                     loggedWait = true
                 end
@@ -912,6 +910,13 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
 
         attempts = attempts + 1
         acquirePlaceLock()
+
+        if cost and cost > 0 and getCashValue() < cost then
+            releasePlaceLock()
+            task.wait(0.1)
+            attempts = attempts - 1
+            continue
+        end
 
         local pending = { name = name, pos = pos, id = nil, resolve = nil }
         local _, resolve, await = (function()
@@ -1097,14 +1102,19 @@ function TDX:Register(name, pos, id, rebuild)
     if existingSlotId and existingSlot then
         local samePlace = existingSlot.pos
             and typeof(existingSlot.pos) == "Vector3"
-            and (existingSlot.pos - pos).Magnitude <= MATCH_DISTANCE
+            and (existingSlot.pos - pos).Magnitude <= COLLISION_DISTANCE
 
-        if samePlace then
+        local sameName = existingSlot.name == name
+
+        if samePlace and sameName then
             return existingSlotId
         end
 
-        log(string.format("Hash %s reused at new position (old slot %s dropped)",
-            tostring(id), tostring(existingSlotId)))
+        log(string.format("Hash %s reused (slot %s dropped) - pos delta=%.2f, name %s->%s",
+            tostring(id), tostring(existingSlotId),
+            existingSlot.pos and typeof(existingSlot.pos) == "Vector3"
+                and (existingSlot.pos - pos).Magnitude or -1,
+            tostring(existingSlot.name), tostring(name)))
 
         queueRemove(existingSlotId)
         if existingSlot.actualId then
