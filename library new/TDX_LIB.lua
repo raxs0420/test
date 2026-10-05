@@ -43,10 +43,14 @@ local RetargetTower = Remotes:FindFirstChild("RetargetTower")
 local ChangeQueryType = Remotes:FindFirstChild("ChangeQueryType")
 local TowerQueryTypeIndexChanged = Remotes:FindFirstChild("TowerQueryTypeIndexChanged")
 local TowerAliveStateChanged = Remotes:FindFirstChild("TowerAliveStateChanged")
+local EnemyUsedAbility = Remotes:FindFirstChild("EnemyUsedAbility")
 
 local _debugScroll
 local _debugStatus
 local _debugOrder = 0
+local _lastDedupKey = nil
+local _lastDedupLabel = nil
+local _lastDedupCount = 0
 
 local function createDebugUI()
     if not SHOW_DEBUG_UI then return end
@@ -155,15 +159,22 @@ local function setStatus(text)
     end
 end
 
-local function pushDebug(text, color)
+local function pushDebug(text, color, dedupKey)
     if not _debugScroll then return end
-    _debugOrder = _debugOrder + 1
+
+    if dedupKey and _lastDedupKey == dedupKey and _lastDedupLabel then
+        _lastDedupCount = _lastDedupCount + 1
+        _lastDedupLabel.Text = text .. string.format("  [%dx]", _lastDedupCount)
+        return
+    end
 
     local wasAtBottom = true
     local maxY = _debugScroll.AbsoluteCanvasSize.Y - _debugScroll.AbsoluteWindowSize.Y
     if maxY > 0 then
         wasAtBottom = (_debugScroll.CanvasPosition.Y >= maxY - 20)
     end
+
+    _debugOrder = _debugOrder + 1
 
     local label = Instance.new("TextLabel")
     label.Name = "Entry"
@@ -188,6 +199,11 @@ local function pushDebug(text, color)
         local removed = false
         for _, c in ipairs(_debugScroll:GetChildren()) do
             if c:IsA("TextLabel") then
+                if c == _lastDedupLabel then
+                    _lastDedupKey = nil
+                    _lastDedupLabel = nil
+                    _lastDedupCount = 0
+                end
                 c:Destroy()
                 count = count - 1
                 removed = true
@@ -195,6 +211,16 @@ local function pushDebug(text, color)
             end
         end
         if not removed then break end
+    end
+
+    if dedupKey then
+        _lastDedupKey = dedupKey
+        _lastDedupLabel = label
+        _lastDedupCount = 1
+    else
+        _lastDedupKey = nil
+        _lastDedupLabel = nil
+        _lastDedupCount = 0
     end
 
     if wasAtBottom then
@@ -241,7 +267,8 @@ end
 
 local function retryMsg(...)
     local msg = fmt(...)
-    pushDebug(nowStamp() .. " ~ " .. msg, Color3.fromRGB(255, 210, 130))
+    local base = msg:gsub(",%s*retry%s*#%d+", "")
+    pushDebug(nowStamp() .. " ~ " .. base, Color3.fromRGB(255, 210, 130), "~" .. base)
 end
 
 createDebugUI()
@@ -340,6 +367,8 @@ TDX._towerCosts = {}
 TDX._aliveWaiters = {}
 TDX._levelWaiters = {}
 TDX._targetWaiters = {}
+
+local tbVoidPending = {}
 
 local function waitMinFireGap(key)
     local last = TDX._lastFire[key]
@@ -1003,6 +1032,66 @@ restoreLevel = function(slotId, targetT, targetB)
             return false
         end
     end
+end
+
+local function onTBVoidHit(rawHash)
+    local hash = tonumber(rawHash)
+    if not hash then return end
+    if tbVoidPending[hash] then return end
+    tbVoidPending[hash] = true
+
+    task.delay(2, function()
+        tbVoidPending[hash] = nil
+
+        local slotId, slot = findSlotByActualId(hash)
+        if not slotId or not slot then return end
+        if not slot.autoReplace then return end
+
+        local peakT = slot.peakT or 0
+        local peakB = slot.peakB or 0
+
+        log(string.format("TBVoidConversion hit %s (ID %s) - selling + rebuilding",
+            tostring(slot.name), tostring(hash)))
+
+        if SellTower then
+            pcall(function() SellTower:FireServer(hash) end)
+        end
+
+        TDX._levelCache[hash] = nil
+        TDX._aliveState[hash] = false
+        resolveKey(TDX._levelWaiters, hash)
+        resolveKey(TDX._targetWaiters, hash)
+
+        task.wait(0.5)
+
+        local cur = TDX._slots[slotId]
+        if not cur then return end
+
+        cur.deadId = hash
+        cur.deathLevel = { peakT, peakB }
+        cur.deathTime = tick() - REBUILD_WAIT
+        cur.autoReplace = true
+        cur.awaitingGameRevive = false
+        cur.peakT = peakT
+        cur.peakB = peakB
+
+        queueAdd(slotId)
+        ensureWorker()
+    end)
+end
+
+if EnemyUsedAbility then
+    EnemyUsedAbility.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        local payload = data[2]
+        if type(payload) ~= "table" then return end
+        if payload[1] ~= "TBVoidConversion" then return end
+        local affected = payload[9]
+        if type(affected) ~= "table" then return end
+        for _, h in ipairs(affected) do
+            onTBVoidHit(h)
+        end
+    end)
 end
 
 function TDX:Wait(seconds)
