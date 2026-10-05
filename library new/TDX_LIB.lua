@@ -369,6 +369,7 @@ TDX._rebuildWorkerRunning = false
 TDX._placeLock = false
 TDX._rebuildUrgent = 0
 TDX._towerCosts = {}
+TDX._deadSlotCounter = -1
 
 TDX._aliveWaiters = {}
 TDX._levelWaiters = {}
@@ -429,7 +430,7 @@ end
 
 local function findSlotByActualId(actualId)
     for slotId, slot in pairs(TDX._slots) do
-        if slot.actualId == actualId then
+        if slot.actualId == actualId and not slot.deadId then
             return slotId, slot
         end
     end
@@ -901,7 +902,6 @@ ensureWorker = function()
 
                 if chosen then
                     didWork = true
-
                     local chosenSlot = TDX._slots[chosen.slotId]
                     local chosenValid = chosenSlot
                         and chosenSlot.deadId
@@ -1054,13 +1054,9 @@ restoreLevel = function(slotId, targetT, targetB)
         markFire("upgrade_" .. tostring(actual))
         pcall(function() TowerUpgradeRequest:FireServer(actual, patch, need) end)
 
-        local after = awaitLevelChange(actual, lvl, RESTORE_AWAIT)
+        awaitLevelChange(actual, lvl, RESTORE_AWAIT)
 
         if TDX._aliveState[actual] == false then
-            return false
-        end
-
-        if not after and TDX._slots[slotId] and TDX._slots[slotId].actualId ~= actual then
             return false
         end
     end
@@ -1231,19 +1227,51 @@ function TDX:Register(name, pos, id, rebuild)
             return existingSlotId
         end
 
-        log(string.format("Hash %s reused (slot %s dropped) - pos delta=%.2f, name %s->%s",
-            tostring(id), tostring(existingSlotId),
-            existingSlot.pos and typeof(existingSlot.pos) == "Vector3"
-                and (existingSlot.pos - pos).Magnitude or -1,
-            tostring(existingSlot.name), tostring(name)))
+        -- Dead slot: preserve it, but detach from the reused hash
+        local isDead = existingSlot.deadId ~= nil
+            or TDX._aliveState[existingSlot.actualId] == false
+            or existingSlot.awaitingGameRevive
 
-        queueRemove(existingSlotId)
-        if existingSlot.actualId then
-            TDX._aliveState[existingSlot.actualId] = nil
-            TDX._levelCache[existingSlot.actualId] = nil
-            TDX._targetCache[existingSlot.actualId] = nil
+        if isDead then
+            local newSlotId = TDX._deadSlotCounter
+            TDX._deadSlotCounter = TDX._deadSlotCounter - 1
+
+            while TDX._slots[newSlotId] do
+                newSlotId = TDX._deadSlotCounter
+                TDX._deadSlotCounter = TDX._deadSlotCounter - 1
+            end
+
+            TDX._slots[newSlotId] = existingSlot
+            TDX._slots[existingSlotId] = nil
+
+            existingSlot.actualId = newSlotId
+            existingSlot.deadId = newSlotId
+
+            for i, qid in ipairs(TDX._rebuildQueue) do
+                if qid == existingSlotId then
+                    TDX._rebuildQueue[i] = newSlotId
+                end
+            end
+
+            log(string.format("Hash %s reused by %s - dead %s (slot %s) preserved as slot %s",
+                tostring(id), tostring(name),
+                tostring(existingSlot.name), tostring(existingSlotId),
+                tostring(newSlotId)))
+        else
+            log(string.format("Hash %s reused (live slot %s dropped) - pos delta=%.2f, name %s->%s",
+                tostring(id), tostring(existingSlotId),
+                existingSlot.pos and typeof(existingSlot.pos) == "Vector3"
+                    and (existingSlot.pos - pos).Magnitude or -1,
+                tostring(existingSlot.name), tostring(name)))
+
+            queueRemove(existingSlotId)
+            if existingSlot.actualId then
+                TDX._aliveState[existingSlot.actualId] = nil
+                TDX._levelCache[existingSlot.actualId] = nil
+                TDX._targetCache[existingSlot.actualId] = nil
+            end
+            TDX._slots[existingSlotId] = nil
         end
-        TDX._slots[existingSlotId] = nil
     end
 
     local slotId = id
@@ -1712,6 +1740,7 @@ function TDX:Reset()
     TDX._targetWaiters = {}
     TDX._placeLock = false
     TDX._rebuildUrgent = 0
+    TDX._deadSlotCounter = -1
 end
 
 if getgenv then getgenv().TDX = TDX end
