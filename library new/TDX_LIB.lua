@@ -430,7 +430,7 @@ end
 
 local function findSlotByActualId(actualId)
     for slotId, slot in pairs(TDX._slots) do
-        if slot.actualId == actualId and not slot.deadId then
+        if slot.actualId == actualId then
             return slotId, slot
         end
     end
@@ -1227,7 +1227,6 @@ function TDX:Register(name, pos, id, rebuild)
             return existingSlotId
         end
 
-        -- Dead slot: preserve it, but detach from the reused hash
         local isDead = existingSlot.deadId ~= nil
             or TDX._aliveState[existingSlot.actualId] == false
             or existingSlot.awaitingGameRevive
