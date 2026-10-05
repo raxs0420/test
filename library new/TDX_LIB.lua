@@ -1095,7 +1095,24 @@ function TDX:Register(name, pos, id, rebuild)
 
     local existingSlotId, existingSlot = findSlotByActualId(id)
     if existingSlotId and existingSlot then
-        return existingSlotId
+        local samePlace = existingSlot.pos
+            and typeof(existingSlot.pos) == "Vector3"
+            and (existingSlot.pos - pos).Magnitude <= MATCH_DISTANCE
+
+        if samePlace then
+            return existingSlotId
+        end
+
+        log(string.format("Hash %s reused at new position (old slot %s dropped)",
+            tostring(id), tostring(existingSlotId)))
+
+        queueRemove(existingSlotId)
+        if existingSlot.actualId then
+            TDX._aliveState[existingSlot.actualId] = nil
+            TDX._levelCache[existingSlot.actualId] = nil
+            TDX._targetCache[existingSlot.actualId] = nil
+        end
+        TDX._slots[existingSlotId] = nil
     end
 
     local slotId = id
