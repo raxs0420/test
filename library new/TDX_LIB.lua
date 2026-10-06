@@ -659,7 +659,6 @@ if TowerAliveStateChanged then
 
             local slotId, slot = findSlotByActualId(hash)
             if not slotId or not slot then return end
-            if not slot.autoReplace then return end
 
             local lvl = TDX._levelCache[hash] or { slot.lastT or 0, slot.lastB or 0 }
             local t = math.min(lvl[1] or 0, MAX_PATH_LEVEL)
@@ -688,12 +687,17 @@ if TowerAliveStateChanged then
             slot.deadId = hash
             slot.deathTime = tick()
 
-            log(string.format("Slot %s (ID %s) died at %d/%d, queued (waiting %ds)",
-                tostring(slotId), tostring(hash),
-                slot.deathLevel[1], slot.deathLevel[2], REBUILD_WAIT))
-
-            queueAdd(slotId)
-            ensureWorker()
+            if slot.autoReplace then
+                log(string.format("Slot %s (ID %s) died at %d/%d, queued (waiting %ds)",
+                    tostring(slotId), tostring(hash),
+                    slot.deathLevel[1], slot.deathLevel[2], REBUILD_WAIT))
+                queueAdd(slotId)
+                ensureWorker()
+            else
+                log(string.format("Slot %s (ID %s) died at %d/%d (auto-replace off, holding)",
+                    tostring(slotId), tostring(hash),
+                    slot.deathLevel[1], slot.deathLevel[2]))
+            end
         elseif data.IsAlive == true then
             TDX._aliveState[hash] = true
             local slotId, slot = findSlotByActualId(hash)
@@ -742,6 +746,37 @@ local function startAutoRejoin()
 end
 
 startAutoRejoin()
+
+do
+    if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" and SellTower then
+        local oldNamecall
+        local ok = pcall(function()
+            oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+                if self == SellTower and getnamecallmethod() == "FireServer" then
+                    local args = table.pack(...)
+                    local hash = tonumber(args[1])
+                    if hash then
+                        local slotId, slot = findSlotByActualId(hash)
+                        if slotId and slot then
+                            slot.autoReplace = false
+                            slot.deadId = nil
+                            slot.deathLevel = nil
+                            slot.deathTime = nil
+                            slot.awaitingGameRevive = false
+                            queueRemove(slotId)
+                            log(string.format("Sell detected: slot %s (ID %s) - auto-replace disabled",
+                                tostring(slotId), tostring(hash)))
+                        end
+                    end
+                end
+                return oldNamecall(self, ...)
+            end))
+        end)
+        if not ok or not oldNamecall then
+            warnUser("Sell hook failed to install")
+        end
+    end
+end
 
 local function slotReady(slot)
     return slot
@@ -1304,28 +1339,43 @@ end
 function TDX:SetAutoReplace(slotId, enabled)
     local slot = TDX._slots[slotId]
     if not slot then return false end
+
+    local wasOff = not slot.autoReplace
     slot.autoReplace = enabled == true
-    if not slot.autoReplace and slot.deadId then
-        slot.deadId = nil
-        slot.deathLevel = nil
-        slot.deathTime = nil
+
+    if slot.autoReplace then
+        if wasOff and slot.deadId and not slot.awaitingGameRevive then
+            log(string.format("Slot %s re-enabled, requeuing", tostring(slotId)))
+            queueAdd(slotId)
+            ensureWorker()
+        end
+    else
         queueRemove(slotId)
     end
+
     return true
 end
 
 function TDX:SetAutoReplaceByName(name, enabled)
+    local changed = false
     for slotId, slot in pairs(TDX._slots) do
         if slot.name == name then
+            local wasOff = not slot.autoReplace
             slot.autoReplace = enabled == true
-            if not slot.autoReplace and slot.deadId then
-                slot.deadId = nil
-                slot.deathLevel = nil
-                slot.deathTime = nil
+
+            if slot.autoReplace then
+                if wasOff and slot.deadId and not slot.awaitingGameRevive then
+                    log(string.format("Slot %s re-enabled, requeuing", tostring(slotId)))
+                    queueAdd(slotId)
+                    ensureWorker()
+                    changed = true
+                end
+            else
                 queueRemove(slotId)
             end
         end
     end
+    return changed
 end
 
 function TDX:GetTowerCost(name)
