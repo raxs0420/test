@@ -748,6 +748,52 @@ end
 startAutoRejoin()
 
 do
+    local resetRemote = Remotes:FindFirstChild("ResetDataExecuted")
+    if resetRemote then
+        resetRemote.OnClientEvent:Connect(function(data)
+            log("ResetDataExecuted received - clearing all tower state")
+
+            local slotsCleared = 0
+            for slotId, slot in pairs(TDX._slots) do
+                slotsCleared = slotsCleared + 1
+                if slot.deadId then queueRemove(slotId) end
+            end
+
+            TDX._slots = {}
+            TDX._aliveState = {}
+            TDX._levelCache = {}
+            TDX._targetCache = {}
+            TDX._placeHistory = {}
+            TDX._idRemap = {}
+            TDX._placeCount = 0
+            TDX._pendingPlaces = {}
+            TDX._rebuildQueue = {}
+            TDX._aliveWaiters = {}
+            TDX._levelWaiters = {}
+            TDX._targetWaiters = {}
+            TDX._deadSlotCounter = -1
+            TDX._lastFire = {}
+
+            for k in pairs(tbVoidPending) do
+                tbVoidPending[k] = nil
+            end
+
+            for _, list in pairs(TDX._aliveWaiters) do
+                for _, fn in ipairs(list) do pcall(fn, true) end
+            end
+            for _, list in pairs(TDX._levelWaiters) do
+                for _, fn in ipairs(list) do pcall(fn, true) end
+            end
+            for _, list in pairs(TDX._targetWaiters) do
+                for _, fn in ipairs(list) do pcall(fn, true) end
+            end
+
+            log(string.format("Cleared %d slots - ready for new round", slotsCleared))
+        end)
+    end
+end
+
+do
     if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" and SellTower then
         local oldNamecall
         local ok = pcall(function()
