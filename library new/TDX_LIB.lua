@@ -1194,7 +1194,13 @@ if EnemyUsedAbility then
         if type(data) ~= "table" then return end
         local payload = data[2]
         if type(payload) ~= "table" then return end
-        if payload[1] ~= "TBVoidConversion" then return end
+
+        local abilityName = payload[1]
+        if abilityName ~= "TBVoidConversion"
+            and abilityName ~= "TBNightmareVoidConversion" then
+            return
+        end
+
         local affected = payload[9]
         if type(affected) ~= "table" then return end
         for _, h in ipairs(affected) do
