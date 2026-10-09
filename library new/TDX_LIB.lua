@@ -16,7 +16,7 @@ local DEBUG_MAX = 1000
 local REBUILD_WAIT = 8
 local MAX_PATH_LEVEL = 5
 local VOID_REBUILD_DELAY = 1.5
-local INTERNAL_SELL_FLUSH = 0.5
+local INTERNAL_SELL_FLUSH = 0.1
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1189,69 +1189,74 @@ restoreLevel = function(slotId, targetT, targetB)
     end
 end
 
-local function onTBVoidHit(rawHash)
-    local hash = tonumber(rawHash)
-    if not hash then return end
-    if tbVoidPending[hash] then return end
-    tbVoidPending[hash] = true
-
-    local initialSlotId, initialSlot = findSlotByActualId(hash)
-    if not initialSlotId or not initialSlot then
-        tbVoidPending[hash] = nil
-        return
+local function handleConversionBatch(affectedHashes)
+    local toRebuild = {}
+    for _, rawHash in ipairs(affectedHashes) do
+        local hash = tonumber(rawHash)
+        if hash and not tbVoidPending[hash] then
+            local slotId, slot = findSlotByActualId(hash)
+            if slotId and slot and slot.autoReplace then
+                tbVoidPending[hash] = true
+                local peakT = math.min(slot.peakT or 0, MAX_PATH_LEVEL)
+                local peakB = math.min(slot.peakB or 0, MAX_PATH_LEVEL)
+                table.insert(toRebuild, {
+                    hash = hash,
+                    slotId = slotId,
+                    name = tostring(slot.name),
+                    peakT = peakT,
+                    peakB = peakB,
+                })
+            end
+        end
     end
-    if not initialSlot.autoReplace then
-        tbVoidPending[hash] = nil
-        return
-    end
 
-    local peakT = math.min(initialSlot.peakT or 0, MAX_PATH_LEVEL)
-    local peakB = math.min(initialSlot.peakB or 0, MAX_PATH_LEVEL)
-    local towerName = tostring(initialSlot.name)
+    if #toRebuild == 0 then return end
 
-    log(string.format("Conversion hit %s (ID %s) - selling + rebuilding",
-        towerName, tostring(hash)))
+    log(string.format("Conversion hit %d tower(s) - selling all then rebuilding one by one", #toRebuild))
 
     if SellTower then
         TDX._internalSell = true
-        pcall(function() SellTower:FireServer(hash) end)
+        for _, entry in ipairs(toRebuild) do
+            pcall(function() SellTower:FireServer(entry.hash) end)
+        end
         task.wait(INTERNAL_SELL_FLUSH)
         TDX._internalSell = false
     end
 
-    TDX._levelCache[hash] = nil
-    TDX._aliveState[hash] = false
-    resolveKey(TDX._levelWaiters, hash)
-    resolveKey(TDX._targetWaiters, hash)
+    for _, entry in ipairs(toRebuild) do
+        TDX._levelCache[entry.hash] = nil
+        TDX._targetCache[entry.hash] = nil
+        TDX._aliveState[entry.hash] = false
+        resolveKey(TDX._levelWaiters, entry.hash)
+        resolveKey(TDX._targetWaiters, entry.hash)
+        log(string.format("  sold %s (ID %s)", entry.name, tostring(entry.hash)))
+    end
 
-    task.delay(VOID_REBUILD_DELAY, function()
-        tbVoidPending[hash] = nil
+    for _, entry in ipairs(toRebuild) do
+        task.spawn(function()
+            task.wait(VOID_REBUILD_DELAY)
+            tbVoidPending[entry.hash] = nil
 
-        local cur = TDX._slots[initialSlotId]
-        if not cur then return end
-        if cur.actualId ~= hash then
-            log(string.format("Slot %s no longer tracks ID %s (hash reused), skipping conversion rebuild",
-                tostring(initialSlotId), tostring(hash)))
-            return
-        end
+            local cur = TDX._slots[entry.slotId]
+            if not cur then return end
+            if cur.actualId ~= entry.hash then
+                log(string.format("Slot %s no longer tracks ID %s, skipping rebuild",
+                    tostring(entry.slotId), tostring(entry.hash)))
+                return
+            end
 
-        if TDX._aliveState[hash] == true then
-            log(string.format("Slot %s (ID %s) already alive after sell, skipping rebuild",
-                tostring(initialSlotId), tostring(hash)))
-            return
-        end
+            cur.deadId = entry.hash
+            cur.deathLevel = { entry.peakT, entry.peakB }
+            cur.deathTime = tick() - REBUILD_WAIT
+            cur.autoReplace = true
+            cur.awaitingGameRevive = false
+            cur.peakT = entry.peakT
+            cur.peakB = entry.peakB
 
-        cur.deadId = hash
-        cur.deathLevel = { peakT, peakB }
-        cur.deathTime = tick() - REBUILD_WAIT
-        cur.autoReplace = true
-        cur.awaitingGameRevive = false
-        cur.peakT = peakT
-        cur.peakB = peakB
-
-        queueAdd(initialSlotId)
-        ensureWorker()
-    end)
+            queueAdd(entry.slotId)
+            ensureWorker()
+        end)
+    end
 end
 
 if EnemyUsedAbility then
@@ -1266,9 +1271,8 @@ if EnemyUsedAbility then
 
         local affected = payload[9]
         if type(affected) ~= "table" then return end
-        for _, h in ipairs(affected) do
-            onTBVoidHit(h)
-        end
+
+        handleConversionBatch(affected)
     end)
 end
 
