@@ -370,6 +370,7 @@ TDX._placeLock = false
 TDX._rebuildUrgent = 0
 TDX._towerCosts = {}
 TDX._deadSlotCounter = -1
+TDX._internalSell = false
 
 TDX._aliveWaiters = {}
 TDX._levelWaiters = {}
@@ -799,19 +800,21 @@ do
         local ok = pcall(function()
             oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
                 if self == SellTower and getnamecallmethod() == "FireServer" then
-                    local args = table.pack(...)
-                    local hash = tonumber(args[1])
-                    if hash then
-                        local slotId, slot = findSlotByActualId(hash)
-                        if slotId and slot then
-                            slot.autoReplace = false
-                            slot.deadId = nil
-                            slot.deathLevel = nil
-                            slot.deathTime = nil
-                            slot.awaitingGameRevive = false
-                            queueRemove(slotId)
-                            log(string.format("Sell detected: slot %s (ID %s) - auto-replace disabled",
-                                tostring(slotId), tostring(hash)))
+                    if not TDX._internalSell then
+                        local args = table.pack(...)
+                        local hash = tonumber(args[1])
+                        if hash then
+                            local slotId, slot = findSlotByActualId(hash)
+                            if slotId and slot then
+                                slot.autoReplace = false
+                                slot.deadId = nil
+                                slot.deathLevel = nil
+                                slot.deathTime = nil
+                                slot.awaitingGameRevive = false
+                                queueRemove(slotId)
+                                log(string.format("Sell detected: slot %s (ID %s) - auto-replace disabled",
+                                    tostring(slotId), tostring(hash)))
+                            end
                         end
                     end
                 end
@@ -886,6 +889,15 @@ local function doRebuildSlot(slotId)
     if s.awaitingGameRevive then return end
     if (tick() - (s.deathTime or 0)) < REBUILD_WAIT then return end
 
+    if TDX._aliveState[s.deadId] == true then
+        log(string.format("Slot %s already alive (game revived), skipping rebuild", tostring(slotId)))
+        s.deadId = nil
+        s.deathLevel = nil
+        s.deathTime = nil
+        queueRemove(slotId)
+        return
+    end
+
     local deadId = s.deadId
     local targetT = math.min(s.deathLevel and s.deathLevel[1] or 0, MAX_PATH_LEVEL)
     local targetB = math.min(s.deathLevel and s.deathLevel[2] or 0, MAX_PATH_LEVEL)
@@ -910,6 +922,15 @@ local function doRebuildSlot(slotId)
         local cur = TDX._slots[slotId]
         if not cur or cur.deadId ~= deadId or cur.awaitingGameRevive then
             log(string.format("Slot %s abandoned (state changed)", tostring(slotId)))
+            return
+        end
+
+        if TDX._aliveState[deadId] == true then
+            log(string.format("Slot %s already alive (game revived during place), skipping", tostring(slotId)))
+            cur.deadId = nil
+            cur.deathLevel = nil
+            cur.deathTime = nil
+            queueRemove(slotId)
             return
         end
 
@@ -970,6 +991,11 @@ ensureWorker = function()
                     elseif s.actualId ~= s.deadId then
                         s.deadId = nil
                         table.insert(toRemove, i)
+                    elseif TDX._aliveState[s.deadId] == true then
+                        s.deadId = nil
+                        s.deathLevel = nil
+                        s.deathTime = nil
+                        table.insert(toRemove, i)
                     elseif (tick() - (s.deathTime or 0)) >= REBUILD_WAIT then
                         if not chosen then
                             chosen = { index = i, slotId = sid }
@@ -988,6 +1014,7 @@ ensureWorker = function()
                         and chosenSlot.deadId
                         and chosenSlot.autoReplace
                         and not chosenSlot.awaitingGameRevive
+                        and TDX._aliveState[chosenSlot.deadId] ~= true
                         and (tick() - (chosenSlot.deathTime or 0)) >= REBUILD_WAIT
 
                     if chosenValid then
@@ -1163,7 +1190,9 @@ local function onTBVoidHit(rawHash)
             tostring(slot.name), tostring(hash)))
 
         if SellTower then
+            TDX._internalSell = true
             pcall(function() SellTower:FireServer(hash) end)
+            TDX._internalSell = false
         end
 
         TDX._levelCache[hash] = nil
@@ -1175,6 +1204,12 @@ local function onTBVoidHit(rawHash)
 
         local cur = TDX._slots[slotId]
         if not cur then return end
+
+        if TDX._aliveState[hash] == true then
+            log(string.format("Slot %s (ID %s) already alive after sell, skipping rebuild",
+                tostring(slotId), tostring(hash)))
+            return
+        end
 
         cur.deadId = hash
         cur.deathLevel = { peakT, peakB }
@@ -1196,10 +1231,8 @@ if EnemyUsedAbility then
         if type(payload) ~= "table" then return end
 
         local abilityName = payload[1]
-        if abilityName ~= "TBVoidConversion"
-            and abilityName ~= "TBNightmareVoidConversion" then
-            return
-        end
+        if type(abilityName) ~= "string" then return end
+        if not abilityName:find("VoidConversion") then return end
 
         local affected = payload[9]
         if type(affected) ~= "table" then return end
@@ -1501,7 +1534,9 @@ function TDX:Sell(hash)
     if actual == nil then return false end
 
     action("SELL slot=" .. tostring(hash) .. " ID=" .. tostring(actual))
+    TDX._internalSell = true
     pcall(function() SellTower:FireServer(actual) end)
+    TDX._internalSell = false
 
     TDX._levelCache[actual] = nil
     TDX._targetCache[actual] = nil
