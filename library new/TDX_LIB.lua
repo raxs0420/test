@@ -15,8 +15,8 @@ local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
 local REBUILD_WAIT = 8
 local MAX_PATH_LEVEL = 5
-local VOID_REBUILD_DELAY = 1
-local INTERNAL_SELL_FLUSH = 0.15
+local VOID_REBUILD_DELAY = 1.5
+local INTERNAL_SELL_FLUSH = 0.5
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
