@@ -15,6 +15,8 @@ local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
 local REBUILD_WAIT = 8
 local MAX_PATH_LEVEL = 5
+local VOID_REBUILD_DELAY = 1
+local INTERNAL_SELL_FLUSH = 0.15
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -898,6 +900,23 @@ local function doRebuildSlot(slotId)
         return
     end
 
+    local _conflict = nil
+    for sid, oslot in pairs(TDX._slots) do
+        if sid ~= slotId and oslot.actualId == s.deadId and not oslot.deadId then
+            _conflict = sid
+            break
+        end
+    end
+    if _conflict then
+        log(string.format("Slot %s rebuild skipped - ID %s already live in slot %s",
+            tostring(slotId), tostring(s.deadId), tostring(_conflict)))
+        s.deadId = nil
+        s.deathLevel = nil
+        s.deathTime = nil
+        queueRemove(slotId)
+        return
+    end
+
     local deadId = s.deadId
     local targetT = math.min(s.deathLevel and s.deathLevel[1] or 0, MAX_PATH_LEVEL)
     local targetB = math.min(s.deathLevel and s.deathLevel[2] or 0, MAX_PATH_LEVEL)
@@ -1176,38 +1195,49 @@ local function onTBVoidHit(rawHash)
     if tbVoidPending[hash] then return end
     tbVoidPending[hash] = true
 
-    task.delay(2, function()
+    local initialSlotId, initialSlot = findSlotByActualId(hash)
+    if not initialSlotId or not initialSlot then
+        tbVoidPending[hash] = nil
+        return
+    end
+    if not initialSlot.autoReplace then
+        tbVoidPending[hash] = nil
+        return
+    end
+
+    local peakT = math.min(initialSlot.peakT or 0, MAX_PATH_LEVEL)
+    local peakB = math.min(initialSlot.peakB or 0, MAX_PATH_LEVEL)
+    local towerName = tostring(initialSlot.name)
+
+    log(string.format("Conversion hit %s (ID %s) - selling + rebuilding",
+        towerName, tostring(hash)))
+
+    if SellTower then
+        TDX._internalSell = true
+        pcall(function() SellTower:FireServer(hash) end)
+        task.wait(INTERNAL_SELL_FLUSH)
+        TDX._internalSell = false
+    end
+
+    TDX._levelCache[hash] = nil
+    TDX._aliveState[hash] = false
+    resolveKey(TDX._levelWaiters, hash)
+    resolveKey(TDX._targetWaiters, hash)
+
+    task.delay(VOID_REBUILD_DELAY, function()
         tbVoidPending[hash] = nil
 
-        local slotId, slot = findSlotByActualId(hash)
-        if not slotId or not slot then return end
-        if not slot.autoReplace then return end
-
-        local peakT = math.min(slot.peakT or 0, MAX_PATH_LEVEL)
-        local peakB = math.min(slot.peakB or 0, MAX_PATH_LEVEL)
-
-        log(string.format("TBVoidConversion hit %s (ID %s) - selling + rebuilding",
-            tostring(slot.name), tostring(hash)))
-
-        if SellTower then
-            TDX._internalSell = true
-            pcall(function() SellTower:FireServer(hash) end)
-            TDX._internalSell = false
-        end
-
-        TDX._levelCache[hash] = nil
-        TDX._aliveState[hash] = false
-        resolveKey(TDX._levelWaiters, hash)
-        resolveKey(TDX._targetWaiters, hash)
-
-        task.wait(0.5)
-
-        local cur = TDX._slots[slotId]
+        local cur = TDX._slots[initialSlotId]
         if not cur then return end
+        if cur.actualId ~= hash then
+            log(string.format("Slot %s no longer tracks ID %s (hash reused), skipping conversion rebuild",
+                tostring(initialSlotId), tostring(hash)))
+            return
+        end
 
         if TDX._aliveState[hash] == true then
             log(string.format("Slot %s (ID %s) already alive after sell, skipping rebuild",
-                tostring(slotId), tostring(hash)))
+                tostring(initialSlotId), tostring(hash)))
             return
         end
 
@@ -1219,7 +1249,7 @@ local function onTBVoidHit(rawHash)
         cur.peakT = peakT
         cur.peakB = peakB
 
-        queueAdd(slotId)
+        queueAdd(initialSlotId)
         ensureWorker()
     end)
 end
@@ -1232,7 +1262,7 @@ if EnemyUsedAbility then
 
         local abilityName = payload[1]
         if type(abilityName) ~= "string" then return end
-        if not abilityName:find("VoidConversion") then return end
+        if not abilityName:find("Conversion") then return end
 
         local affected = payload[9]
         if type(affected) ~= "table" then return end
@@ -1536,6 +1566,7 @@ function TDX:Sell(hash)
     action("SELL slot=" .. tostring(hash) .. " ID=" .. tostring(actual))
     TDX._internalSell = true
     pcall(function() SellTower:FireServer(actual) end)
+    task.wait(INTERNAL_SELL_FLUSH)
     TDX._internalSell = false
 
     TDX._levelCache[actual] = nil
