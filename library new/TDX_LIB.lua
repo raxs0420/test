@@ -1191,6 +1191,7 @@ end
 
 local function handleConversionBatch(affectedHashes)
     local toRebuild = {}
+
     for _, rawHash in ipairs(affectedHashes) do
         local hash = tonumber(rawHash)
         if hash and not tbVoidPending[hash] then
@@ -1203,6 +1204,7 @@ local function handleConversionBatch(affectedHashes)
                     hash = hash,
                     slotId = slotId,
                     name = tostring(slot.name),
+                    pos = slot.pos,
                     peakT = peakT,
                     peakB = peakB,
                 })
@@ -1237,11 +1239,38 @@ local function handleConversionBatch(affectedHashes)
             task.wait(VOID_REBUILD_DELAY)
             tbVoidPending[entry.hash] = nil
 
-            local cur = TDX._slots[entry.slotId]
-            if not cur then return end
-            if cur.actualId ~= entry.hash then
-                log(string.format("Slot %s no longer tracks ID %s, skipping rebuild",
-                    tostring(entry.slotId), tostring(entry.hash)))
+            local curSlotId, cur = findSlotByActualId(entry.hash)
+            if not cur or cur.name ~= entry.name then
+                cur = nil
+                curSlotId = nil
+                for sid, s in pairs(TDX._slots) do
+                    if s.name == entry.name
+                        and s.pos
+                        and entry.pos
+                        and typeof(s.pos) == "Vector3"
+                        and typeof(entry.pos) == "Vector3"
+                    then
+                        if (s.pos - entry.pos).Magnitude <= COLLISION_DISTANCE then
+                            cur = s
+                            curSlotId = sid
+                            break
+                        end
+                    end
+                end
+            end
+
+            if not cur then
+                log(string.format("Rebuild target %s (ID %s) not found - dropping",
+                    entry.name, tostring(entry.hash)))
+                return
+            end
+
+            if cur.deadId == nil
+                and TDX._aliveState[cur.actualId] == true
+                and cur.actualId ~= entry.hash
+            then
+                log(string.format("Slot %s (%s) already alive under new ID, skipping",
+                    tostring(curSlotId), entry.name))
                 return
             end
 
@@ -1253,7 +1282,7 @@ local function handleConversionBatch(affectedHashes)
             cur.peakT = entry.peakT
             cur.peakB = entry.peakB
 
-            queueAdd(entry.slotId)
+            queueAdd(curSlotId)
             ensureWorker()
         end)
     end
