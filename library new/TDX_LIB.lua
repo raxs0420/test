@@ -1189,6 +1189,74 @@ restoreLevel = function(slotId, targetT, targetB)
     end
 end
 
+local function doRebuildSlot(slotId)
+    local s = TDX._slots[slotId]
+    if not s then return end
+    if not s.deadId or not s.autoReplace then return end
+    if s.awaitingGameRevive then return end
+    if (tick() - (s.deathTime or 0)) < REBUILD_WAIT then return end
+
+    local deadId = s.deadId
+    local targetT = math.min(s.deathLevel and s.deathLevel[1] or 0, MAX_PATH_LEVEL)
+    local targetB = math.min(s.deathLevel and s.deathLevel[2] or 0, MAX_PATH_LEVEL)
+
+    log(string.format("Auto-replacing slot %s: %s -> restore %d/%d",
+        tostring(slotId), tostring(s.name), targetT, targetB))
+    setStatus("rebuilding slot " .. tostring(slotId) .. " (" .. tostring(s.name) .. ")")
+    action(string.format("REBUILD slot %s %s", tostring(slotId), tostring(s.name)))
+
+    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild, true, function()
+        local cur = TDX._slots[slotId]
+        return cur and cur.deadId == deadId and cur.autoReplace and not cur.awaitingGameRevive
+    end)
+    local sl = TDX._slots[slotId]
+
+    if not sl then return end
+    if sl.deadId ~= deadId then
+        log(string.format("Slot %s state changed during placement, cancelled", tostring(slotId)))
+        return
+    end
+    if not newId then
+        local cur = TDX._slots[slotId]
+        if not cur or cur.deadId ~= deadId or cur.awaitingGameRevive then
+            log(string.format("Slot %s abandoned (state changed)", tostring(slotId)))
+            return
+        end
+        log(string.format("Slot %s place failed, requeuing for retry", tostring(slotId)))
+        cur.deathTime = tick()
+        queueAdd(slotId)
+        return
+    end
+
+    TDX._idRemap[slotId] = newId
+    TDX._aliveState[newId] = true
+    TDX._levelCache[newId] = { 0, 0 }
+    sl.actualId = newId
+    sl.deadId = nil
+    sl.deathLevel = nil
+    sl.deathTime = nil
+    sl.awaitingGameRevive = false
+    sl.lastT = 0
+    sl.lastB = 0
+    resolveKey(TDX._aliveWaiters, slotId)
+
+    log(string.format("Auto-replaced %s (slot %s -> ID %s)",
+        sl.name, tostring(slotId), tostring(newId)))
+
+    if targetT > 0 or targetB > 0 then
+        sl.restoring = true
+        setStatus(string.format("restoring slot %s to %d/%d",
+            tostring(slotId), targetT, targetB))
+
+        local ok, err = pcall(restoreLevel, slotId, targetT, targetB)
+        if not ok then warnUser("restoreLevel error:", err) end
+
+        local s2 = TDX._slots[slotId]
+        if s2 then s2.restoring = false end
+        resolveKey(TDX._aliveWaiters, slotId)
+    end
+end
+
 local function handleConversionBatch(affectedHashes)
     local toRebuild = {}
 
@@ -1198,15 +1266,13 @@ local function handleConversionBatch(affectedHashes)
             local slotId, slot = findSlotByActualId(hash)
             if slotId and slot and slot.autoReplace then
                 tbVoidPending[hash] = true
-                local peakT = math.min(slot.peakT or 0, MAX_PATH_LEVEL)
-                local peakB = math.min(slot.peakB or 0, MAX_PATH_LEVEL)
                 table.insert(toRebuild, {
                     hash = hash,
                     slotId = slotId,
+                    slot = slot,
                     name = tostring(slot.name),
-                    pos = slot.pos,
-                    peakT = peakT,
-                    peakB = peakB,
+                    peakT = math.min(slot.peakT or 0, MAX_PATH_LEVEL),
+                    peakB = math.min(slot.peakB or 0, MAX_PATH_LEVEL),
                 })
             end
         end
@@ -1239,38 +1305,33 @@ local function handleConversionBatch(affectedHashes)
             task.wait(VOID_REBUILD_DELAY)
             tbVoidPending[entry.hash] = nil
 
-            local curSlotId, cur = findSlotByActualId(entry.hash)
-            if not cur or cur.name ~= entry.name then
-                cur = nil
-                curSlotId = nil
-                for sid, s in pairs(TDX._slots) do
-                    if s.name == entry.name
-                        and s.pos
-                        and entry.pos
-                        and typeof(s.pos) == "Vector3"
-                        and typeof(entry.pos) == "Vector3"
-                    then
-                        if (s.pos - entry.pos).Magnitude <= COLLISION_DISTANCE then
-                            cur = s
-                            curSlotId = sid
-                            break
-                        end
-                    end
-                end
-            end
+            local cur = entry.slot
+            local curSlotId = entry.slotId
 
             if not cur then
-                log(string.format("Rebuild target %s (ID %s) not found - dropping",
+                log(string.format("Rebuild target %s (ID %s) reference lost - dropping",
                     entry.name, tostring(entry.hash)))
                 return
             end
 
+            if TDX._slots[curSlotId] ~= cur then
+                curSlotId = nil
+                for sid, s in pairs(TDX._slots) do
+                    if s == cur then curSlotId = sid break end
+                end
+                if not curSlotId then
+                    log(string.format("Rebuild target %s (ID %s) removed from slots - dropping",
+                        entry.name, tostring(entry.hash)))
+                    return
+                end
+            end
+
             if cur.deadId == nil
-                and TDX._aliveState[cur.actualId] == true
                 and cur.actualId ~= entry.hash
+                and TDX._aliveState[cur.actualId] == true
             then
-                log(string.format("Slot %s (%s) already alive under new ID, skipping",
-                    tostring(curSlotId), entry.name))
+                log(string.format("Slot %s (%s) already alive under new ID %s, skipping",
+                    tostring(curSlotId), entry.name, tostring(cur.actualId)))
                 return
             end
 
@@ -1284,6 +1345,8 @@ local function handleConversionBatch(affectedHashes)
 
             queueAdd(curSlotId)
             ensureWorker()
+            log(string.format("  queued slot %s (%s) for rebuild",
+                tostring(curSlotId), entry.name))
         end)
     end
 end
