@@ -2390,6 +2390,10 @@ local defaultBountyPriority = 20000
 local auto_bounty_running = false
 
 local function getBountyThresholds()
+    if _G.AutoBountyThreshold or _G.AutoBountyPriority then
+        return _G.AutoBountyThreshold or defaultBountyThreshold,
+               _G.AutoBountyPriority or defaultBountyPriority
+    end
     local mode = nil
     local stateReplicator = replicated_storage:FindFirstChild("StateReplicators")
     if stateReplicator then
