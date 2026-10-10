@@ -1697,6 +1697,14 @@ function TDS:Ability(idx, name, data, loop)
     return do_activate_ability(t, name, data, loop)
 end
 
+function TDS:PresetLoadout(name)
+    if type(name) ~= "string" then return false end
+    local ok = pcall(function()
+        game:GetService("ReplicatedStorage").Network.PlayerManager["RE:SelectLoadout"]:FireServer(name)
+    end)
+    return ok
+end
+
 function TDS:AutoChain(...)
     local tower_indices = {...}
     if #tower_indices == 0 then return end
