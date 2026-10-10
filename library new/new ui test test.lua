@@ -1700,7 +1700,11 @@ end
 function TDS:PresetLoadout(name)
     if type(name) ~= "string" then return false end
     local ok = pcall(function()
-        game:GetService("ReplicatedStorage").Network.PlayerManager["RE:SelectLoadout"]:FireServer(name)
+        if name == "Own" then
+            game:GetService("ReplicatedStorage").Network.PlayerManager["RE:UserLoadout"]:FireServer()
+        else
+            game:GetService("ReplicatedStorage").Network.PlayerManager["RE:SelectLoadout"]:FireServer(name)
+        end
     end)
     return ok
 end
