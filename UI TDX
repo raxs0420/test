@@ -28,6 +28,8 @@ local maxDebugLogs = 150
 local debugLogFrameRef = nil
 local debugLogLayoutRef = nil
 local abilityUsedQueue = {}
+local distributeThreads = {}
+local activeDroneThreads = {}
 
 local function addDebugLog(message)
     if not debugEnabled then return end
@@ -62,22 +64,140 @@ local function addDebugLog(message)
     end)
 end
 
-local enemyBlocklist = {
-    "Skulldrone", "Pilot", "Artemis", "Slow", "Quick", "Normal", "Buzzard", "Jumper",
-    "Zombie+", "Fast Zombie+", "Heavy Zombie+", "VX-Drone", "Healing Drone", "Missile Drrone",
-    "Rusher", "Jager", "Chariot Turret", "Spawner", "Haste", "Attack Drone", "Rocket Drone",
-    "Multiplier 3", "Multiplier 2", "Multiplier 1", "Multiplier X", "Aerial Juggernaut",
-    "Xcientist", "Shock Head", "Prisoner", "Prisoner Soul", "Contained", "Light Contained",
-    "Heavy Contained", "Resurrected Armored Ranger", "XNader", "Zombie Drop Pod 3", "Zombie Drop Pod 2", "Zombie Drop Pod 1", "Resurrected Slow Ranger", "Resurrected Ranger"
+local EnemyDB = {
+    URL = "https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/TDX-Enemies.lua",
+    THRESHOLDS = {
+        easy = 1000, test = 1000, intermediate = 1000, elite = 1000, expert = 1000,
+        christmas = 1000, christmasnightmare = 1000, endless = 1000, toilet = 1000,
+        towerbattles = 1000, towerbattlesnightmare = 1000,
+        halloweenpart1 = 1000, halloweennightmarepart1 = 1000, halloweennightmarepart2 = 1000,
+        halloweennightmarepart3 = 1000, halloweenpart2 = 1000, halloweenpart3 = 1000,
+        halloweenpart4 = 1000, halloweennightmarepart4 = 1000,
+        christmas24part1nightmare = 1000, christmas24part1 = 1000,
+        christmas24part2 = 1000, christmas24part2nightmare = 1000,
+        tutorial = 1000, expertold = 1000, mlg = 1000, mlgnightmare = 1000, eliteold = 1000,
+        slimeevent = 1000, ultranightmare = 1000, slimeeventnightmare = 1000,
+        nightmare = 2000,
+        halloween2025nightmare = 1000, halloween2025 = 1000, party2025 = 1000,
+        christmas25part1 = 1000, christmas25part2 = 1000, christmas25part2nightmare = 1000,
+        christmas25part1nightmare = 1000, christmas25part1easy = 1000, christmas25part2easy = 1000,
+        easter26part2nightmare = 1000, easter26part1nightmare = 1000, easter26part2easy = 1000,
+        easter26part1 = 1000, easter26part2 = 1000, easter26part1easy = 1000,
+        pvp_1v1 = 1000, tbpart2voidmare = 1000, tbpart2hard = 1000,
+        tbpart2casual = 1000, tbpart2nightmare = 1000,
+    },
+    data = { byMode = {}, blacklist = {}, priority = {}, normal = {}, loaded = false, loading = false },
+    mode = nil,
 }
 
-local enemyWhitelist = {
-    "Emperor", "Void Apex Predator", "Golden Eradicator MK IV", "Calamity",
-    "Golden Eradicator MK I Combat", "Eradicator MK IV", "Eradicator MK I Combat",
-    "Eradicator MK II+", "Alpha Predator", "Apex Predator", "Destructor",
-    "Nightmare Exo Santa", "Exo Santa", "Zeus", "Phoebus", "Revived Plague Doctor",
-    "Eradicator", "Plague Doctor", "Predator"
-}
+function EnemyDB.parse()
+    if EnemyDB.data.loading then return false end
+    EnemyDB.data.loading = true
+    local ok, response = pcall(game.HttpGet, game, EnemyDB.URL)
+    if not ok or not response then
+        EnemyDB.data.loading = false
+        return false
+    end
+    local byMode = {}
+    local curKey = nil
+    for line in response:gmatch("[^\r\n]+") do
+        local internal = line:match("%(Internal:%s*(.-)%)")
+        if internal then
+            curKey = string.lower(string.gsub(internal, " ", ""))
+            if not byMode[curKey] then byMode[curKey] = {} end
+        else
+            local body = line:match("^%s*%-%s*(.+)")
+            if body and curKey then
+                local name, hp, speed, airUnit, isBoss = body:match(
+                    "^([^|]+)%s*|%s*HP:%s*(%d+)%s*|%s*Speed:%s*([%d%.]+)%s*|%s*AirUnit:%s*(%w+)%s*|%s*IsBoss:%s*(%w+)"
+                )
+                if name then
+                    name = string.gsub(name, "^%s+", "")
+                    name = string.gsub(name, "%s+$", "")
+                    byMode[curKey][name] = {
+                        hp = tonumber(hp) or 0,
+                        speed = tonumber(speed) or 0,
+                        airUnit = (airUnit == "true"),
+                        isBoss = (isBoss == "true"),
+                    }
+                end
+            end
+        end
+    end
+    EnemyDB.data.byMode = byMode
+    EnemyDB.data.loaded = true
+    EnemyDB.data.loading = false
+    return true
+end
+
+function EnemyDB.info(name)
+    if not EnemyDB.data.loaded then return nil end
+    local m = EnemyDB.mode
+    if m and EnemyDB.data.byMode[m] and EnemyDB.data.byMode[m][name] then
+        return EnemyDB.data.byMode[m][name]
+    end
+    for _, md in pairs(EnemyDB.data.byMode) do
+        if md[name] then return md[name] end
+    end
+    return nil
+end
+
+function EnemyDB.refresh()
+    local src
+    local m = EnemyDB.mode
+    if m and EnemyDB.data.byMode[m] then
+        src = EnemyDB.data.byMode[m]
+    else
+        src = {}
+        for _, md in pairs(EnemyDB.data.byMode) do
+            for n, info in pairs(md) do src[n] = info end
+        end
+    end
+    local bl, pr, nm = {}, {}, {}
+    for n, info in pairs(src) do
+        if info.airUnit or info.speed <= 0 then
+            bl[n] = true
+        elseif info.isBoss then
+            pr[n] = true
+        else
+            nm[n] = { hp = info.hp, speed = info.speed }
+        end
+    end
+    EnemyDB.data.blacklist = bl
+    EnemyDB.data.priority = pr
+    EnemyDB.data.normal = nm
+end
+
+function EnemyDB.threshold()
+    local m = EnemyDB.mode
+    if not m then return 1000 end
+    return EnemyDB.THRESHOLDS[m] or 1000
+end
+
+function EnemyDB.worth(enemy)
+    if not enemy or not enemy.Parent then return false end
+    local info = EnemyDB.info(enemy.Name)
+    if not info then return true end
+    if info.airUnit then return false end
+    if info.speed <= 0 then return false end
+    return info.hp >= EnemyDB.threshold()
+end
+
+task.spawn(function() pcall(EnemyDB.parse) end)
+
+task.spawn(function()
+    while true do
+        pcall(function()
+            local t = game:GetService("Players").LocalPlayer.PlayerGui
+                .Interface.BottomLeftButtons.Difficulty.TextLabel.Text
+            if t and #t > 0 then
+                EnemyDB.mode = string.lower(string.gsub(t, " ", ""))
+            end
+        end)
+        pcall(EnemyDB.refresh)
+        task.wait(2)
+    end
+end)
 
 local SettingsFile = "TDXAuto_Settings.json"
 local defaultSettings = {
@@ -122,6 +242,10 @@ local function saveSettings()
 end
 
 loadSettings()
+
+if settings.debuffGrenadeMode == nil then settings.debuffGrenadeMode = "closest" end
+if settings.uberMode == nil then settings.uberMode = "strongest" end
+if settings.critzMode == nil then settings.critzMode = "strongest" end
 
 local screenSize = workspace.CurrentCamera.ViewportSize
 local frameWidth = 520
@@ -234,23 +358,21 @@ local function makeTabButton(text)
     return btn
 end
 
-local tabMainBtn = makeTabButton("Main")
-local tabAutoReviveBtn = makeTabButton("Auto Rebuild")
-local tabPvPBtn = makeTabButton("PvP")
-local tabAbilitiesBtn = makeTabButton("Abilities")
-local tabGameInfoBtn = makeTabButton("Game Info")
-local tabTowersBtn = makeTabButton("Towers")
-local tabAntiLagBtn = makeTabButton("Anti-Lag")
-local tabDebugBtn = makeTabButton("Debug")
-
-local tabButtonsOrdered = {
-    tabMainBtn, tabAutoReviveBtn, tabPvPBtn, tabAbilitiesBtn,
-    tabGameInfoBtn, tabTowersBtn, tabAntiLagBtn, tabDebugBtn,
+local Tabs = {
+    Main       = makeTabButton("Main"),
+    AutoRevive = makeTabButton("Auto Rebuild"),
+    PvP        = makeTabButton("PvP"),
+    Abilities  = makeTabButton("Abilities"),
+    GameInfo   = makeTabButton("Game Info"),
+    Towers     = makeTabButton("Towers"),
+    AntiLag    = makeTabButton("Anti-Lag"),
+    Debug      = makeTabButton("Debug"),
 }
+Tabs.Ordered = { Tabs.Main, Tabs.AutoRevive, Tabs.PvP, Tabs.Abilities, Tabs.GameInfo, Tabs.Towers, Tabs.AntiLag, Tabs.Debug }
 
 local function updateTabLayout()
     local x = 0
-    for _, btn in ipairs(tabButtonsOrdered) do
+    for _, btn in ipairs(Tabs.Ordered) do
         if btn.Visible then
             btn.Position = UDim2.new(0, x, 0, TAB_Y)
             x = x + TAB_WIDTH + TAB_GAP
@@ -259,181 +381,186 @@ local function updateTabLayout()
     tabContainer.CanvasSize = UDim2.new(0, math.max(x, 100), 0, 42)
 end
 
-local contentFrame = Instance.new("Frame")
-contentFrame.Size = UDim2.new(1, -24, 1, -104)
-contentFrame.Position = UDim2.new(0, 12, 0, 96)
-contentFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
-contentFrame.BorderSizePixel = 0
-contentFrame.Parent = frame
+local Frames = {}
+local Scrolls = {}
+local Layouts = {}
 
-local contentCorner = Instance.new("UICorner", contentFrame)
-contentCorner.CornerRadius = UDim.new(0, 12)
+Frames.Content = Instance.new("Frame")
+Frames.Content.Size = UDim2.new(1, -24, 1, -104)
+Frames.Content.Position = UDim2.new(0, 12, 0, 96)
+Frames.Content.BackgroundColor3 = Color3.fromRGB(20, 20, 23)
+Frames.Content.BorderSizePixel = 0
+Frames.Content.Parent = frame
+Instance.new("UICorner", Frames.Content).CornerRadius = UDim.new(0, 12)
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(1, -16, 1, -16)
-mainFrame.Position = UDim2.new(0, 8, 0, 8)
-mainFrame.BackgroundTransparency = 1
-mainFrame.Parent = contentFrame
+Frames.Main = Instance.new("Frame")
+Frames.Main.Size = UDim2.new(1, -16, 1, -16)
+Frames.Main.Position = UDim2.new(0, 8, 0, 8)
+Frames.Main.BackgroundTransparency = 1
+Frames.Main.Parent = Frames.Content
 
-local autoReviveFrame = Instance.new("Frame")
-autoReviveFrame.Size = UDim2.new(1, -16, 1, -16)
-autoReviveFrame.Position = UDim2.new(0, 8, 0, 8)
-autoReviveFrame.BackgroundTransparency = 1
-autoReviveFrame.Visible = false
-autoReviveFrame.Parent = contentFrame
+Frames.AutoRevive = Instance.new("Frame")
+Frames.AutoRevive.Size = UDim2.new(1, -16, 1, -16)
+Frames.AutoRevive.Position = UDim2.new(0, 8, 0, 8)
+Frames.AutoRevive.BackgroundTransparency = 1
+Frames.AutoRevive.Visible = false
+Frames.AutoRevive.Parent = Frames.Content
 
-local autoReviveScroll = Instance.new("ScrollingFrame")
-autoReviveScroll.Size = UDim2.new(1, 0, 1, 0)
-autoReviveScroll.Position = UDim2.new(0, 0, 0, 0)
-autoReviveScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
-autoReviveScroll.BorderSizePixel = 0
-autoReviveScroll.ScrollBarThickness = 5
-autoReviveScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
-autoReviveScroll.Parent = autoReviveFrame
-Instance.new("UICorner", autoReviveScroll).CornerRadius = UDim.new(0, 10)
+Scrolls.AutoRevive = Instance.new("ScrollingFrame")
+Scrolls.AutoRevive.Size = UDim2.new(1, 0, 1, 0)
+Scrolls.AutoRevive.Position = UDim2.new(0, 0, 0, 0)
+Scrolls.AutoRevive.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+Scrolls.AutoRevive.BorderSizePixel = 0
+Scrolls.AutoRevive.ScrollBarThickness = 5
+Scrolls.AutoRevive.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+Scrolls.AutoRevive.Parent = Frames.AutoRevive
+Instance.new("UICorner", Scrolls.AutoRevive).CornerRadius = UDim.new(0, 10)
 
-local autoReviveLayout = Instance.new("UIListLayout", autoReviveScroll)
-autoReviveLayout.Padding = UDim.new(0, 6)
-autoReviveLayout.SortOrder = Enum.SortOrder.LayoutOrder
-autoReviveLayout.FillDirection = Enum.FillDirection.Vertical
-autoReviveLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Layouts.AutoRevive = Instance.new("UIListLayout", Scrolls.AutoRevive)
+Layouts.AutoRevive.Padding = UDim.new(0, 6)
+Layouts.AutoRevive.SortOrder = Enum.SortOrder.LayoutOrder
+Layouts.AutoRevive.FillDirection = Enum.FillDirection.Vertical
+Layouts.AutoRevive.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local abilitiesTabFrame = Instance.new("Frame")
-abilitiesTabFrame.Size = UDim2.new(1, -16, 1, -16)
-abilitiesTabFrame.Position = UDim2.new(0, 8, 0, 8)
-abilitiesTabFrame.BackgroundTransparency = 1
-abilitiesTabFrame.Visible = false
-abilitiesTabFrame.Parent = contentFrame
+Frames.Abilities = Instance.new("Frame")
+Frames.Abilities.Size = UDim2.new(1, -16, 1, -16)
+Frames.Abilities.Position = UDim2.new(0, 8, 0, 8)
+Frames.Abilities.BackgroundTransparency = 1
+Frames.Abilities.Visible = false
+Frames.Abilities.Parent = Frames.Content
 
-local abilitiesFrame = Instance.new("ScrollingFrame")
-abilitiesFrame.Size = UDim2.new(1, 0, 1, 0)
-abilitiesFrame.Position = UDim2.new(0, 0, 0, 0)
-abilitiesFrame.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
-abilitiesFrame.BorderSizePixel = 0
-abilitiesFrame.ScrollBarThickness = 5
-abilitiesFrame.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
-abilitiesFrame.Parent = abilitiesTabFrame
-Instance.new("UICorner", abilitiesFrame).CornerRadius = UDim.new(0, 10)
+Scrolls.Abilities = Instance.new("ScrollingFrame")
+Scrolls.Abilities.Size = UDim2.new(1, 0, 1, 0)
+Scrolls.Abilities.Position = UDim2.new(0, 0, 0, 0)
+Scrolls.Abilities.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+Scrolls.Abilities.BorderSizePixel = 0
+Scrolls.Abilities.ScrollBarThickness = 5
+Scrolls.Abilities.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+Scrolls.Abilities.Parent = Frames.Abilities
+Instance.new("UICorner", Scrolls.Abilities).CornerRadius = UDim.new(0, 10)
 
-local abilitiesLayout = Instance.new("UIListLayout", abilitiesFrame)
-abilitiesLayout.Padding = UDim.new(0, 6)
-abilitiesLayout.SortOrder = Enum.SortOrder.LayoutOrder
-abilitiesLayout.FillDirection = Enum.FillDirection.Vertical
-abilitiesLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Layouts.Abilities = Instance.new("UIListLayout", Scrolls.Abilities)
+Layouts.Abilities.Padding = UDim.new(0, 6)
+Layouts.Abilities.SortOrder = Enum.SortOrder.LayoutOrder
+Layouts.Abilities.FillDirection = Enum.FillDirection.Vertical
+Layouts.Abilities.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local towersFrame = Instance.new("Frame")
-towersFrame.Size = UDim2.new(1, -16, 1, -16)
-towersFrame.Position = UDim2.new(0, 8, 0, 8)
-towersFrame.BackgroundTransparency = 1
-towersFrame.Visible = false
-towersFrame.Parent = contentFrame
+Frames.Towers = Instance.new("Frame")
+Frames.Towers.Size = UDim2.new(1, -16, 1, -16)
+Frames.Towers.Position = UDim2.new(0, 8, 0, 8)
+Frames.Towers.BackgroundTransparency = 1
+Frames.Towers.Visible = false
+Frames.Towers.Parent = Frames.Content
 
-local towersScroll = Instance.new("ScrollingFrame")
-towersScroll.Size = UDim2.new(1, 0, 1, 0)
-towersScroll.Position = UDim2.new(0, 0, 0, 0)
-towersScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
-towersScroll.BorderSizePixel = 0
-towersScroll.ScrollBarThickness = 5
-towersScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
-towersScroll.Parent = towersFrame
-Instance.new("UICorner", towersScroll).CornerRadius = UDim.new(0, 10)
+Scrolls.Towers = Instance.new("ScrollingFrame")
+Scrolls.Towers.Size = UDim2.new(1, 0, 1, 0)
+Scrolls.Towers.Position = UDim2.new(0, 0, 0, 0)
+Scrolls.Towers.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+Scrolls.Towers.BorderSizePixel = 0
+Scrolls.Towers.ScrollBarThickness = 5
+Scrolls.Towers.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+Scrolls.Towers.Parent = Frames.Towers
+Instance.new("UICorner", Scrolls.Towers).CornerRadius = UDim.new(0, 10)
 
-local towersLayout = Instance.new("UIListLayout", towersScroll)
-towersLayout.Padding = UDim.new(0, 4)
-towersLayout.SortOrder = Enum.SortOrder.LayoutOrder
-towersLayout.FillDirection = Enum.FillDirection.Vertical
-towersLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+Layouts.Towers = Instance.new("UIListLayout", Scrolls.Towers)
+Layouts.Towers.Padding = UDim.new(0, 4)
+Layouts.Towers.SortOrder = Enum.SortOrder.LayoutOrder
+Layouts.Towers.FillDirection = Enum.FillDirection.Vertical
+Layouts.Towers.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
-local gameInfoFrame = Instance.new("Frame")
-gameInfoFrame.Size = UDim2.new(1, -16, 1, -16)
-gameInfoFrame.Position = UDim2.new(0, 8, 0, 8)
-gameInfoFrame.BackgroundTransparency = 1
-gameInfoFrame.Visible = false
-gameInfoFrame.Parent = contentFrame
+Frames.GameInfo = Instance.new("Frame")
+Frames.GameInfo.Size = UDim2.new(1, -16, 1, -16)
+Frames.GameInfo.Position = UDim2.new(0, 8, 0, 8)
+Frames.GameInfo.BackgroundTransparency = 1
+Frames.GameInfo.Visible = false
+Frames.GameInfo.Parent = Frames.Content
 
-local gameInfoScroll = Instance.new("ScrollingFrame")
-gameInfoScroll.Size = UDim2.new(1, 0, 1, 0)
-gameInfoScroll.Position = UDim2.new(0, 0, 0, 0)
-gameInfoScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
-gameInfoScroll.BorderSizePixel = 0
-gameInfoScroll.ScrollBarThickness = 5
-gameInfoScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
-gameInfoScroll.Parent = gameInfoFrame
-Instance.new("UICorner", gameInfoScroll).CornerRadius = UDim.new(0, 10)
+Scrolls.GameInfo = Instance.new("ScrollingFrame")
+Scrolls.GameInfo.Size = UDim2.new(1, 0, 1, 0)
+Scrolls.GameInfo.Position = UDim2.new(0, 0, 0, 0)
+Scrolls.GameInfo.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+Scrolls.GameInfo.BorderSizePixel = 0
+Scrolls.GameInfo.ScrollBarThickness = 5
+Scrolls.GameInfo.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+Scrolls.GameInfo.Parent = Frames.GameInfo
+Instance.new("UICorner", Scrolls.GameInfo).CornerRadius = UDim.new(0, 10)
 
-local gameInfoLayout = Instance.new("UIListLayout", gameInfoScroll)
-gameInfoLayout.Padding = UDim.new(0, 4)
-gameInfoLayout.SortOrder = Enum.SortOrder.LayoutOrder
-gameInfoLayout.FillDirection = Enum.FillDirection.Vertical
-gameInfoLayout.HorizontalAlignment = Enum.HorizontalAlignment.Left
+Layouts.GameInfo = Instance.new("UIListLayout", Scrolls.GameInfo)
+Layouts.GameInfo.Padding = UDim.new(0, 4)
+Layouts.GameInfo.SortOrder = Enum.SortOrder.LayoutOrder
+Layouts.GameInfo.FillDirection = Enum.FillDirection.Vertical
+Layouts.GameInfo.HorizontalAlignment = Enum.HorizontalAlignment.Left
 
-local debugFrame = Instance.new("Frame")
-debugFrame.Size = UDim2.new(1, -16, 1, -16)
-debugFrame.Position = UDim2.new(0, 8, 0, 8)
-debugFrame.BackgroundTransparency = 1
-debugFrame.Visible = false
-debugFrame.Parent = contentFrame
+Frames.Debug = Instance.new("Frame")
+Frames.Debug.Size = UDim2.new(1, -16, 1, -16)
+Frames.Debug.Position = UDim2.new(0, 8, 0, 8)
+Frames.Debug.BackgroundTransparency = 1
+Frames.Debug.Visible = false
+Frames.Debug.Parent = Frames.Content
 
-debugLogFrameRef = Instance.new("ScrollingFrame")
-debugLogFrameRef.Size = UDim2.new(1, 0, 1, -44)
-debugLogFrameRef.Position = UDim2.new(0, 0, 0, 0)
-debugLogFrameRef.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
-debugLogFrameRef.BorderSizePixel = 0
-debugLogFrameRef.ScrollBarThickness = 5
-debugLogFrameRef.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
-debugLogFrameRef.Parent = debugFrame
-Instance.new("UICorner", debugLogFrameRef).CornerRadius = UDim.new(0, 10)
+Scrolls.DebugLog = Instance.new("ScrollingFrame")
+Scrolls.DebugLog.Size = UDim2.new(1, 0, 1, -44)
+Scrolls.DebugLog.Position = UDim2.new(0, 0, 0, 0)
+Scrolls.DebugLog.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+Scrolls.DebugLog.BorderSizePixel = 0
+Scrolls.DebugLog.ScrollBarThickness = 5
+Scrolls.DebugLog.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+Scrolls.DebugLog.Parent = Frames.Debug
+Instance.new("UICorner", Scrolls.DebugLog).CornerRadius = UDim.new(0, 10)
 
-debugLogLayoutRef = Instance.new("UIListLayout", debugLogFrameRef)
-debugLogLayoutRef.Padding = UDim.new(0, 2)
-debugLogLayoutRef.SortOrder = Enum.SortOrder.LayoutOrder
-debugLogLayoutRef.FillDirection = Enum.FillDirection.Vertical
+Layouts.DebugLog = Instance.new("UIListLayout", Scrolls.DebugLog)
+Layouts.DebugLog.Padding = UDim.new(0, 2)
+Layouts.DebugLog.SortOrder = Enum.SortOrder.LayoutOrder
+Layouts.DebugLog.FillDirection = Enum.FillDirection.Vertical
 
-local pvpFrame = Instance.new("Frame")
-pvpFrame.Size = UDim2.new(1, -16, 1, -16)
-pvpFrame.Position = UDim2.new(0, 8, 0, 8)
-pvpFrame.BackgroundTransparency = 1
-pvpFrame.Visible = false
-pvpFrame.Parent = contentFrame
+debugLogFrameRef = Scrolls.DebugLog
+debugLogLayoutRef = Layouts.DebugLog
 
-local pvpScroll = Instance.new("ScrollingFrame")
-pvpScroll.Size = UDim2.new(1, 0, 1, 0)
-pvpScroll.Position = UDim2.new(0, 0, 0, 0)
-pvpScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
-pvpScroll.BorderSizePixel = 0
-pvpScroll.ScrollBarThickness = 5
-pvpScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
-pvpScroll.Parent = pvpFrame
-Instance.new("UICorner", pvpScroll).CornerRadius = UDim.new(0, 10)
+Frames.PvP = Instance.new("Frame")
+Frames.PvP.Size = UDim2.new(1, -16, 1, -16)
+Frames.PvP.Position = UDim2.new(0, 8, 0, 8)
+Frames.PvP.BackgroundTransparency = 1
+Frames.PvP.Visible = false
+Frames.PvP.Parent = Frames.Content
 
-local pvpLayout = Instance.new("UIListLayout", pvpScroll)
-pvpLayout.Padding = UDim.new(0, 8)
-pvpLayout.SortOrder = Enum.SortOrder.LayoutOrder
-pvpLayout.FillDirection = Enum.FillDirection.Vertical
-pvpLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Scrolls.PvP = Instance.new("ScrollingFrame")
+Scrolls.PvP.Size = UDim2.new(1, 0, 1, 0)
+Scrolls.PvP.Position = UDim2.new(0, 0, 0, 0)
+Scrolls.PvP.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+Scrolls.PvP.BorderSizePixel = 0
+Scrolls.PvP.ScrollBarThickness = 5
+Scrolls.PvP.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+Scrolls.PvP.Parent = Frames.PvP
+Instance.new("UICorner", Scrolls.PvP).CornerRadius = UDim.new(0, 10)
 
-local antiLagFrame = Instance.new("Frame")
-antiLagFrame.Size = UDim2.new(1, -16, 1, -16)
-antiLagFrame.Position = UDim2.new(0, 8, 0, 8)
-antiLagFrame.BackgroundTransparency = 1
-antiLagFrame.Visible = false
-antiLagFrame.Parent = contentFrame
+Layouts.PvP = Instance.new("UIListLayout", Scrolls.PvP)
+Layouts.PvP.Padding = UDim.new(0, 8)
+Layouts.PvP.SortOrder = Enum.SortOrder.LayoutOrder
+Layouts.PvP.FillDirection = Enum.FillDirection.Vertical
+Layouts.PvP.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
-local antiLagScroll = Instance.new("ScrollingFrame")
-antiLagScroll.Size = UDim2.new(1, 0, 1, 0)
-antiLagScroll.Position = UDim2.new(0, 0, 0, 0)
-antiLagScroll.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
-antiLagScroll.BorderSizePixel = 0
-antiLagScroll.ScrollBarThickness = 5
-antiLagScroll.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
-antiLagScroll.Parent = antiLagFrame
-Instance.new("UICorner", antiLagScroll).CornerRadius = UDim.new(0, 10)
+Frames.AntiLag = Instance.new("Frame")
+Frames.AntiLag.Size = UDim2.new(1, -16, 1, -16)
+Frames.AntiLag.Position = UDim2.new(0, 8, 0, 8)
+Frames.AntiLag.BackgroundTransparency = 1
+Frames.AntiLag.Visible = false
+Frames.AntiLag.Parent = Frames.Content
 
-local antiLagLayout = Instance.new("UIListLayout", antiLagScroll)
-antiLagLayout.Padding = UDim.new(0, 6)
-antiLagLayout.SortOrder = Enum.SortOrder.LayoutOrder
-antiLagLayout.FillDirection = Enum.FillDirection.Vertical
-antiLagLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+Scrolls.AntiLag = Instance.new("ScrollingFrame")
+Scrolls.AntiLag.Size = UDim2.new(1, 0, 1, 0)
+Scrolls.AntiLag.Position = UDim2.new(0, 0, 0, 0)
+Scrolls.AntiLag.BackgroundColor3 = Color3.fromRGB(26, 26, 30)
+Scrolls.AntiLag.BorderSizePixel = 0
+Scrolls.AntiLag.ScrollBarThickness = 5
+Scrolls.AntiLag.ScrollBarImageColor3 = Color3.fromRGB(70, 70, 75)
+Scrolls.AntiLag.Parent = Frames.AntiLag
+Instance.new("UICorner", Scrolls.AntiLag).CornerRadius = UDim.new(0, 10)
+
+Layouts.AntiLag = Instance.new("UIListLayout", Scrolls.AntiLag)
+Layouts.AntiLag.Padding = UDim.new(0, 6)
+Layouts.AntiLag.SortOrder = Enum.SortOrder.LayoutOrder
+Layouts.AntiLag.FillDirection = Enum.FillDirection.Vertical
+Layouts.AntiLag.HorizontalAlignment = Enum.HorizontalAlignment.Center
 
 local clearDebugBtn = Instance.new("TextButton")
 clearDebugBtn.Size = UDim2.new(1, 0, 0, 34)
@@ -444,7 +571,7 @@ clearDebugBtn.TextColor3 = Color3.fromRGB(180, 180, 185)
 clearDebugBtn.TextSize = 11
 clearDebugBtn.Font = Enum.Font.Gotham
 clearDebugBtn.AutoButtonColor = false
-clearDebugBtn.Parent = debugFrame
+clearDebugBtn.Parent = Frames.Debug
 Instance.new("UICorner", clearDebugBtn).CornerRadius = UDim.new(0, 8)
 
 local clearDebugStroke = Instance.new("UIStroke", clearDebugBtn)
@@ -480,17 +607,18 @@ teleportBtn.Text = "Teleport to Lobby"
 teleportBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
 teleportBtn.TextColor3 = Color3.fromRGB(220, 180, 100)
 teleportBtn.TextSize = 11
-teleportBtn.Parent = mainFrame
+teleportBtn.Parent = Frames.Main
 styleButton(teleportBtn, true)
 
 local towers = {}
 local globalHitBlacklist = {}
 local towerPauseUntil = {}
 local pendingPlacements = {}
+local watchedTowers = {}
 
 local function updateTowersList()
-    if not towersScroll then return end
-    for _, child in ipairs(towersScroll:GetChildren()) do
+    if not Scrolls.Towers then return end
+    for _, child in ipairs(Scrolls.Towers:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextLabel") or child:IsA("UIListLayout") then
             child:Destroy()
         end
@@ -501,7 +629,7 @@ local function updateTowersList()
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.FillDirection = Enum.FillDirection.Vertical
     listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    listLayout.Parent = towersScroll
+    listLayout.Parent = Scrolls.Towers
 
     local ownedTowers = {}
     for part, data in pairs(towers) do
@@ -519,7 +647,7 @@ local function updateTowersList()
         label.TextXAlignment = Enum.TextXAlignment.Center
         label.BackgroundTransparency = 1
         label.Font = Enum.Font.Gotham
-        label.Parent = towersScroll
+        label.Parent = Scrolls.Towers
     else
         local groups = {}
         for _, entry in ipairs(ownedTowers) do
@@ -540,7 +668,7 @@ local function updateTowersList()
             block.Size = UDim2.new(1, -16, 0, 0)
             block.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
             block.BorderSizePixel = 0
-            block.Parent = towersScroll
+            block.Parent = Scrolls.Towers
             Instance.new("UICorner", block).CornerRadius = UDim.new(0, 10)
             local blockStroke = Instance.new("UIStroke", block)
             blockStroke.Color = Color3.fromRGB(45, 45, 50)
@@ -591,8 +719,8 @@ local function updateTowersList()
     end
 
     task.defer(function()
-        if towersScroll and listLayout then
-            towersScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+        if Scrolls.Towers and listLayout then
+            Scrolls.Towers.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
         end
     end)
 end
@@ -655,8 +783,6 @@ local function scanForTowers()
         if part:IsA("BasePart") then addTower(part) end
     end
 end
-
-local watchedTowers = {}
 
 local function onNumericAdded(child, part)
     if not part or not part.Parent then return end
@@ -753,6 +879,56 @@ local function sendAbilityNoPosition(part, slot)
     return nil
 end
 
+local function sendMedicAbility(medicPart, slot, targetHash)
+    local data = towers[medicPart]
+    if not data or not data.hash then return nil end
+    local req = getTowerUseAbilityRequest()
+    if req then
+        local ok, response = pcall(function()
+            return req:InvokeServer(data.hash, slot, nil, targetHash)
+        end)
+        if ok then return response end
+    end
+    return nil
+end
+
+local pathNodeCache = { nodes = {}, timestamp = 0 }
+
+local function getPathNodes()
+    local now = tick()
+    if pathNodeCache.timestamp > 0 and now - pathNodeCache.timestamp < 5 then
+        return pathNodeCache.nodes
+    end
+    local nodes = {}
+    local gameFolder = workspace:FindFirstChild("Game")
+    local mapFolder = gameFolder and gameFolder:FindFirstChild("Map")
+    local pathFolder = mapFolder and mapFolder:FindFirstChild("Path")
+    if pathFolder then
+        for _, desc in ipairs(pathFolder:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                table.insert(nodes, desc.Position)
+            end
+        end
+    end
+    pathNodeCache.nodes = nodes
+    pathNodeCache.timestamp = now
+    return nodes
+end
+
+local function getClosestPathNodeTo(origin)
+    local nodes = getPathNodes()
+    if #nodes == 0 then return nil end
+    local best, bestDist = nil, math.huge
+    for _, pos in ipairs(nodes) do
+        local d = (pos - origin).Magnitude
+        if d < bestDist then
+            bestDist = d
+            best = pos
+        end
+    end
+    return best
+end
+
 local function getAllEnemies()
     local gameFolder = workspace:FindFirstChild("Game")
     if not gameFolder then return {} end
@@ -767,34 +943,35 @@ local function getAllEnemies()
     return enemies
 end
 
-local function getClosestEnemy(position, enemies, blacklist)
-    local whitelistSet = {}
-    for _, name in ipairs(enemyWhitelist) do whitelistSet[name] = true end
-    local whitelistEnemies = {}
+local function getClosestEnemy(position, enemies, blacklist, maxRange)
+    maxRange = maxRange or 25
+
+    local priorityEnemies = {}
+    local normalEnemies = {}
+
     for _, enemy in ipairs(enemies) do
-        if not blacklist[enemy] and whitelistSet[enemy.Name] then
+        if not blacklist[enemy] and EnemyDB.worth(enemy) then
             local dist = (position - enemy.Position).Magnitude
-            if dist <= 25 then table.insert(whitelistEnemies, enemy) end
-        end
-    end
-    local candidates = #whitelistEnemies > 0 and whitelistEnemies or {}
-    if #candidates == 0 then
-        for _, enemy in ipairs(enemies) do
-            if not blacklist[enemy] then
-                local blocked = false
-                for _, blockedName in ipairs(enemyBlocklist) do
-                    if enemy.Name == blockedName then blocked = true break end
+            if dist <= maxRange then
+                local info = EnemyDB.info(enemy.Name)
+                if info and info.isBoss then
+                    table.insert(priorityEnemies, { enemy = enemy, dist = dist })
+                else
+                    table.insert(normalEnemies, { enemy = enemy, dist = dist })
                 end
-                if not blocked then table.insert(candidates, enemy) end
             end
         end
     end
-    local best, bestDist = nil, math.huge
-    for _, enemy in ipairs(candidates) do
-        local dist = (position - enemy.Position).Magnitude
-        if dist < bestDist then bestDist = dist best = enemy end
+
+    if #priorityEnemies > 0 then
+        table.sort(priorityEnemies, function(a, b) return a.dist < b.dist end)
+        return priorityEnemies[1].enemy
     end
-    return best
+    if #normalEnemies > 0 then
+        table.sort(normalEnemies, function(a, b) return a.dist < b.dist end)
+        return normalEnemies[1].enemy
+    end
+    return nil
 end
 
 local function makeFastSpamLoop(abilityName, towerName, requiredPath, pathLevel, slot)
@@ -823,38 +1000,58 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
         while settings.activeAbilities[abilityName] do
             local validParts = {}
             for part, data in pairs(towers) do
-                if data.owned and data.name == towerName and part.Parent and data.hash and data.bottomCount >= requiredBottomLevel then
+                if data.owned
+                    and data.name == towerName
+                    and part.Parent
+                    and data.hash
+                    and data.bottomCount >= requiredBottomLevel
+                then
                     local pauseUntil = towerPauseUntil[part]
-                    if not pauseUntil or tick() >= pauseUntil then table.insert(validParts, part) end
-                end
-            end
-            if #validParts == 0 then task.wait(0.1) continue end
-            for _, part in ipairs(validParts) do
-                if not settings.activeAbilities[abilityName] then break end
-                local enemies = getAllEnemies()
-                if #enemies == 0 then task.wait(0.01) continue end
-                local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist)
-                if not target then task.wait(0.01) continue end
-                local hash = towers[part].hash
-                if not hash then continue end
-                abilityUsedQueue[hash] = nil
-                task.spawn(function() sendAbilityWithPosition(part, slot, target.Position) end)
-                local start = tick()
-                local confirmed = false
-                while tick() - start < bountyTimeout do
-                    if abilityUsedQueue[hash] then
-                        confirmed = true
-                        abilityUsedQueue[hash] = nil
-                        break
+                    if not pauseUntil or tick() >= pauseUntil then
+                        table.insert(validParts, part)
                     end
-                    task.wait(0.01)
                 end
-                if confirmed then
-                    globalHitBlacklist[target] = true
-                    towerPauseUntil[part] = tick() + 6
-                end
-                task.wait(0.2)
             end
+
+            if #validParts == 0 then
+                task.wait(0.1)
+            else
+                for _, part in ipairs(validParts) do
+                    if not settings.activeAbilities[abilityName] then break end
+
+                    local enemies = getAllEnemies()
+                    if #enemies > 0 then
+                        local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist, math.huge)
+                        if target then
+                            local hash = towers[part].hash
+                            if hash then
+                                abilityUsedQueue[hash] = nil
+                                task.spawn(function()
+                                    sendAbilityWithPosition(part, slot, target.Position)
+                                end)
+
+                                local start = tick()
+                                local confirmed = false
+                                while tick() - start < bountyTimeout do
+                                    if abilityUsedQueue[hash] then
+                                        confirmed = true
+                                        abilityUsedQueue[hash] = nil
+                                        break
+                                    end
+                                    task.wait(0.01)
+                                end
+
+                                if confirmed then
+                                    globalHitBlacklist[target] = true
+                                    towerPauseUntil[part] = tick() + 6
+                                end
+                            end
+                        end
+                    end
+                    task.wait(0.2)
+                end
+            end
+
             task.wait(0.1)
         end
     end
@@ -865,6 +1062,10 @@ local function runEnemyInRangeAbility(abilityName, towerName, requiredPath, path
     return function()
         while settings.activeAbilities[abilityName] do
             local enemies = (range > 0) and getAllEnemies() or {}
+            local threshold = enemyThreshold
+            if abilityName == "AXE" then
+                threshold = tonumber(settings.axeEnemyThreshold) or 1
+            end
             for part, data in pairs(towers) do
                 if data.owned and data.name == towerName and data.hash and part.Parent then
                     local meets = false
@@ -878,10 +1079,10 @@ local function runEnemyInRangeAbility(abilityName, towerName, requiredPath, path
                             for _, enemy in ipairs(enemies) do
                                 if (part.Position - enemy.Position).Magnitude <= range then
                                     nearby = nearby + 1
-                                    if nearby >= enemyThreshold then break end
+                                    if nearby >= threshold then break end
                                 end
                             end
-                            shouldUse = nearby >= enemyThreshold
+                            shouldUse = nearby >= threshold
                         end
                         if shouldUse then
                             task.spawn(function() sendAbilityNoPosition(part, slot) end)
@@ -987,85 +1188,175 @@ end
 
 local function runCallToArms()
     local SYNC_RANGE = 15
-    local groupStates = {}
-    while settings.activeAbilities["CALL_TO_ARMS"] do
-        local commanders = {}
+    local groupThreads = {}
+
+    local function posKey(pos)
+        return string.format("%.0f_%.0f_%.0f", pos.X, pos.Y, pos.Z)
+    end
+
+    local function getCommanders()
+        local list = {}
         for part, data in pairs(towers) do
             if data.owned and data.name == "Commander" and data.hash and part.Parent and data.topCount >= 3 then
-                table.insert(commanders, {part = part, pos = part.Position, hash = data.hash})
+                table.insert(list, {part = part, pos = part.Position, hash = data.hash})
             end
         end
-        if #commanders > 0 then
-            table.sort(commanders, function(a, b) return a.hash < b.hash end)
-            local groups = {}
-            local ungrouped = {}
-            for i, c in ipairs(commanders) do ungrouped[i] = c end
-            while #ungrouped > 0 do
-                local anchor = table.remove(ungrouped, 1)
-                local nearby = {}
-                for i, c in ipairs(ungrouped) do
-                    local d = (anchor.pos - c.pos).Magnitude
-                    if d <= SYNC_RANGE then table.insert(nearby, {idx = i, dist = d}) end
+        return list
+    end
+
+    local function formGroups(commanders)
+        local groups = {}
+        local ungrouped = {}
+        for i, c in ipairs(commanders) do ungrouped[i] = c end
+        table.sort(ungrouped, function(a, b)
+            if a.pos.X ~= b.pos.X then return a.pos.X < b.pos.X end
+            if a.pos.Z ~= b.pos.Z then return a.pos.Z < b.pos.Z end
+            return a.pos.Y < b.pos.Y
+        end)
+        while #ungrouped >= 3 do
+            local anchor = table.remove(ungrouped, 1)
+            local nearest = {}
+            for i, c in ipairs(ungrouped) do
+                local d = (anchor.pos - c.pos).Magnitude
+                if d <= SYNC_RANGE then
+                    table.insert(nearest, {idx = i, dist = d})
                 end
-                table.sort(nearby, function(a, b) return a.dist < b.dist end)
-                local group = {anchor}
-                local toRemove = {}
-                for k = 1, math.min(2, #nearby) do
-                    table.insert(group, ungrouped[nearby[k].idx])
-                    table.insert(toRemove, nearby[k].idx)
-                end
+            end
+            table.sort(nearest, function(a, b) return a.dist < b.dist end)
+            if #nearest >= 2 then
+                local group = {anchor, ungrouped[nearest[1].idx], ungrouped[nearest[2].idx]}
+                local toRemove = {nearest[1].idx, nearest[2].idx}
                 table.sort(toRemove, function(a, b) return a > b end)
                 for _, r in ipairs(toRemove) do table.remove(ungrouped, r) end
                 table.insert(groups, group)
+            else
+                break
             end
+        end
+        return groups
+    end
 
-            local activeKeys = {}
-            local now = os.clock()
-            for _, group in ipairs(groups) do
-                local key = ""
-                for _, c in ipairs(group) do key = key .. c.hash .. "_" end
-                activeKeys[key] = true
-                local size = #group
-                local gap = (size >= 3) and 15.5 or ((size == 2) and 23 or 0.5)
-                local state = groupStates[key]
-                if not state then
-                    state = { nextFireAt = now + 5, index = 1, pending = false }
-                    groupStates[key] = state
-                end
-                if not state.pending and now >= state.nextFireAt then
-                    local member = group[state.index]
-                    if member and member.part and member.part.Parent then
-                        state.pending = true
-                        local scheduled = state.nextFireAt
-                        if scheduled < now - 1 then scheduled = now end
-                        state.nextFireAt = scheduled + gap
-                        state.index = (state.index % size) + 1
-                        local hash = member.hash
-                        local part = member.part
-                        task.spawn(function()
-                            local used = false
-                            while settings.activeAbilities["CALL_TO_ARMS"] and not used do
-                                if not part or not part.Parent then break end
-                                abilityUsedQueue[hash] = nil
-                                if sendAbilityNoPosition(part, 1) == true then used = true break end
-                                local waitStart = os.clock()
-                                while os.clock() - waitStart < 0.5 and settings.activeAbilities["CALL_TO_ARMS"] do
-                                    if abilityUsedQueue[hash] then used = true break end
-                                    task.wait(0.02)
-                                end
-                                if not used then task.wait(0.15) end
-                            end
-                            abilityUsedQueue[hash] = nil
-                            state.pending = false
-                        end)
+    local function groupKey(positions)
+        local keys = {}
+        for _, p in ipairs(positions) do table.insert(keys, posKey(p)) end
+        table.sort(keys)
+        return table.concat(keys, "|")
+    end
+
+    local function getGapForSize(size)
+        if size >= 3 then return 15.5 end
+        if size == 2 then return 23 end
+        return 0.5
+    end
+
+    local function fireMember(part, hash)
+        if not part or not part.Parent or not hash then return false end
+        abilityUsedQueue[hash] = nil
+        if sendAbilityNoPosition(part, 1) == true then return true end
+        local start = tick()
+        while tick() - start < 0.5 do
+            if abilityUsedQueue[hash] then
+                abilityUsedQueue[hash] = nil
+                return true
+            end
+            task.wait(0.02)
+        end
+        abilityUsedQueue[hash] = nil
+        return false
+    end
+
+    local function startGroupThread(key, positions)
+        local state = {
+            key = key,
+            positions = positions,
+            liveRefs = {},
+            lastSeenAlive = tick(),
+        }
+        groupThreads[key] = state
+
+        task.spawn(function()
+            task.wait(1)
+            while settings.activeAbilities["CALL_TO_ARMS"] and groupThreads[key] == state do
+                for idx = 1, #positions do
+                    if not settings.activeAbilities["CALL_TO_ARMS"] then return end
+                    if groupThreads[key] ~= state then return end
+
+                    local pk = posKey(positions[idx])
+                    local ref = state.liveRefs[pk]
+                    if ref and ref.part and ref.part.Parent and ref.hash then
+                        local attempts = 0
+                        while attempts < 7 and settings.activeAbilities["CALL_TO_ARMS"] do
+                            if groupThreads[key] ~= state then return end
+                            if fireMember(ref.part, ref.hash) then break end
+                            attempts = attempts + 1
+                            task.wait(0.3)
+                        end
+                    end
+
+                    local gap = getGapForSize(#positions)
+                    local start = tick()
+                    while tick() - start < gap and settings.activeAbilities["CALL_TO_ARMS"] do
+                        if groupThreads[key] ~= state then return end
+                        task.wait(0.1)
                     end
                 end
             end
-            for key, state in pairs(groupStates) do
-                if not activeKeys[key] and not state.pending then groupStates[key] = nil end
+        end)
+    end
+
+    local function refreshLiveRefs()
+        local live = {}
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Commander" and data.hash and part.Parent and data.topCount >= 3 then
+                live[posKey(part.Position)] = {part = part, hash = data.hash}
             end
         end
-        task.wait(0.1)
+        for _, state in pairs(groupThreads) do
+            local anyAlive = false
+            for _, p in ipairs(state.positions) do
+                local pk = posKey(p)
+                if live[pk] then
+                    state.liveRefs[pk] = live[pk]
+                    anyAlive = true
+                else
+                    state.liveRefs[pk] = nil
+                end
+            end
+            if anyAlive then
+                state.lastSeenAlive = tick()
+            end
+        end
+    end
+
+    while settings.activeAbilities["CALL_TO_ARMS"] do
+        refreshLiveRefs()
+
+        local commanders = getCommanders()
+        local groups = formGroups(commanders)
+
+        local seenKeys = {}
+        for _, group in ipairs(groups) do
+            local positions = {}
+            for _, c in ipairs(group) do table.insert(positions, c.pos) end
+            local key = groupKey(positions)
+            seenKeys[key] = true
+            if not groupThreads[key] then
+                startGroupThread(key, positions)
+            end
+        end
+
+        local now = tick()
+        for key, state in pairs(groupThreads) do
+            if not seenKeys[key] and (now - state.lastSeenAlive) > 60 then
+                groupThreads[key] = nil
+            end
+        end
+
+        task.wait(0.5)
+    end
+
+    for key in pairs(groupThreads) do
+        groupThreads[key] = nil
     end
 end
 
@@ -1299,39 +1590,397 @@ local function runMedicDroneSequential(slot)
             if #eligiblePositions >= 2 then
                 for _, part in ipairs(medicParts) do
                     if not settings.activeAbilities["MEDIC_DRONE"] then break end
-                    local bestPos = getBestMedicDronePosition(eligiblePositions, 12)
-                    if bestPos and isPositionAllowed(bestPos) then
-                        task.spawn(function()
-                            if sendAbilityWithPosition(part, slot, bestPos) == true then
-                                table.insert(recentDronePositions, {position = bestPos, time = tick()})
-                                local startTime = tick()
-                                while tick() - startTime < 20 and settings.activeAbilities["MEDIC_DRONE"] do
-                                    local freshPositions = {}
-                                    for p, d in pairs(towers) do
-                                        if d.owned and p.Parent and not medicDroneIgnoreTowers[d.name] then
-                                            table.insert(freshPositions, p.Position)
-                                        end
-                                    end
-                                    if #freshPositions >= 2 then
-                                        local secondBestPos = getBestMedicDronePosition(freshPositions, 12)
-                                        if secondBestPos and isPositionAllowed(secondBestPos) and (secondBestPos - bestPos).Magnitude > 5 then
-                                            if sendAbilityWithPosition(part, slot, secondBestPos) == true then
-                                                table.insert(recentDronePositions, {position = secondBestPos, time = tick()})
-                                                break
+                    local threadId = tostring(part)
+                    if not activeDroneThreads[threadId] then
+                        local bestPos = getBestMedicDronePosition(eligiblePositions, 12)
+                        if bestPos and isPositionAllowed(bestPos) then
+                            activeDroneThreads[threadId] = true
+                            task.spawn(function()
+                                if sendAbilityWithPosition(part, slot, bestPos) == true then
+                                    table.insert(recentDronePositions, {position = bestPos, time = tick()})
+                                    local startTime = tick()
+                                    while tick() - startTime < 20 and settings.activeAbilities["MEDIC_DRONE"] do
+                                        if not part.Parent or not towers[part] then break end
+                                        local freshPositions = {}
+                                        for p, d in pairs(towers) do
+                                            if d.owned and p.Parent and not medicDroneIgnoreTowers[d.name] then
+                                                table.insert(freshPositions, p.Position)
                                             end
                                         end
+                                        if #freshPositions >= 2 then
+                                            local secondBestPos = getBestMedicDronePosition(freshPositions, 12)
+                                            if secondBestPos and isPositionAllowed(secondBestPos) and (secondBestPos - bestPos).Magnitude > 5 then
+                                                if sendAbilityWithPosition(part, slot, secondBestPos) == true then
+                                                    table.insert(recentDronePositions, {position = secondBestPos, time = tick()})
+                                                    break
+                                                end
+                                            end
+                                        end
+                                        task.wait(0.5)
                                     end
-                                    task.wait(0.5)
+                                    towerPauseUntil[part] = tick() + 10
                                 end
-                                towerPauseUntil[part] = tick() + 10
-                            end
-                        end)
+                                activeDroneThreads[threadId] = nil
+                            end)
+                        end
                     end
                 end
             end
         end
         task.wait(0.1)
     end
+end
+
+local function runDebuffGrenade()
+    while settings.activeAbilities["DEBUFF_GRENADE"] do
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Grenadier" and data.hash and part.Parent and data.topCount >= 4 then
+                local targetPos = nil
+                if settings.debuffGrenadeMode == "closest" then
+                    targetPos = getClosestPathNodeTo(part.Position)
+                else
+                    local enemies = getAllEnemies()
+                    local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist, 20)
+                    if target then targetPos = target.Position end
+                end
+                if targetPos then
+                    task.spawn(function() sendAbilityWithPosition(part, 1, targetPos) end)
+                end
+            end
+        end
+        task.wait(0.3)
+    end
+end
+
+local MEDIC_TARGET_PRIORITY = {
+    ["Phaser"] = 1,
+    ["Refractor"] = 2,
+    ["Golden Juggernaut"] = 3,
+    ["Juggernaut"] = 4,
+}
+
+local MEDIC_RANGE = 25
+
+local function getMedicsForBuff(topPath)
+    local medics = {}
+    for part, data in pairs(towers) do
+        if data.owned and data.name == "Medic" and data.hash and part.Parent then
+            local lvl = topPath and (data.topCount or 0) or (data.bottomCount or 0)
+            if lvl >= 4 then
+                table.insert(medics, {
+                    part = part,
+                    pos = part.Position,
+                    hash = data.hash,
+                })
+            end
+        end
+    end
+    return medics
+end
+
+local function getBuffTargets(allowedNames)
+    local targets = {}
+    for part, data in pairs(towers) do
+        if data.owned and data.hash and part.Parent then
+            local prio = MEDIC_TARGET_PRIORITY[data.name]
+            if prio and (not allowedNames or allowedNames[data.name]) then
+                table.insert(targets, {
+                    part = part,
+                    pos = part.Position,
+                    hash = data.hash,
+                    name = data.name,
+                    prio = prio,
+                    level = (data.bottomCount or 0) + 1,
+                    topLevel = data.topCount or 0,
+                })
+            end
+        end
+    end
+    table.sort(targets, function(a, b)
+        if a.prio ~= b.prio then return a.prio < b.prio end
+        if a.level ~= b.level then return a.level > b.level end
+        if a.topLevel ~= b.topLevel then return a.topLevel > b.topLevel end
+        return a.hash < b.hash
+    end)
+    return targets
+end
+
+local function fireMedicAndWait(abilityName, medicPart, slot, targetHash)
+    local medicData = towers[medicPart]
+    if not medicData or not medicData.hash then return false end
+    local medicHash = medicData.hash
+
+    while settings.activeAbilities[abilityName] do
+        if not medicPart.Parent or not towers[medicPart] then return false end
+
+        abilityUsedQueue[medicHash] = nil
+        local result = sendMedicAbility(medicPart, slot, targetHash)
+
+        if result == true then
+            abilityUsedQueue[medicHash] = nil
+            return true
+        end
+
+        if result == nil then
+            local start = tick()
+            while tick() - start < 0.5 do
+                if abilityUsedQueue[medicHash] then
+                    abilityUsedQueue[medicHash] = nil
+                    return true
+                end
+                task.wait(0.02)
+            end
+        end
+
+        task.wait(0.3)
+    end
+
+    abilityUsedQueue[medicHash] = nil
+    return false
+end
+
+local function formMedicGroups(medics, groupSize)
+    local groups = {}
+    local pool = {}
+    for _, m in ipairs(medics) do table.insert(pool, m) end
+
+    table.sort(pool, function(a, b)
+        if a.pos.X ~= b.pos.X then return a.pos.X < b.pos.X end
+        if a.pos.Z ~= b.pos.Z then return a.pos.Z < b.pos.Z end
+        return a.pos.Y < b.pos.Y
+    end)
+
+    while #pool >= groupSize do
+        local anchor = table.remove(pool, 1)
+        local candidates = {}
+        for i, m in ipairs(pool) do
+            table.insert(candidates, { idx = i, dist = (anchor.pos - m.pos).Magnitude, medic = m })
+        end
+        table.sort(candidates, function(a, b) return a.dist < b.dist end)
+
+        local group = { anchor }
+        local toRemove = {}
+        for k = 1, groupSize - 1 do
+            if candidates[k] then
+                table.insert(group, candidates[k].medic)
+                table.insert(toRemove, candidates[k].idx)
+            end
+        end
+        table.sort(toRemove, function(a, b) return a > b end)
+        for _, r in ipairs(toRemove) do table.remove(pool, r) end
+
+        if #group == groupSize then
+            table.insert(groups, group)
+        end
+    end
+
+    return groups
+end
+
+local function groupMembersInRange(group, target, range)
+    for _, m in ipairs(group) do
+        if (m.pos - target.pos).Magnitude > range then return false end
+    end
+    return true
+end
+
+local function runMedicBuff(abilityName, slot, topPath, cycleTime, modeKey, allowedNames, range)
+    range = range or MEDIC_RANGE
+    local groupSize = topPath and 2 or 3
+    local groupStates = {}
+
+    return function()
+        while settings.activeAbilities[abilityName] do
+            local mode = settings[modeKey]
+
+            if mode == "strongest" then
+                local medics = getMedicsForBuff(topPath)
+                local targets = getBuffTargets(allowedNames)
+
+                if #medics >= groupSize and #targets > 0 then
+                    local groups = formMedicGroups(medics, groupSize)
+
+                    local activeKeys = {}
+                    local orderedKeys = {}
+                    for _, group in ipairs(groups) do
+                        local hashes = {}
+                        for _, m in ipairs(group) do table.insert(hashes, m.hash) end
+                        table.sort(hashes)
+                        local key = table.concat(hashes, "_")
+                        activeKeys[key] = true
+                        table.insert(orderedKeys, key)
+
+                        if not groupStates[key] then
+                            groupStates[key] = {
+                                nextFireAt = tick(),
+                                members = group,
+                                targetHash = nil,
+                                memberIndex = 1,
+                                pending = false,
+                            }
+                        else
+                            groupStates[key].members = group
+                            if groupStates[key].memberIndex > #group then
+                                groupStates[key].memberIndex = 1
+                            end
+                        end
+                    end
+
+                    for key in pairs(groupStates) do
+                        if not activeKeys[key] then
+                            groupStates[key] = nil
+                        end
+                    end
+
+                    local now = tick()
+
+                    local claimed = {}
+                    for _, state in pairs(groupStates) do
+                        if state.targetHash and now < state.nextFireAt then
+                            claimed[state.targetHash] = true
+                        end
+                    end
+
+                    for _, key in ipairs(orderedKeys) do
+                        local state = groupStates[key]
+                        if state and not state.pending and now >= state.nextFireAt then
+                            local picked = nil
+                            for _, t in ipairs(targets) do
+                                if not claimed[t.hash] and groupMembersInRange(state.members, t, range) then
+                                    picked = t
+                                    break
+                                end
+                            end
+
+                            if picked then
+                                state.targetHash = picked.hash
+                                claimed[picked.hash] = true
+                                state.pending = true
+
+                                local medicIdx = state.memberIndex
+                                if medicIdx > #state.members then medicIdx = 1 end
+                                local medic = state.members[medicIdx]
+
+                                if medic then
+                                    local mPart = medic.part
+                                    local tHash = picked.hash
+                                    task.spawn(function()
+                                        if settings.activeAbilities[abilityName] and settings[modeKey] == "strongest" then
+                                            local ok = fireMedicAndWait(abilityName, mPart, slot, tHash)
+                                            if ok then
+                                                state.nextFireAt = tick() + cycleTime
+                                                state.memberIndex = medicIdx + 1
+                                                if state.memberIndex > #state.members then state.memberIndex = 1 end
+                                            else
+                                                state.nextFireAt = tick() + 0.3
+                                            end
+                                        end
+                                        state.pending = false
+                                    end)
+                                else
+                                    state.pending = false
+                                end
+                            else
+                                state.nextFireAt = now + 1
+                            end
+                        end
+                    end
+                end
+
+                task.wait(0.3)
+            else
+                local medics = getMedicsForBuff(topPath)
+                local targets = getBuffTargets(allowedNames)
+
+                if not distributeThreads[abilityName] then
+                    distributeThreads[abilityName] = {}
+                end
+                local threads = distributeThreads[abilityName]
+
+                local activeIds = {}
+
+                if #medics > 0 and #targets > 0 then
+                    local usedTargets = {}
+                    local assignments = {}
+
+                    for _, m in ipairs(medics) do
+                        local bestT, bestD = nil, math.huge
+                        for _, t in ipairs(targets) do
+                            if not usedTargets[t.hash] then
+                                local d = (m.pos - t.pos).Magnitude
+                                if d <= range and d < bestD then
+                                    bestD = d
+                                    bestT = t
+                                end
+                            end
+                        end
+                        if bestT then
+                            usedTargets[bestT.hash] = true
+                            table.insert(assignments, { medic = m, target = bestT })
+                        end
+                    end
+
+                    for _, a in ipairs(assignments) do
+                        local mPart = a.medic.part
+                        local tHash = a.target.hash
+                        local id = tostring(mPart)
+
+                        activeIds[id] = true
+
+                        if not threads[id] or not threads[id].running then
+                            local threadState = { hash = tHash, running = true, part = mPart }
+                            threads[id] = threadState
+                            task.spawn(function()
+                                while settings.activeAbilities[abilityName]
+                                    and settings[modeKey] == "distribute"
+                                    and threadState.running do
+                                    if not mPart.Parent or not towers[mPart] then break end
+                                    if not fireMedicAndWait(abilityName, mPart, slot, threadState.hash) then
+                                        task.wait(0.1)
+                                    end
+                                end
+                                if threads[id] == threadState then
+                                    threads[id] = nil
+                                end
+                            end)
+                        else
+                            threads[id].hash = tHash
+                            threads[id].part = mPart
+                        end
+                    end
+                end
+
+                for id, state in pairs(threads) do
+                    if not activeIds[id] then
+                        state.running = false
+                        threads[id] = nil
+                    end
+                end
+
+                task.wait(1)
+            end
+        end
+    end
+end
+
+local UBER_TARGETS = {
+    ["Phaser"] = true,
+    ["Refractor"] = true,
+    ["Golden Juggernaut"] = true,
+    ["Juggernaut"] = true,
+}
+
+local CRITZ_TARGETS = {
+    ["Golden Juggernaut"] = true,
+    ["Juggernaut"] = true,
+}
+
+local function runUber()
+    runMedicBuff("UBER", 1, true, 24, "uberMode", UBER_TARGETS, 45)()
+end
+
+local function runCritz()
+    runMedicBuff("CRITZ", 1, false, 13, "critzMode", CRITZ_TARGETS, 50)()
 end
 
 local abilityLoopMap = {
@@ -1360,6 +2009,9 @@ local abilityLoopMap = {
     OVERCHARGE = runEnemyInRangeAbility("OVERCHARGE", "Juggernaut", "bottom", 5, 1, 45, 1),
     REBOOT_SYSTEM = runGoldenJuggernautReboot,
     GHOST_DRONE = runGhostDrone,
+    DEBUFF_GRENADE = runDebuffGrenade,
+    UBER = runUber,
+    CRITZ = runCritz,
 }
 
 local abilityDisplayNames = {
@@ -1388,14 +2040,17 @@ local abilityDisplayNames = {
     OVERCHARGE = "Overcharge (Juggernaut B/5)",
     REBOOT_SYSTEM = "Reboot System (G Juggernaut T/B/5)",
     GHOST_DRONE = "Drone (Ghost T/4+)                 ",
+    DEBUFF_GRENADE = "Debuff Grenade (Grenadier T/4+)",
+    UBER = "Uber (Medic T/4+)",
+    CRITZ = "Critz (Medic B/4+)",
 }
 
 local abilityOrder = {
     "AXE", "GHOST_DRONE",
     "GRENADE", "UNSTUN_HEALTH", "HEALTH_PACK", "HUMVEE", "FLARE", "ENCORE",
     "SHOCK_ROUNDS", "STEALTH_SENSOR", "AP_ROUNDS", "N_BOUNTY", "G_BOUNTY", "OVERLOAD",
-    "GOLDEN_RANGER", "WARSHIP", "FIRE_ROUNDS", "GRAND_SLAM", "RAGE", "HE_ROUNDS", "OVERCHARGE", "REBOOT_SYSTEM"
-    , "MEDIC_DRONE", "CALL_TO_ARMS", "SPAWN_APC"
+    "GOLDEN_RANGER", "WARSHIP", "FIRE_ROUNDS", "GRAND_SLAM", "RAGE", "HE_ROUNDS", "OVERCHARGE", "REBOOT_SYSTEM",
+    "MEDIC_DRONE", "CALL_TO_ARMS", "SPAWN_APC", "DEBUFF_GRENADE", "UBER", "CRITZ"
 }
 
 local rowFrame = nil
@@ -1407,7 +2062,7 @@ for _, abilityName in ipairs(abilityOrder) do
             rowFrame = Instance.new("Frame")
             rowFrame.Size = UDim2.new(1, -12, 0, 38)
             rowFrame.BackgroundTransparency = 1
-            rowFrame.Parent = abilitiesFrame
+            rowFrame.Parent = Scrolls.Abilities
             rowFrame.LayoutOrder = 1
         end
         local btn = Instance.new("TextButton")
@@ -1473,7 +2128,7 @@ for _, abilityName in ipairs(abilityOrder) do
             local gsStroke = Instance.new("UIStroke", ghostSetBtn)
             gsStroke.Color = hasPos and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(50, 50, 55)
             gsStroke.Thickness = 1
-
+        
             ghostSetBtn.MouseButton1Click:Connect(function()
                 if settings.ghostDronePosition then
                     settings.ghostDronePosition = nil
@@ -1498,14 +2153,69 @@ for _, abilityName in ipairs(abilityOrder) do
                 end
             end)
         end
+        
+        if abilityName == "DEBUFF_GRENADE" then
+            local modeBtn = Instance.new("TextButton")
+            modeBtn.Size = UDim2.new(0, 62, 0, 22)
+            modeBtn.Position = UDim2.new(1, -68, 0, 5)
+            modeBtn.Text = settings.debuffGrenadeMode == "closest" and "CLOSEST" or "ENEMY"
+            modeBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+            modeBtn.TextColor3 = Color3.fromRGB(200, 200, 205)
+            modeBtn.TextSize = 8
+            modeBtn.Font = Enum.Font.Gotham
+            modeBtn.AutoButtonColor = false
+            modeBtn.Parent = btn
+            Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0, 4)
+            local mbStroke = Instance.new("UIStroke", modeBtn)
+            mbStroke.Color = Color3.fromRGB(50, 50, 55)
+            mbStroke.Thickness = 1
+        
+            modeBtn.MouseButton1Click:Connect(function()
+                if settings.debuffGrenadeMode == "closest" then
+                    settings.debuffGrenadeMode = "enemies"
+                else
+                    settings.debuffGrenadeMode = "closest"
+                end
+                modeBtn.Text = settings.debuffGrenadeMode == "closest" and "CLOSEST" or "ENEMY"
+                saveSettings()
+            end)
+        end
+        
+        if abilityName == "UBER" or abilityName == "CRITZ" then
+            local modeKey = abilityName == "UBER" and "uberMode" or "critzMode"
+            local modeBtn = Instance.new("TextButton")
+            modeBtn.Size = UDim2.new(0, 68, 0, 22)
+            modeBtn.Position = UDim2.new(1, -74, 0, 5)
+            modeBtn.Text = settings[modeKey] == "strongest" and "STRONG" or "DISTRIB"
+            modeBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+            modeBtn.TextColor3 = Color3.fromRGB(200, 200, 205)
+            modeBtn.TextSize = 8
+            modeBtn.Font = Enum.Font.Gotham
+            modeBtn.AutoButtonColor = false
+            modeBtn.Parent = btn
+            Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0, 4)
+            local mbStroke = Instance.new("UIStroke", modeBtn)
+            mbStroke.Color = Color3.fromRGB(50, 50, 55)
+            mbStroke.Thickness = 1
+        
+            modeBtn.MouseButton1Click:Connect(function()
+                if settings[modeKey] == "strongest" then
+                    settings[modeKey] = "distribute"
+                else
+                    settings[modeKey] = "strongest"
+                end
+                modeBtn.Text = settings[modeKey] == "strongest" and "STRONG" or "DISTRIB"
+                saveSettings()
+            end)
+        end
     end
 end
 
-abilitiesFrame.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 44 + 20)
+Scrolls.Abilities.CanvasSize = UDim2.new(0, 0, 0, math.ceil(#abilityOrder / 2) * 44 + 20)
 
 task.defer(function()
     task.wait(0.5)
-    for _, row in ipairs(abilitiesFrame:GetChildren()) do
+    for _, row in ipairs(Scrolls.Abilities:GetChildren()) do
         if row:IsA("Frame") then
             for _, btn in ipairs(row:GetChildren()) do
                 if btn:IsA("TextButton") and string.find(btn.Text, "Axe") then
@@ -1551,8 +2261,8 @@ local function getPlayerLoadoutTowers()
 end
 
 updateAutoReviveList = function()
-    if not autoReviveScroll then return end
-    for _, child in ipairs(autoReviveScroll:GetChildren()) do
+    if not Scrolls.AutoRevive then return end
+    for _, child in ipairs(Scrolls.AutoRevive:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextLabel") or child:IsA("UIListLayout") then
             child:Destroy()
         end
@@ -1563,7 +2273,7 @@ updateAutoReviveList = function()
     listLayout.SortOrder = Enum.SortOrder.LayoutOrder
     listLayout.FillDirection = Enum.FillDirection.Vertical
     listLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    listLayout.Parent = autoReviveScroll
+    listLayout.Parent = Scrolls.AutoRevive
 
     local groups = {}
     for _, name in ipairs(getPlayerLoadoutTowers()) do
@@ -1583,14 +2293,14 @@ updateAutoReviveList = function()
         label.TextXAlignment = Enum.TextXAlignment.Center
         label.BackgroundTransparency = 1
         label.Font = Enum.Font.Gotham
-        label.Parent = autoReviveScroll
+        label.Parent = Scrolls.AutoRevive
     else
         for _, name in ipairs(sortedNames) do
             local block = Instance.new("Frame")
             block.Size = UDim2.new(1, -16, 0, 72)
             block.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
             block.BorderSizePixel = 0
-            block.Parent = autoReviveScroll
+            block.Parent = Scrolls.AutoRevive
             Instance.new("UICorner", block).CornerRadius = UDim.new(0, 10)
             local bs = Instance.new("UIStroke", block)
             bs.Color = Color3.fromRGB(45, 45, 50)
@@ -1678,8 +2388,8 @@ updateAutoReviveList = function()
     end
 
     task.defer(function()
-        if autoReviveScroll and listLayout then
-            autoReviveScroll.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
+        if Scrolls.AutoRevive and listLayout then
+            Scrolls.AutoRevive.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 10)
         end
     end)
 end
@@ -1695,29 +2405,31 @@ local function getPvPEnemiesFromGame()
     return enemies
 end
 
-local pvpEnemyNames = getPvPEnemiesFromGame()
-local pvpSelectedEnemy = nil
-local pvpActive = false
-local pvpLoopThread = nil
-local pvpLastSentName = nil
-local pvpSentAt = 0
-local pvpEcoActive = false
-local pvpEcoThread = nil
-local pvpEcoCurrentEnemy = nil
-local pvpEcoWaveCheckConnection = nil
+local PvP = {
+    names           = getPvPEnemiesFromGame(),
+    selectedEnemy   = nil,
+    active          = false,
+    loopThread      = nil,
+    lastSentName    = nil,
+    sentAt          = 0,
+    ecoActive       = false,
+    ecoThread       = nil,
+    ecoCurrentEnemy = nil,
+    ecoWaveCheck    = nil,
+}
 
 local function runPvPLoop()
-    while pvpActive and pvpSelectedEnemy do
+    while PvP.active and PvP.selectedEnemy do
         local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("RequestSendPVPEnemy")
         if remote then
-            pcall(function() remote:InvokeServer(pvpSelectedEnemy) end)
-            pvpLastSentName = pvpSelectedEnemy
-            pvpSentAt = tick()
+            pcall(function() remote:InvokeServer(PvP.selectedEnemy) end)
+            PvP.lastSentName = PvP.selectedEnemy
+            PvP.sentAt = tick()
         end
         task.wait(math.random() * 0.2 + 0.1)
     end
-    pvpActive = false
-    pvpSelectedEnemy = nil
+    PvP.active = false
+    PvP.selectedEnemy = nil
 end
 
 local function getEquippedEnemies()
@@ -1750,6 +2462,7 @@ local ecoPriority = {
     {name = "Golden Knight PVP", wave = 30},
     {name = "Heavy Metal", wave = 26},
     {name = "Scout Bot PVP", wave = 17},
+    {name = "Nasowy PVP", wave = 16},
     {name = "Knyght PVP", wave = 14},
     {name = "Fallout", wave = 12},
     {name = "Slow PVP", wave = 7},
@@ -1789,34 +2502,34 @@ end
 
 local function runPvPEco()
     local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("RequestSendPVPEnemy")
-    if not remote then pvpEcoActive = false return end
+    if not remote then PvP.ecoActive = false return end
     local equipped = getEquippedEnemies()
     local startWave = getCurrentWave() or 0
-    pvpEcoCurrentEnemy = getBestEcoEnemy(startWave, equipped)
-    while pvpEcoActive do
+    PvP.ecoCurrentEnemy = getBestEcoEnemy(startWave, equipped)
+    while PvP.ecoActive do
         local currentWave = getCurrentWave() or 1
         local currentEquipped = getEquippedEnemies()
         local queueCount = getQueueEnemyCount()
         local bestEnemy = getBestEcoEnemy(currentWave, currentEquipped)
         if bestEnemy then
-            pvpEcoCurrentEnemy = bestEnemy
+            PvP.ecoCurrentEnemy = bestEnemy
             if queueCount < 2 then
-                pcall(function() remote:InvokeServer(pvpEcoCurrentEnemy) end)
-                pvpLastSentName = pvpEcoCurrentEnemy
-                pvpSentAt = tick()
+                pcall(function() remote:InvokeServer(PvP.ecoCurrentEnemy) end)
+                PvP.lastSentName = PvP.ecoCurrentEnemy
+                PvP.sentAt = tick()
             end
         else
-            pvpEcoCurrentEnemy = "WAITING"
+            PvP.ecoCurrentEnemy = "WAITING"
         end
         task.wait(math.random() * 0.2 + 0.1)
     end
-    pvpEcoActive = false
-    pvpEcoCurrentEnemy = nil
+    PvP.ecoActive = false
+    PvP.ecoCurrentEnemy = nil
 end
 
 local function rebuildPvPButtons()
-    pvpEnemyNames = getPvPEnemiesFromGame()
-    for _, child in ipairs(pvpScroll:GetChildren()) do
+    PvP.names = getPvPEnemiesFromGame()
+    for _, child in ipairs(Scrolls.PvP:GetChildren()) do
         if (child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel")) and child.Name ~= "EcoMyLabel" and child.Name ~= "EcoEnemyLabel" and child.Name ~= "DifferenceLabel" then child:Destroy() end
     end
 
@@ -1824,7 +2537,7 @@ local function rebuildPvPButtons()
     headerBlock.Size = UDim2.new(1, -16, 0, 74)
     headerBlock.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
     headerBlock.BorderSizePixel = 0
-    headerBlock.Parent = pvpScroll
+    headerBlock.Parent = Scrolls.PvP
     Instance.new("UICorner", headerBlock).CornerRadius = UDim.new(0, 10)
     local hStroke = Instance.new("UIStroke", headerBlock)
     hStroke.Color = Color3.fromRGB(45, 45, 50)
@@ -1852,14 +2565,14 @@ local function rebuildPvPButtons()
     statusLabel.Size = UDim2.new(1, -28, 0, 18)
     statusLabel.Position = UDim2.new(0, 14, 0, 32)
     statusLabel.Name = "StatusLabel"
-    if pvpEcoActive and pvpEcoCurrentEnemy then
-        statusLabel.Text = string.format("[ECO] Sending: %s", pvpEcoCurrentEnemy)
+    if PvP.ecoActive and PvP.ecoCurrentEnemy then
+        statusLabel.Text = string.format("[ECO] Sending: %s", PvP.ecoCurrentEnemy)
         statusLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
-    elseif pvpActive and pvpSelectedEnemy then
-        statusLabel.Text = string.format("Sending: %s", pvpSelectedEnemy)
+    elseif PvP.active and PvP.selectedEnemy then
+        statusLabel.Text = string.format("Sending: %s", PvP.selectedEnemy)
         statusLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
-    elseif pvpLastSentName then
-        statusLabel.Text = string.format("Last sent: %s (%.1fs ago)", pvpLastSentName, tick() - pvpSentAt)
+    elseif PvP.lastSentName then
+        statusLabel.Text = string.format("Last sent: %s (%.1fs ago)", PvP.lastSentName, tick() - PvP.sentAt)
         statusLabel.TextColor3 = Color3.fromRGB(220, 180, 100)
     else
         statusLabel.Text = "Select an enemy to spam send"
@@ -1887,7 +2600,7 @@ local function rebuildPvPButtons()
     ecoBlock.Size = UDim2.new(1, -16, 0, 58)
     ecoBlock.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
     ecoBlock.BorderSizePixel = 0
-    ecoBlock.Parent = pvpScroll
+    ecoBlock.Parent = Scrolls.PvP
     Instance.new("UICorner", ecoBlock).CornerRadius = UDim.new(0, 10)
     local eStroke = Instance.new("UIStroke", ecoBlock)
     eStroke.Color = Color3.fromRGB(45, 45, 50)
@@ -1907,36 +2620,36 @@ local function rebuildPvPButtons()
     local ecoBtn = Instance.new("TextButton")
     ecoBtn.Size = UDim2.new(1, -28, 0, 24)
     ecoBtn.Position = UDim2.new(0, 14, 0, 28)
-    ecoBtn.Text = pvpEcoActive and "▶ Auto ECO (Active)" or "Auto ECO"
-    ecoBtn.BackgroundColor3 = pvpEcoActive and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(38, 38, 44)
-    ecoBtn.TextColor3 = pvpEcoActive and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(200, 200, 205)
+    ecoBtn.Text = PvP.ecoActive and "▶ Auto ECO (Active)" or "Auto ECO"
+    ecoBtn.BackgroundColor3 = PvP.ecoActive and Color3.fromRGB(45, 100, 55) or Color3.fromRGB(38, 38, 44)
+    ecoBtn.TextColor3 = PvP.ecoActive and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(200, 200, 205)
     ecoBtn.TextSize = 12
     ecoBtn.Font = Enum.Font.Gotham
     ecoBtn.AutoButtonColor = false
     ecoBtn.Parent = ecoBlock
     Instance.new("UICorner", ecoBtn).CornerRadius = UDim.new(0, 6)
     local ecoStroke2 = Instance.new("UIStroke", ecoBtn)
-    ecoStroke2.Color = pvpEcoActive and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(55, 55, 60)
+    ecoStroke2.Color = PvP.ecoActive and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(55, 55, 60)
     ecoStroke2.Thickness = 1
 
     ecoBtn.MouseButton1Click:Connect(function()
-        if pvpEcoActive then
-            pvpEcoActive = false
-            pvpEcoCurrentEnemy = nil
-            if pvpEcoThread then pcall(function() task.cancel(pvpEcoThread) end) pvpEcoThread = nil end
+        if PvP.ecoActive then
+            PvP.ecoActive = false
+            PvP.ecoCurrentEnemy = nil
+            if PvP.ecoThread then pcall(function() task.cancel(PvP.ecoThread) end) PvP.ecoThread = nil end
         else
-            if pvpActive then pvpActive = false pvpSelectedEnemy = nil task.wait(0.1) end
-            pvpEcoActive = true
-            pvpEcoThread = task.spawn(runPvPEco)
+            if PvP.active then PvP.active = false PvP.selectedEnemy = nil task.wait(0.1) end
+            PvP.ecoActive = true
+            PvP.ecoThread = task.spawn(runPvPEco)
         end
         rebuildPvPButtons()
     end)
 
     local enemiesBlock = Instance.new("Frame")
-    enemiesBlock.Size = UDim2.new(1, -16, 0, 32 + #pvpEnemyNames * 30)
+    enemiesBlock.Size = UDim2.new(1, -16, 0, 32 + #PvP.names * 30)
     enemiesBlock.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
     enemiesBlock.BorderSizePixel = 0
-    enemiesBlock.Parent = pvpScroll
+    enemiesBlock.Parent = Scrolls.PvP
     Instance.new("UICorner", enemiesBlock).CornerRadius = UDim.new(0, 10)
     local ebStroke = Instance.new("UIStroke", enemiesBlock)
     ebStroke.Color = Color3.fromRGB(45, 45, 50)
@@ -1961,8 +2674,8 @@ local function rebuildPvPButtons()
     enemiesDivider.Parent = enemiesBlock
 
     local y = 32
-    for _, name in ipairs(pvpEnemyNames) do
-        local isActive = pvpActive and pvpSelectedEnemy == name
+    for _, name in ipairs(PvP.names) do
+        local isActive = PvP.active and PvP.selectedEnemy == name
         local row = Instance.new("TextButton")
         row.Size = UDim2.new(1, -28, 0, 24)
         row.Position = UDim2.new(0, 14, 0, y)
@@ -1982,20 +2695,20 @@ local function rebuildPvPButtons()
         rStroke.Thickness = 1
 
         row.MouseButton1Click:Connect(function()
-            if pvpActive and pvpSelectedEnemy == name then
-                pvpActive = false
-                pvpSelectedEnemy = nil
+            if PvP.active and PvP.selectedEnemy == name then
+                PvP.active = false
+                PvP.selectedEnemy = nil
             else
-                if pvpActive then pvpActive = false task.wait(0.1) end
-                if pvpEcoActive then
-                    pvpEcoActive = false
-                    pvpEcoCurrentEnemy = nil
-                    if pvpEcoThread then pcall(function() task.cancel(pvpEcoThread) end) pvpEcoThread = nil end
+                if PvP.active then PvP.active = false task.wait(0.1) end
+                if PvP.ecoActive then
+                    PvP.ecoActive = false
+                    PvP.ecoCurrentEnemy = nil
+                    if PvP.ecoThread then pcall(function() task.cancel(PvP.ecoThread) end) PvP.ecoThread = nil end
                     task.wait(0.1)
                 end
-                pvpSelectedEnemy = name
-                pvpActive = true
-                pvpLoopThread = task.spawn(runPvPLoop)
+                PvP.selectedEnemy = name
+                PvP.active = true
+                PvP.loopThread = task.spawn(runPvPLoop)
             end
             rebuildPvPButtons()
         end)
@@ -2004,27 +2717,27 @@ local function rebuildPvPButtons()
     end
 
     task.defer(function()
-        if pvpScroll then
-            pvpScroll.CanvasSize = UDim2.new(0, 0, 0, pvpLayout.AbsoluteContentSize.Y + 10)
+        if Scrolls.PvP then
+            Scrolls.PvP.CanvasSize = UDim2.new(0, 0, 0, Layouts.PvP.AbsoluteContentSize.Y + 10)
         end
     end)
 end
 
 task.spawn(function()
     while true do
-        local status = pvpScroll:FindFirstChild("StatusLabel")
-        if status then
-            if pvpEcoActive and pvpEcoCurrentEnemy then
-                status.Text = string.format("[ECO] Sending: %s", pvpEcoCurrentEnemy)
-            elseif pvpActive and pvpSelectedEnemy then
-                status.Text = string.format("Sending: %s", pvpSelectedEnemy)
+        local status = Scrolls.PvP:FindFirstChild("StatusLabel")
+        if status and status.Parent then
+            if PvP.ecoActive and PvP.ecoCurrentEnemy then
+                status.Text = string.format("[ECO] Sending: %s", PvP.ecoCurrentEnemy)
+            elseif PvP.active and PvP.selectedEnemy then
+                status.Text = string.format("Sending: %s", PvP.selectedEnemy)
             end
         end
         task.wait(0.5)
     end
 end)
 
-local antiLagButtons = {}
+local AntiLag = { buttons = {}, effectCleanerActive = false }
 
 local function createAntiLagToggle(name, settingKey, labelText, order)
     local btn = Instance.new("TextButton")
@@ -2036,7 +2749,7 @@ local function createAntiLagToggle(name, settingKey, labelText, order)
     btn.Font = Enum.Font.Gotham
     btn.AutoButtonColor = false
     btn.LayoutOrder = order
-    btn.Parent = antiLagScroll
+    btn.Parent = Scrolls.AntiLag
     Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
     local stroke = Instance.new("UIStroke", btn)
     stroke.Color = settings[settingKey] and Color3.fromRGB(60, 130, 70) or Color3.fromRGB(50, 50, 55)
@@ -2057,8 +2770,17 @@ local function createAntiLagToggle(name, settingKey, labelText, order)
         applyAntiLagSettings()
     end)
 
-    antiLagButtons[settingKey] = btn
+    AntiLag.buttons[settingKey] = btn
     return btn
+end
+
+local function wipeDescendants(inst)
+    for _, d in ipairs(inst:GetDescendants()) do
+        pcall(function() d:Destroy() end)
+    end
+    for _, c in ipairs(inst:GetChildren()) do
+        pcall(function() c:Destroy() end)
+    end
 end
 
 local function clearEffectFolders()
@@ -2069,27 +2791,35 @@ local function clearEffectFolders()
     if not common then return end
     local resources = common:FindFirstChild("Resources")
     if not resources then return end
-    local folders = {"Projectiles", "DeathEffects", "EmitOnceVisualEffects"}
-    for _, folderName in ipairs(folders) do
-        local folder = resources:FindFirstChild(folderName)
+
+    local targets = {
+        resources:FindFirstChild("EmitOnceVisualEffects"),
+        resources:FindFirstChild("Projectiles"),
+        resources:FindFirstChild("DeathEffects"),
+    }
+
+    for _, folder in ipairs(targets) do
         if folder then
-            for _, child in ipairs(folder:GetChildren()) do
-                pcall(function() child:Destroy() end)
+            wipeDescendants(folder)
+
+            if not AntiLag.effectCleanerActive then
+                folder.ChildAdded:Connect(function(child)
+                    pcall(function() child:Destroy() end)
+                end)
             end
-            folder.ChildAdded:Connect(function(child)
-                pcall(function() child:Destroy() end)
-            end)
         end
     end
+
+    AntiLag.effectCleanerActive = true
 end
 
 local function buildAntiLagUI()
-    for _, child in ipairs(antiLagScroll:GetChildren()) do
+    for _, child in ipairs(Scrolls.AntiLag:GetChildren()) do
         if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("TextBox") or child:IsA("Frame") then
             child:Destroy()
         end
     end
-    antiLagButtons = {}
+    AntiLag.buttons = {}
 
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, -14, 0, 22)
@@ -2100,14 +2830,14 @@ local function buildAntiLagUI()
     title.TextXAlignment = Enum.TextXAlignment.Center
     title.BackgroundTransparency = 1
     title.LayoutOrder = 0
-    title.Parent = antiLagScroll
+    title.Parent = Scrolls.AntiLag
 
     local divider = Instance.new("Frame")
     divider.Size = UDim2.new(1, -20, 0, 1)
     divider.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
     divider.BorderSizePixel = 0
     divider.LayoutOrder = 2
-    divider.Parent = antiLagScroll
+    divider.Parent = Scrolls.AntiLag
 
     createAntiLagToggle("Fog", "antiLagFog", "Remove Fog", 3)
     createAntiLagToggle("Shadows", "antiLagShadows", "Remove Shadows", 4)
@@ -2119,7 +2849,7 @@ local function buildAntiLagUI()
     divider2.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
     divider2.BorderSizePixel = 0
     divider2.LayoutOrder = 7
-    divider2.Parent = antiLagScroll
+    divider2.Parent = Scrolls.AntiLag
 
     local animLabel = Instance.new("TextLabel")
     animLabel.Size = UDim2.new(1, -14, 0, 18)
@@ -2130,7 +2860,7 @@ local function buildAntiLagUI()
     animLabel.TextXAlignment = Enum.TextXAlignment.Left
     animLabel.BackgroundTransparency = 1
     animLabel.LayoutOrder = 8
-    animLabel.Parent = antiLagScroll
+    animLabel.Parent = Scrolls.AntiLag
 
     createAntiLagToggle("AnimEnemies", "removeAnimEnemies", "Remove Enemies Animators", 9)
     createAntiLagToggle("AnimTowers", "removeAnimTowers", "Remove Towers Animators", 10)
@@ -2141,7 +2871,7 @@ local function buildAntiLagUI()
     divider3.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
     divider3.BorderSizePixel = 0
     divider3.LayoutOrder = 12
-    divider3.Parent = antiLagScroll
+    divider3.Parent = Scrolls.AntiLag
 
     local clearEffectsBtn = Instance.new("TextButton")
     clearEffectsBtn.Size = UDim2.new(1, -14, 0, 36)
@@ -2152,7 +2882,7 @@ local function buildAntiLagUI()
     clearEffectsBtn.Font = Enum.Font.Gotham
     clearEffectsBtn.AutoButtonColor = false
     clearEffectsBtn.LayoutOrder = 13
-    clearEffectsBtn.Parent = antiLagScroll
+    clearEffectsBtn.Parent = Scrolls.AntiLag
     Instance.new("UICorner", clearEffectsBtn).CornerRadius = UDim.new(0, 8)
     local cebStroke = Instance.new("UIStroke", clearEffectsBtn)
     cebStroke.Color = Color3.fromRGB(50, 50, 55)
@@ -2163,21 +2893,21 @@ local function buildAntiLagUI()
     end)
 
     task.defer(function()
-        antiLagScroll.CanvasSize = UDim2.new(0, 0, 0, antiLagLayout.AbsoluteContentSize.Y + 10)
+        Scrolls.AntiLag.CanvasSize = UDim2.new(0, 0, 0, Layouts.AntiLag.AbsoluteContentSize.Y + 10)
     end)
 end
 
-local originalFog = {start = nil, fin = nil}
-local originalAtmosphere = {}
+AntiLag.originalFog = { start = nil, fin = nil }
+AntiLag.originalAtmosphere = {}
 
 function applyAntiLagSettings()
     if settings.antiLagFog then
-        if originalFog.start == nil then
-            originalFog.start = Lighting.FogStart
-            originalFog.fin = Lighting.FogEnd
+        if AntiLag.originalFog.start == nil then
+            AntiLag.originalFog.start = Lighting.FogStart
+            AntiLag.originalFog.fin = Lighting.FogEnd
             for _, child in ipairs(Lighting:GetChildren()) do
                 if child:IsA("Atmosphere") then
-                    originalAtmosphere[child] = {density = child.Density, haze = child.Haze, glare = child.Glare}
+                    AntiLag.originalAtmosphere[child] = {density = child.Density, haze = child.Haze, glare = child.Glare}
                 end
             end
         end
@@ -2187,11 +2917,11 @@ function applyAntiLagSettings()
             if child:IsA("Atmosphere") then child.Density = 0 end
         end
     else
-        if originalFog.start ~= nil then
-            Lighting.FogStart = originalFog.start
-            Lighting.FogEnd = originalFog.fin
+        if AntiLag.originalFog.start ~= nil then
+            Lighting.FogStart = AntiLag.originalFog.start
+            Lighting.FogEnd = AntiLag.originalFog.fin
         end
-        for child, vals in pairs(originalAtmosphere) do
+        for child, vals in pairs(AntiLag.originalAtmosphere) do
             if child and child.Parent then
                 child.Density = vals.density
                 child.Haze = vals.haze
@@ -2244,7 +2974,14 @@ if settings.antiLagFog or settings.antiLagShadows or settings.antiLagEffects or 
     task.delay(3, applyAntiLagSettings)
 end
 
-local animCleanedTowers = {}
+local AnimScan = {
+    cleanedTowers  = {},
+    foldersToScan  = {},
+    foldersScanned = {},
+    scanIndex      = 1,
+    batchSize      = 25,
+    interval       = 0.5,
+}
 
 local function cleanAnimators(parent, cache)
     if not parent then return end
@@ -2256,12 +2993,6 @@ local function cleanAnimators(parent, cache)
         if #child:GetChildren() > 0 then cleanAnimators(child, cache) end
     end
 end
-
-local animFoldersToScan = {}
-local animFoldersScanned = {}
-local animScanIndex = 1
-local animScanBatchSize = 25
-local animScanInterval = 0.5
 
 local function collectAnimFolders(parent, list)
     if not parent then return end
@@ -2286,15 +3017,15 @@ local function removeAnimationObject(anim)
 end
 
 local function scanAnimFoldersBatch()
-    if #animFoldersToScan == 0 then return 0 end
+    if #AnimScan.foldersToScan == 0 then return 0 end
     local processed = 0
     local removed = 0
-    while processed < animScanBatchSize and animScanIndex <= #animFoldersToScan do
-        local folder = animFoldersToScan[animScanIndex]
-        animScanIndex = animScanIndex + 1
+    while processed < AnimScan.batchSize and AnimScan.scanIndex <= #AnimScan.foldersToScan do
+        local folder = AnimScan.foldersToScan[AnimScan.scanIndex]
+        AnimScan.scanIndex = AnimScan.scanIndex + 1
         if folder and folder.Parent then
             local folderKey = tostring(folder)
-            if not animFoldersScanned[folderKey] then
+            if not AnimScan.foldersScanned[folderKey] then
                 for _, anim in ipairs(folder:GetChildren()) do
                     if isAnimationObject(anim) and shouldRemoveAnim(anim.Name) then
                         removeAnimationObject(anim)
@@ -2308,7 +3039,7 @@ local function scanAnimFoldersBatch()
                         break
                     end
                 end
-                if not hasRemovableLeft then animFoldersScanned[folderKey] = true end
+                if not hasRemovableLeft then AnimScan.foldersScanned[folderKey] = true end
                 processed = processed + 1
             end
         end
@@ -2368,29 +3099,29 @@ local function directRemoveFromPaths()
 end
 
 local function startAnimFolderScan()
-    animFoldersToScan = {}
-    animFoldersScanned = {}
-    animScanIndex = 1
+    AnimScan.foldersToScan = {}
+    AnimScan.foldersScanned = {}
+    AnimScan.scanIndex = 1
     local rs = game:GetService("ReplicatedStorage")
     local enemyModels = rs:FindFirstChild("TDX_Shared")
     enemyModels = enemyModels and enemyModels:FindFirstChild("Common")
     enemyModels = enemyModels and enemyModels:FindFirstChild("Resources")
     enemyModels = enemyModels and enemyModels:FindFirstChild("Enemies")
     enemyModels = enemyModels and enemyModels:FindFirstChild("Models")
-    if enemyModels then collectAnimFolders(enemyModels, animFoldersToScan) end
+    if enemyModels then collectAnimFolders(enemyModels, AnimScan.foldersToScan) end
     local pathModels = rs:FindFirstChild("TDX_Shared")
     pathModels = pathModels and pathModels:FindFirstChild("Common")
     pathModels = pathModels and pathModels:FindFirstChild("Resources")
     pathModels = pathModels and pathModels:FindFirstChild("PathEntities")
     pathModels = pathModels and pathModels:FindFirstChild("Models")
-    if pathModels then collectAnimFolders(pathModels, animFoldersToScan) end
+    if pathModels then collectAnimFolders(pathModels, AnimScan.foldersToScan) end
     local pathEntities = rs:FindFirstChild("TDX_Shared")
     pathEntities = pathEntities and pathEntities:FindFirstChild("Common")
     pathEntities = pathEntities and pathEntities:FindFirstChild("Resources")
     pathEntities = pathEntities and pathEntities:FindFirstChild("PathEntities")
     if pathEntities then
         local skinsFolder = pathEntities:FindFirstChild("Skins")
-        if skinsFolder then collectAnimFolders(skinsFolder, animFoldersToScan) end
+        if skinsFolder then collectAnimFolders(skinsFolder, AnimScan.foldersToScan) end
     end
     directRemoveFromPaths()
 end
@@ -2398,24 +3129,24 @@ end
 local function runAnimFolderScanner()
     while true do
         if settings.removeAnimEnemies or settings.removeAnimPaths then
-            if #animFoldersToScan == 0 then startAnimFolderScan() end
-            if animScanIndex <= #animFoldersToScan then scanAnimFoldersBatch() end
+            if #AnimScan.foldersToScan == 0 then startAnimFolderScan() end
+            if AnimScan.scanIndex <= #AnimScan.foldersToScan then scanAnimFoldersBatch() end
         end
-        task.wait(animScanInterval)
+        task.wait(AnimScan.interval)
     end
 end
 
 task.spawn(runAnimFolderScanner)
 
-local enemyProcessed = {}
+AntiLag.enemyProcessed = {}
 
 local function processEnemyVisuals(enemiesFolder, batchSize)
     local allEnemies = enemiesFolder:GetChildren()
     local processed = 0
     for _, enemy in ipairs(allEnemies) do
         if processed >= batchSize then break end
-        if enemyProcessed[enemy] then continue end
-        enemyProcessed[enemy] = true
+        if AntiLag.enemyProcessed[enemy] then continue end
+        AntiLag.enemyProcessed[enemy] = true
         processed = processed + 1
         for _, desc in ipairs(enemy:GetDescendants()) do
             if desc:IsA("BasePart") then desc.CastShadow = false end
@@ -2447,7 +3178,7 @@ local function runAntiLagLoops()
             local gameFolder = workspace:FindFirstChild("Game")
             if gameFolder then
                 local towersFolder = gameFolder:FindFirstChild("Towers")
-                if towersFolder then cleanAnimators(towersFolder, animCleanedTowers) end
+                if towersFolder then cleanAnimators(towersFolder, AnimScan.cleanedTowers) end
             end
         end
         task.wait(0.3)
@@ -2455,6 +3186,32 @@ local function runAntiLagLoops()
 end
 
 task.spawn(runAntiLagLoops)
+
+task.spawn(function()
+    while true do
+        task.wait(500)
+        for enemy in pairs(AntiLag.enemyProcessed) do
+            if not enemy or not enemy.Parent then
+                AntiLag.enemyProcessed[enemy] = nil
+            end
+        end
+        for enemy in pairs(globalHitBlacklist) do
+            if not enemy or not enemy.Parent then
+                globalHitBlacklist[enemy] = nil
+            end
+        end
+        for part in pairs(towerPauseUntil) do
+            if not part or not part.Parent then
+                towerPauseUntil[part] = nil
+            end
+        end
+        for part in pairs(watchedTowers) do
+            if not part or not part.Parent then
+                watchedTowers[part] = nil
+            end
+        end
+    end
+end)
 
 local function getMyCashText()
     local player = game:GetService("Players").LocalPlayer
@@ -2492,70 +3249,72 @@ local function formatNumber(n)
     return sign .. result
 end
 
-local ecoOverlayGui = nil
-local ecoOverlayEnemyLabel = nil
-local ecoOverlayDiffLabel = nil
-local ecoOverlayMoneyLabel = nil
+local EcoOverlay = {
+    gui        = nil,
+    enemyLabel = nil,
+    diffLabel  = nil,
+    moneyLabel = nil,
+}
 
 local function createEcoOverlay()
-    if ecoOverlayGui then pcall(function() ecoOverlayGui:Destroy() end) end
-    ecoOverlayGui = Instance.new("ScreenGui")
-    ecoOverlayGui.Name = "TDXEcoOverlay"
-    ecoOverlayGui.ResetOnSpawn = false
-    ecoOverlayGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ecoOverlayGui.DisplayOrder = -1
-    ecoOverlayGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    if EcoOverlay.gui then pcall(function() EcoOverlay.gui:Destroy() end) end
+    EcoOverlay.gui = Instance.new("ScreenGui")
+    EcoOverlay.gui.Name = "TDXEcoOverlay"
+    EcoOverlay.gui.ResetOnSpawn = false
+    EcoOverlay.gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    EcoOverlay.gui.DisplayOrder = 200
+    EcoOverlay.gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
-    ecoOverlayEnemyLabel = Instance.new("TextLabel")
-    ecoOverlayEnemyLabel.Name = "EcoOverlayEnemy"
-    ecoOverlayEnemyLabel.Size = UDim2.new(0, 200, 0, 22)
-    ecoOverlayEnemyLabel.BackgroundTransparency = 1
-    ecoOverlayEnemyLabel.Text = ""
-    ecoOverlayEnemyLabel.TextColor3 = Color3.fromRGB(255, 30, 30)
-    ecoOverlayEnemyLabel.TextSize = 16
-    ecoOverlayEnemyLabel.Font = Enum.Font.GothamBold
-    ecoOverlayEnemyLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ecoOverlayEnemyLabel.TextYAlignment = Enum.TextYAlignment.Center
-    ecoOverlayEnemyLabel.TextStrokeTransparency = 0.4
-    ecoOverlayEnemyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    ecoOverlayEnemyLabel.Parent = ecoOverlayGui
+    EcoOverlay.enemyLabel = Instance.new("TextLabel")
+    EcoOverlay.enemyLabel.Name = "EcoOverlayEnemy"
+    EcoOverlay.enemyLabel.Size = UDim2.new(0, 200, 0, 22)
+    EcoOverlay.enemyLabel.BackgroundTransparency = 1
+    EcoOverlay.enemyLabel.Text = ""
+    EcoOverlay.enemyLabel.TextColor3 = Color3.fromRGB(255, 30, 30)
+    EcoOverlay.enemyLabel.TextSize = 16
+    EcoOverlay.enemyLabel.Font = Enum.Font.GothamBold
+    EcoOverlay.enemyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    EcoOverlay.enemyLabel.TextYAlignment = Enum.TextYAlignment.Center
+    EcoOverlay.enemyLabel.TextStrokeTransparency = 0.4
+    EcoOverlay.enemyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    EcoOverlay.enemyLabel.Parent = EcoOverlay.gui
 
-    ecoOverlayDiffLabel = Instance.new("TextLabel")
-    ecoOverlayDiffLabel.Name = "EcoOverlayDiff"
-    ecoOverlayDiffLabel.Size = UDim2.new(0, 200, 0, 18)
-    ecoOverlayDiffLabel.BackgroundTransparency = 1
-    ecoOverlayDiffLabel.Text = ""
-    ecoOverlayDiffLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-    ecoOverlayDiffLabel.TextSize = 18
-    ecoOverlayDiffLabel.Font = Enum.Font.GothamBold
-    ecoOverlayDiffLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ecoOverlayDiffLabel.TextYAlignment = Enum.TextYAlignment.Center
-    ecoOverlayDiffLabel.TextStrokeTransparency = 0.4
-    ecoOverlayDiffLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    ecoOverlayDiffLabel.Parent = ecoOverlayGui
+    EcoOverlay.diffLabel = Instance.new("TextLabel")
+    EcoOverlay.diffLabel.Name = "EcoOverlayDiff"
+    EcoOverlay.diffLabel.Size = UDim2.new(0, 200, 0, 18)
+    EcoOverlay.diffLabel.BackgroundTransparency = 1
+    EcoOverlay.diffLabel.Text = ""
+    EcoOverlay.diffLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    EcoOverlay.diffLabel.TextSize = 18
+    EcoOverlay.diffLabel.Font = Enum.Font.GothamBold
+    EcoOverlay.diffLabel.TextXAlignment = Enum.TextXAlignment.Left
+    EcoOverlay.diffLabel.TextYAlignment = Enum.TextYAlignment.Center
+    EcoOverlay.diffLabel.TextStrokeTransparency = 0.4
+    EcoOverlay.diffLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    EcoOverlay.diffLabel.Parent = EcoOverlay.gui
     
-    ecoOverlayMoneyLabel = Instance.new("TextLabel")
-    ecoOverlayMoneyLabel.Name = "EcoOverlayMoney"
-    ecoOverlayMoneyLabel.Size = UDim2.new(0, 200, 0, 18)
-    ecoOverlayMoneyLabel.BackgroundTransparency = 1
-    ecoOverlayMoneyLabel.Text = ""
-    ecoOverlayMoneyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ecoOverlayMoneyLabel.TextSize = 16
-    ecoOverlayMoneyLabel.Font = Enum.Font.GothamBold
-    ecoOverlayMoneyLabel.TextXAlignment = Enum.TextXAlignment.Left
-    ecoOverlayMoneyLabel.TextYAlignment = Enum.TextYAlignment.Center
-    ecoOverlayMoneyLabel.TextStrokeTransparency = 0.4
-    ecoOverlayMoneyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    ecoOverlayMoneyLabel.Parent = ecoOverlayGui
+    EcoOverlay.moneyLabel = Instance.new("TextLabel")
+    EcoOverlay.moneyLabel.Name = "EcoOverlayMoney"
+    EcoOverlay.moneyLabel.Size = UDim2.new(0, 200, 0, 18)
+    EcoOverlay.moneyLabel.BackgroundTransparency = 1
+    EcoOverlay.moneyLabel.Text = ""
+    EcoOverlay.moneyLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    EcoOverlay.moneyLabel.TextSize = 16
+    EcoOverlay.moneyLabel.Font = Enum.Font.GothamBold
+    EcoOverlay.moneyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    EcoOverlay.moneyLabel.TextYAlignment = Enum.TextYAlignment.Center
+    EcoOverlay.moneyLabel.TextStrokeTransparency = 0.4
+    EcoOverlay.moneyLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    EcoOverlay.moneyLabel.Parent = EcoOverlay.gui
 end
 
 local function updateEcoOverlay()
-    if not ecoOverlayGui then createEcoOverlay() end
+    if not EcoOverlay.gui then createEcoOverlay() end
 
     local function hideAll()
-        ecoOverlayEnemyLabel.Visible = false
-        ecoOverlayDiffLabel.Visible = false
-        ecoOverlayMoneyLabel.Visible = false
+        EcoOverlay.enemyLabel.Visible = false
+        EcoOverlay.diffLabel.Visible = false
+        EcoOverlay.moneyLabel.Visible = false
     end
 
     local hasAnyTeamFlag = false
@@ -2599,12 +3358,12 @@ local function updateEcoOverlay()
         end
     end
 
-    ecoOverlayEnemyLabel.TextSize = baseSize
-    ecoOverlayDiffLabel.TextSize = baseSize
-    ecoOverlayMoneyLabel.TextSize = baseSize
-    ecoOverlayEnemyLabel.Font = baseFont
-    ecoOverlayDiffLabel.Font = baseFont
-    ecoOverlayMoneyLabel.Font = baseFont
+    EcoOverlay.enemyLabel.TextSize = baseSize
+    EcoOverlay.diffLabel.TextSize = baseSize
+    EcoOverlay.moneyLabel.TextSize = baseSize
+    EcoOverlay.enemyLabel.Font = baseFont
+    EcoOverlay.diffLabel.Font = baseFont
+    EcoOverlay.moneyLabel.Font = baseFont
 
     local cashPos = cashFrame.AbsolutePosition
     local cashSize = cashFrame.AbsoluteSize
@@ -2613,9 +3372,9 @@ local function updateEcoOverlay()
     local row1Y = cashPos.Y
     local row2Y = cashPos.Y + cashSize.Y + 3
 
-    ecoOverlayEnemyLabel.Position = UDim2.new(0, rightX, 0, row1Y)
-    ecoOverlayMoneyLabel.Position = UDim2.new(0, rightX, 0, row2Y)
-    ecoOverlayDiffLabel.Position = UDim2.new(0, cashPos.X + 12, 0, row2Y)
+    EcoOverlay.enemyLabel.Position = UDim2.new(0, rightX, 0, row1Y)
+    EcoOverlay.moneyLabel.Position = UDim2.new(0, rightX, 0, row2Y)
+    EcoOverlay.diffLabel.Position = UDim2.new(0, cashPos.X + 12, 0, row2Y)
 
     local myCashText = getMyCashText()
     local myCashNum = parseCashValue(myCashText)
@@ -2642,17 +3401,17 @@ local function updateEcoOverlay()
     if myCashNum then
         local enemyEco = (myCashNum - mySendDelta) + enemySendDelta
 
-        ecoOverlayEnemyLabel.Text = enemyName .. ": $" .. formatNumber(enemyEco) .. "/7s"
-        ecoOverlayEnemyLabel.Visible = true
+        EcoOverlay.enemyLabel.Text = enemyName .. ": $" .. formatNumber(enemyEco) .. "/7s"
+        EcoOverlay.enemyLabel.Visible = true
 
         local diff = myCashNum - enemyEco
         local sign = diff >= 0 and "+" or "-"
-        ecoOverlayDiffLabel.Text = sign .. "$" .. formatNumber(math.abs(diff))
-        ecoOverlayDiffLabel.TextColor3 = diff >= 0 and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(220, 130, 130)
-        ecoOverlayDiffLabel.Visible = true
+        EcoOverlay.diffLabel.Text = sign .. "$" .. formatNumber(math.abs(diff))
+        EcoOverlay.diffLabel.TextColor3 = diff >= 0 and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(220, 130, 130)
+        EcoOverlay.diffLabel.Visible = true
 
-        ecoOverlayMoneyLabel.Text = "Money:" .. formatNumber(enemyCash)
-        ecoOverlayMoneyLabel.Visible = true
+        EcoOverlay.moneyLabel.Text = "Money:" .. formatNumber(enemyCash)
+        EcoOverlay.moneyLabel.Visible = true
     else
         hideAll()
     end
@@ -2666,7 +3425,7 @@ task.spawn(function()
 end)
 
 local function setActiveTab(activeBtn)
-    for _, btn in ipairs({tabMainBtn, tabAutoReviveBtn, tabPvPBtn, tabAbilitiesBtn, tabGameInfoBtn, tabTowersBtn, tabAntiLagBtn, tabDebugBtn}) do
+    for _, btn in ipairs(Tabs.Ordered) do
         if btn == activeBtn then
             btn.BackgroundColor3 = Color3.fromRGB(92, 70, 132)
             btn.TextColor3 = Color3.fromRGB(245, 240, 255)
@@ -2678,65 +3437,65 @@ local function setActiveTab(activeBtn)
 end
 
 local function hideAllFrames()
-    mainFrame.Visible = false
-    autoReviveFrame.Visible = false
-    abilitiesTabFrame.Visible = false
-    debugFrame.Visible = false
-    towersFrame.Visible = false
-    gameInfoFrame.Visible = false
-    pvpFrame.Visible = false
-    antiLagFrame.Visible = false
+    Frames.Main.Visible = false
+    Frames.AutoRevive.Visible = false
+    Frames.Abilities.Visible = false
+    Frames.Debug.Visible = false
+    Frames.Towers.Visible = false
+    Frames.GameInfo.Visible = false
+    Frames.PvP.Visible = false
+    Frames.AntiLag.Visible = false
 end
 
-tabMainBtn.MouseButton1Click:Connect(function()
+Tabs.Main.MouseButton1Click:Connect(function()
     hideAllFrames()
-    mainFrame.Visible = true
-    setActiveTab(tabMainBtn)
+    Frames.Main.Visible = true
+    setActiveTab(Tabs.Main)
 end)
 
-tabAutoReviveBtn.MouseButton1Click:Connect(function()
+Tabs.AutoRevive.MouseButton1Click:Connect(function()
     hideAllFrames()
-    autoReviveFrame.Visible = true
-    setActiveTab(tabAutoReviveBtn)
+    Frames.AutoRevive.Visible = true
+    setActiveTab(Tabs.AutoRevive)
     updateAutoReviveList()
 end)
 
-tabAbilitiesBtn.MouseButton1Click:Connect(function()
+Tabs.Abilities.MouseButton1Click:Connect(function()
     hideAllFrames()
-    abilitiesTabFrame.Visible = true
-    setActiveTab(tabAbilitiesBtn)
+    Frames.Abilities.Visible = true
+    setActiveTab(Tabs.Abilities)
 end)
 
-tabTowersBtn.MouseButton1Click:Connect(function()
+Tabs.Towers.MouseButton1Click:Connect(function()
     hideAllFrames()
-    towersFrame.Visible = true
-    setActiveTab(tabTowersBtn)
+    Frames.Towers.Visible = true
+    setActiveTab(Tabs.Towers)
     updateTowersList()
 end)
 
-tabGameInfoBtn.MouseButton1Click:Connect(function()
+Tabs.GameInfo.MouseButton1Click:Connect(function()
     hideAllFrames()
-    gameInfoFrame.Visible = true
-    setActiveTab(tabGameInfoBtn)
+    Frames.GameInfo.Visible = true
+    setActiveTab(Tabs.GameInfo)
 end)
 
-tabDebugBtn.MouseButton1Click:Connect(function()
+Tabs.Debug.MouseButton1Click:Connect(function()
     hideAllFrames()
-    debugFrame.Visible = true
-    setActiveTab(tabDebugBtn)
+    Frames.Debug.Visible = true
+    setActiveTab(Tabs.Debug)
 end)
 
-tabPvPBtn.MouseButton1Click:Connect(function()
+Tabs.PvP.MouseButton1Click:Connect(function()
     hideAllFrames()
-    pvpFrame.Visible = true
-    setActiveTab(tabPvPBtn)
+    Frames.PvP.Visible = true
+    setActiveTab(Tabs.PvP)
     rebuildPvPButtons()
 end)
 
-tabAntiLagBtn.MouseButton1Click:Connect(function()
+Tabs.AntiLag.MouseButton1Click:Connect(function()
     hideAllFrames()
-    antiLagFrame.Visible = true
-    setActiveTab(tabAntiLagBtn)
+    Frames.AntiLag.Visible = true
+    setActiveTab(Tabs.AntiLag)
     buildAntiLagUI()
 end)
 
@@ -2903,15 +3662,25 @@ local function startTowerTracking()
     task.spawn(function() while true do cleanupDeadTowers() task.wait(1) end end)
 end
 
+local teleportPopupOpen = false
+
 teleportBtn.MouseButton1Click:Connect(function()
+    if teleportPopupOpen then return end
+    teleportPopupOpen = true
+
     local confirmGui = Instance.new("ScreenGui")
     confirmGui.Name = "TeleportConfirm"
+    confirmGui.DisplayOrder = 200
+    confirmGui.IgnoreGuiInset = true
     confirmGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
     local overlay = Instance.new("Frame")
-    overlay.Size = UDim2.new(1,0,1,0)
-    overlay.BackgroundColor3 = Color3.new(0,0,0)
+    overlay.Size = UDim2.new(1, 0, 1, 0)
+    overlay.BackgroundColor3 = Color3.new(0, 0, 0)
     overlay.BackgroundTransparency = 0.45
+    overlay.BorderSizePixel = 0
     overlay.Parent = confirmGui
+
     local confirmFrame = Instance.new("Frame")
     confirmFrame.Size = UDim2.new(0, 280, 0, 130)
     confirmFrame.Position = UDim2.new(0.5, -140, 0.5, -65)
@@ -2919,9 +3688,11 @@ teleportBtn.MouseButton1Click:Connect(function()
     confirmFrame.BorderSizePixel = 0
     confirmFrame.Parent = overlay
     Instance.new("UICorner", confirmFrame).CornerRadius = UDim.new(0, 14)
+
     local confirmStroke = Instance.new("UIStroke", confirmFrame)
     confirmStroke.Color = Color3.fromRGB(50, 50, 55)
     confirmStroke.Thickness = 1.5
+
     local text = Instance.new("TextLabel")
     text.Size = UDim2.new(1, 0, 0, 50)
     text.Position = UDim2.new(0, 0, 0, 18)
@@ -2931,6 +3702,7 @@ teleportBtn.MouseButton1Click:Connect(function()
     text.Font = Enum.Font.Gotham
     text.TextSize = 17
     text.Parent = confirmFrame
+
     local yesBtn = Instance.new("TextButton")
     yesBtn.Size = UDim2.new(0, 100, 0, 36)
     yesBtn.Position = UDim2.new(0.25, -50, 1, -52)
@@ -2942,6 +3714,7 @@ teleportBtn.MouseButton1Click:Connect(function()
     yesBtn.AutoButtonColor = false
     yesBtn.Parent = confirmFrame
     Instance.new("UICorner", yesBtn).CornerRadius = UDim.new(0, 10)
+
     local noBtn = Instance.new("TextButton")
     noBtn.Size = UDim2.new(0, 100, 0, 36)
     noBtn.Position = UDim2.new(0.75, -50, 1, -52)
@@ -2953,20 +3726,30 @@ teleportBtn.MouseButton1Click:Connect(function()
     noBtn.AutoButtonColor = false
     noBtn.Parent = confirmFrame
     Instance.new("UICorner", noBtn).CornerRadius = UDim.new(0, 10)
+
     yesBtn.MouseButton1Click:Connect(function()
-        pcall(function() TeleportService:Teleport(9503261072) end)
+        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+        local rejoinRemote = remotes and remotes:FindFirstChild("RequestTeleportToLobby")
+        if rejoinRemote then
+            pcall(function() rejoinRemote:FireServer() end)
+        else
+            pcall(function() TeleportService:Teleport(9503261072) end)
+        end
+        teleportPopupOpen = false
         confirmGui:Destroy()
     end)
+
     noBtn.MouseButton1Click:Connect(function()
+        teleportPopupOpen = false
         confirmGui:Destroy()
     end)
 end)
 
 clearDebugBtn.MouseButton1Click:Connect(function()
-    for _, child in ipairs(debugLogFrameRef:GetChildren()) do
+    for _, child in ipairs(Scrolls.DebugLog:GetChildren()) do
         if child:IsA("TextLabel") then child:Destroy() end
     end
-    debugLogFrameRef.CanvasSize = UDim2.new(0, 0, 0, 0)
+    Scrolls.DebugLog.CanvasSize = UDim2.new(0, 0, 0, 0)
     debugLogs = {}
 end)
 
@@ -2979,18 +3762,18 @@ end
 
 local function updateTabVisibility()
     local pvpVisible = hasAnyTeam()
-    tabPvPBtn.Visible = pvpVisible
-    tabDebugBtn.Visible = debugEnabled
+    Tabs.PvP.Visible = pvpVisible
+    Tabs.Debug.Visible = debugEnabled
 
-    if pvpFrame.Visible and not pvpVisible then
+    if Frames.PvP.Visible and not pvpVisible then
         hideAllFrames()
-        mainFrame.Visible = true
-        setActiveTab(tabMainBtn)
+        Frames.Main.Visible = true
+        setActiveTab(Tabs.Main)
     end
-    if debugFrame.Visible and not debugEnabled then
+    if Frames.Debug.Visible and not debugEnabled then
         hideAllFrames()
-        mainFrame.Visible = true
-        setActiveTab(tabMainBtn)
+        Frames.Main.Visible = true
+        setActiveTab(Tabs.Main)
     end
 
     updateTabLayout()
@@ -3097,7 +3880,7 @@ local function setupGameInfo()
     end
 
     local function buildGameInfoUI()
-        for _, child in ipairs(gameInfoScroll:GetChildren()) do
+        for _, child in ipairs(Scrolls.GameInfo:GetChildren()) do
             if child:IsA("Frame") or child:IsA("TextLabel") then child:Destroy() end
         end
 
@@ -3111,8 +3894,8 @@ local function setupGameInfo()
             label.TextXAlignment = Enum.TextXAlignment.Center
             label.BackgroundTransparency = 1
             label.Font = Enum.Font.Gotham
-            label.Parent = gameInfoScroll
-            gameInfoScroll.CanvasSize = UDim2.new(0, 0, 0, 40)
+            label.Parent = Scrolls.GameInfo
+            Scrolls.GameInfo.CanvasSize = UDim2.new(0, 0, 0, 40)
             return false
         end
 
@@ -3188,7 +3971,7 @@ local function setupGameInfo()
             block.Position = UDim2.new(0, 8, 0, yOffset)
             block.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
             block.BorderSizePixel = 0
-            block.Parent = gameInfoScroll
+            block.Parent = Scrolls.GameInfo
             Instance.new("UICorner", block).CornerRadius = UDim.new(0, 10)
             local bs = Instance.new("UIStroke", block)
             bs.Color = Color3.fromRGB(45, 45, 50)
@@ -3321,7 +4104,7 @@ local function setupGameInfo()
                 th.Font = Enum.Font.Gotham
                 th.TextXAlignment = Enum.TextXAlignment.Left
                 th.BackgroundTransparency = 1
-                th.Parent = gameInfoScroll
+                th.Parent = Scrolls.GameInfo
                 yOffset = yOffset + 24
 
                 local others, localP = {}, nil
@@ -3342,7 +4125,7 @@ local function setupGameInfo()
                     divider.Position = UDim2.new(0, 10, 0, yOffset)
                     divider.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
                     divider.BorderSizePixel = 0
-                    divider.Parent = gameInfoScroll
+                    divider.Parent = Scrolls.GameInfo
                     yOffset = yOffset + 12
                 end
                 local others, localP = {}, nil
@@ -3361,7 +4144,7 @@ local function setupGameInfo()
             renderNoTeamSection()
             renderTeamsSection()
         end
-        gameInfoScroll.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
+        Scrolls.GameInfo.CanvasSize = UDim2.new(0, 0, 0, yOffset + 10)
         return anyDataFound
     end
 
@@ -3374,22 +4157,23 @@ local function setupGameInfo()
 
     task.spawn(function()
         while true do
-            if gameInfoFrame.Visible then buildGameInfoUI() end
+            if Frames.GameInfo.Visible then buildGameInfoUI() end
             task.wait(1)
         end
     end)
 
     Players.PlayerAdded:Connect(function()
-        if gameInfoFrame.Visible then task.wait(0.5) buildGameInfoUI() end
+        if Frames.GameInfo.Visible then task.delay(0.5, buildGameInfoUI) end
     end)
     Players.PlayerRemoving:Connect(function()
-        if gameInfoFrame.Visible then task.wait(0.5) buildGameInfoUI() end
+        if Frames.GameInfo.Visible then task.delay(0.5, buildGameInfoUI) end
     end)
 end
 
 task.spawn(function()
     while true do
         local now = tick()
+        local toRemove = {}
         for hash, placement in pairs(pendingPlacements) do
             if now - placement.time <= 5 then
                 local matchPart = nil
@@ -3409,14 +4193,17 @@ task.spawn(function()
                     local data = towers[matchPart]
                     data.owned = true
                     data.hash = hash
-                    pendingPlacements[hash] = nil
+                    table.insert(toRemove, hash)
                     TDX:Register(data.name, matchPart.Position, hash, settings.autoReviveTypes[data.name] == true)
                     updateTowersList()
                     if updateAutoReviveList then updateAutoReviveList() end
                 end
             else
-                pendingPlacements[hash] = nil
+                table.insert(toRemove, hash)
             end
+        end
+        for _, h in ipairs(toRemove) do
+            pendingPlacements[h] = nil
         end
         task.wait(0.2)
     end
@@ -3426,7 +4213,7 @@ task.spawn(setupGameInfo)
 
 task.spawn(function()
     while true do
-        if autoReviveFrame.Visible then
+        if Frames.AutoRevive.Visible then
             updateAutoReviveList()
         end
         task.wait(2)
