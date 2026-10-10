@@ -1378,24 +1378,16 @@ function TDS:Mode(difficulty)
     if game_state ~= "LOBBY" then
         return false
     end
-
     if type(difficulty) == "string" then
-        local lower = difficulty:lower()
-        if lower:find("halloween") then
-            local night = tonumber(lower:match("night(%d+)")) or 1
-            local diff = "Act1"
-            if lower:find("act2") then diff = "Act2" end
-            if lower:find("act3") then diff = "Act3" end
-            if lower:find("act4") then diff = "Act4" end
-            if lower:find("easy") then diff = diff .. "Easy" end
-
+        local act_num = difficulty:match("^Act(%d+)")
+        if act_num then
             local remote = replicated_storage:WaitForChild("RemoteFunction")
             local success = false
             repeat
                 local ok, result = pcall(function()
                     return remote:InvokeServer("Multiplayer", "v2:start", {
-                        difficulty = diff,
-                        night = night,
+                        difficulty = difficulty,
+                        night = tonumber(act_num),
                         count = 1,
                         mode = "halloween2026"
                     })
@@ -1410,7 +1402,6 @@ function TDS:Mode(difficulty)
             return true
         end
     end
-
     if difficulty == "Trial" then
         local Elevators = workspace:WaitForChild("Elevators")
         local Network = replicated_storage:WaitForChild("Network")
