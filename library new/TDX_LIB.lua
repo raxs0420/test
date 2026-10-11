@@ -1017,6 +1017,7 @@ task.spawn(function()
                 and s.autoReplace
                 and not s.awaitingGameRevive
                 and not s.rebuilding
+                and not s.conversionPending
                 and (tick() - (s.deathTime or 0)) >= REBUILD_WAIT
                 and (not s.retryAt or tick() >= s.retryAt)
                 and TDX._aliveState[s.deadId] ~= true
@@ -1041,6 +1042,7 @@ task.spawn(function()
             if slot.actualId
                 and not slot.deadId
                 and not slot.awaitingGameRevive
+                and not slot.conversionPending
                 and slot.autoReplace
                 and TDX._aliveState[slot.actualId] == false
             then
@@ -1066,10 +1068,18 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
         end
     end
 
+    local cost = TDX._towerCosts[name]
+    if not cost or cost <= 0 then
+        warnUser(string.format("No cached cost for %s - rescanning tower costs", tostring(name)))
+        scanTowerCosts()
+        cost = TDX._towerCosts[name]
+        if not cost or cost <= 0 then
+            warnUser(string.format("Still no cost for %s - placing without cash gate (server will reject if broke)", tostring(name)))
+        end
+    end
+
     local attempts = 0
     while attempts < PLACE_MAX_ATTEMPTS do
-        local cost = TDX._towerCosts[name]
-
         if cost and cost > 0 then
             local loggedWait = false
             while getCashValue() < cost do
@@ -1149,9 +1159,9 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
         for i, p in ipairs(TDX._pendingPlaces) do
             if p == pending then table.remove(TDX._pendingPlaces, i) break end
         end
-        warnUser(string.format("Place rejected for %s (result %s), attempt %d/%d | cash=%d pos=(%.1f, %.1f, %.1f)",
+        warnUser(string.format("Place rejected for %s (result %s), attempt %d/%d | cash=%d need=%s pos=(%.1f, %.1f, %.1f)",
             tostring(name), tostring(res), attempts, PLACE_MAX_ATTEMPTS,
-            getCashValue(), pos.X, pos.Y, pos.Z))
+            getCashValue(), tostring(cost or "?"), pos.X, pos.Y, pos.Z))
         if attempts < PLACE_MAX_ATTEMPTS then
             task.wait(RETRY_DELAY)
         end
@@ -1236,79 +1246,32 @@ local function handleConversionBatch(affectedHashes)
     end
 
     for _, entry in ipairs(toRebuild) do
+        local cur = entry.slot
+        cur.deadId = entry.hash
+        cur.deathLevel = { entry.peakT, entry.peakB }
+        cur.deathTime = tick() - REBUILD_WAIT
+        cur.retryAt = tick() + VOID_REBUILD_DELAY
+        cur.autoReplace = true
+        cur.awaitingGameRevive = false
+        cur.placeCycles = 0
+        cur.peakT = entry.peakT
+        cur.peakB = entry.peakB
+
         TDX._levelCache[entry.hash] = nil
         TDX._targetCache[entry.hash] = nil
         TDX._aliveState[entry.hash] = false
         resolveKey(TDX._levelWaiters, entry.hash)
         resolveKey(TDX._targetWaiters, entry.hash)
-        log(string.format("  sold %s (ID %s)", entry.name, tostring(entry.hash)))
+
+        log(string.format("  sold %s (ID %s), queued for rebuild in %.1fs",
+            entry.name, tostring(entry.hash), VOID_REBUILD_DELAY))
     end
 
-    for _, entry in ipairs(toRebuild) do
-        task.spawn(function()
-            task.wait(VOID_REBUILD_DELAY)
-
-            local cur = entry.slot
-            local curSlotId = entry.slotId
-
-            if not cur then
-                log(string.format("Rebuild target %s (ID %s) reference lost - dropping",
-                    entry.name, tostring(entry.hash)))
-                tbVoidPending[entry.hash] = nil
-                return
-            end
-
-            if TDX._slots[curSlotId] ~= cur then
-                curSlotId = nil
-                for sid, s in pairs(TDX._slots) do
-                    if s == cur then curSlotId = sid break end
-                end
-                if not curSlotId then
-                    log(string.format("Rebuild target %s (ID %s) removed from slots - dropping",
-                        entry.name, tostring(entry.hash)))
-                    tbVoidPending[entry.hash] = nil
-                    return
-                end
-            end
-
-            if cur.deadId == nil
-                and cur.actualId ~= entry.hash
-                and TDX._aliveState[cur.actualId] == true
-            then
-                log(string.format("Slot %s (%s) already alive under new ID %s, skipping",
-                    tostring(curSlotId), entry.name, tostring(cur.actualId)))
-                cur.conversionPending = false
-                tbVoidPending[entry.hash] = nil
-                return
-            end
-
-            cur.deadId = entry.hash
-            cur.deathLevel = { entry.peakT, entry.peakB }
-            cur.deathTime = tick() - REBUILD_WAIT
-            cur.retryAt = nil
-            cur.autoReplace = true
-            cur.awaitingGameRevive = false
-            cur.placeCycles = 0
-            cur.peakT = entry.peakT
-            cur.peakB = entry.peakB
-
-            log(string.format("  slot %s (%s) queued for rebuild",
-                tostring(curSlotId), entry.name))
-
-            task.spawn(function()
-                local deadline = tick() + 30
-                while tick() < deadline do
-                    task.wait(1)
-                    local s = TDX._slots[curSlotId]
-                    if s == nil then break end
-                    if s.conversionPending == false then break end
-                end
-                tbVoidPending[entry.hash] = nil
-                local s = TDX._slots[curSlotId]
-                if s then s.conversionPending = false end
-            end)
-        end)
-    end
+    task.delay(VOID_REBUILD_DELAY + 30, function()
+        for _, entry in ipairs(toRebuild) do
+            tbVoidPending[entry.hash] = nil
+        end
+    end)
 end
 
 if EnemyUsedAbility then
