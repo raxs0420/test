@@ -6,7 +6,7 @@ local AUTO_REJOIN = _recSettings.AutoRejoin ~= false
 local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Medic", "Commander" }
 
 local RETRY_DELAY = 3
-local RESTORE_AWAIT = 1
+local RESTORE_AWAIT = 2
 local MIN_FIRE_GAP = 0.3
 local MATCH_DISTANCE = 0.01
 local COLLISION_DISTANCE = 0.02
@@ -879,14 +879,8 @@ local function slotReady(slot)
     if not slot or not slot.actualId or slot.deadId or slot.awaitingGameRevive then
         return false
     end
-    if TDX._aliveState[slot.actualId] ~= true then
+    if TDX._aliveState[slot.actualId] == false then
         return false
-    end
-    
-    for sid, oslot in pairs(TDX._slots) do
-        if oslot ~= slot and oslot.actualId == slot.actualId and not oslot.deadId then
-            return false
-        end
     end
     return true
 end
