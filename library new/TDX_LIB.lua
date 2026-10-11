@@ -896,23 +896,6 @@ local function doRebuildSlot(slotId)
         return
     end
 
-    local _conflict = nil
-    for sid, oslot in pairs(TDX._slots) do
-        if sid ~= slotId and oslot.actualId == s.deadId and not oslot.deadId then
-            _conflict = sid
-            break
-        end
-    end
-    if _conflict then
-        log(string.format("Slot %s rebuild skipped - ID %s already live in slot %s",
-            tostring(slotId), tostring(s.deadId), tostring(_conflict)))
-        s.deadId = nil
-        s.deathLevel = nil
-        s.deathTime = nil
-        queueRemove(slotId)
-        return
-    end
-
     local deadId = s.deadId
     local targetT = math.min(s.deathLevel and s.deathLevel[1] or 0, MAX_PATH_LEVEL)
     local targetB = math.min(s.deathLevel and s.deathLevel[2] or 0, MAX_PATH_LEVEL)
@@ -929,10 +912,16 @@ local function doRebuildSlot(slotId)
     local sl = TDX._slots[slotId]
 
     if not sl then return end
+
     if sl.deadId ~= deadId then
-        log(string.format("Slot %s state changed during placement, cancelled", tostring(slotId)))
-        return
+        if sl.deadId == nil and sl.actualId == newId then
+            log(string.format("Slot %s already updated by factory event", tostring(slotId)))
+        else
+            log(string.format("Slot %s state changed during placement, cancelled", tostring(slotId)))
+            return
+        end
     end
+
     if not newId then
         local cur = TDX._slots[slotId]
         if not cur or cur.deadId ~= deadId or cur.awaitingGameRevive then
