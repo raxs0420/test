@@ -825,39 +825,6 @@ do
     end
 end
 
-do
-    if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" and SellTower then
-        local oldNamecall
-        local ok = pcall(function()
-            oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-                if self == SellTower and getnamecallmethod() == "FireServer" then
-                    if not TDX._internalSell then
-                        local args = table.pack(...)
-                        local hash = tonumber(args[1])
-                        if hash then
-                            local slotId, slot = findSlotByActualId(hash)
-                            if slotId and slot then
-                                slot.autoReplace = false
-                                slot.deadId = nil
-                                slot.deathLevel = nil
-                                slot.deathTime = nil
-                                slot.awaitingGameRevive = false
-                                queueRemove(slotId)
-                                log(string.format("Sell detected: slot %s (ID %s) - auto-replace disabled",
-                                    tostring(slotId), tostring(hash)))
-                            end
-                        end
-                    end
-                end
-                return oldNamecall(self, ...)
-            end))
-        end)
-        if not ok or not oldNamecall then
-            warnUser("Sell hook failed to install")
-        end
-    end
-end
-
 local function slotReady(slot)
     return slot
         and slot.actualId
