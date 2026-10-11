@@ -1061,11 +1061,12 @@ local function doRebuildSlot(slotId, slotRef)
         setStatus(string.format("restoring slot %s to %d/%d",
             tostring(curId or slotId), targetT, targetB))
 
-        local ok, err = pcall(restoreLevel, curId or slotId, targetT, targetB)
-        if not ok then warnUser("restoreLevel error:", err) end
-
-        s.restoring = false
-        if curId then resolveKey(TDX._aliveWaiters, curId) end
+        task.spawn(function()
+            local ok, err = pcall(restoreLevel, curId or slotId, targetT, targetB)
+            if not ok then warnUser("restoreLevel error:", err) end
+            s.restoring = false
+            if curId then resolveKey(TDX._aliveWaiters, curId) end
+        end)
     end
 end
 
@@ -1266,6 +1267,7 @@ restoreLevel = function(slotId, targetT, targetB)
 
     targetT = math.min(targetT or 0, MAX_PATH_LEVEL)
     targetB = math.min(targetB or 0, MAX_PATH_LEVEL)
+    local failedAttempts = 0
 
     while true do
         local s = TDX._slots[slotId]
@@ -1285,7 +1287,16 @@ restoreLevel = function(slotId, targetT, targetB)
         markFire("upgrade_" .. tostring(actual))
         pcall(function() TowerUpgradeRequest:FireServer(actual, patch, need) end)
 
-        awaitLevelChange(actual, lvl, RESTORE_AWAIT)
+        local changed = awaitLevelChange(actual, lvl, RESTORE_AWAIT)
+        if changed then
+            failedAttempts = 0
+        else
+            failedAttempts = failedAttempts + 1
+            if failedAttempts >= 10 then
+                warnUser("restoreLevel failed 10 times for ID " .. tostring(actual) .. ", abandoning")
+                return false
+            end
+        end
 
         if TDX._aliveState[actual] == false then
             return false
