@@ -15,7 +15,7 @@ local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
 local REBUILD_WAIT = 8
 local MAX_PATH_LEVEL = 5
-local VOID_REBUILD_DELAY = 1.5
+local VOID_REBUILD_DELAY = 3
 local INTERNAL_SELL_FLUSH = 0.1
 
 local Players = game:GetService("Players")
@@ -1230,9 +1230,8 @@ local function handleConversionBatch(affectedHashes)
         TDX._internalSell = true
         for _, entry in ipairs(toRebuild) do
             pcall(function() SellTower:FireServer(entry.hash) end)
-            task.wait(0.2)
         end
-        task.wait(INTERNAL_SELL_FLUSH)
+        task.wait(1.0)
         TDX._internalSell = false
     end
 
