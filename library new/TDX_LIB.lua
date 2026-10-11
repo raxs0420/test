@@ -373,6 +373,8 @@ TDX._rebuildUrgent = 0
 TDX._towerCosts = {}
 TDX._deadSlotCounter = -1
 TDX._internalSell = false
+TDX._sellQueue = {}
+TDX._sellWorkerRunning = false
 
 TDX._aliveWaiters = {}
 TDX._levelWaiters = {}
@@ -776,6 +778,7 @@ do
             TDX._targetWaiters = {}
             TDX._deadSlotCounter = -1
             TDX._lastFire = {}
+            TDX._sellQueue = {}
 
             for k in pairs(tbVoidPending) do
                 tbVoidPending[k] = nil
@@ -827,6 +830,45 @@ do
             warnUser("Sell hook failed to install")
         end
     end
+end
+
+local function ensureSellWorker()
+    if TDX._sellWorkerRunning then return end
+    TDX._sellWorkerRunning = true
+    task.spawn(function()
+        while true do
+            if #TDX._sellQueue > 0 then
+                local hash = table.remove(TDX._sellQueue, 1)
+                local actual = remapId(hash)
+                if actual then
+                    action("SELL queue processing ID=" .. tostring(actual))
+                    TDX._internalSell = true
+                    pcall(function() SellTower:FireServer(actual) end)
+                    task.wait(0.25)
+                    TDX._internalSell = false
+                    
+                    TDX._levelCache[actual] = nil
+                    TDX._targetCache[actual] = nil
+                    TDX._aliveState[actual] = false
+                    resolveKey(TDX._levelWaiters, actual)
+                    resolveKey(TDX._targetWaiters, actual)
+
+                    local slotId, slot = findSlotByActualId(actual)
+                    if slotId and slot then
+                        slot.deadId = nil
+                        slot.deathLevel = nil
+                        slot.deathTime = nil
+                        slot.awaitingGameRevive = false
+                        slot.autoReplace = false
+                        queueRemove(slotId)
+                        resolveKey(TDX._aliveWaiters, slotId)
+                    end
+                end
+            else
+                task.wait(0.1)
+            end
+        end
+    end)
 end
 
 local function slotReady(slot)
@@ -1227,12 +1269,15 @@ local function handleConversionBatch(affectedHashes)
     log(string.format("Conversion hit %d tower(s) - selling all then rebuilding one by one", #toRebuild))
 
     if SellTower then
-        TDX._internalSell = true
         for _, entry in ipairs(toRebuild) do
-            pcall(function() SellTower:FireServer(entry.hash) end)
+            table.insert(TDX._sellQueue, entry.hash)
         end
-        task.wait(1.0)
-        TDX._internalSell = false
+        ensureSellWorker()
+        
+        while #TDX._sellQueue > 0 do
+            task.wait(0.1)
+        end
+        task.wait(0.5)
     end
 
     for _, entry in ipairs(toRebuild) do
@@ -1600,31 +1645,9 @@ function TDX:Sell(hash)
         return false
     end
 
-    local actual = remapId(hash)
-    if actual == nil then return false end
-
-    action("SELL slot=" .. tostring(hash) .. " ID=" .. tostring(actual))
-    TDX._internalSell = true
-    pcall(function() SellTower:FireServer(actual) end)
-    task.wait(INTERNAL_SELL_FLUSH)
-    TDX._internalSell = false
-
-    TDX._levelCache[actual] = nil
-    TDX._targetCache[actual] = nil
-    TDX._aliveState[actual] = false
-    resolveKey(TDX._levelWaiters, actual)
-    resolveKey(TDX._targetWaiters, actual)
-
-    local slotId, slot = findSlotByActualId(actual)
-    if slotId and slot then
-        slot.deadId = nil
-        slot.deathLevel = nil
-        slot.deathTime = nil
-        slot.awaitingGameRevive = false
-        slot.autoReplace = false
-        queueRemove(slotId)
-        resolveKey(TDX._aliveWaiters, slotId)
-    end
+    action("QUEUE SELL slot=" .. tostring(hash))
+    table.insert(TDX._sellQueue, hash)
+    ensureSellWorker()
 
     return true
 end
@@ -1948,6 +1971,7 @@ function TDX:Reset()
     TDX._placeLock = false
     TDX._rebuildUrgent = 0
     TDX._deadSlotCounter = -1
+    TDX._sellQueue = {}
 end
 
 if getgenv then getgenv().TDX = TDX end
