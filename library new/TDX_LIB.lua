@@ -876,12 +876,19 @@ local function ensureSellWorker()
 end
 
 local function slotReady(slot)
-    return slot
-        and slot.actualId
-        and not slot.deadId
-        and not slot.restoring
-        and not slot.awaitingGameRevive
-        and TDX._aliveState[slot.actualId] == true
+    if not slot or not slot.actualId or slot.deadId or slot.restoring or slot.awaitingGameRevive then
+        return false
+    end
+    if TDX._aliveState[slot.actualId] ~= true then
+        return false
+    end
+    
+    for sid, oslot in pairs(TDX._slots) do
+        if oslot ~= slot and oslot.actualId == slot.actualId and not oslot.deadId then
+            return false
+        end
+    end
+    return true
 end
 
 local function awaitAlive(slotId)
@@ -938,12 +945,28 @@ local function doRebuildSlot(slotId, slotRef)
     if (tick() - (s.deathTime or 0)) < REBUILD_WAIT then return end
 
     if TDX._aliveState[s.deadId] == true then
-        log(string.format("Slot %s already alive (game revived), skipping rebuild", tostring(slotId)))
-        s.deadId = nil
-        s.deathLevel = nil
-        s.deathTime = nil
-        queueRemove(slotId)
-        return
+        local isSame = false
+        for sid, oslot in pairs(TDX._slots) do
+            if oslot ~= s and oslot.actualId == s.deadId and not oslot.deadId then
+                local sameName = (oslot.name == s.name)
+                local samePos = false
+                if s.pos and oslot.pos and typeof(s.pos) == "Vector3" and typeof(oslot.pos) == "Vector3" then
+                    samePos = (oslot.pos - s.pos).Magnitude <= COLLISION_DISTANCE
+                end
+                if sameName and samePos then
+                    isSame = true
+                    break
+                end
+            end
+        end
+        if isSame then
+            log(string.format("Slot %s already alive (game revived), skipping rebuild", tostring(slotId)))
+            s.deadId = nil
+            s.deathLevel = nil
+            s.deathTime = nil
+            queueRemove(slotId)
+            return
+        end
     end
 
     local _conflict = nil
@@ -1070,10 +1093,26 @@ ensureWorker = function()
                             s.deadId = nil
                             table.insert(toRemove, i)
                         elseif TDX._aliveState[s.deadId] == true then
-                            s.deadId = nil
-                            s.deathLevel = nil
-                            s.deathTime = nil
-                            table.insert(toRemove, i)
+                            local isSame = false
+                            for osid, oslot in pairs(TDX._slots) do
+                                if oslot ~= s and oslot.actualId == s.deadId and not oslot.deadId then
+                                    local sameName = (oslot.name == s.name)
+                                    local samePos = false
+                                    if s.pos and oslot.pos and typeof(s.pos) == "Vector3" and typeof(oslot.pos) == "Vector3" then
+                                        samePos = (oslot.pos - s.pos).Magnitude <= COLLISION_DISTANCE
+                                    end
+                                    if sameName and samePos then
+                                        isSame = true
+                                        break
+                                    end
+                                end
+                            end
+                            if isSame then
+                                s.deadId = nil
+                                s.deathLevel = nil
+                                s.deathTime = nil
+                                table.insert(toRemove, i)
+                            end
                         elseif (tick() - (s.deathTime or 0)) >= REBUILD_WAIT then
                             if not chosen then
                                 chosen = { index = i, slotId = sid, slot = s }
