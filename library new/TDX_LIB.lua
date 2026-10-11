@@ -13,7 +13,7 @@ local COLLISION_DISTANCE = 0.02
 local IDLE_POLL = 0.01
 local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
-local REBUILD_WAIT = 8
+local REBUILD_WAIT = 7
 local MAX_PATH_LEVEL = 5
 local VOID_REBUILD_DELAY = 3
 local INTERNAL_SELL_FLUSH = 0.1
@@ -1267,7 +1267,6 @@ restoreLevel = function(slotId, targetT, targetB)
 
     targetT = math.min(targetT or 0, MAX_PATH_LEVEL)
     targetB = math.min(targetB or 0, MAX_PATH_LEVEL)
-    local failedAttempts = 0
 
     while true do
         local s = TDX._slots[slotId]
@@ -1287,16 +1286,7 @@ restoreLevel = function(slotId, targetT, targetB)
         markFire("upgrade_" .. tostring(actual))
         pcall(function() TowerUpgradeRequest:FireServer(actual, patch, need) end)
 
-        local changed = awaitLevelChange(actual, lvl, RESTORE_AWAIT)
-        if changed then
-            failedAttempts = 0
-        else
-            failedAttempts = failedAttempts + 1
-            if failedAttempts >= 10 then
-                warnUser("restoreLevel failed 10 times for ID " .. tostring(actual) .. ", abandoning")
-                return false
-            end
-        end
+        awaitLevelChange(actual, lvl, RESTORE_AWAIT)
 
         if TDX._aliveState[actual] == false then
             return false
