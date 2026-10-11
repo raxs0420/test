@@ -18,7 +18,7 @@ local DISPATCHER_POLL = 0.3
 local MAX_PATH_LEVEL = 5
 local VOID_REBUILD_DELAY = 1.5
 local INTERNAL_SELL_FLUSH = 0.2
-local SELL_DELAY_PER = 0.1
+local SELL_DELAY_PER = 0.2
 local MAX_PLACE_CYCLES = 2
 
 local Players = game:GetService("Players")
