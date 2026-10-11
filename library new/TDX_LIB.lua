@@ -16,7 +16,8 @@ local REBUILD_RETRY_DELAY = 3
 local DISPATCHER_POLL = 0.3
 local MAX_PATH_LEVEL = 5
 local VOID_REBUILD_DELAY = 1.5
-local INTERNAL_SELL_FLUSH = 0.1
+local INTERNAL_SELL_FLUSH = 0.2
+local SELL_DELAY_PER = 0.1
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -1185,10 +1186,15 @@ local function handleConversionBatch(affectedHashes)
     if SellTower then
         TDX._internalSell = true
         for _, entry in ipairs(toRebuild) do
-            pcall(function() SellTower:FireServer(entry.hash) end)
-        end
-        task.wait(INTERNAL_SELL_FLUSH)
-        TDX._internalSell = false
+            local ok, err = pcall(function() SellTower:FireServer(entry.hash) end)
+            if not ok then
+                warnUser(string.format("Sell error for %s (ID %s): %s",
+                entry.name, tostring(entry.hash), tostring(err)))
+            end
+        task.wait(SELL_DELAY_PER)
+    end
+    task.wait(INTERNAL_SELL_FLUSH)
+    TDX._internalSell = false
     end
 
     for _, entry in ipairs(toRebuild) do
