@@ -804,9 +804,12 @@ do
         local oldNamecall
         local ok = pcall(function()
             oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-                if self == SellTower and getnamecallmethod() == "FireServer" then
+                local method = getnamecallmethod()
+                if self == SellTower and method == "FireServer" then
+                    local args = table.pack(...)
+                    local results = table.pack(oldNamecall(self, ...))
+                    
                     if not TDX._internalSell then
-                        local args = table.pack(...)
                         local hash = tonumber(args[1])
                         if hash then
                             local slotId, slot = findSlotByActualId(hash)
@@ -822,6 +825,7 @@ do
                             end
                         end
                     end
+                    return table.unpack(results, 1, results.n)
                 end
                 return oldNamecall(self, ...)
             end))
