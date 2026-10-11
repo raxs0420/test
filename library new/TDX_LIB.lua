@@ -876,7 +876,7 @@ local function ensureSellWorker()
 end
 
 local function slotReady(slot)
-    if not slot or not slot.actualId or slot.deadId or slot.restoring or slot.awaitingGameRevive then
+    if not slot or not slot.actualId or slot.deadId or slot.awaitingGameRevive then
         return false
     end
     if TDX._aliveState[slot.actualId] ~= true then
@@ -1268,6 +1268,8 @@ restoreLevel = function(slotId, targetT, targetB)
     targetT = math.min(targetT or 0, MAX_PATH_LEVEL)
     targetB = math.min(targetB or 0, MAX_PATH_LEVEL)
 
+    task.wait(0.5)
+
     while true do
         local s = TDX._slots[slotId]
         if not s or s.actualId ~= actual then return false end
@@ -1286,7 +1288,10 @@ restoreLevel = function(slotId, targetT, targetB)
         markFire("upgrade_" .. tostring(actual))
         pcall(function() TowerUpgradeRequest:FireServer(actual, patch, need) end)
 
-        awaitLevelChange(actual, lvl, RESTORE_AWAIT)
+        local changed = awaitLevelChange(actual, lvl, RESTORE_AWAIT)
+        if not changed then
+            task.wait(0.5)
+        end
 
         if TDX._aliveState[actual] == false then
             return false
