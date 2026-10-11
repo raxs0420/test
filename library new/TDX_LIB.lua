@@ -440,6 +440,18 @@ local function findSlotByActualId(actualId)
     return nil, nil
 end
 
+local function findSlotByPosAndName(name, pos)
+    if typeof(pos) ~= "Vector3" then return nil, nil end
+    for slotId, slot in pairs(TDX._slots) do
+        if slot.name == name and slot.pos and typeof(slot.pos) == "Vector3" then
+            if (slot.pos - pos).Magnitude <= COLLISION_DISTANCE then
+                return slotId, slot
+            end
+        end
+    end
+    return nil, nil
+end
+
 local function remapId(recorded)
     if recorded == nil then return nil end
     return TDX._idRemap[recorded] or recorded
@@ -586,6 +598,23 @@ if TowerFactoryQueueUpdated then
                             p.resolve(id)
                             break
                         end
+                    end
+                end
+
+                local slotId, slot = findSlotByPosAndName(name, pos)
+                if slotId and slot then
+                    local oldId = slot.actualId
+                    slot.actualId = id
+                    slot.deadId = nil
+                    slot.deathLevel = nil
+                    slot.deathTime = nil
+                    slot.awaitingGameRevive = false
+                    TDX._idRemap[slotId] = id
+                    TDX._aliveState[id] = true
+                    
+                    if oldId and oldId ~= id then
+                        log(string.format("Slot %s (%s) auto-updated ID %s -> %s via factory event",
+                            tostring(slotId), tostring(name), tostring(oldId), tostring(id)))
                     end
                 end
             end
@@ -1461,61 +1490,71 @@ function TDX:Register(name, pos, id, rebuild)
     if not name or not id then return nil end
     if typeof(pos) ~= "Vector3" then return nil end
 
-    local existingSlotId, existingSlot = findSlotByActualId(id)
+    local existingSlotId, existingSlot = findSlotByPosAndName(name, pos)
+
     if existingSlotId and existingSlot then
-        local samePlace = existingSlot.pos
-            and typeof(existingSlot.pos) == "Vector3"
-            and (existingSlot.pos - pos).Magnitude <= COLLISION_DISTANCE
+        local oldId = existingSlot.actualId
+        existingSlot.actualId = id
+        existingSlot.rebuild = rebuild ~= false
+        existingSlot.autoReplace = rebuild ~= false
+        existingSlot.deadId = nil
+        existingSlot.deathLevel = nil
+        existingSlot.deathTime = nil
+        existingSlot.awaitingGameRevive = false
 
-        local sameName = existingSlot.name == name
-
-        if samePlace and sameName then
-            return existingSlotId
+        TDX._idRemap[existingSlotId] = id
+        TDX._aliveState[id] = true
+        
+        if oldId and oldId ~= id then
+            log(string.format("Slot %s (%s) pos+name match - updated ID %s -> %s",
+                tostring(existingSlotId), tostring(name), tostring(oldId), tostring(id)))
         end
+        return existingSlotId
+    end
 
-        local isDead = existingSlot.deadId ~= nil
-            or TDX._aliveState[existingSlot.actualId] == false
-            or existingSlot.awaitingGameRevive
-
-        if isDead then
-            local newSlotId = TDX._deadSlotCounter
-            TDX._deadSlotCounter = TDX._deadSlotCounter - 1
-
-            while TDX._slots[newSlotId] do
-                newSlotId = TDX._deadSlotCounter
-                TDX._deadSlotCounter = TDX._deadSlotCounter - 1
-            end
-
-            TDX._slots[newSlotId] = existingSlot
-            TDX._slots[existingSlotId] = nil
-
-            existingSlot.actualId = newSlotId
-            existingSlot.deadId = newSlotId
-
-            for i, qid in ipairs(TDX._rebuildQueue) do
-                if qid == existingSlotId then
-                    TDX._rebuildQueue[i] = newSlotId
-                end
-            end
-
-            log(string.format("Hash %s reused by %s - dead %s (slot %s) preserved as slot %s",
-                tostring(id), tostring(name),
-                tostring(existingSlot.name), tostring(existingSlotId),
-                tostring(newSlotId)))
+    local idSlotId, idSlot = findSlotByActualId(id)
+    if idSlotId and idSlot then
+        if idSlot.name == name then
+            idSlot.pos = pos
+            idSlot.rebuild = rebuild ~= false
+            idSlot.autoReplace = rebuild ~= false
+            log(string.format("Hash %s matched by ID to slot %s (%s)",
+                tostring(id), tostring(idSlotId), tostring(name)))
+            return idSlotId
         else
-            log(string.format("Hash %s reused (live slot %s dropped) - pos delta=%.2f, name %s->%s",
-                tostring(id), tostring(existingSlotId),
-                existingSlot.pos and typeof(existingSlot.pos) == "Vector3"
-                    and (existingSlot.pos - pos).Magnitude or -1,
-                tostring(existingSlot.name), tostring(name)))
+            local isDead = idSlot.deadId ~= nil or TDX._aliveState[idSlot.actualId] == false or idSlot.awaitingGameRevive
 
-            queueRemove(existingSlotId)
-            if existingSlot.actualId then
-                TDX._aliveState[existingSlot.actualId] = nil
-                TDX._levelCache[existingSlot.actualId] = nil
-                TDX._targetCache[existingSlot.actualId] = nil
+            if isDead then
+                local newSlotId = TDX._deadSlotCounter
+                TDX._deadSlotCounter = TDX._deadSlotCounter - 1
+                while TDX._slots[newSlotId] do
+                    newSlotId = TDX._deadSlotCounter
+                    TDX._deadSlotCounter = TDX._deadSlotCounter - 1
+                end
+                TDX._slots[newSlotId] = idSlot
+                TDX._slots[idSlotId] = nil
+                idSlot.actualId = newSlotId
+                idSlot.deadId = newSlotId
+                for i, qid in ipairs(TDX._rebuildQueue) do
+                    if qid == idSlotId then
+                        TDX._rebuildQueue[i] = newSlotId
+                    end
+                end
+                log(string.format("Hash %s reused by %s - dead %s (slot %s) preserved as slot %s",
+                    tostring(id), tostring(name), tostring(idSlot.name), tostring(idSlotId), tostring(newSlotId)))
+            else
+                log(string.format("Hash %s reused (live slot %s dropped) - pos delta=%.2f, name %s->%s",
+                    tostring(id), tostring(idSlotId),
+                    idSlot.pos and typeof(idSlot.pos) == "Vector3" and (idSlot.pos - pos).Magnitude or -1,
+                    tostring(idSlot.name), tostring(name)))
+                queueRemove(idSlotId)
+                if idSlot.actualId then
+                    TDX._aliveState[idSlot.actualId] = nil
+                    TDX._levelCache[idSlot.actualId] = nil
+                    TDX._targetCache[idSlot.actualId] = nil
+                end
+                TDX._slots[idSlotId] = nil
             end
-            TDX._slots[existingSlotId] = nil
         end
     end
 
