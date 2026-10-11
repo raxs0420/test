@@ -4,6 +4,7 @@ local SHOW_DEBUG_UI = _recSettings.DebugUI ~= false
 local AUTO_REJOIN = _recSettings.AutoRejoin ~= false
 
 local RETRY_DELAY = 3
+local CASH_RETRY_DELAY = 0.3
 local RESTORE_AWAIT = 1
 local MIN_FIRE_GAP = 0.3
 local MATCH_DISTANCE = 0.01
@@ -979,7 +980,6 @@ doRebuildSlot = function(slotId)
     sl.retryAt = nil
     sl.awaitingGameRevive = false
     sl.placeCycles = 0
-    sl.conversionPending = false
     sl.lastT = 0
     sl.lastB = 0
     resolveKey(TDX._aliveWaiters, slotId)
@@ -1017,7 +1017,6 @@ task.spawn(function()
                 and s.autoReplace
                 and not s.awaitingGameRevive
                 and not s.rebuilding
-                and not s.conversionPending
                 and (tick() - (s.deathTime or 0)) >= REBUILD_WAIT
                 and (not s.retryAt or tick() >= s.retryAt)
                 and TDX._aliveState[s.deadId] ~= true
@@ -1042,7 +1041,6 @@ task.spawn(function()
             if slot.actualId
                 and not slot.deadId
                 and not slot.awaitingGameRevive
-                and not slot.conversionPending
                 and slot.autoReplace
                 and TDX._aliveState[slot.actualId] == false
             then
@@ -1074,7 +1072,7 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
         scanTowerCosts()
         cost = TDX._towerCosts[name]
         if not cost or cost <= 0 then
-            warnUser(string.format("Still no cost for %s - placing without cash gate (server will reject if broke)", tostring(name)))
+            warnUser(string.format("Still no cost for %s - placing without cash gate", tostring(name)))
         end
     end
 
@@ -1159,11 +1157,17 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
         for i, p in ipairs(TDX._pendingPlaces) do
             if p == pending then table.remove(TDX._pendingPlaces, i) break end
         end
-        warnUser(string.format("Place rejected for %s (result %s), attempt %d/%d | cash=%d need=%s pos=(%.1f, %.1f, %.1f)",
+
+        local nowCash = getCashValue()
+        local isCashIssue = cost and cost > 0 and nowCash < cost
+
+        warnUser(string.format("Place rejected for %s (result %s), attempt %d/%d | cash=%d need=%s pos=(%.1f, %.1f, %.1f)%s",
             tostring(name), tostring(res), attempts, PLACE_MAX_ATTEMPTS,
-            getCashValue(), tostring(cost or "?"), pos.X, pos.Y, pos.Z))
+            nowCash, tostring(cost or "?"), pos.X, pos.Y, pos.Z,
+            isCashIssue and " [cash]" or ""))
+
         if attempts < PLACE_MAX_ATTEMPTS then
-            task.wait(RETRY_DELAY)
+            task.wait(isCashIssue and CASH_RETRY_DELAY or RETRY_DELAY)
         end
     end
     return nil
@@ -1193,7 +1197,9 @@ restoreLevel = function(slotId, targetT, targetB)
 
         waitMinFireGap("upgrade_" .. tostring(actual))
         markFire("upgrade_" .. tostring(actual))
+        acquirePlaceLock()
         pcall(function() TowerUpgradeRequest:FireServer(actual, patch, need) end)
+        releasePlaceLock()
 
         awaitLevelChange(actual, lvl, RESTORE_AWAIT)
 
@@ -1211,10 +1217,9 @@ local function handleConversionBatch(affectedHashes)
         local hash = tonumber(rawHash)
         if hash and not tbVoidPending[hash] and not seenThisBatch[hash] then
             local slotId, slot = findSlotByActualId(hash)
-            if slotId and slot and slot.autoReplace and not slot.conversionPending then
+            if slotId and slot and slot.autoReplace then
                 seenThisBatch[hash] = true
                 tbVoidPending[hash] = true
-                slot.conversionPending = true
                 table.insert(toRebuild, {
                     hash = hash,
                     slotId = slotId,
@@ -1371,7 +1376,6 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
         awaitingGameRevive = false,
         rebuilding = false,
         placeCycles = 0,
-        conversionPending = false,
     }
 
     TDX._placeHistory[slotId] = {
@@ -1464,7 +1468,6 @@ function TDX:Register(name, pos, id, rebuild)
         restoring = false, awaitingGameRevive = false,
         rebuilding = false,
         placeCycles = 0,
-        conversionPending = false,
     }
 
     TDX._placeHistory[slotId] = { name = name, actualId = id, recordedId = slotId }
@@ -1534,9 +1537,11 @@ function TDX:Upgrade(hash, patch, count)
         waitMinFireGap("upgrade_" .. tostring(actual))
         markFire("upgrade_" .. tostring(actual))
 
+        acquirePlaceLock()
         pcall(function()
             TowerUpgradeRequest:FireServer(actual, patch, target - cur)
         end)
+        releasePlaceLock()
 
         local after = awaitLevelChange(actual, before, RETRY_DELAY)
         if after then
