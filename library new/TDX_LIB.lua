@@ -417,6 +417,13 @@ local function queueRemove(slotId)
     end
 end
 
+local function isSlotInRebuildQueue(slotId)
+    for _, qid in ipairs(TDX._rebuildQueue) do
+        if qid == slotId then return true end
+    end
+    return false
+end
+
 local function queueSort()
     table.sort(TDX._rebuildQueue, function(a, b)
         local sa = TDX._slots[a]
@@ -572,7 +579,16 @@ if TowerFactoryQueueUpdated then
             local lvl = info[8]
 
             if id ~= nil then
-                TDX._aliveState[id] = true
+                local existingSlotId, _ = findSlotByActualId(id)
+                local skipAliveMark = false
+                if existingSlotId and isSlotInRebuildQueue(existingSlotId) then
+                    skipAliveMark = true
+                end
+                
+                if not skipAliveMark then
+                    TDX._aliveState[id] = true
+                end
+
                 if type(lvl) == "table" then
                     local t = math.min(lvl[1] or 0, MAX_PATH_LEVEL)
                     local b = math.min(lvl[2] or 0, MAX_PATH_LEVEL)
@@ -1198,8 +1214,12 @@ local function doRebuildSlot(slotId)
 
     if not sl then return end
     if sl.deadId ~= deadId then
-        log(string.format("Slot %s state changed during placement, cancelled", tostring(slotId)))
-        return
+        if sl.deadId == nil and sl.actualId == newId then
+            log(string.format("Slot %s already updated by factory event", tostring(slotId)))
+        else
+            log(string.format("Slot %s state changed during placement, cancelled", tostring(slotId)))
+            return
+        end
     end
     if not newId then
         local cur = TDX._slots[slotId]
@@ -1478,7 +1498,10 @@ function TDX:Register(name, pos, id, rebuild)
                 tostring(id), tostring(idSlotId), tostring(name)))
             return idSlotId
         else
-            local isDead = idSlot.deadId ~= nil or TDX._aliveState[idSlot.actualId] == false or idSlot.awaitingGameRevive
+            local isDead = idSlot.deadId ~= nil 
+                or TDX._aliveState[idSlot.actualId] == false 
+                or idSlot.awaitingGameRevive
+                or isSlotInRebuildQueue(idSlotId)
 
             if isDead then
                 local newSlotId = TDX._deadSlotCounter
