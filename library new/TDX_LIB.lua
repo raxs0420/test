@@ -9,7 +9,7 @@ local RETRY_DELAY = 3
 local RESTORE_AWAIT = 1
 local MIN_FIRE_GAP = 0.3
 local MATCH_DISTANCE = 0.01
-local COLLISION_DISTANCE = 0.5
+local COLLISION_DISTANCE = 0.02
 local IDLE_POLL = 0.01
 local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
@@ -949,12 +949,19 @@ local function doRebuildSlot(slotId, slotRef)
     local _conflict = nil
     for sid, oslot in pairs(TDX._slots) do
         if oslot ~= s and oslot.actualId == s.deadId and not oslot.deadId then
-            _conflict = sid
-            break
+            local sameName = (oslot.name == s.name)
+            local samePos = false
+            if s.pos and oslot.pos and typeof(s.pos) == "Vector3" and typeof(oslot.pos) == "Vector3" then
+                samePos = (oslot.pos - s.pos).Magnitude <= COLLISION_DISTANCE
+            end
+            if sameName and samePos then
+                _conflict = sid
+                break
+            end
         end
     end
     if _conflict then
-        log(string.format("Slot %s rebuild skipped - ID %s already live in slot %s",
+        log(string.format("Slot %s rebuild skipped - ID %s already live in slot %s at same position",
             tostring(slotId), tostring(s.deadId), tostring(_conflict)))
         s.deadId = nil
         s.deathLevel = nil
