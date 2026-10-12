@@ -1,3 +1,7 @@
+if getgenv and getgenv().TDX and getgenv().TDX._initialized then
+    return getgenv().TDX
+end
+
 local _recSettings = (getgenv and getgenv().TDX_RECORDER) or _G.TDX_RECORDER or {}
 local SKIP_WAITS = _recSettings.SkipWaits == true
 local SHOW_DEBUG_UI = _recSettings.DebugUI ~= false
@@ -354,6 +358,7 @@ if _G.AutoSkip or _G.ReverseAutoSkip then
 end
 
 local TDX = {}
+TDX._initialized = true
 
 TDX._levelCache = {}
 TDX._targetCache = {}
@@ -612,6 +617,7 @@ if TowerFactoryQueueUpdated then
                     slot.deathLevel = nil
                     slot.deathTime = nil
                     slot.awaitingGameRevive = false
+                    slot.pos = pos
                     TDX._idRemap[slotId] = id
                     TDX._aliveState[id] = true
                     
@@ -937,16 +943,25 @@ local function doRebuildSlot(slotId)
     setStatus("rebuilding slot " .. tostring(slotId) .. " (" .. tostring(s.name) .. ")")
     action(string.format("REBUILD slot %s %s", tostring(slotId), tostring(s.name)))
 
-    local newId = placeInternal(s.name, s.pos, s.aim, s.rebuild, true, function()
+    local ok, newId = pcall(placeInternal, s.name, s.pos, s.aim, s.rebuild, true, function()
         local cur = TDX._slots[slotId]
         return cur and cur.deadId == deadId and cur.autoReplace and not cur.awaitingGameRevive
     end)
     local sl = TDX._slots[slotId]
 
+    if not ok then
+        warnUser("placeInternal error: " .. tostring(newId))
+        newId = nil
+    end
+
     if not sl then return end
     if sl.deadId ~= deadId then
-        log(string.format("Slot %s state changed during placement, cancelled", tostring(slotId)))
-        return
+        if sl.deadId == nil and sl.actualId == newId then
+            log(string.format("Slot %s already updated by factory event", tostring(slotId)))
+        else
+            log(string.format("Slot %s state changed during placement, cancelled", tostring(slotId)))
+            return
+        end
     end
     if not newId then
         local cur = TDX._slots[slotId]
@@ -956,11 +971,22 @@ local function doRebuildSlot(slotId)
         end
 
         log(string.format("Slot %s place failed, requeuing for retry", tostring(slotId)))
-        cur.deathTime = tick()
-        queueAdd(slotId)
+        cur.failCount = (cur.failCount or 0) + 1
+        if cur.failCount >= 3 then
+            warnUser(string.format("Slot %s failed to rebuild 3 times, removing from queue", tostring(slotId)))
+            cur.deadId = nil
+            cur.deathLevel = nil
+            cur.deathTime = nil
+            cur.failCount = 0
+            queueRemove(slotId)
+        else
+            cur.deathTime = tick()
+            queueAdd(slotId)
+        end
         return
     end
 
+    sl.failCount = 0
     TDX._idRemap[slotId] = newId
     TDX._aliveState[newId] = true
     TDX._levelCache[newId] = { 0, 0 }
@@ -981,8 +1007,8 @@ local function doRebuildSlot(slotId)
         setStatus(string.format("restoring slot %s to %d/%d",
             tostring(slotId), targetT, targetB))
 
-        local ok, err = pcall(restoreLevel, slotId, targetT, targetB)
-        if not ok then warnUser("restoreLevel error:", err) end
+        local ok2, err = pcall(restoreLevel, slotId, targetT, targetB)
+        if not ok2 then warnUser("restoreLevel error:", err) end
 
         local s2 = TDX._slots[slotId]
         if s2 then s2.restoring = false end
@@ -998,7 +1024,6 @@ ensureWorker = function()
             local didWork = false
 
             if #TDX._rebuildQueue > 0 then
-                TDX._isRebuildingQueue = true
                 queueSort()
 
                 local toRemove = {}
@@ -1035,21 +1060,16 @@ ensureWorker = function()
 
                     if chosenValid then
                         queueRemove(chosen.slotId)
+                        TDX._isRebuildingQueue = true
                         TDX._rebuildUrgent = TDX._rebuildUrgent + 1
                         local ok, err = pcall(doRebuildSlot, chosen.slotId)
                         TDX._rebuildUrgent = TDX._rebuildUrgent - 1
+                        TDX._isRebuildingQueue = false
                         if not ok then warnUser("doRebuildSlot error:", err) end
                     end
                 end
-
-                if #TDX._rebuildQueue == 0 then
-                    TDX._isRebuildingQueue = false
-                end
-            else
-                TDX._isRebuildingQueue = false
-                task.wait(0.1)
             end
-            
+
             if not didWork then
                 task.wait(0.1)
             end
@@ -1215,10 +1235,6 @@ local function onTBVoidHit(rawHash)
     log(string.format("Void ability hit %s (ID %s) - selling + rebuilding",
         tostring(slot.name), tostring(hash)))
 
-    while TDX._isRebuildingQueue do
-        task.wait(0.5)
-    end
-
     if SellTower then
         TDX._internalSell = true
         pcall(function() SellTower:FireServer(hash) end)
@@ -1293,11 +1309,6 @@ function TDX:Place(name, timer, pos, rebuild, aim, slotId)
     if typeof(pos) ~= "Vector3" then
         warnUser("Place: pos must be Vector3")
         return nil
-    end
-
-    while TDX._isRebuildingQueue do
-        log("Waiting for rebuild queue to finish...")
-        task.wait(1)
     end
 
     slotId = tonumber(slotId)
@@ -1530,11 +1541,6 @@ function TDX:Sell(hash)
 
     local actual = remapId(hash)
     if actual == nil then return false end
-
-    while TDX._isRebuildingQueue do
-        log("Waiting for rebuild queue to finish...")
-        task.wait(1)
-    end
 
     action("SELL slot=" .. tostring(hash) .. " ID=" .. tostring(actual))
     TDX._internalSell = true
