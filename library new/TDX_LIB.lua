@@ -9,7 +9,7 @@ local AUTO_REJOIN = _recSettings.AutoRejoin ~= false
 
 local REBUILD_PRIORITY = { "EDJ", "Combat Medic", "Medic", "Commander" }
 
-local RETRY_DELAY = 3
+local RETRY_DELAY = 2
 local RESTORE_AWAIT = 1
 local MIN_FIRE_GAP = 0.3
 local MATCH_DISTANCE = 0.01
@@ -17,7 +17,7 @@ local COLLISION_DISTANCE = 0.1
 local IDLE_POLL = 0.01
 local PLACE_MAX_ATTEMPTS = 5
 local DEBUG_MAX = 1000
-local REBUILD_WAIT = 8
+local REBUILD_WAIT = 7
 local MAX_PATH_LEVEL = 5
 local INTERNAL_SELL_FLUSH = 0.1
 
