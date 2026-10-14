@@ -312,12 +312,12 @@ local function updateAutoSkip()
 
     local shouldSkip = false
 
-    if WaitTillActive then
-        shouldSkip = CurrentWave < WaitTillTarget
-    elseif _G.AutoSkip then
+    if _G.AutoSkip then
         shouldSkip = isInWaveList(CurrentWave, _G.AutoSkip)
     elseif _G.ReverseAutoSkip then
         shouldSkip = not isInWaveList(CurrentWave, _G.ReverseAutoSkip)
+    elseif WaitTillActive then
+        shouldSkip = CurrentWave < WaitTillTarget
     end
 
     local remote = Remotes:FindFirstChild("RequestUpdateSetting")
