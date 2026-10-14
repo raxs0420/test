@@ -288,6 +288,9 @@ local AutoSkipActive = false
 local ReverseAutoSkipActive = false
 local CurrentWave = 0
 local WaveConnection = nil
+local WaveWatcherStarted = false
+local WaitTillActive = false
+local WaitTillTarget = 0
 
 local function parseWave(text)
     if not text then return 0 end
@@ -309,7 +312,9 @@ local function updateAutoSkip()
 
     local shouldSkip = false
 
-    if _G.AutoSkip then
+    if WaitTillActive then
+        shouldSkip = CurrentWave < WaitTillTarget
+    elseif _G.AutoSkip then
         shouldSkip = isInWaveList(CurrentWave, _G.AutoSkip)
     elseif _G.ReverseAutoSkip then
         shouldSkip = not isInWaveList(CurrentWave, _G.ReverseAutoSkip)
@@ -324,6 +329,9 @@ local function updateAutoSkip()
 end
 
 local function startWaveWatcher()
+    if WaveWatcherStarted then return end
+    WaveWatcherStarted = true
+
     local playerGui = LocalPlayer:WaitForChild("PlayerGui")
     local interface = playerGui:WaitForChild("Interface")
     local gameInfoBar = interface:WaitForChild("GameInfoBar")
@@ -1295,6 +1303,31 @@ function TDX:Wait(seconds)
     while workspace:GetServerTimeNow() < target do
         task.wait(0.02)
     end
+end
+
+function TDX:WaitTill(targetWave)
+    targetWave = tonumber(targetWave) or 0
+    if targetWave <= 0 then return end
+    if CurrentWave >= targetWave then return end
+
+    startWaveWatcher()
+
+    WaitTillActive = true
+    WaitTillTarget = targetWave
+    updateAutoSkip()
+
+    log(string.format("WaitTill: waiting for wave %d (currently %d)", targetWave, CurrentWave))
+    setStatus("waiting for wave " .. tostring(targetWave))
+
+    while CurrentWave < targetWave do
+        task.wait(0.1)
+    end
+
+    WaitTillActive = false
+    WaitTillTarget = 0
+    updateAutoSkip()
+
+    log(string.format("WaitTill: reached wave %d", targetWave))
 end
 
 function TDX:Place(name, timer, pos, rebuild, aim, slotId)
