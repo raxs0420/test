@@ -37,45 +37,45 @@ TDX:Place("Grenadier", 1558.7379194009991, Vector3.new(241.48365783691406, 39.47
 TDX:Target(1, 2)
 TDX:Upgrade(1, 1) -- 1 0/0 --> 1/0
 TDX:Upgrade(1, 1) -- 1 1/0 --> 2/0
-TDX:Upgrade(1, 2) -- 1 2/0 --> 3/0
+TDX:Upgrade(1, 1) -- 1 2/0 --> 3/0
 TDX:Upgrade(1, 2) -- 1 3/0 --> 4/0
 TDX:Upgrade(1, 2) -- 1 4/0 --> 4/1
-TDX:Place("EDJ", 1733.495010257, Vector3.new(220.53938293457031, 40.399036407470703, 54.33978271484375), true, nil, 2) -- ID: 2
+TDX:Place("EDJ", 1733.495010257, Vector3.new(220.53938293457031, 40.399036407470703, 54.33978271484375), true, nil, 2) -- ID: 2 (was 9)
 TDX:Upgrade(2, 2) -- 2 0/0 --> 0/1
 TDX:Upgrade(2, 2) -- 2 0/1 --> 0/2
 TDX:Upgrade(2, 2) -- 2 0/2 --> 0/3
 TDX:Upgrade(2, 1) -- 2 0/3 --> 1/3
-TDX:Place("Golden Mobster", 1571.7049655549927, Vector3.new(228.71484375, 39.476078033447266, 56.556747436523438), true, nil, 3) -- ID: 3
+TDX:Place("Golden Mobster", 1571.7049655549927, Vector3.new(228.71484375, 39.476078033447266, 56.556747436523438), true, nil, 3) -- ID: 3 (was 2)
 TDX:Upgrade(3, 1) -- 3 0/0 --> 1/0
 TDX:Upgrade(3, 1) -- 3 1/0 --> 2/0
 TDX:Upgrade(3, 1) -- 3 2/0 --> 3/0
 TDX:Upgrade(3, 2) -- 3 3/0 --> 3/1
 TDX:Upgrade(3, 2) -- 3 3/1 --> 3/2
-TDX:Place("Golden Mobster", 1626.6106597889884, Vector3.new(228.83934020996094, 39.476032257080078, 53.519805908203125), true, nil, 4) -- ID: 4
+TDX:Place("Golden Mobster", 1626.6106597889884, Vector3.new(228.83934020996094, 39.476032257080078, 53.519805908203125), true, nil, 4) -- ID: 4 (was 3)
 TDX:Upgrade(4, 1) -- 4 0/0 --> 1/0
 TDX:Upgrade(4, 1) -- 4 1/0 --> 2/0
-TDX:Upgrade(4, 1) -- 4 2/0 --> 3/0
+TDX:Upgrade(4, 2) -- 4 2/0 --> 3/0
 TDX:Upgrade(4, 2) -- 4 3/0 --> 3/1
-TDX:Upgrade(4, 2) -- 4 3/1 --> 3/2
-TDX:Place("Golden Mobster", 1638.7143830979912, Vector3.new(228.60287475585938, 39.47601318359375, 50.494434356689453), true, nil, 5) -- ID: 5 
+TDX:Upgrade(4, 1) -- 4 3/1 --> 3/2
+TDX:Place("Golden Mobster", 1638.7143830979912, Vector3.new(228.60287475585938, 39.47601318359375, 50.494434356689453), true, nil, 5) -- ID: 5 (was 4)
 TDX:Upgrade(5, 1) -- 5 0/0 --> 1/0
 TDX:Upgrade(5, 1) -- 5 1/0 --> 2/0
-TDX:Place("Combat Medic", 1656.3118837910006, Vector3.new(228.33218383789062, 39.47601318359375, 47.675827026367188), true, nil, 6) -- ID: 6
+TDX:Place("Combat Medic", 1656.3118837910006, Vector3.new(228.33218383789062, 39.47601318359375, 47.675827026367188), true, nil, 6) -- ID: 6 (was 5)
 TDX:Upgrade(6, 1) -- 6 0/0 --> 1/0
 TDX:Upgrade(6, 1) -- 6 1/0 --> 2/0
-TDX:Place("Combat Medic", 1661.7867464839946, Vector3.new(228.33058166503906, 39.476093292236328, 59.219108581542969), true, nil, 7) -- ID: 7
+TDX:Place("Combat Medic", 1661.7867464839946, Vector3.new(228.33058166503906, 39.476093292236328, 59.219108581542969), true, nil, 7) -- ID: 7 (was 6)
 TDX:Upgrade(7, 1) -- 7 0/0 --> 1/0
 TDX:Upgrade(7, 1) -- 7 1/0 --> 2/0
 TDX:Upgrade(5, 1) -- 5 2/0 --> 3/0
 TDX:Upgrade(5, 2) -- 5 3/0 --> 3/1
 TDX:Upgrade(5, 2) -- 5 3/1 --> 3/2
-TDX:Place("Golden Mobster", 1683.2881372539996, Vector3.new(231.55343627929688, 39.476127624511719, 55.179527282714844), true, nil, 8) -- ID: 8 
+TDX:Place("Golden Mobster", 1683.2881372539996, Vector3.new(231.55343627929688, 39.476127624511719, 55.179527282714844), true, nil, 8) -- ID: 8 (was 7)
 TDX:Upgrade(8, 1) -- 8 0/0 --> 1/0
 TDX:Upgrade(8, 1) -- 8 1/0 --> 2/0
-TDX:Upgrade(8, 2) -- 8 2/0 --> 2/1
+TDX:Upgrade(8, 1) -- 8 2/0 --> 2/1
 TDX:Upgrade(8, 2) -- 8 2/1 --> 2/2
-TDX:Upgrade(8, 1) -- 8 2/2 --> 3/2
-TDX:Place("Golden Mobster", 1703.3172421789932, Vector3.new(231.60134887695312, 39.476119995117188, 51.938163757324219), true, nil, 9) -- ID: 9
+TDX:Upgrade(8, 2) -- 8 2/2 --> 3/2
+TDX:Place("Golden Mobster", 1703.3172421789932, Vector3.new(231.60134887695312, 39.476119995117188, 51.938163757324219), true, nil, 9) -- ID: 9 (was 8)
 TDX:Upgrade(9, 1) -- 9 0/0 --> 1/0
 TDX:Upgrade(9, 1) -- 9 1/0 --> 2/0
 TDX:Upgrade(9, 2) -- 9 2/0 --> 2/1
@@ -102,8 +102,8 @@ TDX:Upgrade(6, 2) -- 6 2/2 --> 2/3
 TDX:Upgrade(7, 2) -- 7 2/0 --> 2/1
 TDX:Upgrade(7, 2) -- 7 2/1 --> 2/2
 TDX:Upgrade(7, 2) -- 7 2/2 --> 2/3
-TDX:Upgrade(1, 2) -- 1 4/2 --> 5/2
-TDX:Upgrade(1, 2) -- 1 4/1 --> 4/2
+TDX:Upgrade(1, 1) -- 1 4/2 --> 5/2
+TDX:Upgrade(1, 1) -- 1 4/1 --> 4/2
 TDX:Place("Grenadier", 1883.6715838050004, Vector3.new(231.52647399902344, 39.476005554199219, 48.784297943115234), true, nil, 11) -- ID: 11
 TDX:Target(11, 4)
 TDX:Upgrade(11, 2, 5) -- 11 0/0 --> 0/5
