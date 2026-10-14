@@ -3376,26 +3376,48 @@ local function updateEcoOverlay()
     EcoOverlay.moneyLabel.Position = UDim2.new(0, rightX, 0, row2Y)
     EcoOverlay.diffLabel.Position = UDim2.new(0, cashPos.X + 12, 0, row2Y)
 
-    local myCashText = getMyCashText()
-    local myCashNum = parseCashValue(myCashText)
-    local mySendDelta = LocalPlayer:GetAttribute("PVPSendEcoDelta") or 0
+local myCashText = getMyCashText()
+local myCashNum = parseCashValue(myCashText)
+local mySendDelta = LocalPlayer:GetAttribute("PVPSendEcoDelta")
+if type(mySendDelta) ~= "number" then mySendDelta = 0 end
 
-    local enemyPlayer = nil
-    for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LocalPlayer then enemyPlayer = plr break end
-    end
+local enemyPlayer = nil
+for _, plr in ipairs(Players:GetPlayers()) do
+    if plr ~= LocalPlayer then enemyPlayer = plr break end
+end
 
     local enemySendDelta = 0
     local enemyName = "Enemy"
     local enemyCash = 0
     if enemyPlayer then
-        enemySendDelta = enemyPlayer:GetAttribute("PVPSendEcoDelta") or 0
+        local rawEnemyDelta = enemyPlayer:GetAttribute("PVPSendEcoDelta")
+        if type(rawEnemyDelta) == "number" then
+            enemySendDelta = rawEnemyDelta
+        end
         enemyName = enemyPlayer.Name
         local ls = enemyPlayer:FindFirstChild("leaderstats")
         if ls then
             local cashVal = ls:FindFirstChild("Cash")
             if cashVal then enemyCash = cashVal.Value end
         end
+    end
+    
+    if myCashNum then
+        local enemyEco = (myCashNum - mySendDelta) + enemySendDelta
+    
+        EcoOverlay.enemyLabel.Text = enemyName .. ": $" .. formatNumber(enemyEco) .. "/7s"
+        EcoOverlay.enemyLabel.Visible = true
+    
+        local diff = myCashNum - enemyEco
+        local sign = diff >= 0 and "+" or "-"
+        EcoOverlay.diffLabel.Text = sign .. "$" .. formatNumber(math.abs(diff))
+        EcoOverlay.diffLabel.TextColor3 = diff >= 0 and Color3.fromRGB(130, 220, 130) or Color3.fromRGB(220, 130, 130)
+        EcoOverlay.diffLabel.Visible = true
+    
+        EcoOverlay.moneyLabel.Text = "Money:" .. formatNumber(enemyCash)
+        EcoOverlay.moneyLabel.Visible = true
+    else
+        hideAll()
     end
 
     if myCashNum then
@@ -4219,3 +4241,49 @@ task.spawn(function()
         task.wait(2)
     end
 end)
+
+local success, AbilityHandlerClass = pcall(function()
+    return require(LocalPlayer.PlayerScripts.Client.GameClass.TowerClass.AbilityHandlerClass)
+end)
+
+if success and AbilityHandlerClass then
+    local oldRun = AbilityHandlerClass.Run
+    AbilityHandlerClass.Run = function(self, p38)
+        for _, v in pairs(self.Abilities) do
+            local ok, err = pcall(v.Run, v, p38)
+            if not ok then
+                warn("[TDX Fix] AbilityClass crash caught during Run: " .. tostring(err))
+                pcall(function() self:_GenerateAbilities() end)
+                break
+            end
+        end
+    end
+
+    local oldUseAbility = AbilityHandlerClass.UseAbility
+    AbilityHandlerClass.UseAbility = function(self, p28)
+        local v66 = self.Abilities[self.AbilityIndexToNameMap[p28]]
+        if v66 then
+            local ok, err = pcall(v66.Use, v66)
+            if not ok then
+                warn("[Ability Fix] AbilityClass crash caught during manual Use: " .. tostring(err))
+                pcall(function() self:_GenerateAbilities() end)
+            end
+            return
+        end
+    end
+
+    local oldAbilityUsedOnServer = AbilityHandlerClass.AbilityUsedOnServer
+    AbilityHandlerClass.AbilityUsedOnServer = function(self, data)
+        local abilityName = data[1]
+        local ability = self.Abilities[abilityName]
+        if ability then
+            local ok, err = pcall(ability.AbilityUsedOnServer, ability, data)
+            if not ok then
+                warn("[Ability Fix] AbilityClass crash caught on server response: " .. tostring(err))
+                pcall(function() self:_GenerateAbilities() end)
+            end
+            return ability
+        end
+        return nil
+    end
+end
