@@ -1794,7 +1794,7 @@ function TDX:Loadout(id)
 end
 
 function TDX:VoteMap(map, attempts)
-    attempts = attempts or 10
+    attempts = attempts or 6
     local target = normalizeMapName(map)
 
     for i = 1, attempts do
