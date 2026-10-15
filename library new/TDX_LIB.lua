@@ -51,6 +51,14 @@ local ChangeQueryType = Remotes:FindFirstChild("ChangeQueryType")
 local TowerQueryTypeIndexChanged = Remotes:FindFirstChild("TowerQueryTypeIndexChanged")
 local TowerAliveStateChanged = Remotes:FindFirstChild("TowerAliveStateChanged")
 local EnemyUsedAbility = Remotes:FindFirstChild("EnemyUsedAbility")
+local MapVoteStateUpdate = Remotes:FindFirstChild("MapVoteStateUpdate")
+local MapVoteCast = Remotes:FindFirstChild("MapVoteCast")
+local MapVoteReady = Remotes:FindFirstChild("MapVoteReady")
+local MapChangeVoteCast = Remotes:FindFirstChild("MapChangeVoteCast")
+
+local function normalizeMapName(s)
+    return tostring(s or ""):lower():gsub("[%s_%-]", "")
+end
 
 local _debugScroll
 local _debugStatus
@@ -1777,23 +1785,53 @@ end
 
 function TDX:VoteAndReady(map, attempts)
     attempts = attempts or 10
+    local target = normalizeMapName(map)
 
     for i = 1, attempts do
-        local vote = Remotes:FindFirstChild("MapVoteCast")
-        if vote then
-            vote:FireServer(map)
-            task.wait(0.5)
+        local state = nil
 
-            local ready = Remotes:FindFirstChild("MapVoteReady")
-            if ready then ready:FireServer() end
+        if MapVoteStateUpdate then
+            local got = false
+            local conn
+            conn = MapVoteStateUpdate.OnClientEvent:Connect(function(data)
+                if type(data) == "table" and data.Options then
+                    state = data
+                    got = true
+                end
+            end)
 
-            task.wait(0.3)
+            local deadline = tick() + 2
+            while not got and tick() < deadline do
+                task.wait(0.05)
+            end
+            if conn then conn:Disconnect() end
+        end
+
+        local found = false
+        if state and type(state.Options) == "table" then
+            for _, name in ipairs(state.Options) do
+                if normalizeMapName(name) == target then
+                    found = true
+                    map = name
+                    break
+                end
+            end
+        end
+
+        if found then
+            if MapVoteCast then
+                MapVoteCast:FireServer(map)
+                task.wait(0.5)
+            end
+            if MapVoteReady then
+                MapVoteReady:FireServer()
+                task.wait(0.3)
+            end
             return true
         end
 
-        local change = Remotes:FindFirstChild("MapChangeVoteCast")
-        if change then
-            change:FireServer(true)
+        if MapChangeVoteCast then
+            MapChangeVoteCast:FireServer(true)
         end
 
         task.wait(1)
