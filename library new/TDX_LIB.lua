@@ -55,6 +55,16 @@ local MapVoteStateUpdate = Remotes:FindFirstChild("MapVoteStateUpdate")
 local MapVoteCast = Remotes:FindFirstChild("MapVoteCast")
 local MapVoteReady = Remotes:FindFirstChild("MapVoteReady")
 local MapChangeVoteCast = Remotes:FindFirstChild("MapChangeVoteCast")
+local RequestTeleportToLobby = Remotes:FindFirstChild("RequestTeleportToLobby")
+
+local _latestMapState = nil
+if MapVoteStateUpdate then
+    MapVoteStateUpdate.OnClientEvent:Connect(function(data)
+        if type(data) == "table" and data.Options then
+            _latestMapState = data
+        end
+    end)
+end
 
 local function normalizeMapName(s)
     return tostring(s or ""):lower():gsub("[%s_%-]", "")
@@ -1783,60 +1793,42 @@ function TDX:Loadout(id)
     task.wait(0.5)
 end
 
-function TDX:VoteAndReady(map, attempts)
+function TDX:VoteMap(map, attempts)
     attempts = attempts or 10
     local target = normalizeMapName(map)
 
     for i = 1, attempts do
-        local state = nil
-
-        if MapVoteStateUpdate then
-            local got = false
-            local conn
-            conn = MapVoteStateUpdate.OnClientEvent:Connect(function(data)
-                if type(data) == "table" and data.Options then
-                    state = data
-                    got = true
-                end
-            end)
-
-            local deadline = tick() + 2
-            while not got and tick() < deadline do
-                task.wait(0.05)
-            end
-            if conn then conn:Disconnect() end
-        end
-
+        local state = _latestMapState
         local found = false
+        local exactName = map
+        
         if state and type(state.Options) == "table" then
             for _, name in ipairs(state.Options) do
                 if normalizeMapName(name) == target then
                     found = true
-                    map = name
+                    exactName = name
                     break
                 end
             end
         end
 
         if found then
-            if MapVoteCast then
-                MapVoteCast:FireServer(map)
-                task.wait(0.5)
-            end
-            if MapVoteReady then
-                MapVoteReady:FireServer()
-                task.wait(0.3)
-            end
+            if MapVoteCast then MapVoteCast:FireServer(exactName) end
+            task.wait(0.5)
+            if MapVoteReady then MapVoteReady:FireServer() end
+            task.wait(0.3)
             return true
         end
 
-        if MapChangeVoteCast then
-            MapChangeVoteCast:FireServer(true)
+        if state and state.CanChangeMaps == false then
+            break
         end
 
-        task.wait(1)
+        if MapChangeVoteCast then MapChangeVoteCast:FireServer(true) end
+        task.wait(1.5)
     end
 
+    if RequestTeleportToLobby then RequestTeleportToLobby:FireServer() end
     return false
 end
 
