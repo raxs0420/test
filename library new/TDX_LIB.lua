@@ -314,20 +314,6 @@ local function isInWaveList(wave, list)
     return false
 end
 
-do
-    LocalPlayer:SetAttribute("VIP", true)
-
-    task.spawn(function()
-        while true do
-            task.wait(1)
-            if LocalPlayer:GetAttribute("VIP") ~= true then
-                LocalPlayer:SetAttribute("VIP", true)
-            end
-        end
-        task.wait(5)
-    end)
-end
-
 local function updateAutoSkip()
     local vip = LocalPlayer:GetAttribute("VIP")
     if not vip then return end
