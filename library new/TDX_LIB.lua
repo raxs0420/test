@@ -1953,6 +1953,21 @@ function TDX:Reset()
     TDX._isRebuildingQueue = false
 end
 
+local VirtualUser = game:GetService("VirtualUser")
+local function setupAntiAFK()
+    pcall(function()
+        localPlayer.Idled:Connect(function()
+            VirtualUser:CaptureController()
+            VirtualUser:ClickButton2(Vector2.new(0, 0))
+        end)
+    end)
+end
+setupAntiAFK()
+localPlayer.CharacterAdded:Connect(function()
+    task.wait(1)
+    setupAntiAFK()
+end)
+
 if getgenv then getgenv().TDX = TDX end
 _G.TDX = TDX
 
