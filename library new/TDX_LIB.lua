@@ -1775,29 +1775,28 @@ function TDX:Loadout(id)
     task.wait(0.5)
 end
 
-function TDX:VoteMap(map, attempts)
-    attempts = attempts or 3
-
-    local vote = Remotes:FindFirstChild("MapVoteCast")
-    if not vote then
-        warnUser("MapVoteCast remote missing")
-        return false
-    end
+function TDX:VoteAndReady(map, attempts)
+    attempts = attempts or 10
 
     for i = 1, attempts do
-        vote:FireServer(map)
-        task.wait(0.3)
-    end
+        local vote = Remotes:FindFirstChild("MapVoteCast")
+        if vote then
+            vote:FireServer(map)
+            task.wait(0.5)
 
-    task.wait(1.5)
+            local ready = Remotes:FindFirstChild("MapVoteReady")
+            if ready then ready:FireServer() end
 
-    local ready = Remotes:FindFirstChild("MapVoteReady")
-    if ready then
-        for i = 1, 3 do
-            ready:FireServer()
             task.wait(0.3)
+            return true
         end
-        return true
+
+        local change = Remotes:FindFirstChild("MapChangeVoteCast")
+        if change then
+            change:FireServer(true)
+        end
+
+        task.wait(1)
     end
 
     return false
