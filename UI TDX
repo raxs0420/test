@@ -246,6 +246,7 @@ loadSettings()
 if settings.debuffGrenadeMode == nil then settings.debuffGrenadeMode = "closest" end
 if settings.uberMode == nil then settings.uberMode = "strongest" end
 if settings.critzMode == nil then settings.critzMode = "strongest" end
+if settings.artilleryMode == nil then settings.artilleryMode = "first" end
 
 local screenSize = workspace.CurrentCamera.ViewportSize
 local frameWidth = 520
@@ -929,6 +930,114 @@ local function getClosestPathNodeTo(origin)
     return best
 end
 
+local PathCalc = { paths = {}, lastRescan = 0, PathHandler = nil }
+
+local function ensurePathHandler()
+    if PathCalc.PathHandler then return end
+    if not workspace:FindFirstChild("Game") then return end
+    local ok, result = pcall(function()
+        return require(ReplicatedStorage:WaitForChild("TDX_Shared"):WaitForChild("Common"):WaitForChild("PathHandler"))
+    end)
+    if ok and result then PathCalc.PathHandler = result end
+end
+
+function PathCalc.BuildPaths()
+    local PH = PathCalc.PathHandler
+    if not PH then return 0 end
+    local SAMPLE_STEP = 0.01
+    local built = {}
+    for teamIndex = 1, 8 do
+        local ok, spawnIndices = pcall(PH.GetSpawnIndices, teamIndex)
+        if ok and type(spawnIndices) == "table" then
+            for _, pathIndex in ipairs(spawnIndices) do
+                local ok2, length = pcall(PH.GetPathLength, pathIndex, teamIndex)
+                if ok2 and type(length) == "number" and length > 0 then
+                    local segs = {}
+                    local prevPos, prevPct = nil, nil
+                    local pct = 0
+                    while pct <= 1.0001 do
+                        local ok3, pos = pcall(PH.GetPositionAtPathPercentage, pathIndex, teamIndex, pct)
+                        if ok3 and typeof(pos) == "Vector3" then
+                            local curPct = math.min(pct, 1)
+                            if prevPos then
+                                local ab = pos - prevPos
+                                segs[#segs + 1] = {
+                                    aPos = prevPos, aPct = prevPct,
+                                    bPos = pos, bPct = curPct,
+                                    ab = ab, len2 = ab:Dot(ab),
+                                }
+                            end
+                            prevPos, prevPct = pos, curPct
+                        end
+                        pct = pct + SAMPLE_STEP
+                    end
+                    if #segs > 0 then
+                        built[#built + 1] = { segments = segs, length = length }
+                    end
+                end
+            end
+        end
+    end
+    PathCalc.paths = built
+    PathCalc.lastRescan = os.clock()
+    return #PathCalc.paths
+end
+
+function PathCalc.GetPosAtPct(path, pct)
+    pct = math.clamp(pct, 0, 1)
+    if not path or not path.segments or #path.segments == 0 then return nil end
+    for _, seg in ipairs(path.segments) do
+        if pct >= seg.aPct and pct <= seg.bPct then
+            local t = (pct - seg.aPct) / math.max(seg.bPct - seg.aPct, 1e-6)
+            return seg.aPos + seg.ab * t
+        end
+    end
+    local last = path.segments[#path.segments]
+    return last.aPos + last.ab
+end
+
+function PathCalc.GetEnemyPct(part)
+    local MAX_ENEMY_TO_PATH_DISTANCE = 50
+    local PATH_RESCAN_INTERVAL = 5
+
+    if not workspace:FindFirstChild("Game") then return nil, nil end
+    if not part or not part.Parent then return nil, nil end
+
+    ensurePathHandler()
+    if not PathCalc.PathHandler then return nil, nil end
+
+    if #PathCalc.paths == 0 or (os.clock() - PathCalc.lastRescan) >= PATH_RESCAN_INTERVAL then
+        PathCalc.BuildPaths()
+    end
+    if #PathCalc.paths == 0 then return nil, nil end
+
+    local enemyPos = part.Position
+    local bestPath, bestPct, bestDist = nil, nil, math.huge
+
+    for _, path in ipairs(PathCalc.paths) do
+        for _, seg in ipairs(path.segments) do
+            local t, d
+            if seg.len2 <= 0 then
+                t, d = 0, (enemyPos - seg.aPos).Magnitude
+            else
+                local ap = enemyPos - seg.aPos
+                t = math.clamp(ap:Dot(seg.ab) / seg.len2, 0, 1)
+                d = (enemyPos - (seg.aPos + seg.ab * t)).Magnitude
+            end
+            if d < bestDist then
+                bestDist = d
+                bestPath = path
+                bestPct = seg.aPct + (seg.bPct - seg.aPct) * t
+            end
+        end
+    end
+
+    if bestPath and bestDist <= MAX_ENEMY_TO_PATH_DISTANCE then
+        return bestPct, bestPath
+    end
+    return nil, nil
+end
+
 local function getAllEnemies()
     local gameFolder = workspace:FindFirstChild("Game")
     if not gameFolder then return {} end
@@ -1054,6 +1163,278 @@ local function runBountyTargeted(abilityName, slot, requiredBottomLevel, towerNa
 
             task.wait(0.1)
         end
+    end
+end
+
+local function runVoidSlam()
+    while settings.activeAbilities["VOID_SLAM"] do
+        local enemies = getAllEnemies()
+        local threshold = EnemyDB.threshold()
+        for part, data in pairs(towers) do
+            if data.owned and data.name == "Void Traitor" and data.hash and part.Parent and data.topCount >= 5 then
+                local shouldUse = false
+                local normalCount = 0
+                for _, enemy in ipairs(enemies) do
+                    if (part.Position - enemy.Position).Magnitude <= 11 then
+                        local info = EnemyDB.info(enemy.Name)
+                        if info and info.isBoss then
+                            shouldUse = true
+                            break
+                        end
+                        if not info or info.hp >= threshold then
+                            normalCount = normalCount + 1
+                        end
+                    end
+                end
+                if not shouldUse and normalCount >= 3 then shouldUse = true end
+                if shouldUse then
+                    task.spawn(function() sendAbilityNoPosition(part, 3) end)
+                end
+            end
+        end
+        task.wait(0.05)
+    end
+end
+
+local function runSummonTroops()
+    while settings.activeAbilities["SUMMON_TROOPS"] do
+        local enemies = getAllEnemies()
+        local anyPast70 = false
+        for _, enemy in ipairs(enemies) do
+            local info = EnemyDB.info(enemy.Name)
+            if info and info.airUnit then continue end
+            local pct = PathCalc.GetEnemyPct(enemy)
+            if pct and pct >= 0.7 then
+                anyPast70 = true
+                break
+            end
+        end
+        if anyPast70 then
+            for part, data in pairs(towers) do
+                if data.owned and data.name == "Void Traitor" and data.hash and part.Parent and data.topCount >= 5 then
+                    task.spawn(function() sendAbilityNoPosition(part, 2) end)
+                end
+            end
+        end
+        task.wait(0.2)
+    end
+end
+
+local function runVoidRift()
+    local lastUse = {}
+    while settings.activeAbilities["VOID_RIFT"] do
+        local enemies = getAllEnemies()
+        local threshold = EnemyDB.threshold()
+        local hasBoss = false
+        local count = 0
+
+        for _, enemy in ipairs(enemies) do
+            local info = EnemyDB.info(enemy.Name)
+            if info and info.isBoss then
+                hasBoss = true
+                break
+            end
+            if info then
+                if info.hp >= threshold then count = count + 1 end
+            else
+                count = count + 1
+            end
+        end
+
+        if hasBoss or count >= 20 then
+            local now = tick()
+            for part, data in pairs(towers) do
+                if data.owned and data.name == "Void Traitor" and data.hash and part.Parent and data.topCount >= 5 then
+                    local key = tostring(part)
+                    if not lastUse[key] or now - lastUse[key] >= 2 then
+                        lastUse[key] = now
+                        task.spawn(function() sendAbilityNoPosition(part, 1) end)
+                    end
+                end
+            end
+        end
+        task.wait(0.1)
+    end
+end
+
+local Artillery = {
+    config = nil,
+    lastRetarget = {},
+    lastFire = {},
+    cooldown = {},
+    retargetInterval = 1,
+    predictTime = 1.5,
+    shellSpeed = 200,
+}
+
+do
+    local ok, cfg = pcall(function()
+        return require(ReplicatedStorage:WaitForChild("TDX_Shared"):WaitForChild("Common"):WaitForChild("Resources"):WaitForChild("Towers"):WaitForChild("Configs"):WaitForChild("Artillery"))
+    end)
+    if ok and cfg then Artillery.config = cfg end
+end
+
+function Artillery.getStats(topCount, bottomCount)
+    local s = { Range = 65, ReloadTime = 11, BurstSize = 1, BurstInterval = 0.3333, SplashRadius = 4 }
+    local cfg = Artillery.config
+    if cfg and cfg.UpgradePathData then
+        local base = cfg.UpgradePathData.BaseLevelData
+        if base then
+            s.Range = base.Range or s.Range
+            s.ReloadTime = base.ReloadTime or s.ReloadTime
+            s.SplashRadius = base.SplashRadius or s.SplashRadius
+            s.BurstSize = base.BurstSize or s.BurstSize
+        end
+        for _, side in ipairs({ cfg.UpgradePathData.Path1Data or {}, cfg.UpgradePathData.Path2Data or {} }) do
+            local n = (side == cfg.UpgradePathData.Path1Data) and (topCount or 0) or (bottomCount or 0)
+            for i = 1, math.min(n, #side) do
+                local u = side[i]
+                s.Range = s.Range + (u.RangeIncrease or 0)
+                s.ReloadTime = s.ReloadTime - (u.ReloadTimeDecrease or 0)
+                s.SplashRadius = s.SplashRadius + (u.SplashRadiusIncrease or 0)
+                s.BurstSize = s.BurstSize + (u.BurstSizeIncrease or 0)
+            end
+        end
+    end
+    return s
+end
+
+function Artillery.collect()
+    local list = {}
+    for _, enemy in ipairs(getAllEnemies()) do
+        local pct, path = PathCalc.GetEnemyPct(enemy)
+        if pct and path then
+            local info = EnemyDB.info(enemy.Name)
+            list[#list + 1] = {
+                part = enemy, pct = pct, path = path,
+                pathLength = path.length or 0,
+                speed = (info and info.speed) or 0,
+                hp = (info and info.hp) or 0,
+                isBoss = (info and info.isBoss) or false,
+            }
+        end
+    end
+    return list
+end
+
+function Artillery.predict(d, dt)
+    if not d then return nil end
+    if d.speed <= 0 or d.pathLength <= 0 then return d.part.Position end
+    local pctPerSec = d.speed / d.pathLength
+    local futurePct = math.clamp(d.pct + pctPerSec * dt, 0, 1)
+    return PathCalc.GetPosAtPct(d.path, futurePct) or d.part.Position
+end
+
+function Artillery.pickFirst(towerPos, stats, enemies)
+    local best, bestPct = nil, -1
+    for _, d in ipairs(enemies) do
+        if (towerPos - d.part.Position).Magnitude <= stats.Range and d.pct > bestPct then
+            bestPct = d.pct
+            best = d
+        end
+    end
+    return best
+end
+
+function Artillery.pickBossOrHighest(towerPos, stats, enemies)
+    local boss, bossHp = nil, -1
+    local high, highHp = nil, -1
+    for _, d in ipairs(enemies) do
+        if (towerPos - d.part.Position).Magnitude <= stats.Range then
+            if d.isBoss and d.hp > bossHp then bossHp, boss = d.hp, d end
+            if d.hp > highHp then highHp, high = d.hp, d end
+        end
+    end
+    return boss or high
+end
+
+function Artillery.pickGroup(towerPos, stats, enemies)
+    local inRange = {}
+    for _, d in ipairs(enemies) do
+        if (towerPos - d.part.Position).Magnitude <= stats.Range then
+            inRange[#inRange + 1] = d
+        end
+    end
+    local best, bestCount = nil, 0
+    for _, center in ipairs(inRange) do
+        local aim = Artillery.predict(center, Artillery.predictTime)
+        if aim then
+            local count = 0
+            for _, other in ipairs(inRange) do
+                local oAim = Artillery.predict(other, Artillery.predictTime)
+                if oAim and (oAim - aim).Magnitude <= stats.SplashRadius then count = count + 1 end
+            end
+            if count > bestCount then bestCount, best = count, center end
+        end
+    end
+    return best
+end
+
+function Artillery.listen()
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+    if not remotes then return end
+    local ev = remotes:FindFirstChild("TowerAttackPosition")
+    if not ev then return end
+    ev.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        local now = tick()
+        for _, entry in ipairs(data) do
+            if type(entry) == "table" then
+                local hash = entry[1]
+                if type(hash) == "number" then
+                    local prev = Artillery.lastFire[hash]
+                    if prev then
+                        local interval = now - prev
+                        if interval > 0.5 and interval < 60 then
+                            local avg = Artillery.cooldown[hash] or interval
+                            Artillery.cooldown[hash] = avg * 0.6 + interval * 0.4
+                        end
+                    end
+                    Artillery.lastFire[hash] = now
+                end
+            end
+        end
+    end)
+end
+
+task.spawn(Artillery.listen)
+
+local function runArtillery()
+    while settings.activeAbilities["ARTILLERY"] do
+        local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+        local retargetRemote = remotes and remotes:FindFirstChild("RetargetTower")
+        if retargetRemote then
+            local enemies = Artillery.collect()
+            local now = tick()
+            local mode = settings.artilleryMode or "first"
+            for part, data in pairs(towers) do
+                if data.owned and data.name == "Artillery" and data.hash and part.Parent then
+                    local hash = data.hash
+                    local key = tostring(part)
+                    local lastRT = Artillery.lastRetarget[key] or 0
+                    local stats = Artillery.getStats(data.topCount or 0, data.bottomCount or 0)
+                    local cd = Artillery.cooldown[hash] or stats.ReloadTime
+                    local lastF = Artillery.lastFire[hash] or 0
+                    local untilNext = math.max(0, cd - (now - lastF))
+                    if (now - lastRT) >= Artillery.retargetInterval and (lastF == 0 or untilNext <= 0.8) then
+                        local target
+                        if mode == "groups" then target = Artillery.pickGroup(part.Position, stats, enemies)
+                        elseif mode == "bosses" then target = Artillery.pickBossOrHighest(part.Position, stats, enemies)
+                        else target = Artillery.pickFirst(part.Position, stats, enemies) end
+                        if target then
+                            local dist = (part.Position - target.part.Position).Magnitude
+                            local flightTime = dist / Artillery.shellSpeed
+                            local aimPos = Artillery.predict(target, flightTime + Artillery.predictTime)
+                            if aimPos then
+                                pcall(function() retargetRemote:InvokeServer(hash, aimPos) end)
+                                Artillery.lastRetarget[key] = now
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.2)
     end
 end
 
@@ -2012,6 +2393,10 @@ local abilityLoopMap = {
     DEBUFF_GRENADE = runDebuffGrenade,
     UBER = runUber,
     CRITZ = runCritz,
+    VOID_SLAM = runVoidSlam,
+    SUMMON_TROOPS = runSummonTroops,
+    VOID_RIFT = runVoidRift,
+    ARTILLERY = runArtillery,
 }
 
 local abilityDisplayNames = {
@@ -2040,13 +2425,17 @@ local abilityDisplayNames = {
     OVERCHARGE = "Overcharge (Juggernaut B/5)",
     REBOOT_SYSTEM = "Reboot System (G Juggernaut T/B/5)",
     GHOST_DRONE = "Drone (Ghost T/4+)                 ",
+    ARTILLERY = "Auto Artillery             ",
     DEBUFF_GRENADE = "Debuff Grenade (Grenadier T/4+)",
     UBER = "Uber (Medic T/4+)",
     CRITZ = "Critz (Medic B/4+)",
+    VOID_SLAM = "Void Slam (Void Traitor T/5)",
+    SUMMON_TROOPS = "Summon Troops (Void Traitor T/5)",
+    VOID_RIFT = "Void Rift (Void Traitor T/5)",
 }
 
 local abilityOrder = {
-    "AXE", "GHOST_DRONE",
+    "AXE", "GHOST_DRONE", "ARTILLERY", "VOID_RIFT", "VOID_SLAM", "SUMMON_TROOPS",
     "GRENADE", "UNSTUN_HEALTH", "HEALTH_PACK", "HUMVEE", "FLARE", "ENCORE",
     "SHOCK_ROUNDS", "STEALTH_SENSOR", "AP_ROUNDS", "N_BOUNTY", "G_BOUNTY", "OVERLOAD",
     "GOLDEN_RANGER", "WARSHIP", "FIRE_ROUNDS", "GRAND_SLAM", "RAGE", "HE_ROUNDS", "OVERCHARGE", "REBOOT_SYSTEM",
@@ -2205,6 +2594,34 @@ for _, abilityName in ipairs(abilityOrder) do
                     settings[modeKey] = "strongest"
                 end
                 modeBtn.Text = settings[modeKey] == "strongest" and "STRONG" or "DISTRIB"
+                saveSettings()
+            end)
+        end
+        if abilityName == "ARTILLERY" then
+            local modes = { "first", "groups", "bosses" }
+            local labels = { first = "FIRST", groups = "GROUP", bosses = "BOSS" }
+            local modeBtn = Instance.new("TextButton")
+            modeBtn.Size = UDim2.new(0, 62, 0, 22)
+            modeBtn.Position = UDim2.new(1, -68, 0, 5)
+            modeBtn.Text = labels[settings.artilleryMode] or "FIRST"
+            modeBtn.BackgroundColor3 = Color3.fromRGB(38, 38, 44)
+            modeBtn.TextColor3 = Color3.fromRGB(200, 200, 205)
+            modeBtn.TextSize = 8
+            modeBtn.Font = Enum.Font.Gotham
+            modeBtn.AutoButtonColor = false
+            modeBtn.Parent = btn
+            Instance.new("UICorner", modeBtn).CornerRadius = UDim.new(0, 4)
+            local mbStroke = Instance.new("UIStroke", modeBtn)
+            mbStroke.Color = Color3.fromRGB(50, 50, 55)
+            mbStroke.Thickness = 1
+        
+            modeBtn.MouseButton1Click:Connect(function()
+                local cur = settings.artilleryMode or "first"
+                local idx = 1
+                for i, m in ipairs(modes) do if m == cur then idx = i break end end
+                idx = (idx % #modes) + 1
+                settings.artilleryMode = modes[idx]
+                modeBtn.Text = labels[modes[idx]]
                 saveSettings()
             end)
         end
