@@ -4247,6 +4247,62 @@ task.spawn(function()
     end
 end)
 
+local ELO_Tracker = {
+    current = {},
+    previous = {},
+    deltas = {},
+    mode = "PVP_1V1"
+}
+
+task.spawn(function()
+    local RS = game:GetService("ReplicatedStorage")
+    local plr = game:GetService("Players").LocalPlayer
+    
+    local pcallSuccess, Data = pcall(function()
+        return require(RS.TDX_Shared.Client.Services.Data)
+    end)
+    
+    if not pcallSuccess or not Data then return end
+
+    if Data.Cache and Data.Cache.PVPElo then
+        for m, v in pairs(Data.Cache.PVPElo) do
+            ELO_Tracker.current[m] = v
+            ELO_Tracker.previous[m] = v
+        end
+    end
+
+    local ev = plr:FindFirstChild("-DataUpdate")
+    if ev then
+        ev.OnClientEvent:Connect(function(op, key, value)
+            if key ~= "PVPElo" then return end
+            if type(value) == "table" then
+                for m, v in pairs(value) do
+                    ELO_Tracker.previous[m] = ELO_Tracker.current[m] or v
+                    ELO_Tracker.current[m] = v
+                    ELO_Tracker.deltas[m] = v - ELO_Tracker.previous[m]
+                end
+            elseif type(value) == "number" then
+                local m = ELO_Tracker.mode
+                ELO_Tracker.previous[m] = ELO_Tracker.current[m] or value
+                ELO_Tracker.current[m] = value
+                ELO_Tracker.deltas[m] = value - ELO_Tracker.previous[m]
+            end
+        end)
+    end
+
+    while task.wait(1) do
+        if Data.Cache and Data.Cache.PVPElo then
+            for m, v in pairs(Data.Cache.PVPElo) do
+                if ELO_Tracker.current[m] ~= v then
+                    ELO_Tracker.previous[m] = ELO_Tracker.current[m] or v
+                    ELO_Tracker.current[m] = v
+                    ELO_Tracker.deltas[m] = v - ELO_Tracker.previous[m]
+                end
+            end
+        end
+    end
+end)
+
 local function setupGameInfo()
     local teamColors = {
         Blue = Color3.fromRGB(0, 120, 255),
@@ -4397,14 +4453,14 @@ local function setupGameInfo()
             local tw = pdata.towers
             local en = pdata.enemies
             local pu = pdata.powerUps
-
+        
             local hasTowerData, hasEnemyData = false, false
             for _, t in ipairs(tw) do if t then hasTowerData = true break end end
             for _, e in ipairs(en) do if e then hasEnemyData = true break end end
             if hasTowerData or hasEnemyData then anyDataFound = true end
-
+        
             local blockHeight = hasAnyTeamFlag and 148 or 76
-
+        
             local block = Instance.new("Frame")
             block.Size = UDim2.new(1, -16, 0, blockHeight)
             block.Position = UDim2.new(0, 8, 0, yOffset)
@@ -4415,7 +4471,7 @@ local function setupGameInfo()
             local bs = Instance.new("UIStroke", block)
             bs.Color = Color3.fromRGB(45, 45, 50)
             bs.Thickness = 1
-
+        
             local nameLabel = Instance.new("TextLabel")
             nameLabel.Size = UDim2.new(1, -12, 0, 18)
             nameLabel.Position = UDim2.new(0, 6, 0, 4)
@@ -4426,7 +4482,70 @@ local function setupGameInfo()
             nameLabel.TextXAlignment = Enum.TextXAlignment.Left
             nameLabel.BackgroundTransparency = 1
             nameLabel.Parent = block
-
+        
+            if hasAnyTeamFlag and isLocal then
+                local eloBox = Instance.new("Frame")
+                eloBox.Size = UDim2.new(0, 86, 0, 24)
+                eloBox.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+                eloBox.BorderSizePixel = 0
+                eloBox.Parent = block
+                Instance.new("UICorner", eloBox).CornerRadius = UDim.new(0, 6)
+        
+                local xOffset = -88
+                if pu and pu.defensive then xOffset = -180 end
+                if pu and pu.offensive then xOffset = -270 end
+                eloBox.Position = UDim2.new(1, xOffset, 0, 2)
+        
+                local eloLabel = Instance.new("TextLabel")
+                eloLabel.Size = UDim2.new(0.6, 0, 1, 0)
+                eloLabel.Position = UDim2.new(0, 6, 0, 0)
+                eloLabel.Text = "ELO: --"
+                eloLabel.TextColor3 = Color3.fromRGB(220, 220, 225)
+                eloLabel.TextSize = 9
+                eloLabel.Font = Enum.Font.GothamBold
+                eloLabel.TextXAlignment = Enum.TextXAlignment.Left
+                eloLabel.BackgroundTransparency = 1
+                eloLabel.Parent = eloBox
+        
+                local deltaLabel = Instance.new("TextLabel")
+                deltaLabel.Size = UDim2.new(0.4, -6, 1, 0)
+                deltaLabel.Position = UDim2.new(0.6, 0, 0, 0)
+                deltaLabel.Text = ""
+                deltaLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
+                deltaLabel.TextSize = 9
+                deltaLabel.Font = Enum.Font.GothamBold
+                deltaLabel.TextXAlignment = Enum.TextXAlignment.Right
+                deltaLabel.BackgroundTransparency = 1
+                deltaLabel.Parent = eloBox
+        
+                task.spawn(function()
+                    while eloBox.Parent do
+                        local mode = ELO_Tracker.mode
+                        local current = ELO_Tracker.current[mode]
+                        local delta = ELO_Tracker.deltas[mode]
+                        
+                        if current then
+                            eloLabel.Text = string.format("ELO: %d", current)
+                            if delta and delta ~= 0 then
+                                if delta > 0 then
+                                    deltaLabel.Text = string.format("+%d", delta)
+                                    deltaLabel.TextColor3 = Color3.fromRGB(130, 220, 130)
+                                else
+                                    deltaLabel.Text = string.format("%d", delta)
+                                    deltaLabel.TextColor3 = Color3.fromRGB(220, 130, 130)
+                                end
+                            else
+                                deltaLabel.Text = ""
+                            end
+                        else
+                            eloLabel.Text = "ELO: N/A"
+                            deltaLabel.Text = ""
+                        end
+                        task.wait(0.5)
+                    end
+                end)
+            end
+        
             if hasAnyTeamFlag and pu then
                 local offName = pu.offensive
                 local defName = pu.defensive
@@ -4467,7 +4586,7 @@ local function setupGameInfo()
                     defStroke.Thickness = 1
                 end
             end
-
+        
             local towersLabel = Instance.new("TextLabel")
             towersLabel.Size = UDim2.new(0, 50, 0, 14)
             towersLabel.Position = UDim2.new(0, 6, 0, 22)
@@ -4478,7 +4597,7 @@ local function setupGameInfo()
             towersLabel.TextXAlignment = Enum.TextXAlignment.Left
             towersLabel.BackgroundTransparency = 1
             towersLabel.Parent = block
-
+        
             local towerColor = teamColor or Color3.fromRGB(80, 80, 85)
             for i = 1, 6 do
                 local col = (i - 1) % 6
@@ -4488,7 +4607,7 @@ local function setupGameInfo()
                     towerName and Color3.fromRGB(235, 235, 235) or Color3.fromRGB(100, 100, 105),
                     UDim2.new(0, 6 + col * 76, 0, 38), UDim2.new(0, 72, 0, 24))
             end
-
+        
             if hasAnyTeamFlag then
                 local enemiesLabel = Instance.new("TextLabel")
                 enemiesLabel.Size = UDim2.new(0, 50, 0, 14)
@@ -4500,7 +4619,7 @@ local function setupGameInfo()
                 enemiesLabel.TextXAlignment = Enum.TextXAlignment.Left
                 enemiesLabel.BackgroundTransparency = 1
                 enemiesLabel.Parent = block
-
+        
                 local enemyColor = Color3.fromRGB(140, 80, 200)
                 for i = 1, 12 do
                     local col = (i - 1) % 6
@@ -4512,7 +4631,7 @@ local function setupGameInfo()
                         UDim2.new(0, 6 + col * 76, 0, 84 + row * 28), UDim2.new(0, 72, 0, 24))
                 end
             end
-
+        
             yOffset = yOffset + blockHeight + 8
         end
 
