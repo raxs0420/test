@@ -2364,6 +2364,200 @@ local function runCritz()
     runMedicBuff("CRITZ", 1, false, 13, "critzMode", CRITZ_TARGETS, 50)()
 end
 
+local airStrikeTracker = {}
+local pvPPathCache = { timestamp = 0, folders = {} }
+
+local function hasPvPPaths()
+    local gameFolder = workspace:FindFirstChild("Game")
+    local mapFolder = gameFolder and gameFolder:FindFirstChild("Map")
+    if not mapFolder then return false end
+    return mapFolder:FindFirstChild("Path_Team1") ~= nil
+        and mapFolder:FindFirstChild("Path_Team2") ~= nil
+end
+
+local function getTeamColorName()
+    if LocalPlayer.Team then
+        local tn = LocalPlayer.Team.Name
+        if tn == "Blue" or tn == "Bright blue" then return "blue" end
+        if tn == "Red" or tn == "Bright red" then return "red" end
+        if tn == "Green" or tn == "Bright green" then return "green" end
+        if tn == "Yellow" or tn == "Bright yellow" then return "yellow" end
+    end
+    return nil
+end
+
+local function getMyPathFolderName()
+    local color = getTeamColorName()
+    if color == "blue" then return "Path_Team1" end
+    if color == "red" then return "Path_Team2" end
+    return nil
+end
+
+local function getPvPPathNodes(folderName)
+    local now = tick()
+    if now - pvPPathCache.timestamp >= 2 then
+        pvPPathCache.folders = {}
+        pvPPathCache.timestamp = now
+    end
+    if pvPPathCache.folders[folderName] then
+        return pvPPathCache.folders[folderName]
+    end
+    local nodes = {}
+    local gameFolder = workspace:FindFirstChild("Game")
+    local mapFolder = gameFolder and gameFolder:FindFirstChild("Map")
+    if mapFolder then
+        local folder = mapFolder:FindFirstChild(folderName)
+        if folder then
+            for _, desc in ipairs(folder:GetDescendants()) do
+                if desc:IsA("BasePart") then
+                    nodes[#nodes + 1] = desc.Position
+                end
+            end
+        end
+    end
+    pvPPathCache.folders[folderName] = nodes
+    return nodes
+end
+
+local function isEnemyOnMyPath(enemyPos)
+    if not hasPvPPaths() then return true end
+    local myFolder = getMyPathFolderName()
+    if not myFolder then return true end
+    local otherFolder = (myFolder == "Path_Team1") and "Path_Team2" or "Path_Team1"
+
+    local myNodes = getPvPPathNodes(myFolder)
+    if #myNodes == 0 then return true end
+    local otherNodes = getPvPPathNodes(otherFolder)
+
+    local minMy = math.huge
+    for _, pos in ipairs(myNodes) do
+        local d = (pos - enemyPos).Magnitude
+        if d < minMy then minMy = d end
+    end
+
+    if #otherNodes == 0 then return minMy <= 25 end
+
+    local minOther = math.huge
+    for _, pos in ipairs(otherNodes) do
+        local d = (pos - enemyPos).Magnitude
+        if d < minOther then minOther = d end
+    end
+
+    return minMy < minOther
+end
+
+local function predictAirStrikePosition(enemy, dt)
+    local pos = enemy.Position
+    local now = tick()
+
+    local pct, path = PathCalc.GetEnemyPct(enemy)
+    if pct and path then
+        local info = EnemyDB.info(enemy.Name)
+        local speed = info and info.speed or 0
+        if speed > 0 and path.length > 0 then
+            local futurePct = math.clamp(pct + (speed / path.length) * dt, 0, 1)
+            local p = PathCalc.GetPosAtPct(path, futurePct)
+            if p then return p end
+        end
+    end
+
+    local t = airStrikeTracker[enemy]
+    if t then
+        local elapsed = now - t.time
+        if elapsed >= 0.1 then
+            local vel = (pos - t.pos) / elapsed
+            t.pos = pos
+            t.time = now
+            return pos + vel * dt
+        end
+        return pos
+    end
+
+    airStrikeTracker[enemy] = { pos = pos, time = now }
+    return pos
+end
+
+local function runAirStrike()
+    local nextGlobalFire = 0
+    local commanderIndex = 0
+    while settings.activeAbilities["AIR_STRIKE"] do
+        local now = tick()
+        if now >= nextGlobalFire then
+            local commanders = {}
+            for part, data in pairs(towers) do
+                if data.owned and data.name == "Commander" and data.hash
+                    and data.topCount >= 5 and part.Parent then
+                    commanders[#commanders + 1] = part
+                end
+            end
+
+            if #commanders > 0 then
+                local enemies = getAllEnemies()
+                local threshold = EnemyDB.threshold()
+
+                local valid = {}
+                for _, enemy in ipairs(enemies) do
+                    local info = EnemyDB.info(enemy.Name)
+                    if not info or info.hp >= threshold then
+                        if isEnemyOnMyPath(enemy.Position) then
+                            valid[#valid + 1] = {
+                                part = enemy,
+                                pos = enemy.Position,
+                                predPos = predictAirStrikePosition(enemy, 1.5),
+                                isBoss = info and info.isBoss or false,
+                            }
+                        end
+                    end
+                end
+
+                local targetPos = nil
+                if #valid > 0 then
+                    local bestPred, bestCount = nil, 0
+                    for _, center in ipairs(valid) do
+                        local count = 0
+                        for _, other in ipairs(valid) do
+                            if (center.pos - other.pos).Magnitude <= 6 then
+                                count = count + 1
+                            end
+                        end
+                        if count > bestCount then
+                            bestCount = count
+                            bestPred = center.predPos
+                        end
+                    end
+
+                    if bestCount >= 2 then
+                        targetPos = bestPred
+                    else
+                        for _, e in ipairs(valid) do
+                            if e.isBoss then
+                                targetPos = e.predPos
+                                break
+                            end
+                        end
+                    end
+                end
+
+                if targetPos then
+                    table.sort(commanders, function(a, b)
+                        local da, db = towers[a], towers[b]
+                        return (da and da.hash or 0) < (db and db.hash or 0)
+                    end)
+                    commanderIndex = commanderIndex % #commanders + 1
+                    local cmdPart = commanders[commanderIndex]
+                    local pos = targetPos
+                    task.spawn(function()
+                        sendAbilityWithPosition(cmdPart, 3, pos)
+                    end)
+                    nextGlobalFire = now + 1
+                end
+            end
+        end
+
+        task.wait(0.1)
+    end
+end
+
 local abilityLoopMap = {
     GRENADE = runEnemyInRangeAbility("GRENADE", "Ranger", "bottom", 4, 1, 17, 1),
     FIRE_ROUNDS = runEnemyInRangeAbility("FIRE_ROUNDS", "Jet Trooper", "bottom", 3, 2, 25, 1),
@@ -2395,6 +2589,7 @@ local abilityLoopMap = {
     CRITZ = runCritz,
     VOID_SLAM = runVoidSlam,
     SUMMON_TROOPS = runSummonTroops,
+    AIR_STRIKE = runAirStrike,
     VOID_RIFT = runVoidRift,
     ARTILLERY = runArtillery,
 }
@@ -2431,6 +2626,7 @@ local abilityDisplayNames = {
     CRITZ = "Critz (Medic B/4+)",
     VOID_SLAM = "Void Slam (Void Traitor T/5)",
     SUMMON_TROOPS = "Summon Troops (Void Traitor T/5)",
+    AIR_STRIKE = "Air Strike (Commander T/5)",
     VOID_RIFT = "Void Rift (Void Traitor T/5)",
 }
 
@@ -2439,7 +2635,7 @@ local abilityOrder = {
     "GRENADE", "UNSTUN_HEALTH", "HEALTH_PACK", "HUMVEE", "FLARE", "ENCORE",
     "SHOCK_ROUNDS", "STEALTH_SENSOR", "AP_ROUNDS", "N_BOUNTY", "G_BOUNTY", "OVERLOAD",
     "GOLDEN_RANGER", "WARSHIP", "FIRE_ROUNDS", "GRAND_SLAM", "RAGE", "HE_ROUNDS", "OVERCHARGE", "REBOOT_SYSTEM",
-    "MEDIC_DRONE", "CALL_TO_ARMS", "SPAWN_APC", "DEBUFF_GRENADE", "UBER", "CRITZ"
+    "MEDIC_DRONE", "CALL_TO_ARMS", "SPAWN_APC", "AIR_STRIKE", "DEBUFF_GRENADE", "UBER", "CRITZ"
 }
 
 local rowFrame = nil
@@ -2876,15 +3072,28 @@ local function getCurrentWave()
 end
 
 local ecoPriority = {
-    {name = "Golden Knight PVP", wave = 30},
-    {name = "Heavy Metal", wave = 26},
-    {name = "Scout Bot PVP", wave = 17},
-    {name = "Nasowy PVP", wave = 16},
-    {name = "Knyght PVP", wave = 14},
-    {name = "Fallout", wave = 12},
-    {name = "Slow PVP", wave = 7},
-    {name = "Heavy Droid", wave = 5},
-    {name = "Normal Droid", wave = 1},
+    {name = "Resurrected Slammer PVP", wave = 24}, -- 30.7143 eco/sec
+    {name = "Golden Knight PVP", wave = 30}, -- 26.6667 eco/sec
+    {name = "Heavy Metal", wave = 26}, -- 19.0909 eco/sec
+    {name = "Nosowy PVP", wave = 16}, -- 11.0000 eco/sec
+    {name = "Scout Bot PVP", wave = 17}, -- 10.0000 eco/sec
+    {name = "Carcin PVP", wave = 24}, -- 10.0000 eco/sec
+    {name = "Toxic Waste 2", wave = 15}, -- 9.2308 eco/sec
+    {name = "Knyght PVP", wave = 14}, -- 8.3333 eco/sec
+    {name = "Fallout", wave = 12}, -- 7.5556 eco/sec
+    {name = "Flesh", wave = 13}, -- 6.4000 eco/sec
+    {name = "Sturmtruppler", wave = 30}, -- 5.0000 eco/sec
+    {name = "Cloaker", wave = 17}, -- 4.0000 eco/sec
+    {name = "Shade PVP", wave = 16}, -- 3.6000 eco/sec
+    {name = "Malfunction", wave = 17}, -- 3.3333 eco/sec
+    {name = "Heavy Droid", wave = 5}, -- 3.0000 eco/sec
+    {name = "Slow PVP", wave = 5}, -- 2.6667 eco/sec
+    {name = "Boss 1", wave = 9}, -- 2.5000 eco/sec
+    {name = "Night Knight", wave = 22}, -- 1.6667 eco/sec
+    {name = "Normal Droid", wave = 2}, -- 1.6667 eco/sec
+    {name = "Normal PVP", wave = 2}, -- 1.5625 eco/sec
+    {name = "Fast Droid", wave = 3}, -- 1.0000 eco/sec
+    {name = "Boss 2", wave = 16}, -- 0.5556 eco/sec
 }
 
 local function getBestEcoEnemy(wave, equipped)
@@ -3606,7 +3815,7 @@ task.spawn(runAntiLagLoops)
 
 task.spawn(function()
     while true do
-        task.wait(500)
+        task.wait(1500)
         for enemy in pairs(AntiLag.enemyProcessed) do
             if not enemy or not enemy.Parent then
                 AntiLag.enemyProcessed[enemy] = nil
@@ -3625,6 +3834,11 @@ task.spawn(function()
         for part in pairs(watchedTowers) do
             if not part or not part.Parent then
                 watchedTowers[part] = nil
+            end
+        end
+        for enemy in pairs(airStrikeTracker) do
+            if not enemy or not enemy.Parent then
+                airStrikeTracker[enemy] = nil
             end
         end
     end
