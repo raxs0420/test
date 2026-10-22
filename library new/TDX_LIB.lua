@@ -16,6 +16,7 @@ local MATCH_DISTANCE = 0.01
 local COLLISION_DISTANCE = 0.1
 local IDLE_POLL = 0.01
 local PLACE_MAX_ATTEMPTS = 5
+local REBUILD_TIMEOUT = 10
 local DEBUG_MAX = 1000
 local REBUILD_WAIT = 7
 local MAX_PATH_LEVEL = 5
@@ -969,10 +970,12 @@ local function doRebuildSlot(slotId)
     setStatus("rebuilding slot " .. tostring(slotId) .. " (" .. tostring(s.name) .. ")")
     action(string.format("REBUILD slot %s %s", tostring(slotId), tostring(s.name)))
 
+    local rebuildState = {}
     local ok, newId = pcall(placeInternal, s.name, s.pos, s.aim, s.rebuild, true, function()
         local cur = TDX._slots[slotId]
         return cur and cur.deadId == deadId and cur.autoReplace and not cur.awaitingGameRevive
-    end)
+    end, rebuildState)
+
     local sl = TDX._slots[slotId]
 
     if not ok then
@@ -981,6 +984,7 @@ local function doRebuildSlot(slotId)
     end
 
     if not sl then return end
+
     if sl.deadId ~= deadId then
         if sl.deadId == nil and sl.actualId == newId then
             log(string.format("Slot %s already updated by factory event", tostring(slotId)))
@@ -989,10 +993,30 @@ local function doRebuildSlot(slotId)
             return
         end
     end
+
     if not newId then
         local cur = TDX._slots[slotId]
         if not cur or cur.deadId ~= deadId or cur.awaitingGameRevive then
             log(string.format("Slot %s abandoned (state changed)", tostring(slotId)))
+            return
+        end
+
+        if cur.actualId and cur.actualId ~= deadId then
+            log(string.format("Slot %s actually succeeded despite timeout", tostring(slotId)))
+            return
+        end
+
+        local elapsed = rebuildState.cashReadyAt and (tick() - rebuildState.cashReadyAt) or 0
+        if elapsed >= REBUILD_TIMEOUT then
+            warnUser(string.format("Slot %s (%s) rebuild timed out after %ds - abandoning slot",
+                tostring(slotId), tostring(cur.name), REBUILD_TIMEOUT))
+            cur.deadId = nil
+            cur.deathLevel = nil
+            cur.deathTime = nil
+            cur.failCount = 0
+            cur.autoReplace = false
+            queueRemove(slotId)
+            resolveKey(TDX._aliveWaiters, slotId)
             return
         end
 
@@ -1103,7 +1127,7 @@ ensureWorker = function()
     end)
 end
 
-placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
+placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue, rebuildState)
     if not PlaceTower then return nil end
 
     if not priority then
@@ -1111,6 +1135,13 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
         while TDX._rebuildUrgent > 0 and tick() < deadline do
             task.wait(0.05)
         end
+    end
+
+    local function timedOut()
+        if rebuildState and rebuildState.cashReadyAt then
+            return (tick() - rebuildState.cashReadyAt) >= REBUILD_TIMEOUT
+        end
+        return false
     end
 
     local attempts = 0
@@ -1126,6 +1157,10 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
                     end
                     return nil
                 end
+                if timedOut() then
+                    log(string.format("Rebuild %s timed out during cash wait", name))
+                    return nil
+                end
                 if not loggedWait then
                     log(string.format("WAIT CASH %s -> need %d, have %d",
                         name, cost, getCashValue()))
@@ -1136,6 +1171,20 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
             if loggedWait then
                 log(string.format("Cash ready for %s (%d), proceeding", name, cost))
             end
+        end
+
+        if rebuildState and not rebuildState.cashReadyAt then
+            rebuildState.cashReadyAt = tick()
+        end
+
+        if timedOut() then
+            log(string.format("Rebuild %s timed out before attempt", name))
+            return nil
+        end
+
+        if shouldContinue and not shouldContinue() then
+            log(string.format("Rebuild %s aborted before attempt (slot state changed)", name))
+            return nil
         end
 
         attempts = attempts + 1
@@ -1185,10 +1234,22 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue)
         releasePlaceLock()
 
         if ok2 and res == true then
-            local id = await(10)
+            local awaitTimeout = 10
+            if rebuildState and rebuildState.cashReadyAt then
+                local remaining = REBUILD_TIMEOUT - (tick() - rebuildState.cashReadyAt)
+                awaitTimeout = math.max(0.25, math.min(10, remaining))
+            end
+
+            local id = await(awaitTimeout)
             if id then return id end
+
             for i, p in ipairs(TDX._pendingPlaces) do
                 if p == pending then table.remove(TDX._pendingPlaces, i) break end
+            end
+
+            if timedOut() then
+                log(string.format("Rebuild %s timed out waiting for factory ID", name))
+                return nil
             end
             return nil
         end
