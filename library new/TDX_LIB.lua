@@ -606,7 +606,7 @@ if TowerFactoryQueueUpdated then
                 if not TDX._isRebuildingQueue then
                     TDX._aliveState[id] = true
                 end
-                
+
                 if type(lvl) == "table" then
                     local t = math.min(lvl[1] or 0, MAX_PATH_LEVEL)
                     local b = math.min(lvl[2] or 0, MAX_PATH_LEVEL)
@@ -623,6 +623,7 @@ if TowerFactoryQueueUpdated then
             end
 
             if username == LocalPlayer.Name and typeof(pos) == "Vector3" then
+                local resolvedPending = false
                 for i = 1, #TDX._pendingPlaces do
                     local p = TDX._pendingPlaces[i]
                     if not p.id and p.name == name and typeof(p.pos) == "Vector3" then
@@ -630,26 +631,29 @@ if TowerFactoryQueueUpdated then
                             p.id = id
                             table.remove(TDX._pendingPlaces, i)
                             p.resolve(id)
+                            resolvedPending = true
                             break
                         end
                     end
                 end
 
-                local slotId, slot = findSlotByPosAndName(name, pos)
-                if slotId and slot then
-                    local oldId = slot.actualId
-                    slot.actualId = id
-                    slot.deadId = nil
-                    slot.deathLevel = nil
-                    slot.deathTime = nil
-                    slot.awaitingGameRevive = false
-                    slot.pos = pos
-                    TDX._idRemap[slotId] = id
-                    TDX._aliveState[id] = true
-                    
-                    if oldId and oldId ~= id then
-                        log(string.format("Slot %s (%s) auto-updated ID %s -> %s via factory event",
-                            tostring(slotId), tostring(name), tostring(oldId), tostring(id)))
+                if not resolvedPending then
+                    local slotId, slot = findSlotByPosAndName(name, pos)
+                    if slotId and slot and slot.awaitingGameRevive then
+                        local oldId = slot.actualId
+                        slot.actualId = id
+                        slot.deadId = nil
+                        slot.deathLevel = nil
+                        slot.deathTime = nil
+                        slot.awaitingGameRevive = false
+                        slot.pos = pos
+                        TDX._idRemap[slotId] = id
+                        TDX._aliveState[id] = true
+
+                        if oldId and oldId ~= id then
+                            log(string.format("Slot %s (%s) game-revived ID %s -> %s",
+                                tostring(slotId), tostring(name), tostring(oldId), tostring(id)))
+                        end
                     end
                 end
             end
@@ -867,9 +871,9 @@ do
             oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
                 local method = getnamecallmethod()
                 local args = table.pack(...)
-                
+
                 local result = oldNamecall(self, ...)
-                
+
                 if self == SellTower and method == "FireServer" and not TDX._internalSell then
                     local hash = tonumber(args[1])
                     if hash then
@@ -888,7 +892,7 @@ do
                         end)
                     end
                 end
-                
+
                 return result
             end))
         end)
@@ -1036,12 +1040,28 @@ local function doRebuildSlot(slotId)
         setStatus(string.format("restoring slot %s to %d/%d",
             tostring(slotId), targetT, targetB))
 
-        local ok2, err = pcall(restoreLevel, slotId, targetT, targetB)
-        if not ok2 then warnUser("restoreLevel error:", err) end
+        local ok2, restoreResult, restoreReason = pcall(restoreLevel, slotId, targetT, targetB)
 
         local s2 = TDX._slots[slotId]
         if s2 then s2.restoring = false end
         resolveKey(TDX._aliveWaiters, slotId)
+
+        if not ok2 then
+            warnUser("restoreLevel error:", restoreResult)
+        elseif restoreResult == false and restoreReason == "wrong_path" then
+            local cur = TDX._slots[slotId]
+            if cur then
+                warnUser(string.format("Slot %s (%s) restore went to wrong path - abandoning slot",
+                    tostring(slotId), tostring(cur.name)))
+                cur.autoReplace = false
+                cur.deadId = nil
+                cur.deathLevel = nil
+                cur.deathTime = nil
+                cur.failCount = 0
+                queueRemove(slotId)
+                resolveKey(TDX._aliveWaiters, slotId)
+            end
+        end
     end
 end
 
@@ -1211,7 +1231,7 @@ end
 
 restoreLevel = function(slotId, targetT, targetB)
     local slot = TDX._slots[slotId]
-    if not slot then return false end
+    if not slot then return false, "gone" end
     local actual = slot.actualId
 
     targetT = math.min(targetT or 0, MAX_PATH_LEVEL)
@@ -1219,7 +1239,7 @@ restoreLevel = function(slotId, targetT, targetB)
 
     while true do
         local s = TDX._slots[slotId]
-        if not s or s.actualId ~= actual then return false end
+        if not s or s.actualId ~= actual then return false, "state_changed" end
 
         local lvl = TDX._levelCache[actual] or { 0, 0 }
         if lvl[1] >= targetT and lvl[2] >= targetB then return true end
@@ -1230,15 +1250,28 @@ restoreLevel = function(slotId, targetT, targetB)
         else
             patch, need = 2, targetB - lvl[2]
         end
+        local otherPatch = (patch == 1) and 2 or 1
 
         waitMinFireGap("upgrade_" .. tostring(actual))
         markFire("upgrade_" .. tostring(actual))
         pcall(function() TowerUpgradeRequest:FireServer(actual, patch, need) end)
 
-        awaitLevelChange(actual, lvl, RESTORE_AWAIT)
+        local after = awaitLevelChange(actual, lvl, RESTORE_AWAIT)
 
         if TDX._aliveState[actual] == false then
-            return false
+            return false, "died"
+        end
+
+        if after then
+            local reqIncrease = (after[patch] or 0) - (lvl[patch] or 0)
+            local otherIncrease = (after[otherPatch] or 0) - (lvl[otherPatch] or 0)
+            if reqIncrease <= 0 and otherIncrease > 0 then
+                warnUser(string.format(
+                    "Restore WRONG PATH on slot %s (ID %s): asked patch %d, patch %d increased (%d/%d -> %d/%d)",
+                    tostring(slotId), tostring(actual), patch, otherPatch,
+                    lvl[1], lvl[2], after[1], after[2]))
+                return false, "wrong_path"
+            end
         end
     end
 end
@@ -1449,7 +1482,7 @@ function TDX:Register(name, pos, id, rebuild)
 
         TDX._idRemap[existingSlotId] = id
         TDX._aliveState[id] = true
-        
+
         if oldId and oldId ~= id then
             log(string.format("Slot %s (%s) pos+name match - updated ID %s -> %s",
                 tostring(existingSlotId), tostring(name), tostring(oldId), tostring(id)))
@@ -1805,7 +1838,7 @@ function TDX:VoteMap(map, attempts)
         local state = _latestMapState
         local found = false
         local exactName = map
-        
+
         if state and type(state.Options) == "table" then
             for _, name in ipairs(state.Options) do
                 if normalizeMapName(name) == target then
