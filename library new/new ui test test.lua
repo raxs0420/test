@@ -626,10 +626,10 @@ local function rejoin_match()
                     local payload
                     local rawMode = DisplayName
                     local modeToUse = string.gsub(rawMode, " ", "")
-                    local actNumber = rawMode:match("^Act%s*(%d+)")
 
-                    if actNumber then
-                        payload = { difficulty = rawMode, night = tonumber(actNumber), count = 1, mode = "halloween2026" }
+                    local act_num = EventMode and EventMode:match("^Act(%d+)")
+                    if act_num then
+                        payload = { difficulty = EventMode, night = tonumber(act_num), count = 1, mode = "halloween2026" }
                     elseif modeToUse == "PizzaParty" then
                         payload = { mode = "halloween", count = 1 }
                     elseif modeToUse == "Hardcore" then
