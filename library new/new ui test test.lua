@@ -602,6 +602,12 @@ local function check_lobby_rejoin_timer()
     return false
 end
 
+local function parse_act_number(str)
+    if type(str) ~= "string" then return nil end
+    local n = str:match("^Act%s*(%d+)")
+    return n and tonumber(n) or nil
+end
+
 local function rejoin_match()
     if not _G.AutoRejoin then return end
     local remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteFunction")
@@ -620,13 +626,30 @@ local function rejoin_match()
         local gameState = stateReplicator and stateReplicator:FindFirstChild("GameStateReplicator")
         if gameState then
             local DisplayName = gameState:GetAttribute("DifficultyDisplayName")
-            local EventMode = gameState:GetAttribute("GameMode")
+            local EventMode  = gameState:GetAttribute("GameMode")
+            local GameMode   = gameState:GetAttribute("GameMode")
             if DisplayName then
                 local ok, result = pcall(function()
                     local payload
                     local rawMode = DisplayName
-                    local modeToUse = string.gsub(rawMode, " ", "") 
-                    if modeToUse == "PizzaParty" then
+                    local modeToUse = string.gsub(rawMode, " ", "")
+
+                    local actNum = parse_act_number(rawMode)
+
+                    if not actNum and (GameMode == "halloween2026" or EventMode == "Halloween2026") then
+                        if _G.LastPlayedMode then
+                            actNum = parse_act_number(_G.LastPlayedMode)
+                        end
+                    end
+
+                    if actNum then
+                        payload = {
+                            difficulty = "Act" .. tostring(actNum),
+                            night      = actNum,
+                            count      = 1,
+                            mode       = "halloween2026"
+                        }
+                    elseif modeToUse == "PizzaParty" then
                         payload = { mode = "halloween", count = 1 }
                     elseif modeToUse == "Hardcore" then
                         payload = { mode = "hardcore", difficulty = "Easy", count = 1 }
@@ -644,6 +667,7 @@ local function rejoin_match()
                     else
                         payload = { difficulty = rawMode, mode = "survival", count = 1 }
                     end
+
                     return remote:InvokeServer("Multiplayer", "v2:start", payload)
                 end)
                 if ok and check_res_ok(result) then
