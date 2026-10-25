@@ -620,16 +620,22 @@ local function rejoin_match()
         local gameState = stateReplicator and stateReplicator:FindFirstChild("GameStateReplicator")
         if gameState then
             local DisplayName = gameState:GetAttribute("DifficultyDisplayName")
-            local EventMode = gameState:GetAttribute("GameMode")
+            local GameMode = gameState:GetAttribute("GameMode")
+            local Difficulty = gameState:GetAttribute("Difficulty")
             if DisplayName then
                 local ok, result = pcall(function()
                     local payload
                     local rawMode = DisplayName
                     local modeToUse = string.gsub(rawMode, " ", "")
 
-                    local act_num = EventMode and EventMode:match("^Act(%d+)")
-                    if act_num then
-                        payload = { difficulty = EventMode, night = tonumber(act_num), count = 1, mode = "halloween2026" }
+                    local act_match = Difficulty and Difficulty:match("^Act(%d+)")
+                    if GameMode == "Halloween2026" and act_match then
+                        payload = {
+                            difficulty = Difficulty,
+                            night = tonumber(act_match),
+                            count = 1,
+                            mode = "halloween2026"
+                        }
                     elseif modeToUse == "PizzaParty" then
                         payload = { mode = "halloween", count = 1 }
                     elseif modeToUse == "Hardcore" then
@@ -640,7 +646,7 @@ local function rejoin_match()
                         payload = { mode = "polluted", count = 1 }
                     elseif modeToUse == "Badlands" then
                         payload = { mode = "badlands", count = 1 }
-                    elseif EventMode == "DuckEvent" then
+                    elseif GameMode == "DuckEvent" then
                         payload = { difficulty = rawMode, mode = "ducky2025", count = 1 }
                     elseif modeToUse == "Trial" then
                         SmartTeleportToLobby()
