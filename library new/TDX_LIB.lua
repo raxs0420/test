@@ -1244,13 +1244,19 @@ restoreLevel = function(slotId, targetT, targetB)
         local lvl = TDX._levelCache[actual] or { 0, 0 }
         if lvl[1] >= targetT and lvl[2] >= targetB then return true end
 
-        local patch, need
-        if lvl[1] < targetT then
-            patch, need = 1, targetT - lvl[1]
+        local patch, need, otherPatch
+        local remainingT = targetT - lvl[1]
+        local remainingB = targetB - lvl[2]
+
+        if remainingT <= 0 then
+            patch, need, otherPatch = 2, remainingB, 1
+        elseif remainingB <= 0 then
+            patch, need, otherPatch = 1, remainingT, 2
+        elseif targetB > targetT then
+            patch, need, otherPatch = 2, remainingB, 1
         else
-            patch, need = 2, targetB - lvl[2]
+            patch, need, otherPatch = 1, remainingT, 2
         end
-        local otherPatch = (patch == 1) and 2 or 1
 
         waitMinFireGap("upgrade_" .. tostring(actual))
         markFire("upgrade_" .. tostring(actual))
@@ -1258,12 +1264,16 @@ restoreLevel = function(slotId, targetT, targetB)
 
         local after = awaitLevelChange(actual, lvl, RESTORE_AWAIT)
 
+        if not after and TDX._aliveState[actual] ~= false then
+            after = awaitLevelChange(actual, lvl, RESTORE_AWAIT + 1)
+        end
+
         if TDX._aliveState[actual] == false then
             return false, "died"
         end
 
         if after then
-            local reqIncrease = (after[patch] or 0) - (lvl[patch] or 0)
+            local reqIncrease   = (after[patch] or 0)      - (lvl[patch] or 0)
             local otherIncrease = (after[otherPatch] or 0) - (lvl[otherPatch] or 0)
             if reqIncrease <= 0 and otherIncrease > 0 then
                 warnUser(string.format(
@@ -1272,6 +1282,12 @@ restoreLevel = function(slotId, targetT, targetB)
                     lvl[1], lvl[2], after[1], after[2]))
                 return false, "wrong_path"
             end
+        else
+            log(string.format(
+                "Restore unconfirmed slot %s (ID %s) patch %d (%d/%d -> %d/%d) - backing off",
+                tostring(slotId), tostring(actual), patch,
+                lvl[1], lvl[2], targetT, targetB))
+            task.wait(0.8)
         end
     end
 end
