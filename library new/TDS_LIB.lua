@@ -2325,4 +2325,11 @@ function create_buttons()
     end)
 end
 
+task.spawn(function()
+    game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    create_buttons()
+end)
+
+return TDS
+
 return TDS
