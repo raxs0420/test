@@ -1871,6 +1871,76 @@ local function start_claim_rewards()
     auto_claim_rewards = false
 end
 
+local auto_cutscene_skip_running = false
+
+local function find_hold_to_skip_button()
+    local pg = get_player_gui()
+    if not pg then return nil end
+    for _, v in ipairs(pg:GetDescendants()) do
+        if (v:IsA("TextLabel") or v:IsA("TextButton"))
+            and (v.Text or ""):upper():find("HOLD TO SKIP") then
+            local c = v
+            while c and c ~= pg do
+                if c:IsA("GuiButton") then return c end
+                c = c.Parent
+            end
+        end
+    end
+    return nil
+end
+
+local function fire_cutscene_skip(button)
+    if not button or not button.Parent then return end
+    pcall(function() firesignal(button.MouseButton1Down) end)
+    task.wait(1.5)
+    if not button.Parent then return end
+    pcall(function() firesignal(button.MouseButton1Up) end)
+    pcall(function() firesignal(button.MouseButton1Click) end)
+    pcall(function() firesignal(button.Activated) end)
+end
+
+local function start_auto_cutscene_skip()
+    if auto_cutscene_skip_running then return end
+    auto_cutscene_skip_running = true
+
+    local pg = get_player_gui()
+    local last = nil
+
+    local function try_skip()
+        local b = find_hold_to_skip_button()
+        if b and b ~= last then
+            last = b
+            task.spawn(fire_cutscene_skip, b)
+        elseif not b then
+            last = nil
+        end
+    end
+
+    if pg then
+        pg.DescendantAdded:Connect(function(obj)
+            if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                try_skip()
+            end
+        end)
+    end
+
+    task.spawn(function()
+        while true do
+            try_skip()
+            task.wait(0.5)
+        end
+    end)
+end
+
+task.spawn(function()
+    while true do
+        if not auto_cutscene_skip_running then
+            start_auto_cutscene_skip()
+        end
+        task.wait(1)
+    end
+end)
+
 local function start_anti_lag()
     if anti_lag_running then return end
     anti_lag_running = true
