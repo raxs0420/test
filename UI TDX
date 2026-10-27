@@ -31,7 +31,7 @@ local abilityUsedQueue = {}
 local distributeThreads = {}
 local activeDroneThreads = {}
 
-local function addDebugLog(message)
+function addDebugLog(message)
     if not debugEnabled then return end
     local timestamp = os.date("%H:%M:%S")
     local logEntry = string.format("[%s] %s", timestamp, message)
@@ -199,6 +199,20 @@ task.spawn(function()
     end
 end)
 
+function randomOffsetInSphere(radius)
+    local u = math.random() * 2 - 1
+    local theta = math.random() * 2 * math.pi
+    local r = radius * (math.random() ^ (1/3))
+    local xy = math.sqrt(1 - u * u)
+    return Vector3.new(
+        r * xy * math.cos(theta),
+        r * xy * math.sin(theta),
+        r * u
+    )
+end
+
+local GHOST_DRONE_RADIUS = 0.5
+
 local SettingsFile = "TDXAuto_Settings.json"
 local defaultSettings = {
     autoTargetMode = nil, autoSkip = false, activeAbilities = {}, axeEnemyThreshold = 3,
@@ -208,7 +222,7 @@ local defaultSettings = {
 }
 local settings = {}
 
-local function loadSettings()
+function loadSettings()
     local success, data = pcall(readfile, SettingsFile)
     if success and data then
         local decoded = game:GetService("HttpService"):JSONDecode(data)
@@ -236,7 +250,7 @@ local function loadSettings()
     end
 end
 
-local function saveSettings()
+function saveSettings()
     local encoded = game:GetService("HttpService"):JSONEncode(settings)
     pcall(writefile, SettingsFile, encoded)
 end
@@ -342,7 +356,7 @@ local TAB_GAP = 6
 local TAB_HEIGHT = 32
 local TAB_Y = 4
 
-local function makeTabButton(text)
+function makeTabButton(text)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(0, TAB_WIDTH, 0, TAB_HEIGHT)
     btn.Text = text
@@ -371,7 +385,7 @@ local Tabs = {
 }
 Tabs.Ordered = { Tabs.Main, Tabs.AutoRevive, Tabs.PvP, Tabs.Abilities, Tabs.GameInfo, Tabs.Towers, Tabs.AntiLag, Tabs.Debug }
 
-local function updateTabLayout()
+function updateTabLayout()
     local x = 0
     for _, btn in ipairs(Tabs.Ordered) do
         if btn.Visible then
@@ -579,7 +593,7 @@ local clearDebugStroke = Instance.new("UIStroke", clearDebugBtn)
 clearDebugStroke.Color = Color3.fromRGB(50, 50, 55)
 clearDebugStroke.Thickness = 1
 
-local function styleButton(btn, accent)
+function styleButton(btn, accent)
     btn.AutoButtonColor = false
     btn.Font = Enum.Font.Gotham
     local corner = Instance.new("UICorner", btn)
@@ -617,7 +631,7 @@ local towerPauseUntil = {}
 local pendingPlacements = {}
 local watchedTowers = {}
 
-local function updateTowersList()
+function updateTowersList()
     if not Scrolls.Towers then return end
     for _, child in ipairs(Scrolls.Towers:GetChildren()) do
         if child:IsA("Frame") or child:IsA("TextLabel") or child:IsA("UIListLayout") then
@@ -1571,11 +1585,11 @@ local function runCallToArms()
     local SYNC_RANGE = 15
     local groupThreads = {}
 
-    local function posKey(pos)
+    function posKey(pos)
         return string.format("%.0f_%.0f_%.0f", pos.X, pos.Y, pos.Z)
     end
 
-    local function getCommanders()
+    function getCommanders()
         local list = {}
         for part, data in pairs(towers) do
             if data.owned and data.name == "Commander" and data.hash and part.Parent and data.topCount >= 3 then
@@ -1585,7 +1599,7 @@ local function runCallToArms()
         return list
     end
 
-    local function formGroups(commanders)
+    function formGroups(commanders)
         local groups = {}
         local ungrouped = {}
         for i, c in ipairs(commanders) do ungrouped[i] = c end
@@ -1617,20 +1631,20 @@ local function runCallToArms()
         return groups
     end
 
-    local function groupKey(positions)
+    function groupKey(positions)
         local keys = {}
         for _, p in ipairs(positions) do table.insert(keys, posKey(p)) end
         table.sort(keys)
         return table.concat(keys, "|")
     end
 
-    local function getGapForSize(size)
+    function getGapForSize(size)
         if size >= 3 then return 15.5 end
         if size == 2 then return 23 end
         return 0.5
     end
 
-    local function fireMember(part, hash)
+    function fireMember(part, hash)
         if not part or not part.Parent or not hash then return false end
         abilityUsedQueue[hash] = nil
         if sendAbilityNoPosition(part, 1) == true then return true end
@@ -1646,7 +1660,7 @@ local function runCallToArms()
         return false
     end
 
-    local function startGroupThread(key, positions)
+    function startGroupThread(key, positions)
         local state = {
             key = key,
             positions = positions,
@@ -1685,7 +1699,7 @@ local function runCallToArms()
         end)
     end
 
-    local function refreshLiveRefs()
+    function refreshLiveRefs()
         local live = {}
         for part, data in pairs(towers) do
             if data.owned and data.name == "Commander" and data.hash and part.Parent and data.topCount >= 3 then
@@ -1888,7 +1902,10 @@ local function runGhostDrone()
                         targetPos = gp
                     end
                 end
-                task.spawn(function() sendAbilityWithPosition(part, 1, targetPos) end)
+
+                local finalPos = targetPos + randomOffsetInSphere(GHOST_DRONE_RADIUS)
+
+                task.spawn(function() sendAbilityWithPosition(part, 1, finalPos) end)
             end
         end
         task.wait(0.5)
@@ -2226,10 +2243,35 @@ local function runMedicBuff(abilityName, slot, topPath, cycleTime, modeKey, allo
                         local state = groupStates[key]
                         if state and not state.pending and now >= state.nextFireAt then
                             local picked = nil
+                            local bestPrio, bestLevel, bestTop = math.huge, -1, -1
+                            
                             for _, t in ipairs(targets) do
                                 if not claimed[t.hash] and groupMembersInRange(state.members, t, range) then
-                                    picked = t
+                                    bestPrio = t.prio
+                                    bestLevel = t.level
+                                    bestTop = t.topLevel
                                     break
+                                end
+                            end
+                            
+                            if bestPrio ~= math.huge then
+                                local bestDist = math.huge
+                                local groupCenter = Vector3.zero
+                                for _, m in ipairs(state.members) do
+                                    groupCenter = groupCenter + m.pos
+                                end
+                                groupCenter = groupCenter / #state.members
+                    
+                                for _, t in ipairs(targets) do
+                                    if not claimed[t.hash] and groupMembersInRange(state.members, t, range) then
+                                        if t.prio == bestPrio and t.level == bestLevel and t.topLevel == bestTop then
+                                            local dist = (groupCenter - t.pos).Magnitude
+                                            if dist < bestDist then
+                                                bestDist = dist
+                                                picked = t
+                                            end
+                                        end
+                                    end
                                 end
                             end
 
@@ -2356,18 +2398,18 @@ local CRITZ_TARGETS = {
     ["Juggernaut"] = true,
 }
 
-local function runUber()
+function runUber()
     runMedicBuff("UBER", 1, true, 24, "uberMode", UBER_TARGETS, 45)()
 end
 
-local function runCritz()
+function runCritz()
     runMedicBuff("CRITZ", 1, false, 13, "critzMode", CRITZ_TARGETS, 50)()
 end
 
 local airStrikeTracker = {}
 local pvPPathCache = { timestamp = 0, folders = {} }
 
-local function hasPvPPaths()
+function hasPvPPaths()
     local gameFolder = workspace:FindFirstChild("Game")
     local mapFolder = gameFolder and gameFolder:FindFirstChild("Map")
     if not mapFolder then return false end
@@ -2375,7 +2417,7 @@ local function hasPvPPaths()
         and mapFolder:FindFirstChild("Path_Team2") ~= nil
 end
 
-local function getTeamColorName()
+function getTeamColorName()
     if LocalPlayer.Team then
         local tn = LocalPlayer.Team.Name
         if tn == "Blue" or tn == "Bright blue" then return "blue" end
@@ -2386,14 +2428,14 @@ local function getTeamColorName()
     return nil
 end
 
-local function getMyPathFolderName()
+function getMyPathFolderName()
     local color = getTeamColorName()
     if color == "blue" then return "Path_Team1" end
     if color == "red" then return "Path_Team2" end
     return nil
 end
 
-local function getPvPPathNodes(folderName)
+function getPvPPathNodes(folderName)
     local now = tick()
     if now - pvPPathCache.timestamp >= 2 then
         pvPPathCache.folders = {}
@@ -2419,7 +2461,7 @@ local function getPvPPathNodes(folderName)
     return nodes
 end
 
-local function isEnemyOnMyPath(enemyPos)
+function isEnemyOnMyPath(enemyPos)
     if not hasPvPPaths() then return true end
     local myFolder = getMyPathFolderName()
     if not myFolder then return true end
@@ -2493,59 +2535,66 @@ local function runAirStrike()
 
             if #commanders > 0 then
                 local enemies = getAllEnemies()
-                local threshold = EnemyDB.threshold()
 
-                local valid = {}
+                local pathEnemies = {}
                 for _, enemy in ipairs(enemies) do
-                    local info = EnemyDB.info(enemy.Name)
-                    if not info or info.hp >= threshold then
-                        if isEnemyOnMyPath(enemy.Position) then
-                            valid[#valid + 1] = {
-                                part = enemy,
-                                pos = enemy.Position,
-                                predPos = predictAirStrikePosition(enemy, 1.5),
-                                isBoss = info and info.isBoss or false,
-                            }
-                        end
+                    if isEnemyOnMyPath(enemy.Position) then
+                        local info = EnemyDB.info(enemy.Name)
+                        pathEnemies[#pathEnemies + 1] = {
+                            part = enemy,
+                            pos = enemy.Position,
+                            hp = info and info.hp or 0,
+                            isBoss = info and info.isBoss or false,
+                        }
                     end
                 end
 
-                local targetPos = nil
-                if #valid > 0 then
-                    local bestPred, bestCount = nil, 0
-                    for _, center in ipairs(valid) do
+                local targetEnemy = nil
+
+                for _, e in ipairs(pathEnemies) do
+                    if e.isBoss then
+                        targetEnemy = e
+                        break
+                    end
+                end
+
+                if not targetEnemy then
+                    local bestCenter, bestCount = nil, 0
+                    for _, center in ipairs(pathEnemies) do
                         local count = 0
-                        for _, other in ipairs(valid) do
+                        for _, other in ipairs(pathEnemies) do
                             if (center.pos - other.pos).Magnitude <= 6 then
                                 count = count + 1
                             end
                         end
                         if count > bestCount then
                             bestCount = count
-                            bestPred = center.predPos
+                            bestCenter = center
                         end
                     end
+                    if bestCount >= 3 then
+                        targetEnemy = bestCenter
+                    end
+                end
 
-                    if bestCount >= 2 then
-                        targetPos = bestPred
-                    else
-                        for _, e in ipairs(valid) do
-                            if e.isBoss then
-                                targetPos = e.predPos
-                                break
-                            end
+                if not targetEnemy then
+                    local bestHp = -1
+                    for _, e in ipairs(pathEnemies) do
+                        if e.hp > bestHp then
+                            bestHp = e.hp
+                            targetEnemy = e
                         end
                     end
                 end
 
-                if targetPos then
+                if targetEnemy then
+                    local pos = predictAirStrikePosition(targetEnemy.part, 1.5)
                     table.sort(commanders, function(a, b)
                         local da, db = towers[a], towers[b]
                         return (da and da.hash or 0) < (db and db.hash or 0)
                     end)
                     commanderIndex = commanderIndex % #commanders + 1
                     local cmdPart = commanders[commanderIndex]
-                    local pos = targetPos
                     task.spawn(function()
                         sendAbilityWithPosition(cmdPart, 3, pos)
                     end)
@@ -2864,7 +2913,7 @@ task.defer(function()
     end
 end)
 
-local function getPlayerLoadoutTowers()
+function getPlayerLoadoutTowers()
     local list = {}
     for i = 1, 6 do
         local n = LocalPlayer:GetAttribute("LoadoutSlot" .. tostring(i))
@@ -3007,7 +3056,7 @@ updateAutoReviveList = function()
     end)
 end
 
-local function getPvPEnemiesFromGame()
+function getPvPEnemiesFromGame()
     local enemies = {}
     local player = game:GetService("Players").LocalPlayer
     for i = 1, 12 do
@@ -3039,13 +3088,13 @@ local function runPvPLoop()
             PvP.lastSentName = PvP.selectedEnemy
             PvP.sentAt = tick()
         end
-        task.wait(math.random() * 0.2 + 0.1)
+        task.wait(math.random() * 0.15 + 0.05)
     end
     PvP.active = false
     PvP.selectedEnemy = nil
 end
 
-local function getEquippedEnemies()
+function getEquippedEnemies()
     local equipped = {}
     local player = game:GetService("Players").LocalPlayer
     for i = 1, 12 do
@@ -3055,7 +3104,34 @@ local function getEquippedEnemies()
     return equipped
 end
 
-local function getCurrentWave()
+local EARLY_SWITCH_SECONDS = 3
+
+local function getTimeLeftSeconds()
+    local player = game:GetService("Players").LocalPlayer
+    local timeText = player:FindFirstChild("PlayerGui")
+        and player.PlayerGui:FindFirstChild("Interface")
+        and player.PlayerGui.Interface:FindFirstChild("GameInfoBar")
+        and player.PlayerGui.Interface.GameInfoBar:FindFirstChild("PVP")
+        and player.PlayerGui.Interface.GameInfoBar.PVP:FindFirstChild("Default")
+        and player.PlayerGui.Interface.GameInfoBar.PVP.Default:FindFirstChild("TimeLeft")
+        and player.PlayerGui.Interface.GameInfoBar.PVP.Default.TimeLeft:FindFirstChild("TimeLeftText")
+
+    if not timeText or not timeText:IsA("TextLabel") then
+        return nil
+    end
+
+    local text = timeText.Text or ""
+    text = text:gsub("<.->", "")
+
+    local minutes, seconds = text:match("(%d+):(%d+)")
+    if minutes and seconds then
+        return tonumber(minutes) * 60 + tonumber(seconds)
+    end
+
+    return tonumber(text:match("%d+"))
+end
+
+function getCurrentWave()
     local player = game:GetService("Players").LocalPlayer
     local waveText = player:FindFirstChild("PlayerGui")
         and player.PlayerGui:FindFirstChild("Interface")
@@ -3064,10 +3140,20 @@ local function getCurrentWave()
         and player.PlayerGui.Interface.GameInfoBar.PVP:FindFirstChild("Default")
         and player.PlayerGui.Interface.GameInfoBar.PVP.Default:FindFirstChild("Wave")
         and player.PlayerGui.Interface.GameInfoBar.PVP.Default.Wave:FindFirstChild("WaveText")
+
     if waveText and waveText:IsA("TextLabel") then
-        local text = waveText.Text or ""
-        return tonumber(text:match("%d+"))
+        local wave = tonumber((waveText.Text or ""):match("%d+"))
+        if wave then
+            local timeLeft = getTimeLeftSeconds()
+
+            if timeLeft and timeLeft <= EARLY_SWITCH_SECONDS then
+                return wave + 1
+            end
+
+            return wave
+        end
     end
+
     return nil
 end
 
@@ -3096,7 +3182,7 @@ local ecoPriority = {
     {name = "Boss 2", wave = 16}, -- 0.5556 eco/sec
 }
 
-local function getBestEcoEnemy(wave, equipped)
+function getBestEcoEnemy(wave, equipped)
     wave = wave or 1
     for _, entry in ipairs(ecoPriority) do
         if wave >= entry.wave and equipped[entry.name] then return entry.name end
@@ -3104,7 +3190,7 @@ local function getBestEcoEnemy(wave, equipped)
     return nil
 end
 
-local function getQueueEnemyCount()
+function getQueueEnemyCount()
     local ok, count = pcall(function()
         local player = game:GetService("Players").LocalPlayer
         local gui = player:FindFirstChild("PlayerGui")
@@ -3126,34 +3212,49 @@ local function getQueueEnemyCount()
     return ok and count or 99
 end
 
-local function runPvPEco()
+function runPvPEco()
     local remote = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes"):FindFirstChild("RequestSendPVPEnemy")
     if not remote then PvP.ecoActive = false return end
-    local equipped = getEquippedEnemies()
-    local startWave = getCurrentWave() or 0
-    PvP.ecoCurrentEnemy = getBestEcoEnemy(startWave, equipped)
-    while PvP.ecoActive do
-        local currentWave = getCurrentWave() or 1
-        local currentEquipped = getEquippedEnemies()
-        local queueCount = getQueueEnemyCount()
-        local bestEnemy = getBestEcoEnemy(currentWave, currentEquipped)
-        if bestEnemy then
-            PvP.ecoCurrentEnemy = bestEnemy
-            if queueCount < 2 then
-                pcall(function() remote:InvokeServer(PvP.ecoCurrentEnemy) end)
-                PvP.lastSentName = PvP.ecoCurrentEnemy
-                PvP.sentAt = tick()
-            end
-        else
+
+    local cachedWave       = getCurrentWave() or 1
+    local cachedEquipped   = getEquippedEnemies()
+    local lastWaveRefresh  = 0
+    local lastEquipRefresh = 0
+
+    local function trySend()
+        if getQueueEnemyCount() >= 2 then return false end
+        local bestEnemy = getBestEcoEnemy(cachedWave, cachedEquipped)
+        if not bestEnemy then
             PvP.ecoCurrentEnemy = "WAITING"
+            return false
         end
-        task.wait(math.random() * 0.2 + 0.1)
+        PvP.ecoCurrentEnemy = bestEnemy
+        pcall(function() remote:InvokeServer(bestEnemy) end)
+        PvP.lastSentName = bestEnemy
+        PvP.sentAt      = tick()
+        return true
     end
+
+    while PvP.ecoActive do
+        local now = tick()
+        if now - lastWaveRefresh  >= 0.1 then
+            cachedWave = getCurrentWave() or cachedWave
+            lastWaveRefresh = now
+        end
+        if now - lastEquipRefresh >= 1.0 then
+            cachedEquipped = getEquippedEnemies()
+            lastEquipRefresh = now
+        end
+
+        trySend()
+        task.wait(0.1)
+    end
+
     PvP.ecoActive = false
     PvP.ecoCurrentEnemy = nil
 end
 
-local function rebuildPvPButtons()
+function rebuildPvPButtons()
     PvP.names = getPvPEnemiesFromGame()
     for _, child in ipairs(Scrolls.PvP:GetChildren()) do
         if (child:IsA("TextButton") or child:IsA("Frame") or child:IsA("TextLabel")) and child.Name ~= "EcoMyLabel" and child.Name ~= "EcoEnemyLabel" and child.Name ~= "DifferenceLabel" then child:Destroy() end
@@ -3365,7 +3466,7 @@ end)
 
 local AntiLag = { buttons = {}, effectCleanerActive = false }
 
-local function createAntiLagToggle(name, settingKey, labelText, order)
+function createAntiLagToggle(name, settingKey, labelText, order)
     local btn = Instance.new("TextButton")
     btn.Size = UDim2.new(1, -14, 0, 36)
     btn.Text = labelText
@@ -3400,7 +3501,7 @@ local function createAntiLagToggle(name, settingKey, labelText, order)
     return btn
 end
 
-local function wipeDescendants(inst)
+function wipeDescendants(inst)
     for _, d in ipairs(inst:GetDescendants()) do
         pcall(function() d:Destroy() end)
     end
@@ -3409,7 +3510,7 @@ local function wipeDescendants(inst)
     end
 end
 
-local function clearEffectFolders()
+function clearEffectFolders()
     local rs = game:GetService("ReplicatedStorage")
     local shared = rs:FindFirstChild("TDX_Shared")
     if not shared then return end
@@ -3439,7 +3540,7 @@ local function clearEffectFolders()
     AntiLag.effectCleanerActive = true
 end
 
-local function buildAntiLagUI()
+function buildAntiLagUI()
     for _, child in ipairs(Scrolls.AntiLag:GetChildren()) do
         if child:IsA("TextButton") or child:IsA("TextLabel") or child:IsA("TextBox") or child:IsA("Frame") then
             child:Destroy()
@@ -3609,7 +3710,7 @@ local AnimScan = {
     interval       = 0.5,
 }
 
-local function cleanAnimators(parent, cache)
+function cleanAnimators(parent, cache)
     if not parent then return end
     for _, child in ipairs(parent:GetChildren()) do
         if child:IsA("AnimationController") and not cache[child] then
@@ -3620,7 +3721,7 @@ local function cleanAnimators(parent, cache)
     end
 end
 
-local function collectAnimFolders(parent, list)
+function collectAnimFolders(parent, list)
     if not parent then return end
     for _, child in ipairs(parent:GetChildren()) do
         if child.Name == "Animations" and child:IsA("Folder") then
@@ -3631,18 +3732,57 @@ local function collectAnimFolders(parent, list)
     end
 end
 
-local function shouldRemoveAnim(animName) return not animName:lower():find("death") end
+function findEnemyInfoByName(modelName)
+    if not modelName or not EnemyDB.data.loaded then return nil end
 
-local function isAnimationObject(obj)
+    local info = EnemyDB.info(modelName)
+    if info then return info end
+
+    local normalized = modelName:gsub("%s+", ""):lower()
+    for _, md in pairs(EnemyDB.data.byMode) do
+        for name, data in pairs(md) do
+            if name:gsub("%s+", ""):lower() == normalized then
+                return data
+            end
+        end
+    end
+    return nil
+end
+
+function isBossModel(model)
+    if not model then return false end
+
+    if model:GetAttribute("IsBoss")  == true then return true end
+    if model:GetAttribute("Boss")    == true then return true end
+    if model:GetAttribute("isBoss")  == true then return true end
+
+    local info = findEnemyInfoByName(model.Name)
+    if info and info.isBoss then return true end
+
+    return false
+end
+
+function collectNonBossEnemyAnimFolders(parent, list)
+    if not parent then return end
+    for _, model in ipairs(parent:GetChildren()) do
+        if not isBossModel(model) then
+            collectAnimFolders(model, list)
+        end
+    end
+end
+
+function shouldRemoveAnim(animName) return not animName:lower():find("death") end
+
+function isAnimationObject(obj)
     return obj:IsA("Animation") or obj:IsA("KeyframeSequence") or obj:IsA("CurveAnimation")
 end
 
-local function removeAnimationObject(anim)
+function removeAnimationObject(anim)
     local ok = pcall(function() anim:Destroy() end)
     if not ok then pcall(function() anim.Parent = nil end) end
 end
 
-local function scanAnimFoldersBatch()
+function scanAnimFoldersBatch()
     if #AnimScan.foldersToScan == 0 then return 0 end
     local processed = 0
     local removed = 0
@@ -3673,7 +3813,7 @@ local function scanAnimFoldersBatch()
     return removed
 end
 
-local function removeAnimationsFromFolder(folder, removedCount)
+function removeAnimationsFromFolder(folder, removedCount)
     removedCount = removedCount or 0
     if not folder then return removedCount end
     for _, desc in ipairs(folder:GetDescendants()) do
@@ -3698,65 +3838,128 @@ local function removeAnimationsFromFolder(folder, removedCount)
     return removedCount
 end
 
-local function directRemoveFromPaths()
+function directRemoveFromPaths()
     local removed = 0
-    local rs = game:GetService("ReplicatedStorage")
-    local enemyModels = rs:FindFirstChild("TDX_Shared")
-    enemyModels = enemyModels and enemyModels:FindFirstChild("Common")
-    enemyModels = enemyModels and enemyModels:FindFirstChild("Resources")
-    enemyModels = enemyModels and enemyModels:FindFirstChild("Enemies")
-    enemyModels = enemyModels and enemyModels:FindFirstChild("Models")
-    if enemyModels then removed = removed + removeAnimationsFromFolder(enemyModels, 0) end
-    local pathModels = rs:FindFirstChild("TDX_Shared")
-    pathModels = pathModels and pathModels:FindFirstChild("Common")
-    pathModels = pathModels and pathModels:FindFirstChild("Resources")
-    pathModels = pathModels and pathModels:FindFirstChild("PathEntities")
-    pathModels = pathModels and pathModels:FindFirstChild("Models")
-    if pathModels then removed = removed + removeAnimationsFromFolder(pathModels, 0) end
-    local pathEntities = rs:FindFirstChild("TDX_Shared")
-    pathEntities = pathEntities and pathEntities:FindFirstChild("Common")
-    pathEntities = pathEntities and pathEntities:FindFirstChild("Resources")
-    pathEntities = pathEntities and pathEntities:FindFirstChild("PathEntities")
+    local rs       = game:GetService("ReplicatedStorage")
+    local shared   = rs:FindFirstChild("TDX_Shared")
+    local common   = shared and shared:FindFirstChild("Common")
+    local resources= common and common:FindFirstChild("Resources")
+
+    local enemiesFolder = resources and resources:FindFirstChild("Enemies")
+    local enemyModels   = enemiesFolder and enemiesFolder:FindFirstChild("Models")
+    if enemyModels then
+        for _, model in ipairs(enemyModels:GetChildren()) do
+            if not isBossModel(model) then
+                removed = removed + removeAnimationsFromFolder(model, 0)
+            end
+        end
+    end
+
+    local pathEntities = resources and resources:FindFirstChild("PathEntities")
     if pathEntities then
+        local pathModels = pathEntities:FindFirstChild("Models")
+        if pathModels then
+            removed = removed + removeAnimationsFromFolder(pathModels, 0)
+        end
         local skinsFolder = pathEntities:FindFirstChild("Skins")
-        if skinsFolder then removed = removed + removeAnimationsFromFolder(skinsFolder, 0) end
+        if skinsFolder then
+            removed = removed + removeAnimationsFromFolder(skinsFolder, 0)
+        end
     end
     return removed
 end
 
-local function startAnimFolderScan()
-    AnimScan.foldersToScan = {}
-    AnimScan.foldersScanned = {}
-    AnimScan.scanIndex = 1
-    local rs = game:GetService("ReplicatedStorage")
-    local enemyModels = rs:FindFirstChild("TDX_Shared")
-    enemyModels = enemyModels and enemyModels:FindFirstChild("Common")
-    enemyModels = enemyModels and enemyModels:FindFirstChild("Resources")
-    enemyModels = enemyModels and enemyModels:FindFirstChild("Enemies")
-    enemyModels = enemyModels and enemyModels:FindFirstChild("Models")
-    if enemyModels then collectAnimFolders(enemyModels, AnimScan.foldersToScan) end
-    local pathModels = rs:FindFirstChild("TDX_Shared")
-    pathModels = pathModels and pathModels:FindFirstChild("Common")
-    pathModels = pathModels and pathModels:FindFirstChild("Resources")
-    pathModels = pathModels and pathModels:FindFirstChild("PathEntities")
-    pathModels = pathModels and pathModels:FindFirstChild("Models")
-    if pathModels then collectAnimFolders(pathModels, AnimScan.foldersToScan) end
-    local pathEntities = rs:FindFirstChild("TDX_Shared")
-    pathEntities = pathEntities and pathEntities:FindFirstChild("Common")
-    pathEntities = pathEntities and pathEntities:FindFirstChild("Resources")
-    pathEntities = pathEntities and pathEntities:FindFirstChild("PathEntities")
-    if pathEntities then
-        local skinsFolder = pathEntities:FindFirstChild("Skins")
-        if skinsFolder then collectAnimFolders(skinsFolder, AnimScan.foldersToScan) end
-    end
-    directRemoveFromPaths()
+AnimScan.foldersQueuedSet = AnimScan.foldersQueuedSet or {}
+
+local function addFolderToScan(folder)
+    if not folder or not folder.Parent then return end
+    local k = tostring(folder)
+    if AnimScan.foldersScanned[k] or AnimScan.foldersQueuedSet[k] then return end
+    AnimScan.foldersQueuedSet[k] = true
+    table.insert(AnimScan.foldersToScan, folder)
 end
 
-local function runAnimFolderScanner()
+function startAnimFolderScan()
+    if not EnemyDB.data.loaded then return end
+
+    AnimScan.foldersToScan   = AnimScan.foldersToScan   or {}
+    AnimScan.foldersScanned  = AnimScan.foldersScanned  or {}
+    AnimScan.foldersQueuedSet= AnimScan.foldersQueuedSet or {}
+    AnimScan.processedModels = AnimScan.processedModels or {}
+    AnimScan.scanIndex       = AnimScan.scanIndex       or 1
+
+    local rs        = game:GetService("ReplicatedStorage")
+    local shared    = rs:FindFirstChild("TDX_Shared")
+    local common    = shared and shared:FindFirstChild("Common")
+    local resources = common and common:FindFirstChild("Resources")
+
+    local function processModels(container, checkBoss)
+        if not container then return end
+        for _, child in ipairs(container:GetChildren()) do
+            if not AnimScan.processedModels[child] then
+                AnimScan.processedModels[child] = true
+                local skip = false
+                if checkBoss then
+                    local ok, isBoss = pcall(isBossModel, child)
+                    skip = ok and isBoss
+                end
+                if not skip then
+                    local list = {}
+                    pcall(collectAnimFolders, child, list)
+                    for _, f in ipairs(list) do addFolderToScan(f) end
+                    pcall(removeAnimationsFromFolder, child, 0)
+                end
+            end
+        end
+    end
+
+    local enemiesFolder = resources and resources:FindFirstChild("Enemies")
+    local enemyModels   = enemiesFolder and enemiesFolder:FindFirstChild("Models")
+    processModels(enemyModels, true)
+
+    local pathEntities = resources and resources:FindFirstChild("PathEntities")
+    if pathEntities then
+        processModels(pathEntities:FindFirstChild("Models"), false)
+        processModels(pathEntities:FindFirstChild("Skins"), false)
+    end
+
+    local alive = {}
+    for _, f in ipairs(AnimScan.foldersToScan) do
+        local k = tostring(f)
+        if f and f.Parent and not AnimScan.foldersScanned[k] then
+            table.insert(alive, f)
+        else
+            AnimScan.foldersQueuedSet[k] = nil
+        end
+    end
+    AnimScan.foldersToScan = alive
+    if AnimScan.scanIndex > #AnimScan.foldersToScan then
+        AnimScan.scanIndex = 1
+    end
+
+    for m in pairs(AnimScan.processedModels) do
+        if not m or not m.Parent then
+            AnimScan.processedModels[m] = nil
+        end
+    end
+end
+
+local animRescanCooldown = 0
+local ANIM_RESCAN_INTERVAL = 5
+
+function runAnimFolderScanner()
+    local lastRescan = 0
+    local RESCAN_INTERVAL = 2
     while true do
         if settings.removeAnimEnemies or settings.removeAnimPaths then
-            if #AnimScan.foldersToScan == 0 then startAnimFolderScan() end
-            if AnimScan.scanIndex <= #AnimScan.foldersToScan then scanAnimFoldersBatch() end
+            local now = tick()
+            if now - lastRescan >= RESCAN_INTERVAL then
+                lastRescan = now
+                startAnimFolderScan()
+            end
+            if AnimScan.scanIndex <= #AnimScan.foldersToScan then
+                scanAnimFoldersBatch()
+            end
         end
         task.wait(AnimScan.interval)
     end
@@ -3766,7 +3969,7 @@ task.spawn(runAnimFolderScanner)
 
 AntiLag.enemyProcessed = {}
 
-local function processEnemyVisuals(enemiesFolder, batchSize)
+function processEnemyVisuals(enemiesFolder, batchSize)
     local allEnemies = enemiesFolder:GetChildren()
     local processed = 0
     for _, enemy in ipairs(allEnemies) do
@@ -3791,13 +3994,13 @@ local function processEnemyVisuals(enemiesFolder, batchSize)
     return processed
 end
 
-local function runAntiLagLoops()
+function runAntiLagLoops()
     while true do
         if settings.removeAnimEnemies then
             local gameFolder = workspace:FindFirstChild("Game")
             if gameFolder then
                 local enemies = gameFolder:FindFirstChild("Enemies")
-                if enemies then processEnemyVisuals(enemies, 100) end
+                if enemies then processEnemyVisuals(enemies, 1000) end
             end
         end
         if settings.removeAnimTowers then
@@ -3844,7 +4047,7 @@ task.spawn(function()
     end
 end)
 
-local function getMyCashText()
+function getMyCashText()
     local player = game:GetService("Players").LocalPlayer
     local playerGui = player:FindFirstChild("PlayerGui")
     if not playerGui then return nil end
@@ -3863,7 +4066,7 @@ local function getMyCashText()
     return nil
 end
 
-local function parseCashValue(text)
+function parseCashValue(text)
     if not text then return nil end
     local clean = text:gsub("[$,]", "")
     local kMatch = clean:match("([%d%.]+)k")
@@ -3871,7 +4074,7 @@ local function parseCashValue(text)
     return tonumber(clean:match("([%d%.]+)"))
 end
 
-local function formatNumber(n)
+function formatNumber(n)
     n = math.floor(tonumber(n) or 0)
     local sign = n < 0 and "-" or ""
     local s = tostring(math.abs(n))
@@ -3887,7 +4090,7 @@ local EcoOverlay = {
     moneyLabel = nil,
 }
 
-local function createEcoOverlay()
+function createEcoOverlay()
     if EcoOverlay.gui then pcall(function() EcoOverlay.gui:Destroy() end) end
     EcoOverlay.gui = Instance.new("ScreenGui")
     EcoOverlay.gui.Name = "TDXEcoOverlay"
@@ -3939,10 +4142,10 @@ local function createEcoOverlay()
     EcoOverlay.moneyLabel.Parent = EcoOverlay.gui
 end
 
-local function updateEcoOverlay()
+function updateEcoOverlay()
     if not EcoOverlay.gui then createEcoOverlay() end
 
-    local function hideAll()
+    function hideAll()
         EcoOverlay.enemyLabel.Visible = false
         EcoOverlay.diffLabel.Visible = false
         EcoOverlay.moneyLabel.Visible = false
@@ -4077,7 +4280,7 @@ task.spawn(function()
     end
 end)
 
-local function setActiveTab(activeBtn)
+function setActiveTab(activeBtn)
     for _, btn in ipairs(Tabs.Ordered) do
         if btn == activeBtn then
             btn.BackgroundColor3 = Color3.fromRGB(92, 70, 132)
@@ -4089,7 +4292,7 @@ local function setActiveTab(activeBtn)
     end
 end
 
-local function hideAllFrames()
+function hideAllFrames()
     Frames.Main.Visible = false
     Frames.AutoRevive.Visible = false
     Frames.Abilities.Visible = false
@@ -4170,7 +4373,7 @@ anchorStroke.Thickness = 1.5
 
 local isMinimized = false
 
-local function toggleMinimize()
+function toggleMinimize()
     isMinimized = not isMinimized
     frame.Visible = not isMinimized
     anchorBtn.Visible = isMinimized
@@ -4406,14 +4609,14 @@ clearDebugBtn.MouseButton1Click:Connect(function()
     debugLogs = {}
 end)
 
-local function hasAnyTeam()
+function hasAnyTeam()
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr.Team then return true end
     end
     return false
 end
 
-local function updateTabVisibility()
+function updateTabVisibility()
     local pvpVisible = hasAnyTeam()
     Tabs.PvP.Visible = pvpVisible
     Tabs.Debug.Visible = debugEnabled
@@ -4517,7 +4720,7 @@ task.spawn(function()
     end
 end)
 
-local function setupGameInfo()
+function setupGameInfo()
     local teamColors = {
         Blue = Color3.fromRGB(0, 120, 255),
         Red = Color3.fromRGB(220, 50, 50),
@@ -4525,7 +4728,7 @@ local function setupGameInfo()
         Yellow = Color3.fromRGB(230, 200, 50),
     }
 
-    local function getPlayerTeamColor(player)
+    function getPlayerTeamColor(player)
         if player.Team then
             local tn = player.Team.Name
             if tn == "Blue" or tn == "Bright blue" then return teamColors.Blue
@@ -4536,7 +4739,7 @@ local function setupGameInfo()
         return nil
     end
 
-    local function getPlayerTowers(player)
+    function getPlayerTowers(player)
         local list = {}
         for i = 1, 6 do
             local n = player:GetAttribute("LoadoutSlot" .. tostring(i))
@@ -4545,7 +4748,7 @@ local function setupGameInfo()
         return list
     end
 
-    local function getPlayerEnemies(player)
+    function getPlayerEnemies(player)
         local list = {}
         for i = 1, 12 do
             local n = player:GetAttribute("PVPEnemySlot" .. tostring(i))
@@ -4559,7 +4762,7 @@ local function setupGameInfo()
         return list
     end
 
-    local function getPlayerPowerUps(player)
+    function getPlayerPowerUps(player)
         local off = player:GetAttribute("PVPPowerUpOffensive")
         local def = player:GetAttribute("PVPPowerUpDefensive")
         if off and off ~= "" then off = off:gsub("^PVP", ""):gsub("^pvp", ""):gsub("^PvP", "") end
@@ -4567,7 +4770,7 @@ local function setupGameInfo()
         return {offensive = off, defensive = def}
     end
 
-    local function createSlotButton(parent, text, bgColor, textColor, position, size)
+    function createSlotButton(parent, text, bgColor, textColor, position, size)
         local btn = Instance.new("TextButton")
         btn.Size = size or UDim2.new(0, 76, 0, 24)
         btn.Position = position
@@ -4588,7 +4791,7 @@ local function setupGameInfo()
         return btn
     end
 
-    local function buildGameInfoUI()
+    function buildGameInfoUI()
         for _, child in ipairs(Scrolls.GameInfo:GetChildren()) do
             if child:IsA("Frame") or child:IsA("TextLabel") then child:Destroy() end
         end
@@ -4629,7 +4832,7 @@ local function setupGameInfo()
         local allTowerTypes = {}
         local playerTowerSets = {}
 
-        local function collectPlayerData(player)
+        function collectPlayerData(player)
             local tw = getPlayerTowers(player)
             local en = getPlayerEnemies(player)
             local pu = getPlayerPowerUps(player)
@@ -4661,7 +4864,7 @@ local function setupGameInfo()
             if count >= 2 then sharedTowerTypes[tt] = true end
         end
 
-        local function renderPlayerBlock(player, teamColor, isLocal)
+        function renderPlayerBlock(player, teamColor, isLocal)
             local pdata = playerTowerSets[player]
             if not pdata then return end
             local tw = pdata.towers
@@ -4864,7 +5067,7 @@ local function setupGameInfo()
             return a < b
         end)
 
-        local function renderTeamsSection()
+        function renderTeamsSection()
             for _, tn in ipairs(teamOrder) do
                 local td = teams[tn]
                 local th = Instance.new("TextLabel")
@@ -4889,7 +5092,7 @@ local function setupGameInfo()
             end
         end
 
-        local function renderNoTeamSection()
+        function renderNoTeamSection()
             if #noTeamPlayers > 0 then
                 if next(teams) then
                     local divider = Instance.new("Frame")
@@ -4920,7 +5123,7 @@ local function setupGameInfo()
         return anyDataFound
     end
 
-    local function tryBuild()
+    function tryBuild()
         if not buildGameInfoUI() then
             task.delay(3, tryBuild)
         end
