@@ -2013,7 +2013,6 @@ local function startCoinCollector()
 
     local remotes = ReplicatedStorage:WaitForChild("Remotes")
     local coinDropEvent = remotes:WaitForChild("NewCoinDropEvent")
-    local collectEvent = remotes:WaitForChild("ClientsideCoinCollectedEvent")
 
     local coinQueue = {}
     local processing = false
@@ -2023,10 +2022,16 @@ local function startCoinCollector()
         processing = true
         task.spawn(function()
             while #coinQueue > 0 do
-                local coinId = table.remove(coinQueue, 1)
-                pcall(function()
-                    collectEvent:FireServer(coinId)
-                end)
+                local coinData = table.remove(coinQueue, 1)
+                local coinId = coinData.id
+                local remoteName = coinData.remoteName
+                
+                local collectRemote = remotes:FindFirstChild(remoteName)
+                if collectRemote then
+                    pcall(function()
+                        collectRemote:FireServer(coinId)
+                    end)
+                end
                 task.wait(0.05)
             end
             processing = false
@@ -2037,9 +2042,10 @@ local function startCoinCollector()
         if type(data) == "table" then
             local coinId = data[1]
             local playerName = data[5]
+            local remoteName = data[12] or "ClientsideCoinCollectedEvent"
             
             if playerName == LocalPlayer.Name and coinId then
-                table.insert(coinQueue, coinId)
+                table.insert(coinQueue, {id = coinId, remoteName = remoteName})
                 processQueue()
             end
         end)
