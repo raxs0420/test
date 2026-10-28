@@ -826,26 +826,33 @@ end
 start_wave_tracker()
 
 function do_place_tower(t_name, t_pos)
-    while true do
-        local rx = math.random(-99, 99) / 1000000
-        local rz = math.random(-99, 99) / 1000000
-        local fx = t_pos.X + rx
-        local fz = t_pos.Z + rz
-        local fy = t_pos.Y
-        for _, child in ipairs(workspace.Towers:GetChildren()) do
-            local tp = child:GetPivot().Position
-            if math.abs(tp.X - fx) < 1 and math.abs(tp.Z - fz) < 1 then
-                fy = t_pos.Y; break
-            end
-        end
+    local fx = t_pos.X + math.random(-99, 99) / 1000000
+    local fz = t_pos.Z + math.random(-99, 99) / 1000000
+
+    local rp = RaycastParams.new()
+    rp.FilterType = Enum.RaycastFilterType.Exclude
+    rp.FilterDescendantsInstances = { local_player.Character }
+    rp.IgnoreWater = true
+
+    local hit = workspace:Raycast(Vector3.new(fx, 500, fz), Vector3.new(0, -1000, 0), rp)
+    local surface_y = hit and hit.Position.Y or t_pos.Y
+
+    local fy = surface_y + 10
+
+    for attempt = 1, 40 do
         local ok, res = pcall(function()
             return remote_func:InvokeServer("Troops", "Place", {
-                Rotation = CFrame.new(), Position = Vector3.new(fx, fy, fz)
+                Rotation = CFrame.new(),
+                Position = Vector3.new(fx, fy, fz)
             }, t_name)
         end)
         if ok and check_res_ok(res) then return true end
-        task.wait(0.25)
+
+        fy = fy + 5
+        task.wait(0.3)
     end
+    warn("do_place_tower failed: " .. tostring(t_name) .. " @ " .. tostring(t_pos))
+    return false
 end
 
 function do_upgrade_tower(t_obj, path_id)
