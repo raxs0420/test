@@ -841,7 +841,7 @@ function do_place_tower(t_name, t_pos)
     local rz = math.random(-99, 99) / 1000000
     local fx = t_pos.X + rx
     local fz = t_pos.Z + rz
-    local fy = t_pos.Y
+    local fy = t_pos.Y + 10
 
     while true do
         local ok, res = pcall(function()
@@ -2208,7 +2208,7 @@ function create_buttons()
     title.TextSize = 12
     title.TextColor3 = textPrimary
     title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Text = "TDS  HELPER"
+    title.Text = "TDS Helper"
     title.Parent = header
 
     local rejoinRow = Instance.new("TextButton")
