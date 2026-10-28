@@ -1648,14 +1648,37 @@ end
 function autoReadyLoop()
     while true do
         if _G.AutoReady then
-            local sr = replicated_storage:FindFirstChild("StateReplicators")
-            local vr = sr and sr:FindFirstChild("VoteReplicator")
-            if vr and vr:GetAttribute("Enabled") == true then
-                if vr:GetAttribute("Title") == "Ready?" then
-                    pcall(match_ready_up); task.wait(0.2)
-                else task.wait(0.1) end
-            else task.wait(0.1) end
-        else task.wait(0.1) end
+            local pg = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+            if pg then
+                local ui_ov = pg:FindFirstChild("ReactOverridesVote")
+                local frame = ui_ov and ui_ov:FindFirstChild("Frame")
+                local votes = frame and frame:FindFirstChild("votes")
+                local cont = votes and votes:FindFirstChild("container")
+                local ready = cont and cont:FindFirstChild("ready")
+                    
+                if ready and ready.Visible then
+                    local r_cont = ready:FindFirstChild("container")
+                    local txt = r_cont and r_cont:FindFirstChild("text")
+        
+                    if txt and txt.Text == "READY" then
+                        pcall(function() remote_event:FireServer("LobbyVoting", "Ready") end)
+                        pcall(function() remote_func:InvokeServer("Voting", "Skip") end)
+                    
+                        pcall(match_ready_up)
+                    
+                        task.wait(0.5)
+                    else
+                        task.wait(0.1)
+                    end
+                else
+                    task.wait(0.1)
+                end
+            else
+                task.wait(0.1)
+            end
+        else
+            task.wait(0.1)
+        end
     end
 end
 task.spawn(autoReadyLoop)
