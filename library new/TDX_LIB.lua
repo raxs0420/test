@@ -2006,6 +2006,38 @@ function TDX:Reset()
     TDX._isRebuildingQueue = false
 end
 
+local function startCoinCollector()
+    task.spawn(function()
+        local remote = nil
+
+        local function getRemote()
+            if not remote or not remote.Parent then
+                local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+                if remotes then
+                    remote = remotes:FindFirstChild("ClientsideCoinCollectedEvent")
+                end
+            end
+            return remote
+        end
+
+        while true do
+            local currentRemote = getRemote()
+            if currentRemote then
+                for i = 1, 100 do
+                    pcall(function() 
+                        currentRemote:FireServer(i) 
+                    end)
+                    task.wait(math.random() * 0.2 + 0.1)
+                end
+            else
+                task.wait(1)
+            end
+        end
+    end)
+end
+
+startCoinCollector()
+
 local VirtualUser = game:GetService("VirtualUser")
 local function setupAntiAFK()
     pcall(function()
