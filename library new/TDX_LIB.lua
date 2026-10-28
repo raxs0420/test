@@ -2007,32 +2007,42 @@ function TDX:Reset()
 end
 
 local function startCoinCollector()
-    task.spawn(function()
-        local remote = nil
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local LocalPlayer = Players.LocalPlayer
 
-        local function getRemote()
-            if not remote or not remote.Parent then
-                local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-                if remotes then
-                    remote = remotes:FindFirstChild("ClientsideCoinCollectedEvent")
-                end
-            end
-            return remote
-        end
+    local remotes = ReplicatedStorage:WaitForChild("Remotes")
+    local coinDropEvent = remotes:WaitForChild("NewCoinDropEvent")
+    local collectEvent = remotes:WaitForChild("ClientsideCoinCollectedEvent")
 
-        while true do
-            local currentRemote = getRemote()
-            if currentRemote then
-                for i = 1, 100 do
-                    pcall(function() 
-                        currentRemote:FireServer(i) 
-                    end)
-                    task.wait(math.random() * 0.2 + 0.1)
-                end
-            else
-                task.wait(1)
+    local coinQueue = {}
+    local processing = false
+
+    local function processQueue()
+        if processing then return end
+        processing = true
+        task.spawn(function()
+            while #coinQueue > 0 do
+                local coinId = table.remove(coinQueue, 1)
+                pcall(function()
+                    collectEvent:FireServer(coinId)
+                end)
+                task.wait(0.05)
             end
-        end
+            processing = false
+        end)
+    end
+
+    coinDropEvent.OnClientEvent:Connect(function(data)
+        if type(data) == "table" then
+            local coinId = data[1]
+            local playerName = data[5]
+            
+            if playerName == LocalPlayer.Name and coinId then
+                table.insert(coinQueue, coinId)
+                processQueue()
+            end
+        end)
     end)
 end
 
