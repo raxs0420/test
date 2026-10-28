@@ -2006,53 +2006,7 @@ function TDX:Reset()
     TDX._isRebuildingQueue = false
 end
 
-local function startCoinCollector()
-    local Players = game:GetService("Players")
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local LocalPlayer = Players.LocalPlayer
 
-    local remotes = ReplicatedStorage:WaitForChild("Remotes")
-    local coinDropEvent = remotes:WaitForChild("NewCoinDropEvent")
-
-    local coinQueue = {}
-    local processing = false
-
-    local function processQueue()
-        if processing then return end
-        processing = true
-        task.spawn(function()
-            while #coinQueue > 0 do
-                local coinData = table.remove(coinQueue, 1)
-                local coinId = coinData.id
-                local remoteName = coinData.remoteName
-                
-                local collectRemote = remotes:FindFirstChild(remoteName)
-                if collectRemote then
-                    pcall(function()
-                        collectRemote:FireServer(coinId)
-                    end)
-                end
-                task.wait(0.05)
-            end
-            processing = false
-        end)
-    end
-
-    coinDropEvent.OnClientEvent:Connect(function(data)
-        if type(data) == "table" then
-            local coinId = data[1]
-            local playerName = data[5]
-            local remoteName = data[12] or "ClientsideCoinCollectedEvent"
-            
-            if playerName == LocalPlayer.Name and coinId then
-                table.insert(coinQueue, {id = coinId, remoteName = remoteName})
-                processQueue()
-            end
-        end)
-    end)
-end
-
-startCoinCollector()
 
 local VirtualUser = game:GetService("VirtualUser")
 local function setupAntiAFK()
