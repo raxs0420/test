@@ -443,10 +443,21 @@ shared.TDS_Table = TDS
 
 function check_res_ok(data)
     if data == true then return true end
-    if type(data) == "table" and data.Success == true then return true end
-    local success, is_model = pcall(function() return data and data:IsA("Model") end)
-    if success and is_model then return true end
-    if type(data) == "userdata" then return true end
+    if data == false or data == nil then return false end
+
+    local t = type(data)
+    if t == "userdata" then return true end
+
+    if t == "table" then
+        if data.Success == true or data.success == true then return true end
+        if data.OK == true or data.ok == true then return true end
+
+        for _, v in pairs(data) do
+            if v == true then return true end
+            if type(v) == "userdata" then return true end
+        end
+    end
+
     return false
 end
 
