@@ -56,6 +56,8 @@ local MapVoteCast = Remotes:FindFirstChild("MapVoteCast")
 local MapVoteReady = Remotes:FindFirstChild("MapVoteReady")
 local MapChangeVoteCast = Remotes:FindFirstChild("MapChangeVoteCast")
 local RequestTeleportToLobby = Remotes:FindFirstChild("RequestTeleportToLobby")
+local CoinDropEvent = Remotes:WaitForChild("NewCoinDropEvent", 10)
+local CoinCollectRemote = Remotes:WaitForChild("ClientsideCoinCollectedEvent")
 
 local _latestMapState = nil
 if MapVoteStateUpdate then
@@ -309,6 +311,10 @@ local WaveConnection = nil
 local WaveWatcherStarted = false
 local WaitTillActive = false
 local WaitTillTarget = 0
+local CoinQueue = {}
+local CoinProcessing = false
+local processCoinQueue
+local startCoinCollector
 
 local function parseWave(text)
     if not text then return 0 end
@@ -2006,7 +2012,33 @@ function TDX:Reset()
     TDX._isRebuildingQueue = false
 end
 
+processCoinQueue = function()
+    if CoinProcessing or not CoinCollectRemote then return end
+    CoinProcessing = true
+    task.spawn(function()
+        while #CoinQueue > 0 do
+            local id = table.remove(CoinQueue, 1)
+            pcall(function()
+                CoinCollectRemote:FireServer(id)
+            end)
+            task.wait(0.05)
+        end
+        CoinProcessing = false
+    end)
+end
 
+startCoinCollector = function()
+    if not CoinDropEvent or not CoinCollectRemote then return end
+    CoinDropEvent.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        local id = data[1]
+        if id == nil then return end
+        table.insert(CoinQueue, id)
+        processCoinQueue()
+    end)
+end
+
+task.spawn(startCoinCollector)
 
 local VirtualUser = game:GetService("VirtualUser")
 local function setupAntiAFK()
