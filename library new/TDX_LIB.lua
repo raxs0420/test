@@ -56,7 +56,7 @@ local MapVoteCast = Remotes:FindFirstChild("MapVoteCast")
 local MapVoteReady = Remotes:FindFirstChild("MapVoteReady")
 local MapChangeVoteCast = Remotes:FindFirstChild("MapChangeVoteCast")
 local RequestTeleportToLobby = Remotes:FindFirstChild("RequestTeleportToLobby")
-local CoinDropEvent = Remotes:WaitForChild("NewCoinDropEvent", 10)
+local CoinDropEvent = Remotes:FindFirstChild("NewCoinDropEvent")
 
 local _latestMapState = nil
 if MapVoteStateUpdate then
@@ -2035,8 +2035,8 @@ processCoinQueue = function()
 end
 
 startCoinCollector = function()
-    if not NewCoinDropEvent then return end
-    NewCoinDropEvent.OnClientEvent:Connect(function(data)
+    if not CoinDropEvent then return end -- Fixed variable name
+    CoinDropEvent.OnClientEvent:Connect(function(data) -- Fixed variable name
         if type(data) ~= "table" then return end
         if data[1] == nil then return end
         
