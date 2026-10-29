@@ -2016,19 +2016,23 @@ processCoinQueue = function()
     CoinProcessing = true
     task.spawn(function()
         while #CoinQueue > 0 do
-            local data = table.remove(CoinQueue, 1)
-            local coinId = data[1]
-            local remoteName = data[12]
+            local coinId = table.remove(CoinQueue, 1)
             
-            if coinId and type(remoteName) == "string" then
-                local collectRemote = Remotes:FindFirstChild(remoteName)
+            if coinId then
+                task.wait(1)
+                
+                local collectRemote = Remotes:FindFirstChild("ClientsideCoinCollectedEvent")
+            
+                if not collectRemote then
+                    collectRemote = Remotes:WaitForChild("ClientsideCoinCollectedEvent", 5)
+                end
+
                 if collectRemote then
                     pcall(function()
                         collectRemote:FireServer(coinId)
                     end)
                 end
             end
-            task.wait(0.05)
         end
         CoinProcessing = false
     end)
@@ -2036,11 +2040,13 @@ end
 
 startCoinCollector = function()
     if not CoinDropEvent then return end
-    CoinDropEvent.OnClientEvent:Connect(function(data) 
+    CoinDropEvent.OnClientEvent:Connect(function(data)
         if type(data) ~= "table" then return end
-        if data[1] == nil then return end
         
-        table.insert(CoinQueue, data)
+        local coinId = data[1]
+        if coinId == nil then return end
+        
+        table.insert(CoinQueue, coinId)
         processCoinQueue()
     end)
 end
