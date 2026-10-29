@@ -56,8 +56,7 @@ local MapVoteCast = Remotes:FindFirstChild("MapVoteCast")
 local MapVoteReady = Remotes:FindFirstChild("MapVoteReady")
 local MapChangeVoteCast = Remotes:FindFirstChild("MapChangeVoteCast")
 local RequestTeleportToLobby = Remotes:FindFirstChild("RequestTeleportToLobby")
-local CoinDropEvent = Remotes:WaitForChild("NewCoinDropEvent", 10)
-local CoinCollectRemote = Remotes:WaitForChild("ClientsideCoinCollectedEvent")
+local CoinDropEvent = Remotes:WaitForChild("NewCoinDropEvent")
 
 local _latestMapState = nil
 if MapVoteStateUpdate then
@@ -2013,14 +2012,22 @@ function TDX:Reset()
 end
 
 processCoinQueue = function()
-    if CoinProcessing or not CoinCollectRemote then return end
+    if CoinProcessing then return end
     CoinProcessing = true
     task.spawn(function()
         while #CoinQueue > 0 do
-            local id = table.remove(CoinQueue, 1)
-            pcall(function()
-                CoinCollectRemote:FireServer(id)
-            end)
+            local data = table.remove(CoinQueue, 1)
+            local coinId = data[1]
+            local remoteName = data[12]
+            
+            if coinId and type(remoteName) == "string" then
+                local collectRemote = Remotes:FindFirstChild(remoteName)
+                if collectRemote then
+                    pcall(function()
+                        collectRemote:FireServer(coinId)
+                    end)
+                end
+            end
             task.wait(0.05)
         end
         CoinProcessing = false
@@ -2028,12 +2035,12 @@ processCoinQueue = function()
 end
 
 startCoinCollector = function()
-    if not CoinDropEvent or not CoinCollectRemote then return end
-    CoinDropEvent.OnClientEvent:Connect(function(data)
+    if not NewCoinDropEvent then return end
+    NewCoinDropEvent.OnClientEvent:Connect(function(data)
         if type(data) ~= "table" then return end
-        local id = data[1]
-        if id == nil then return end
-        table.insert(CoinQueue, id)
+        if data[1] == nil then return end
+        
+        table.insert(CoinQueue, data)
         processCoinQueue()
     end)
 end
