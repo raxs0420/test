@@ -2019,7 +2019,7 @@ processCoinQueue = function()
             local coinId = table.remove(CoinQueue, 1)
             
             if coinId then
-                task.wait(1)
+                task.wait(0.3)
                 
                 local collectRemote = Remotes:FindFirstChild("ClientsideCoinCollectedEvent")
             
