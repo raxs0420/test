@@ -66,26 +66,27 @@ end
 
 local EnemyDB = {
     URL = "https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/TDX-Enemies.lua",
-    THRESHOLDS = {
-        easy = 1000, test = 1000, intermediate = 1000, elite = 1000, expert = 1000,
-        christmas = 1000, christmasnightmare = 1000, endless = 1000, toilet = 1000,
-        towerbattles = 1000, towerbattlesnightmare = 1000,
-        halloweenpart1 = 1000, halloweennightmarepart1 = 1000, halloweennightmarepart2 = 1000,
-        halloweennightmarepart3 = 1000, halloweenpart2 = 1000, halloweenpart3 = 1000,
-        halloweenpart4 = 1000, halloweennightmarepart4 = 1000,
-        christmas24part1nightmare = 1000, christmas24part1 = 1000,
-        christmas24part2 = 1000, christmas24part2nightmare = 1000,
-        tutorial = 1000, expertold = 1000, mlg = 1000, mlgnightmare = 1000, eliteold = 1000,
-        slimeevent = 1000, ultranightmare = 1000, slimeeventnightmare = 1000,
-        nightmare = 2000,
-        halloween2025nightmare = 1000, halloween2025 = 1000, party2025 = 1000,
-        christmas25part1 = 1000, christmas25part2 = 1000, christmas25part2nightmare = 1000,
-        christmas25part1nightmare = 1000, christmas25part1easy = 1000, christmas25part2easy = 1000,
-        easter26part2nightmare = 1000, easter26part1nightmare = 1000, easter26part2easy = 1000,
-        easter26part1 = 1000, easter26part2 = 1000, easter26part1easy = 1000,
-        pvp_1v1 = 1000, tbpart2voidmare = 1000, tbpart2hard = 1000,
-        tbpart2casual = 1000, tbpart2nightmare = 1000,
-    },
+THRESHOLDS = {
+    easy = 500, test = 1000, intermediate = 500, elite = 1000, expert = 1000,
+    christmas = 400, christmasnightmare = 400, endless = 1000, toilet = 1000,
+    towerbattles = 1000, towerbattlesnightmare = 1000,
+    halloweenpart1 = 400, halloweennightmarepart1 = 400, halloweennightmarepart2 = 1000,
+    halloweennightmarepart3 = 1000, halloweenpart2 = 500, halloweenpart3 = 1000,
+    halloweenpart4 = 1000, halloweennightmarepart4 = 1000,
+    christmas24part1nightmare = 400, christmas24part1 = 400,
+    christmas24part2 = 1000, christmas24part2nightmare = 1000,
+    tutorial = 200, expertold = 1000, mlg = 1000, mlgnightmare = 1000, eliteold = 1000,
+    slimeevent = 1000, ultranightmare = 2000, slimeeventnightmare = 1000,
+    nightmare = 2000,
+    halloween2025nightmare = 2000, halloween2025 = 1000, party2025 = 1000,
+    christmas25part1 = 1000, christmas25part2 = 1000, christmas25part2nightmare = 1000,
+    christmas25part1nightmare = 1000, christmas25part1easy = 1000, christmas25part2easy = 1000,
+    easter26part2nightmare = 1000, easter26part1nightmare = 1000, easter26part2easy = 1000,
+    easter26part1 = 1000, easter26part2 = 1000, easter26part1easy = 1000,
+    pvp_1v1 = 1000, tbpart2voidmare = 2000, tbpart2hard = 2000,
+    tbpart2casual = 2000, tbpart2nightmare = 2000,
+    halloween2026hard = 1000, halloween2026nightmare = 2000, halloween2026casual = 1000,
+},
     data = { byMode = {}, blacklist = {}, priority = {}, normal = {}, loaded = false, loading = false },
     mode = nil,
 }
@@ -313,7 +314,7 @@ topBarGradient.Rotation = 30
 local title = Instance.new("TextLabel")
 title.Size = UDim2.new(1, -80, 0, 32)
 title.Position = UDim2.new(0, 22, 0, 10)
-title.Text = "TDX Auto"
+title.Text = "TDX Script by RaXs0"
 title.TextColor3 = Color3.fromRGB(240, 240, 245)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
@@ -1756,9 +1757,10 @@ local function runCallToArms()
 end
 
 local function runEncore()
-    local SYNC_RANGE = 15
+    local SYNC_RANGE = 20
+    local SPAM_DELAY = 0.3
     local groupStates = {}
-    local hashLastFire = {}
+
     while settings.activeAbilities["ENCORE"] do
         local edjs = {}
         for part, data in pairs(towers) do
@@ -1766,19 +1768,24 @@ local function runEncore()
                 table.insert(edjs, {part = part, pos = part.Position, hash = data.hash})
             end
         end
+        
         if #edjs > 0 then
             table.sort(edjs, function(a, b) return a.hash < b.hash end)
             local groups = {}
             local ungrouped = {}
             for i, c in ipairs(edjs) do ungrouped[i] = c end
+            
             while #ungrouped > 0 do
                 local anchor = table.remove(ungrouped, 1)
                 local nearby = {}
                 for i, c in ipairs(ungrouped) do
                     local d = (anchor.pos - c.pos).Magnitude
-                    if d <= SYNC_RANGE then table.insert(nearby, {idx = i, dist = d}) end
+                    if d <= SYNC_RANGE then 
+                        table.insert(nearby, {idx = i, dist = d}) 
+                    end
                 end
                 table.sort(nearby, function(a, b) return a.dist < b.dist end)
+                
                 local group = {anchor}
                 local toRemove = {}
                 for k = 1, math.min(2, #nearby) do
@@ -1796,8 +1803,11 @@ local function runEncore()
                 for _, c in ipairs(group) do key = key .. c.hash .. "_" end
                 activeKeys[key] = true
             end
+            
             for key, state in pairs(groupStates) do
-                if not activeKeys[key] and not state.pending then groupStates[key] = nil end
+                if not activeKeys[key] and not state.pending then 
+                    groupStates[key] = nil 
+                end
             end
 
             local now = tick()
@@ -1805,53 +1815,91 @@ local function runEncore()
                 local key = ""
                 for _, c in ipairs(group) do key = key .. c.hash .. "_" end
                 local size = #group
-                local gap = (size == 1) and 0.5 or 10
+                
                 local state = groupStates[key]
                 if not state then
-                    state = { lastFire = 0, index = 1, pending = false }
+                    state = { 
+                        lastFire = 0, 
+                        index = 1, 
+                        pending = false, 
+                        isWaiting = false,
+                        waitUntil = 0
+                    }
                     groupStates[key] = state
                 end
-                if not state.pending and (now - state.lastFire >= gap) then
-                    local attempts = 0
-                    while attempts < size do
-                        if state.index > size then state.index = 1 end
+                
+                if size == 1 then
+                    if not state.pending then
+                        state.pending = true
+                        local member = group[1]
+                        local part = member.part
+                        local hash = member.hash
+                        
+                        task.spawn(function()
+                            while settings.activeAbilities["ENCORE"] do
+                                if not part or not part.Parent then break end
+                                abilityUsedQueue[hash] = nil
+                                
+                                sendAbilityNoPosition(part, 1)
+                                
+                                task.wait(SPAM_DELAY)
+                            end
+                            state.pending = false
+                        end)
+                    end
+                else
+                    if state.isWaiting and now >= state.waitUntil then
+                        state.isWaiting = false
+                        state.index = (state.index % size) + 1
+                    end
+                    
+                    if not state.isWaiting and not state.pending then
                         local member = group[state.index]
                         if member and member.part and member.part.Parent then
+                            state.pending = true
+                            local part = member.part
                             local hash = member.hash
-                            local lastH = hashLastFire[hash] or 0
-                            if now - lastH >= gap - 0.5 then
-                                state.pending = true
-                                local part = member.part
-                                task.spawn(function()
-                                    local used = false
-                                    while settings.activeAbilities["ENCORE"] and not used do
-                                        if not part or not part.Parent then break end
-                                        abilityUsedQueue[hash] = nil
-                                        if sendAbilityNoPosition(part, 1) == true then used = true break end
-                                        local waitStart = tick()
-                                        while tick() - waitStart < 0.5 and settings.activeAbilities["ENCORE"] do
-                                            if abilityUsedQueue[hash] then used = true break end
-                                            task.wait(0.02)
-                                        end
-                                        if not used then task.wait(0.15) end
-                                    end
+                            
+                            task.spawn(function()
+                                local used = false
+                                while settings.activeAbilities["ENCORE"] and not used do
+                                    if not part or not part.Parent then break end
+                                    
                                     abilityUsedQueue[hash] = nil
-                                    local t = tick()
-                                    hashLastFire[hash] = t
-                                    state.lastFire = t
-                                    state.index = (state.index % size) + 1
-                                    state.pending = false
-                                end)
-                                break
-                            end
+                                    if sendAbilityNoPosition(part, 1) == true then
+                                        used = true
+                                        break
+                                    end
+                                    
+                                    local start = tick()
+                                    while tick() - start < 0.5 and settings.activeAbilities["ENCORE"] do
+                                        if abilityUsedQueue[hash] then
+                                            used = true
+                                            break
+                                        end
+                                        task.wait(0.02)
+                                    end
+                                    
+                                    if not used then 
+                                        task.wait(SPAM_DELAY) 
+                                    end
+                                end
+                                abilityUsedQueue[hash] = nil
+                                
+                                if used then
+                                    state.isWaiting = true
+                                    state.waitUntil = tick() + 10
+                                end
+                                state.pending = false
+                            end)
+                        else
+                            state.index = (state.index % size) + 1
                         end
-                        state.index = (state.index % size) + 1
-                        attempts = attempts + 1
                     end
                 end
             end
         end
-        task.wait(0.3)
+        task.wait(0.1)
     end
 end
 
