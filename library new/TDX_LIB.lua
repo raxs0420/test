@@ -2064,7 +2064,7 @@ local function setupAntiAFK()
 end
 setupAntiAFK()
 LocalPlayer.CharacterAdded:Connect(function()
-    task.wait(1)
+    task.wait(0.3)
     setupAntiAFK()
 end)
 
