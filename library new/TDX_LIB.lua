@@ -2035,8 +2035,8 @@ processCoinQueue = function()
 end
 
 startCoinCollector = function()
-    if not CoinDropEvent then return end -- Fixed variable name
-    CoinDropEvent.OnClientEvent:Connect(function(data) -- Fixed variable name
+    if not CoinDropEvent then return end
+    CoinDropEvent.OnClientEvent:Connect(function(data) 
         if type(data) ~= "table" then return end
         if data[1] == nil then return end
         
