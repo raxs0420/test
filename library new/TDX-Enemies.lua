@@ -1,4 +1,6 @@
-=== Enemies ===
+=== TDX EXTRACTION DATA ===
+
+=== ENEMY CONFIGS ===
 
   [Global/Unused] Zombie | HP: 8 | Speed: 2.5 | AirUnit: false | IsBoss: false
   [Global/Unused] Arrow | HP: 0 | Speed: 25 | AirUnit: false | IsBoss: false
@@ -446,6 +448,7 @@
   [Nightmare] Zombie Drop Pod 14 | HP: 10 | Speed: 0 | AirUnit: false | IsBoss: false
   [Nightmare] Zombie Drop Pod 16 | HP: 10 | Speed: 0 | AirUnit: false | IsBoss: false
   [Nightmare] X Soldier Nightmare | HP: 225 | Speed: 2.8 | AirUnit: false | IsBoss: false
+  [Nightmare] Nightmare Apex Predator | HP: 1750000 | Speed: 3 | AirUnit: false | IsBoss: true
 
 [Gamemode: Slime Event]
   [Slime Event] SlimeCaptain1 | HP: 100000 | Speed: 2 | AirUnit: false | IsBoss: true
@@ -499,6 +502,7 @@
   [Nightmare Special Wave] Nightmare Calamity 2 | HP: 2222222 | Speed: 1 | AirUnit: false | IsBoss: true
   [Nightmare Special Wave] Nightmare Endbringer | HP: 250000 | Speed: 3.5 | AirUnit: false | IsBoss: false
   [Nightmare Special Wave] Nightmare Calamity 1 | HP: 6666666 | Speed: 1.4 | AirUnit: false | IsBoss: true
+  [Nightmare Special Wave] Nightmare Nemesis | HP: 2000000 | Speed: 3.4 | AirUnit: true | IsBoss: true
 
 [Gamemode: Halloween25]
   [Halloween25] Corroded | HP: 100 | Speed: 2.5 | AirUnit: false | IsBoss: false
@@ -526,6 +530,7 @@
   [Halloween25] Ghost Enemy | HP: 50 | Speed: 4 | AirUnit: true | IsBoss: false
   [Halloween25] Coffin Head | HP: 75000 | Speed: 2.5 | AirUnit: false | IsBoss: false
   [Halloween25] Corrupted Eradicator MK2 HW25 | HP: 2900000 | Speed: 2.2 | AirUnit: false | IsBoss: true
+  [Halloween25] Vine Golem Nightmare | HP: 5850 | Speed: 1.2 | AirUnit: false | IsBoss: false
 
 [Gamemode: Party2025]
   [Party2025] Party Apex Predator | HP: 1750000 | Speed: 4 | AirUnit: false | IsBoss: true
@@ -670,16 +675,16 @@
   [PVP] Giant Grenadier Bot PVP | HP: 15000 | Speed: 2.4 | AirUnit: false | IsBoss: false
   [PVP] Mystery V PVP | HP: 500 | Speed: 8.8 | AirUnit: false | IsBoss: false
   [PVP] Malice PVP | HP: 2000 | Speed: 0 | AirUnit: false | IsBoss: false
-  [PVP] Slow PVP | HP: 70 | Speed: 2 | AirUnit: false | IsBoss: false
+  [PVP] Slow PVP | HP: 80 | Speed: 2 | AirUnit: false | IsBoss: false
   [PVP] Neuron PVP | HP: 3500 | Speed: 16 | AirUnit: false | IsBoss: false
   [PVP] Malignant PVP | HP: 10000 | Speed: 3 | AirUnit: false | IsBoss: false
   [PVP] Shade PVP | HP: 400 | Speed: 4.8 | AirUnit: false | IsBoss: false
-  [PVP] Nosowy PVP | HP: 390 | Speed: 9 | AirUnit: false | IsBoss: false
+  [PVP] Nosowy PVP | HP: 390 | Speed: 9.5 | AirUnit: false | IsBoss: false
   [PVP] Cyst PVP | HP: 300 | Speed: 4 | AirUnit: true | IsBoss: false
   [PVP] Void Warden PVP | HP: 50000 | Speed: 3 | AirUnit: false | IsBoss: false
   [PVP] Mystery PVP | HP: 5000 | Speed: 5.6 | AirUnit: false | IsBoss: false
-  [PVP] Carcin PVP | HP: 6000 | Speed: 5.7 | AirUnit: false | IsBoss: false
-  [PVP] Void Prime PVP | HP: 3200000 | Speed: 2.9 | AirUnit: false | IsBoss: true
+  [PVP] Carcin PVP | HP: 6500 | Speed: 5.7 | AirUnit: false | IsBoss: false
+  [PVP] Void Prime PVP | HP: 2900000 | Speed: 2.9 | AirUnit: false | IsBoss: true
   [PVP] Erad-B PVP | HP: 50000 | Speed: 1.5 | AirUnit: false | IsBoss: true
   [PVP] Normal PVP | HP: 20 | Speed: 3.4 | AirUnit: false | IsBoss: false
   [PVP] Easter Engineer PVP | HP: 175000 | Speed: 3 | AirUnit: false | IsBoss: true
@@ -763,8 +768,31 @@
   [TB Part 2] Void Dozer | HP: 175000 | Speed: 2 | AirUnit: false | IsBoss: true
   [TB Part 2] Exo Void | HP: 4200000 | Speed: 4 | AirUnit: false | IsBoss: true
 
+[Gamemode: Halloween26]
+  [Halloween26] Blazed Sinner | HP: 375 | Speed: 4.7 | AirUnit: false | IsBoss: false
+  [Halloween26] Brimstone Skull | HP: 500 | Speed: 3.4 | AirUnit: true | IsBoss: false
+  [Halloween26] Calamitian | HP: 5000 | Speed: 9 | AirUnit: false | IsBoss: false
+  [Halloween26] Calamity Priest | HP: 100 | Speed: 2.5 | AirUnit: false | IsBoss: false
+  [Halloween26] Calamity Ravager | HP: 55000 | Speed: 7.5 | AirUnit: false | IsBoss: false
+  [Halloween26] Crimson Maw | HP: 1800 | Speed: 4 | AirUnit: true | IsBoss: false
+  [Halloween26] Death Catcher Bones | HP: 10000 | Speed: 0 | AirUnit: false | IsBoss: false
+  [Halloween26] Death Catcher | HP: 60000 | Speed: 2.5 | AirUnit: false | IsBoss: false
+  [Halloween26] Death Eater | HP: 70000 | Speed: 4.5 | AirUnit: true | IsBoss: false
+  [Halloween26] Face Collector | HP: 5000 | Speed: 2.5 | AirUnit: false | IsBoss: false
+  [Halloween26] Jail Gargoyle | HP: 80000 | Speed: 4.1 | AirUnit: true | IsBoss: false
+  [Halloween26] Melted | HP: 8500 | Speed: 4.2 | AirUnit: false | IsBoss: false
+  [Halloween26] Prison Guard | HP: 2500 | Speed: 2.6 | AirUnit: false | IsBoss: false
+  [Halloween26] Sinner | HP: 180 | Speed: 4.6 | AirUnit: false | IsBoss: false
+  [Halloween26] Tortured Giant | HP: 30000 | Speed: 3 | AirUnit: false | IsBoss: false
+  [Halloween26] Red Calamity Predator | HP: 250000 | Speed: 2.3 | AirUnit: false | IsBoss: true
+  [Halloween26] Calamity Predator | HP: 1200000 | Speed: 2.1 | AirUnit: false | IsBoss: true
+  [Halloween26] Calamitous Hellbrute | HP: 600000 | Speed: 1.8 | AirUnit: false | IsBoss: false
+  [Halloween26] Splinterfiend Calamity | HP: 35000 | Speed: 1.6 | AirUnit: false | IsBoss: false
+  [Halloween26] Calamity Executioner | HP: 160000 | Speed: 1 | AirUnit: false | IsBoss: false
+  [Halloween26] Calamity Linebreaker | HP: 180000 | Speed: 2.4 | AirUnit: false | IsBoss: false
 
-=== Gamemodes ===
+
+=== WAVE SYSTEMS ===
 
 [Gamemode: Easy] (Internal: Easy)
   Total Waves: 24
@@ -784,7 +812,10 @@
 [Gamemode: Test] (Internal: Test)
   Total Waves: 2
   Enemies Used:
+    - Calamity Executioner | HP: 160000 | Speed: 1 | AirUnit: false | IsBoss: false
+    - Calamity Linebreaker | HP: 180000 | Speed: 2.4 | AirUnit: false | IsBoss: false
     - Atrazine | HP: 10000 | Speed: 1.6 | AirUnit: false | IsBoss: false
+    - Splinterfiend Calamity | HP: 35000 | Speed: 1.6 | AirUnit: false | IsBoss: false
 
 [Gamemode: Intermediate] (Internal: Intermediate)
   Total Waves: 32
@@ -2453,3 +2484,95 @@
     - Void Berserker | HP: 72000 | Speed: 6 | AirUnit: false | IsBoss: false
     - Mystery | HP: 100 | Speed: 7.4 | AirUnit: false | IsBoss: false
     - TB2 Boss 2 | HP: 5000 | Speed: 2.1 | AirUnit: false | IsBoss: false
+
+[Gamemode: Halloween 2026 (Hard)] (Internal: Halloween2026Hard)
+  Total Waves: 26
+  Enemies Used:
+    - Splinterfiend Calamity | HP: 35000 | Speed: 1.6 | AirUnit: false | IsBoss: false
+    - Gargoyle | HP: 26666 | Speed: 5 | AirUnit: true | IsBoss: false
+    - Forsaken | HP: 125000 | Speed: 6 | AirUnit: false | IsBoss: false
+    - Calamity Executioner | HP: 160000 | Speed: 1 | AirUnit: false | IsBoss: false
+    - Crimson Maw | HP: 1800 | Speed: 4 | AirUnit: true | IsBoss: false
+    - Blazed Sinner | HP: 375 | Speed: 4.7 | AirUnit: false | IsBoss: false
+    - Death Eater | HP: 70000 | Speed: 4.5 | AirUnit: true | IsBoss: false
+    - Calamity Predator | HP: 1200000 | Speed: 2.1 | AirUnit: false | IsBoss: true
+    - Jail Gargoyle | HP: 80000 | Speed: 4.1 | AirUnit: true | IsBoss: false
+    - Death Catcher | HP: 60000 | Speed: 2.5 | AirUnit: false | IsBoss: false
+    - Imp | HP: 16666 | Speed: 7 | AirUnit: false | IsBoss: false
+    - Calamitous Hellbrute | HP: 600000 | Speed: 1.8 | AirUnit: false | IsBoss: false
+    - Calamity Ravager | HP: 55000 | Speed: 7.5 | AirUnit: false | IsBoss: false
+    - Brimstone Skull | HP: 500 | Speed: 3.4 | AirUnit: true | IsBoss: false
+    - Tortured Giant | HP: 30000 | Speed: 3 | AirUnit: false | IsBoss: false
+    - Calamitian | HP: 5000 | Speed: 9 | AirUnit: false | IsBoss: false
+    - Hell Star | HP: 99999 | Speed: 3.5 | AirUnit: true | IsBoss: false
+    - Melted | HP: 8500 | Speed: 4.2 | AirUnit: false | IsBoss: false
+    - Face Collector | HP: 5000 | Speed: 2.5 | AirUnit: false | IsBoss: false
+    - Calamity Linebreaker | HP: 180000 | Speed: 2.4 | AirUnit: false | IsBoss: false
+    - Sinner | HP: 180 | Speed: 4.6 | AirUnit: false | IsBoss: false
+    - Iron Maiden | HP: 400000 | Speed: 10 | AirUnit: false | IsBoss: false
+    - Fragment | HP: 333333 | Speed: 9 | AirUnit: false | IsBoss: false
+    - Brimstone | HP: 240000 | Speed: 2.7 | AirUnit: false | IsBoss: false
+    - Prison Guard | HP: 2500 | Speed: 2.6 | AirUnit: false | IsBoss: false
+    - Tormented Soul | HP: 350 | Speed: 5.8 | AirUnit: false | IsBoss: false
+    - Red Skeleton | HP: 3850 | Speed: 4.1 | AirUnit: false | IsBoss: false
+
+[Gamemode: Halloween 2026 (Nightmare)] (Internal: Halloween2026Nightmare)
+  Total Waves: 15
+  Enemies Used:
+    - Nightmare Apex Predator | HP: 1750000 | Speed: 3 | AirUnit: false | IsBoss: true
+    - Nightmare Endbringer | HP: 250000 | Speed: 3.5 | AirUnit: false | IsBoss: false
+    - Exo Void | HP: 4200000 | Speed: 4 | AirUnit: false | IsBoss: true
+    - Blazed Sinner | HP: 375 | Speed: 4.7 | AirUnit: false | IsBoss: false
+    - Dark Presence | HP: 1446965 | Speed: 4.2 | AirUnit: true | IsBoss: false
+    - Corrupted Apex Predator | HP: 4000000 | Speed: 2 | AirUnit: false | IsBoss: true
+    - Calamity Predator | HP: 1200000 | Speed: 2.1 | AirUnit: false | IsBoss: true
+    - Atrazine Toilet | HP: 70000 | Speed: 3.5 | AirUnit: false | IsBoss: false
+    - Fragment | HP: 333333 | Speed: 9 | AirUnit: false | IsBoss: false
+    - Zombie | HP: 8 | Speed: 2.5 | AirUnit: false | IsBoss: false
+    - Multiplier X | HP: 100000 | Speed: 20 | AirUnit: false | IsBoss: false
+    - Calamitous Hellbrute | HP: 600000 | Speed: 1.8 | AirUnit: false | IsBoss: false
+    - Brimstone Skull | HP: 500 | Speed: 3.4 | AirUnit: true | IsBoss: false
+    - Hell Star | HP: 99999 | Speed: 3.5 | AirUnit: true | IsBoss: false
+    - Melted | HP: 8500 | Speed: 4.2 | AirUnit: false | IsBoss: false
+    - Void Lich | HP: 100000 | Speed: 2 | AirUnit: false | IsBoss: false
+    - Tormented Soul | HP: 350 | Speed: 5.8 | AirUnit: false | IsBoss: false
+    - Calamity Ravager | HP: 55000 | Speed: 7.5 | AirUnit: false | IsBoss: false
+    - Easter Engineer | HP: 175000 | Speed: 3 | AirUnit: false | IsBoss: true
+    - Sinner | HP: 180 | Speed: 4.6 | AirUnit: false | IsBoss: false
+    - Iron Maiden | HP: 400000 | Speed: 10 | AirUnit: false | IsBoss: false
+    - Nightmare Nemesis | HP: 2000000 | Speed: 3.4 | AirUnit: true | IsBoss: true
+    - Brimstone | HP: 240000 | Speed: 2.7 | AirUnit: false | IsBoss: false
+    - Nightmare Calamity 1 | HP: 6666666 | Speed: 1.4 | AirUnit: false | IsBoss: true
+    - Face Collector | HP: 5000 | Speed: 2.5 | AirUnit: false | IsBoss: false
+    - Prison Guard | HP: 2500 | Speed: 2.6 | AirUnit: false | IsBoss: false
+
+[Gamemode: Halloween 2026 (Casual)] (Internal: Halloween2026Casual)
+  Total Waves: 26
+  Enemies Used:
+    - Splinterfiend Calamity | HP: 35000 | Speed: 1.6 | AirUnit: false | IsBoss: false
+    - Gargoyle | HP: 26666 | Speed: 5 | AirUnit: true | IsBoss: false
+    - Forsaken | HP: 125000 | Speed: 6 | AirUnit: false | IsBoss: false
+    - Calamity Executioner | HP: 160000 | Speed: 1 | AirUnit: false | IsBoss: false
+    - Crimson Maw | HP: 1800 | Speed: 4 | AirUnit: true | IsBoss: false
+    - Blazed Sinner | HP: 375 | Speed: 4.7 | AirUnit: false | IsBoss: false
+    - Death Eater | HP: 70000 | Speed: 4.5 | AirUnit: true | IsBoss: false
+    - Calamity Predator | HP: 1200000 | Speed: 2.1 | AirUnit: false | IsBoss: true
+    - Jail Gargoyle | HP: 80000 | Speed: 4.1 | AirUnit: true | IsBoss: false
+    - Death Catcher | HP: 60000 | Speed: 2.5 | AirUnit: false | IsBoss: false
+    - Imp | HP: 16666 | Speed: 7 | AirUnit: false | IsBoss: false
+    - Calamitous Hellbrute | HP: 600000 | Speed: 1.8 | AirUnit: false | IsBoss: false
+    - Calamity Ravager | HP: 55000 | Speed: 7.5 | AirUnit: false | IsBoss: false
+    - Brimstone Skull | HP: 500 | Speed: 3.4 | AirUnit: true | IsBoss: false
+    - Tortured Giant | HP: 30000 | Speed: 3 | AirUnit: false | IsBoss: false
+    - Calamitian | HP: 5000 | Speed: 9 | AirUnit: false | IsBoss: false
+    - Hell Star | HP: 99999 | Speed: 3.5 | AirUnit: true | IsBoss: false
+    - Melted | HP: 8500 | Speed: 4.2 | AirUnit: false | IsBoss: false
+    - Face Collector | HP: 5000 | Speed: 2.5 | AirUnit: false | IsBoss: false
+    - Calamity Linebreaker | HP: 180000 | Speed: 2.4 | AirUnit: false | IsBoss: false
+    - Sinner | HP: 180 | Speed: 4.6 | AirUnit: false | IsBoss: false
+    - Iron Maiden | HP: 400000 | Speed: 10 | AirUnit: false | IsBoss: false
+    - Fragment | HP: 333333 | Speed: 9 | AirUnit: false | IsBoss: false
+    - Brimstone | HP: 240000 | Speed: 2.7 | AirUnit: false | IsBoss: false
+    - Prison Guard | HP: 2500 | Speed: 2.6 | AirUnit: false | IsBoss: false
+    - Tormented Soul | HP: 350 | Speed: 5.8 | AirUnit: false | IsBoss: false
+    - Red Skeleton | HP: 3850 | Speed: 4.1 | AirUnit: false | IsBoss: false
