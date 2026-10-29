@@ -56,7 +56,7 @@ local MapVoteCast = Remotes:FindFirstChild("MapVoteCast")
 local MapVoteReady = Remotes:FindFirstChild("MapVoteReady")
 local MapChangeVoteCast = Remotes:FindFirstChild("MapChangeVoteCast")
 local RequestTeleportToLobby = Remotes:FindFirstChild("RequestTeleportToLobby")
-local CoinDropEvent = Remotes:WaitForChild("NewCoinDropEvent")
+local CoinDropEvent = Remotes:WaitForChild("NewCoinDropEvent", 10)
 
 local _latestMapState = nil
 if MapVoteStateUpdate then
