@@ -596,68 +596,68 @@ if TowerFactoryQueueUpdated then
     TowerFactoryQueueUpdated.OnClientEvent:Connect(function(data)
         if type(data) ~= "table" then return end
         for _, item in ipairs(data) do
-            if type(item) ~= "table" or not item.Creation then continue end
-            if type(item.Data) ~= "table" then continue end
-            local info = item.Data[1]
-            if type(info) ~= "table" then continue end
+            if type(item) == "table" and item.Creation and type(item.Data) == "table" then
+                local info = item.Data[1]
+                if type(info) == "table" then
+                    local id = info[1]
+                    local name = info[2]
+                    local pos = info[4]
+                    local username = info[7]
+                    local lvl = info[8]
 
-            local id = info[1]
-            local name = info[2]
-            local pos = info[4]
-            local username = info[7]
-            local lvl = info[8]
-
-            if id ~= nil then
-                if not TDX._isRebuildingQueue then
-                    TDX._aliveState[id] = true
-                end
-
-                if type(lvl) == "table" then
-                    local t = math.min(lvl[1] or 0, MAX_PATH_LEVEL)
-                    local b = math.min(lvl[2] or 0, MAX_PATH_LEVEL)
-                    TDX._levelCache[id] = { t, b }
-                    for _, slot in pairs(TDX._slots) do
-                        if slot.actualId == id then
-                            if t > (slot.peakT or 0) then slot.peakT = t end
-                            if b > (slot.peakB or 0) then slot.peakB = b end
-                            break
+                    if id ~= nil then
+                        if not TDX._isRebuildingQueue then
+                            TDX._aliveState[id] = true
                         end
-                    end
-                end
-                resolveKey(TDX._levelWaiters, id)
-            end
 
-            if username == LocalPlayer.Name and typeof(pos) == "Vector3" then
-                local resolvedPending = false
-                for i = 1, #TDX._pendingPlaces do
-                    local p = TDX._pendingPlaces[i]
-                    if not p.id and p.name == name and typeof(p.pos) == "Vector3" then
-                        if (p.pos - pos).Magnitude < MATCH_DISTANCE then
-                            p.id = id
-                            table.remove(TDX._pendingPlaces, i)
-                            p.resolve(id)
-                            resolvedPending = true
-                            break
+                        if type(lvl) == "table" then
+                            local t = math.min(lvl[1] or 0, MAX_PATH_LEVEL)
+                            local b = math.min(lvl[2] or 0, MAX_PATH_LEVEL)
+                            TDX._levelCache[id] = { t, b }
+                            for _, slot in pairs(TDX._slots) do
+                                if slot.actualId == id then
+                                    if t > (slot.peakT or 0) then slot.peakT = t end
+                                    if b > (slot.peakB or 0) then slot.peakB = b end
+                                    break
+                                end
+                            end
                         end
+                        resolveKey(TDX._levelWaiters, id)
                     end
-                end
 
-                if not resolvedPending then
-                    local slotId, slot = findSlotByPosAndName(name, pos)
-                    if slotId and slot and slot.awaitingGameRevive then
-                        local oldId = slot.actualId
-                        slot.actualId = id
-                        slot.deadId = nil
-                        slot.deathLevel = nil
-                        slot.deathTime = nil
-                        slot.awaitingGameRevive = false
-                        slot.pos = pos
-                        TDX._idRemap[slotId] = id
-                        TDX._aliveState[id] = true
+                    if username == LocalPlayer.Name and typeof(pos) == "Vector3" then
+                        local resolvedPending = false
+                        for i = 1, #TDX._pendingPlaces do
+                            local p = TDX._pendingPlaces[i]
+                            if not p.id and p.name == name and typeof(p.pos) == "Vector3" then
+                                if (p.pos - pos).Magnitude < MATCH_DISTANCE then
+                                    p.id = id
+                                    table.remove(TDX._pendingPlaces, i)
+                                    p.resolve(id)
+                                    resolvedPending = true
+                                    break
+                                end
+                            end
+                        end
 
-                        if oldId and oldId ~= id then
-                            log(string.format("Slot %s (%s) game-revived ID %s -> %s",
-                                tostring(slotId), tostring(name), tostring(oldId), tostring(id)))
+                        if not resolvedPending then
+                            local slotId, slot = findSlotByPosAndName(name, pos)
+                            if slotId and slot and slot.awaitingGameRevive then
+                                local oldId = slot.actualId
+                                slot.actualId = id
+                                slot.deadId = nil
+                                slot.deathLevel = nil
+                                slot.deathTime = nil
+                                slot.awaitingGameRevive = false
+                                slot.pos = pos
+                                TDX._idRemap[slotId] = id
+                                TDX._aliveState[id] = true
+
+                                if oldId and oldId ~= id then
+                                    log(string.format("Slot %s (%s) game-revived ID %s -> %s",
+                                        tostring(slotId), tostring(name), tostring(oldId), tostring(id)))
+                                end
+                            end
                         end
                     end
                 end
@@ -1170,65 +1170,68 @@ placeInternal = function(name, pos, aim, rebuild, priority, shouldContinue, maxA
         attempts = attempts + 1
         acquirePlaceLock()
 
+        local skipRest = false
         if cost and cost > 0 and getCashValue() < cost then
             releasePlaceLock()
             task.wait(0.1)
             attempts = attempts - 1
-            continue
+            skipRest = true
         end
 
-        local pending = { name = name, pos = pos, id = nil, resolve = nil }
-        local _, resolve, await = (function()
-            local d = { done = false, result = nil, event = Instance.new("BindableEvent") }
-            return d,
-                function(v)
-                    if d.done then return end
-                    d.done = true
-                    d.result = v
-                    d.event:Fire()
-                end,
-                function(timeout)
-                    if d.done then return d.result end
-                    task.delay(timeout or 10, function()
-                        if not d.done then
-                            d.done = true
-                            d.result = nil
-                            d.event:Fire()
-                        end
-                    end)
-                    d.event.Event:Wait()
-                    return d.result
+        if not skipRest then
+            local pending = { name = name, pos = pos, id = nil, resolve = nil }
+            local _, resolve, await = (function()
+                local d = { done = false, result = nil, event = Instance.new("BindableEvent") }
+                return d,
+                    function(v)
+                        if d.done then return end
+                        d.done = true
+                        d.result = v
+                        d.event:Fire()
+                    end,
+                    function(timeout)
+                        if d.done then return d.result end
+                        task.delay(timeout or 10, function()
+                            if not d.done then
+                                d.done = true
+                                d.result = nil
+                                d.event:Fire()
+                            end
+                        end)
+                        d.event.Event:Wait()
+                        return d.result
+                    end
+            end)()
+            pending.resolve = resolve
+            table.insert(TDX._pendingPlaces, pending)
+
+            local timerArg = workspace:GetServerTimeNow()
+            local ok2, res = pcall(function()
+                if aim and typeof(aim) == "Vector3" then
+                    return PlaceTower:InvokeServer(timerArg, name, pos, rebuild and 1 or 0, aim)
                 end
-        end)()
-        pending.resolve = resolve
-        table.insert(TDX._pendingPlaces, pending)
+                return PlaceTower:InvokeServer(timerArg, name, pos, rebuild and 1 or 0)
+            end)
 
-        local timerArg = workspace:GetServerTimeNow()
-        local ok2, res = pcall(function()
-            if aim and typeof(aim) == "Vector3" then
-                return PlaceTower:InvokeServer(timerArg, name, pos, rebuild and 1 or 0, aim)
+            releasePlaceLock()
+
+            if ok2 and res == true then
+                local id = await(10)
+                if id then return id end
+                for i, p in ipairs(TDX._pendingPlaces) do
+                    if p == pending then table.remove(TDX._pendingPlaces, i) break end
+                end
+                return nil
             end
-            return PlaceTower:InvokeServer(timerArg, name, pos, rebuild and 1 or 0)
-        end)
 
-        releasePlaceLock()
-
-        if ok2 and res == true then
-            local id = await(10)
-            if id then return id end
             for i, p in ipairs(TDX._pendingPlaces) do
                 if p == pending then table.remove(TDX._pendingPlaces, i) break end
             end
-            return nil
-        end
-
-        for i, p in ipairs(TDX._pendingPlaces) do
-            if p == pending then table.remove(TDX._pendingPlaces, i) break end
-        end
-        warnUser(string.format("Place rejected for %s (result %s), attempt %d/%d",
-            tostring(name), tostring(res), attempts, maxAttempts))
-        if attempts < maxAttempts then
-            task.wait(RETRY_DELAY)
+            warnUser(string.format("Place rejected for %s (result %s), attempt %d/%d",
+                tostring(name), tostring(res), attempts, maxAttempts))
+            if attempts < maxAttempts then
+                task.wait(RETRY_DELAY)
+            end
         end
     end
     return nil
