@@ -94,6 +94,7 @@ CONSUMABLES = {
     ["rbxassetid://17429533728"] = "Frag Grenade(s)",
     ["rbxassetid://17437703262"] = "Molotov(s)",
     ["rbxassetid://139414922355803"] = "Present Clusters(s)",
+    ["rbxassetid://124568805305441"] = "Pumpkin Bomb(s)",    
 }
 
 MAIN = {
