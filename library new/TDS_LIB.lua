@@ -66,6 +66,7 @@ WEBHOOK = _G.Webhook or ""
 CHESTS = {
     ["rbxassetid://"] = "Showtime Crate",
     ["rbxassetid://116682554518868"] = "Hollow Crate",
+    ["rbxassetid://1180172752139611"] = "Sun and Moon Crate",
     ["rbxassetid://100652254678254"] = "Beach Crate",
     ["rbxassetid://71674076269696"] = "Scuba Ops Crate",
     ["rbxassetid://"] = "Patriotic Crate",
