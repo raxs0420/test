@@ -1,0 +1,121 @@
+_G.AutoPickups = false
+_G.AntiLag = true
+_G.ClaimRewards = true
+_G.AutoChain = true
+_G.AutoSupport = true
+_G.AutoDJ = true
+_G.AutoReady = true
+_G.ReverseAutoSkip = { 10, 17, 18, 19, 20, 21, 22, 23, 24, 25, 29, 30 }
+_G.AutoSmartSkip = true
+_G.LobbyRejoin = 120  
+_G.Webhook = ""
+
+local TDS = loadstring(game:HttpGet("https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/TDS_LIB.lua"))()
+
+TDS:Loadout("EvolvedJuggernaut", "Engineer", "Hacker", "DJ Booth", "Gatling Gun")
+TDS:Mode("Act4Easy")
+TDS:GameInfo("Totality Tower", {})
+TDS:PresetLoadout("Own")
+
+TDS:UnlockTimeScale()
+TDS:TimeScale(2)
+
+TDS:Place("Engineer", -4.334861755371094, 1.0000019073486328, -24.980976104736328)
+TDS:Place("Engineer", -8.35052490234375, 1.0000019073486328, -24.867834091186523)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/avtryxz/autogutlin/refs/heads/main/autogutlin.lua"))()
+
+TDS:Place("Engineer", -6.225523471832275, 1.0000019073486328, -24.869068145751953)
+TDS:Place("Engineer", -8.190662384033203, 1.0000017881393433, -23.334739685058594)
+TDS:Place("Engineer", -6.594464302062988, 1.0000017881393433, -23.433542251586914)
+TDS:Place("Engineer", -4.9198150634765625, 1.0000017881393433, -23.537235260009766)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Place("DJ Booth", -8.240453720092773, 1.0000015497207642, -19.812105178833008)
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+TDS:SetOption(7, "Track", "Green")
+TDS:Place("Hacker", 3.938894748687744, 0.9999843239784241, -24.97380828857422)
+
+TDS:Place("Gatling Gun", -17.836816787719727, 0.9999891519546509, -7.661550521850586)
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+
+TDS:Upgrade(7)
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+
+TDS:Upgrade(7)
+TDS:Upgrade(7)
+
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+
+TDS:Upgrade(8)
+TDS:Upgrade(8)
+
+TDS:Upgrade(1)
+TDS:Upgrade(1)
+TDS:Upgrade(2)
+TDS:Upgrade(2)
+TDS:Upgrade(3)
+TDS:Upgrade(3)
+TDS:Upgrade(4)
+TDS:Upgrade(4)
+TDS:Upgrade(5)
+TDS:Upgrade(5)
+TDS:Upgrade(6)
+TDS:Upgrade(6)
+
+TDS:Upgrade(9)
+TDS:Upgrade(9)
+
+TDS:Place("Hacker", -9.376891136169434, 0.9999831914901733, -33.63396453857422)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Upgrade(10)
+TDS:Upgrade(10, 2)
+TDS:Upgrade(8, 2)
+TDS:Place("EvolvedJuggernaut", -8.190662384033203, 1.0000017881393433, -23.334739685058594)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Upgrade(11)
+TDS:Upgrade(11, 2)
+TDS:Upgrade(11, 2)
+TDS:Upgrade(11, 2)
+TDS:Upgrade(11, 2)
+
+TDS:SetOption(7, "Track", "Red")
+
+TDS:Ability(8, "Hologram Tower", {towerPosition = Vector3.new(-8.190662384033203, 10, -23.334739685058594), towerToClone = 11}, true)
+
+TDS:Ability(10, "Hologram Tower", {towerPosition = Vector3.new(-17.836816787719727, 10, -7.661550521850586), towerToClone = 9}, true)
+
+TDS:Ability(8, "Hologram Tower", {towerPosition = Vector3.new(-6.225523471832275, 10, -24.869068145751953), towerToClone = 7}, true)
+
+TDS:Ability(10, "Hologram Tower", {towerPosition = Vector3.new(-6.225523471832275, 10, -24.869068145751953), towerToClone = 7}, true)
