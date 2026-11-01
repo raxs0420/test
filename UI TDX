@@ -65,95 +65,175 @@ function addDebugLog(message)
 end
 
 local EnemyDB = {
-    URL = "https://raw.githubusercontent.com/raxs0420/test/refs/heads/main/library%20new/TDX-Enemies.lua",
 THRESHOLDS = {
-    easy = 500, test = 1000, intermediate = 500, elite = 1000, expert = 1000,
-    christmas = 400, christmasnightmare = 400, endless = 1000, toilet = 1000,
-    towerbattles = 1000, towerbattlesnightmare = 1000,
-    halloweenpart1 = 400, halloweennightmarepart1 = 400, halloweennightmarepart2 = 1000,
-    halloweennightmarepart3 = 1000, halloweenpart2 = 500, halloweenpart3 = 1000,
-    halloweenpart4 = 1000, halloweennightmarepart4 = 1000,
-    christmas24part1nightmare = 400, christmas24part1 = 400,
-    christmas24part2 = 1000, christmas24part2nightmare = 1000,
-    tutorial = 200, expertold = 1000, mlg = 1000, mlgnightmare = 1000, eliteold = 1000,
-    slimeevent = 1000, ultranightmare = 2000, slimeeventnightmare = 1000,
+    easy = 500,
+    test = 1000,
+    intermediate = 500,
+    elite = 1000,
+    expert = 1000,
+    christmas = 400,
+    christmasnightmare = 400,
+    endless = 1000,
+    toilet = 1000,
+    towerbattles = 1000,
+    towerbattlesnightmare = 1000,
+    halloweenpart1 = 400,
+    halloweennightmarepart1 = 400,
+    halloweennightmarepart2 = 1000,
+    halloweennightmarepart3 = 1000,
+    halloweenpart2 = 500,
+    halloweenpart3 = 1000,
+    halloweenpart4 = 1000,
+    halloweennightmarepart4 = 1000,
+    christmas24part1nightmare = 400,
+    christmas24part1 = 400,
+    christmas24part2 = 1000,
+    christmas24part2nightmare = 1000,
+    tutorial = 200,
+    expertold = 1000,
+    mlg = 1000,
+    mlgnightmare = 1000,
+    eliteold = 1000,
+    slimeevent = 1000,
+    ultranightmare = 2000,
+    slimeeventnightmare = 1000,
     nightmare = 2000,
-    halloween2025nightmare = 2000, halloween2025 = 1000, party2025 = 1000,
-    christmas25part1 = 1000, christmas25part2 = 1000, christmas25part2nightmare = 1000,
-    christmas25part1nightmare = 1000, christmas25part1easy = 1000, christmas25part2easy = 1000,
-    easter26part2nightmare = 1000, easter26part1nightmare = 1000, easter26part2easy = 1000,
-    easter26part1 = 1000, easter26part2 = 1000, easter26part1easy = 1000,
-    pvp_1v1 = 1000, tbpart2voidmare = 2000, tbpart2hard = 2000,
-    tbpart2casual = 2000, tbpart2nightmare = 2000,
-    halloween2026hard = 1000, halloween2026nightmare = 2000, halloween2026casual = 1000,
+    halloween2025nightmare = 2000,
+    halloween2025 = 1000,
+    party2025 = 1000,
+    christmas25part1 = 1000,
+    christmas25part2 = 1000,
+    christmas25part2nightmare = 1000,
+    christmas25part1nightmare = 1000,
+    christmas25part1easy = 1000,
+    christmas25part2easy = 1000,
+    easter26part2nightmare = 1000,
+    easter26part1nightmare = 1000,
+    easter26part2easy = 1000,
+    easter26part1 = 1000,
+    easter26part2 = 1000,
+    easter26part1easy = 1000,
+    pvp_1v1 = 750,
+    tbpart2voidmare = 2000,
+    tbpart2hard = 2000,
+    tbpart2casual = 2000,
+    tbpart2nightmare = 2000,
+    halloween2026hard = 1000,
+    halloween2026nightmare = 2000,
+    halloween2026casual = 1000,
 },
     data = { byMode = {}, blacklist = {}, priority = {}, normal = {}, loaded = false, loading = false },
     mode = nil,
+    _builtModes = {},
 }
 
-function EnemyDB.parse()
-    if EnemyDB.data.loading then return false end
-    EnemyDB.data.loading = true
-    local ok, response = pcall(game.HttpGet, game, EnemyDB.URL)
-    if not ok or not response then
-        EnemyDB.data.loading = false
-        return false
+local function normalizeMode(s)
+    return string.lower(string.gsub(tostring(s or ""), " ", ""))
+end
+
+local function normalizeModeFull(s)
+    return string.lower(string.gsub(tostring(s or ""), "[%s_%-]", ""))
+end
+
+local THRESHOLDS_NORMALIZED = {}
+for k, v in pairs(EnemyDB.THRESHOLDS) do
+    THRESHOLDS_NORMALIZED[normalizeModeFull(k)] = v
+end
+
+local function getEnemyResources()
+    local shared = ReplicatedStorage:FindFirstChild("TDX_Shared")
+    if not shared then return nil, nil end
+    local common = shared:FindFirstChild("Common")
+    if not common then return nil, nil end
+    local resources = common:FindFirstChild("Resources")
+    if not resources then return nil, nil end
+    local enemies = resources:FindFirstChild("Enemies")
+    if not enemies then return nil, nil end
+    return enemies:FindFirstChild("Configs"), resources:FindFirstChild("Waves")
+end
+
+local function buildModeData(mode)
+    local configsFolder, wavesFolder = getEnemyResources()
+    if not configsFolder or not wavesFolder then return nil end
+
+    local modeFull = normalizeModeFull(mode)
+
+    local waveModule = nil
+    for _, wm in ipairs(wavesFolder:GetChildren()) do
+        if wm:IsA("ModuleScript") and normalizeModeFull(wm.Name) == modeFull then
+            waveModule = wm
+            break
+        end
     end
-    local byMode = {}
-    local curKey = nil
-    for line in response:gmatch("[^\r\n]+") do
-        local internal = line:match("%(Internal:%s*(.-)%)")
-        if internal then
-            curKey = string.lower(string.gsub(internal, " ", ""))
-            if not byMode[curKey] then byMode[curKey] = {} end
-        else
-            local body = line:match("^%s*%-%s*(.+)")
-            if body and curKey then
-                local name, hp, speed, airUnit, isBoss = body:match(
-                    "^([^|]+)%s*|%s*HP:%s*(%d+)%s*|%s*Speed:%s*([%d%.]+)%s*|%s*AirUnit:%s*(%w+)%s*|%s*IsBoss:%s*(%w+)"
-                )
-                if name then
-                    name = string.gsub(name, "^%s+", "")
-                    name = string.gsub(name, "%s+$", "")
-                    byMode[curKey][name] = {
-                        hp = tonumber(hp) or 0,
-                        speed = tonumber(speed) or 0,
-                        airUnit = (airUnit == "true"),
-                        isBoss = (isBoss == "true"),
-                    }
+    if not waveModule then return nil end
+
+    local ok, waveData = pcall(require, waveModule)
+    if not ok or type(waveData) ~= "table" or type(waveData.Waves) ~= "table" then return nil end
+
+    local enemySet = {}
+    for _, wave in pairs(waveData.Waves) do
+        if type(wave) == "table" and type(wave.SpawnSequences) == "table" then
+            for _, seq in pairs(wave.SpawnSequences) do
+                if type(seq) == "table" and seq.EnemyType ~= nil then
+                    local name = (typeof(seq.EnemyType) == "EnumItem") and seq.EnemyType.Name or tostring(seq.EnemyType)
+                    if name and name ~= "" then enemySet[name] = true end
                 end
             end
         end
     end
-    EnemyDB.data.byMode = byMode
-    EnemyDB.data.loaded = true
-    EnemyDB.data.loading = false
-    return true
+
+    local configMap = {}
+    for _, c in ipairs(configsFolder:GetChildren()) do
+        if c:IsA("ModuleScript") then configMap[c.Name] = c end
+    end
+    for _, sub in ipairs(configsFolder:GetChildren()) do
+        if sub:IsA("Folder") and normalizeModeFull(sub.Name) == modeFull then
+            for _, c in ipairs(sub:GetChildren()) do
+                if c:IsA("ModuleScript") then configMap[c.Name] = c end
+            end
+            break
+        end
+    end
+
+    local result = {}
+    for enemyName, _ in pairs(enemySet) do
+        local module = configMap[enemyName]
+        if not module then
+            for _, sub in ipairs(configsFolder:GetChildren()) do
+                if sub:IsA("Folder") and normalizeModeFull(sub.Name) ~= modeFull then
+                    local f = sub:FindFirstChild(enemyName)
+                    if f and f:IsA("ModuleScript") then module = f break end
+                end
+            end
+        end
+        if module then
+            local ok2, data = pcall(require, module)
+            if ok2 and type(data) == "table" then
+                result[enemyName] = {
+                    hp = tonumber(data.Health) or 0,
+                    speed = tonumber(data.Speed) or 0,
+                    airUnit = data.AirUnit == true,
+                    isBoss = data.IsBoss == true,
+                }
+            end
+        end
+    end
+
+    return result
 end
 
 function EnemyDB.info(name)
     if not EnemyDB.data.loaded then return nil end
     local m = EnemyDB.mode
-    if m and EnemyDB.data.byMode[m] and EnemyDB.data.byMode[m][name] then
+    if m and EnemyDB.data.byMode[m] then
         return EnemyDB.data.byMode[m][name]
-    end
-    for _, md in pairs(EnemyDB.data.byMode) do
-        if md[name] then return md[name] end
     end
     return nil
 end
 
 function EnemyDB.refresh()
-    local src
     local m = EnemyDB.mode
-    if m and EnemyDB.data.byMode[m] then
-        src = EnemyDB.data.byMode[m]
-    else
-        src = {}
-        for _, md in pairs(EnemyDB.data.byMode) do
-            for n, info in pairs(md) do src[n] = info end
-        end
-    end
+    local src = (m and EnemyDB.data.byMode[m]) or {}
     local bl, pr, nm = {}, {}, {}
     for n, info in pairs(src) do
         if info.airUnit or info.speed <= 0 then
@@ -172,7 +252,7 @@ end
 function EnemyDB.threshold()
     local m = EnemyDB.mode
     if not m then return 1000 end
-    return EnemyDB.THRESHOLDS[m] or 1000
+    return THRESHOLDS_NORMALIZED[normalizeModeFull(m)] or 1000
 end
 
 function EnemyDB.worth(enemy)
@@ -184,19 +264,38 @@ function EnemyDB.worth(enemy)
     return info.hp >= EnemyDB.threshold()
 end
 
-task.spawn(function() pcall(EnemyDB.parse) end)
-
 task.spawn(function()
     while true do
-        pcall(function()
-            local t = game:GetService("Players").LocalPlayer.PlayerGui
-                .Interface.BottomLeftButtons.Difficulty.TextLabel.Text
-            if t and #t > 0 then
-                EnemyDB.mode = string.lower(string.gsub(t, " ", ""))
-            end
+        local ok, text = pcall(function()
+            return LocalPlayer.PlayerGui.Interface.BottomLeftButtons.Difficulty.TextLabel.Text
         end)
-        pcall(EnemyDB.refresh)
-        task.wait(2)
+        if ok and text and #text > 0 then
+            local m = normalizeMode(text)
+            if m ~= EnemyDB.mode then
+                if not EnemyDB._builtModes[m] then
+                    local built = buildModeData(m)
+                    if built then EnemyDB._builtModes[m] = built end
+                end
+                EnemyDB.mode = m
+                EnemyDB.data.byMode[m] = EnemyDB._builtModes[m] or {}
+                EnemyDB.data.loaded = true
+                EnemyDB.refresh()
+                local count = 0
+                for _ in pairs(EnemyDB.data.byMode[m]) do count = count + 1 end
+                addDebugLog("EnemyDB: mode " .. m .. " (" .. count .. " enemies)")
+            elseif not EnemyDB._builtModes[m] then
+                local built = buildModeData(m)
+                if built then
+                    EnemyDB._builtModes[m] = built
+                    EnemyDB.data.byMode[m] = built
+                    EnemyDB.refresh()
+                    local count = 0
+                    for _ in pairs(built) do count = count + 1 end
+                    addDebugLog("EnemyDB: mode " .. m .. " loaded after retry (" .. count .. " enemies)")
+                end
+            end
+        end
+        task.wait(5)
     end
 end)
 
@@ -918,11 +1017,14 @@ local function getPathNodes()
     local nodes = {}
     local gameFolder = workspace:FindFirstChild("Game")
     local mapFolder = gameFolder and gameFolder:FindFirstChild("Map")
-    local pathFolder = mapFolder and mapFolder:FindFirstChild("Path")
-    if pathFolder then
-        for _, desc in ipairs(pathFolder:GetDescendants()) do
-            if desc:IsA("BasePart") then
-                table.insert(nodes, desc.Position)
+    if mapFolder then
+        for _, child in ipairs(mapFolder:GetChildren()) do
+            if child:IsA("Folder") and (child.Name == "Path" or child.Name:match("^Path_Team")) then
+                for _, desc in ipairs(child:GetDescendants()) do
+                    if desc:IsA("BasePart") then
+                        table.insert(nodes, desc.Position)
+                    end
+                end
             end
         end
     end
@@ -1059,11 +1161,20 @@ local function getAllEnemies()
     local enemiesFolder = gameFolder:FindFirstChild("Enemies")
     if not enemiesFolder then return {} end
     local enemies = {}
-    for _, child in ipairs(enemiesFolder:GetChildren()) do
-        if child:IsA("BasePart") and child.Name ~= "Arrow" then
-            table.insert(enemies, child)
+
+    local function collect(container)
+        for _, child in ipairs(container:GetChildren()) do
+            if child:IsA("BasePart") then
+                if child.Name ~= "Arrow" then
+                    table.insert(enemies, child)
+                end
+            elseif child:IsA("Folder") then
+                collect(child)
+            end
         end
     end
+
+    collect(enemiesFolder)
     return enemies
 end
 
@@ -1760,6 +1871,7 @@ local function runEncore()
     local SYNC_RANGE = 20
     local SPAM_DELAY = 0.3
     local groupStates = {}
+    local lastEligibleSet = ""
 
     while settings.activeAbilities["ENCORE"] do
         local edjs = {}
@@ -1768,24 +1880,35 @@ local function runEncore()
                 table.insert(edjs, {part = part, pos = part.Position, hash = data.hash})
             end
         end
-        
+
+        table.sort(edjs, function(a, b) return a.hash < b.hash end)
+
+        local eligibleSet = ""
+        for _, e in ipairs(edjs) do eligibleSet = eligibleSet .. e.hash .. "_" end
+        if eligibleSet ~= lastEligibleSet then
+            lastEligibleSet = eligibleSet
+            for key, state in pairs(groupStates) do
+                state.cancelled = true
+                groupStates[key] = nil
+            end
+        end
+
         if #edjs > 0 then
-            table.sort(edjs, function(a, b) return a.hash < b.hash end)
             local groups = {}
             local ungrouped = {}
             for i, c in ipairs(edjs) do ungrouped[i] = c end
-            
+
             while #ungrouped > 0 do
                 local anchor = table.remove(ungrouped, 1)
                 local nearby = {}
                 for i, c in ipairs(ungrouped) do
                     local d = (anchor.pos - c.pos).Magnitude
-                    if d <= SYNC_RANGE then 
-                        table.insert(nearby, {idx = i, dist = d}) 
+                    if d <= SYNC_RANGE then
+                        table.insert(nearby, {idx = i, dist = d})
                     end
                 end
                 table.sort(nearby, function(a, b) return a.dist < b.dist end)
-                
+
                 local group = {anchor}
                 local toRemove = {}
                 for k = 1, math.min(2, #nearby) do
@@ -1803,10 +1926,13 @@ local function runEncore()
                 for _, c in ipairs(group) do key = key .. c.hash .. "_" end
                 activeKeys[key] = true
             end
-            
+
             for key, state in pairs(groupStates) do
-                if not activeKeys[key] and not state.pending then 
-                    groupStates[key] = nil 
+                if not activeKeys[key] then
+                    state.cancelled = true
+                    if not state.pending then
+                        groupStates[key] = nil
+                    end
                 end
             end
 
@@ -1815,33 +1941,31 @@ local function runEncore()
                 local key = ""
                 for _, c in ipairs(group) do key = key .. c.hash .. "_" end
                 local size = #group
-                
+
                 local state = groupStates[key]
                 if not state then
-                    state = { 
-                        lastFire = 0, 
-                        index = 1, 
-                        pending = false, 
+                    state = {
+                        lastFire = 0,
+                        index = 1,
+                        pending = false,
                         isWaiting = false,
-                        waitUntil = 0
+                        waitUntil = 0,
                     }
                     groupStates[key] = state
                 end
-                
+
                 if size == 1 then
                     if not state.pending then
                         state.pending = true
                         local member = group[1]
                         local part = member.part
                         local hash = member.hash
-                        
+
                         task.spawn(function()
-                            while settings.activeAbilities["ENCORE"] do
+                            while settings.activeAbilities["ENCORE"] and not state.cancelled do
                                 if not part or not part.Parent then break end
                                 abilityUsedQueue[hash] = nil
-                                
                                 sendAbilityNoPosition(part, 1)
-                                
                                 task.wait(SPAM_DELAY)
                             end
                             state.pending = false
@@ -1852,41 +1976,37 @@ local function runEncore()
                         state.isWaiting = false
                         state.index = (state.index % size) + 1
                     end
-                    
+
                     if not state.isWaiting and not state.pending then
                         local member = group[state.index]
                         if member and member.part and member.part.Parent then
                             state.pending = true
                             local part = member.part
                             local hash = member.hash
-                            
+
                             task.spawn(function()
                                 local used = false
-                                while settings.activeAbilities["ENCORE"] and not used do
+                                while settings.activeAbilities["ENCORE"] and not used and not state.cancelled do
                                     if not part or not part.Parent then break end
-                                    
                                     abilityUsedQueue[hash] = nil
                                     if sendAbilityNoPosition(part, 1) == true then
                                         used = true
                                         break
                                     end
-                                    
                                     local start = tick()
-                                    while tick() - start < 0.5 and settings.activeAbilities["ENCORE"] do
+                                    while tick() - start < 0.5 and settings.activeAbilities["ENCORE"] and not state.cancelled do
                                         if abilityUsedQueue[hash] then
                                             used = true
                                             break
                                         end
                                         task.wait(0.02)
                                     end
-                                    
-                                    if not used then 
-                                        task.wait(SPAM_DELAY) 
+                                    if not used then
+                                        task.wait(SPAM_DELAY)
                                     end
                                 end
                                 abilityUsedQueue[hash] = nil
-                                
-                                if used then
+                                if used and not state.cancelled then
                                     state.isWaiting = true
                                     state.waitUntil = tick() + 10
                                 end
@@ -2082,13 +2202,19 @@ local function runDebuffGrenade()
         for part, data in pairs(towers) do
             if data.owned and data.name == "Grenadier" and data.hash and part.Parent and data.topCount >= 4 then
                 local targetPos = nil
+                local enemies = getAllEnemies()
+
                 if settings.debuffGrenadeMode == "closest" then
                     targetPos = getClosestPathNodeTo(part.Position)
+                    if not targetPos then
+                        local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist, 30)
+                        if target then targetPos = target.Position end
+                    end
                 else
-                    local enemies = getAllEnemies()
                     local target = getClosestEnemy(part.Position, enemies, globalHitBlacklist, 20)
                     if target then targetPos = target.Position end
                 end
+
                 if targetPos then
                     task.spawn(function() sendAbilityWithPosition(part, 1, targetPos) end)
                 end
