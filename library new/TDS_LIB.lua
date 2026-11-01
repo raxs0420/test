@@ -86,6 +86,7 @@ CONSUMABLES = {
     ["rbxassetid://90205718290985"] = "Mid Grade Consumable Crate(s)",
     ["rbxassetid://103153842896752"] = "High Grade Consumable Crate(s)",
     ["rbxassetid://136180382135048"] = "Santa Radio(s)",
+    ["rbxassetid://114595010548022"] = "Sugar Rushe(s)",
     ["rbxassetid://115421293343588"] = "Easter Egg(s)",
     ["rbxassetid://95120437798143"] = "Molten Monster(s)",
     ["rbxassetid://132155797622156"] = "Christmas Tree(s)",
