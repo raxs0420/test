@@ -98,6 +98,7 @@ CONSUMABLES = {
     ["rbxassetid://138905785270725"] = "Necromancer's Tome(s)",
     ["rbxassetid://139414922355803"] = "Present Clusters(s)",
     ["rbxassetid://124568805305441"] = "Pumpkin Bomb(s)",    
+    ["rbxassetid://128078447476652"] = "Turkey Leg(s)",    
 }
 
 MAIN = {
