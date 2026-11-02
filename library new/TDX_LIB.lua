@@ -1074,59 +1074,73 @@ ensureWorker = function()
     if TDX._rebuildWorkerRunning then return end
     TDX._rebuildWorkerRunning = true
     task.defer(function()
-        while true do
-            local didWork = false
+        local outerOk, outerErr = pcall(function()
+            while true do
+                local ok, err = pcall(function()
+                    local didWork = false
 
-            if #TDX._rebuildQueue > 0 then
-                queueSort()
+                    if #TDX._rebuildQueue > 0 then
+                        queueSort()
 
-                local toRemove = {}
-                local chosen = nil
+                        local toRemove = {}
+                        local chosen = nil
 
-                for i = 1, #TDX._rebuildQueue do
-                    local sid = TDX._rebuildQueue[i]
-                    local s = TDX._slots[sid]
+                        for i = 1, #TDX._rebuildQueue do
+                            local sid = TDX._rebuildQueue[i]
+                            local s = TDX._slots[sid]
 
-                    if not s or not s.deadId or not s.autoReplace or s.awaitingGameRevive then
-                        table.insert(toRemove, i)
-                    elseif s.actualId ~= s.deadId then
-                        s.deadId = nil
-                        table.insert(toRemove, i)
-                    elseif (tick() - (s.deathTime or 0)) >= REBUILD_WAIT then
-                        if not chosen then
-                            chosen = { index = i, slotId = sid }
+                            if not s or not s.deadId or not s.autoReplace or s.awaitingGameRevive then
+                                table.insert(toRemove, i)
+                            elseif s.actualId ~= s.deadId then
+                                s.deadId = nil
+                                table.insert(toRemove, i)
+                            elseif (tick() - (s.deathTime or 0)) >= REBUILD_WAIT then
+                                if not chosen then
+                                    chosen = { index = i, slotId = sid }
+                                end
+                            end
+                        end
+
+                        for j = #toRemove, 1, -1 do
+                            table.remove(TDX._rebuildQueue, toRemove[j])
+                        end
+
+                        if chosen then
+                            didWork = true
+                            local chosenSlot = TDX._slots[chosen.slotId]
+                            local chosenValid = chosenSlot
+                                and chosenSlot.deadId
+                                and chosenSlot.autoReplace
+                                and not chosenSlot.awaitingGameRevive
+                                and (tick() - (chosenSlot.deathTime or 0)) >= REBUILD_WAIT
+
+                            if chosenValid then
+                                queueRemove(chosen.slotId)
+                                TDX._isRebuildingQueue = true
+                                TDX._rebuildUrgent = TDX._rebuildUrgent + 1
+                                local ok2, err2 = pcall(doRebuildSlot, chosen.slotId)
+                                TDX._rebuildUrgent = TDX._rebuildUrgent - 1
+                                TDX._isRebuildingQueue = false
+                                if not ok2 then warnUser("doRebuildSlot error:", err2) end
+                            end
                         end
                     end
-                end
 
-                for j = #toRemove, 1, -1 do
-                    table.remove(TDX._rebuildQueue, toRemove[j])
-                end
-
-                if chosen then
-                    didWork = true
-                    local chosenSlot = TDX._slots[chosen.slotId]
-                    local chosenValid = chosenSlot
-                        and chosenSlot.deadId
-                        and chosenSlot.autoReplace
-                        and not chosenSlot.awaitingGameRevive
-                        and (tick() - (chosenSlot.deathTime or 0)) >= REBUILD_WAIT
-
-                    if chosenValid then
-                        queueRemove(chosen.slotId)
-                        TDX._isRebuildingQueue = true
-                        TDX._rebuildUrgent = TDX._rebuildUrgent + 1
-                        local ok, err = pcall(doRebuildSlot, chosen.slotId)
-                        TDX._rebuildUrgent = TDX._rebuildUrgent - 1
-                        TDX._isRebuildingQueue = false
-                        if not ok then warnUser("doRebuildSlot error:", err) end
+                    if not didWork then
+                        task.wait(0.1)
                     end
+                end)
+
+                if not ok then
+                    warnUser("[TDX] worker iteration error:", err)
+                    task.wait(0.5)
                 end
             end
+        end)
 
-            if not didWork then
-                task.wait(0.1)
-            end
+        if not outerOk then
+            warnUser("[TDX] worker crashed, resetting flag:", outerErr)
+            TDX._rebuildWorkerRunning = false
         end
     end)
 end
