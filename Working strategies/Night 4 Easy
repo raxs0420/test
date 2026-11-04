@@ -1,4 +1,4 @@
-_G.AutoPickups = false
+_G.AutoPickups = true
 _G.AntiLag = true
 _G.ClaimRewards = true
 _G.AutoChain = true
