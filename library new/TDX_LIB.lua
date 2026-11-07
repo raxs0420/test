@@ -1326,6 +1326,38 @@ local function isTowerUbered(hash)
     return true
 end
 
+task.spawn(function()
+    local ok, applyBuffEvent = pcall(function()
+        return game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerApplyBuffData")
+    end)
+
+    if not ok or not applyBuffEvent then
+        log("Failed to find TowerApplyBuffData remote - Booster Uber protection disabled.")
+        return
+    end
+
+    applyBuffEvent.OnClientEvent:Connect(function(data)
+        if type(data) ~= "table" then return end
+        
+        for _, buff in ipairs(data) do
+            if type(buff) == "table" and buff.Name == "PVPUberFieldBuff" then
+                local towerHash = tonumber(buff.TowerHash)
+                if towerHash then
+                    local t = getgenv().TDX_UberedTowers
+                    if not t then
+                        t = {}
+                        getgenv().TDX_UberedTowers = t
+                    end
+                
+                    t[towerHash] = tick() + 15
+                    
+                    log(string.format("Booster Uber applied to ID %s - protected for 15s", tostring(towerHash)))
+                end
+            end
+        end
+    end)
+end)
+
 local function onTBVoidHit(rawHash)
     local hash = tonumber(rawHash)
     if not hash then return end
