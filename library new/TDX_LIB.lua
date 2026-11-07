@@ -1314,10 +1314,29 @@ restoreLevel = function(slotId, targetT, targetB)
     end
 end
 
+local function isTowerUbered(hash)
+    local t = getgenv().TDX_UberedTowers
+    if not t then return false end
+    local exp = t[hash]
+    if not exp then return false end
+    if tick() >= exp then
+        t[hash] = nil  
+        return false
+    end
+    return true
+end
+
 local function onTBVoidHit(rawHash)
     local hash = tonumber(rawHash)
     if not hash then return end
     if tbVoidPending[hash] then return end
+
+    if isTowerUbered(hash) then
+        log(string.format("Void hit ID %s but tower is UBERED — skipping sell/rebuild",
+            tostring(hash)))
+        return
+    end
+
     tbVoidPending[hash] = true
 
     local slotId, slot = findSlotByActualId(hash)
