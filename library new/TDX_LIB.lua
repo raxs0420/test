@@ -1327,35 +1327,67 @@ local function isTowerUbered(hash)
 end
 
 task.spawn(function()
-    local ok, applyBuffEvent = pcall(function()
-        return game:GetService("ReplicatedStorage"):WaitForChild("Remotes"):WaitForChild("TowerApplyBuffData")
-    end)
-
-    if not ok or not applyBuffEvent then
-        log("Failed to find TowerApplyBuffData remote - Booster Uber protection disabled.")
-        return
-    end
-
-    applyBuffEvent.OnClientEvent:Connect(function(data)
-        if type(data) ~= "table" then return end
-        
-        for _, buff in ipairs(data) do
-            if type(buff) == "table" and buff.Name == "PVPUberFieldBuff" then
-                local towerHash = tonumber(buff.TowerHash)
-                if towerHash then
-                    local t = getgenv().TDX_UberedTowers
-                    if not t then
-                        t = {}
-                        getgenv().TDX_UberedTowers = t
-                    end
+    local connectedEvent = nil
+    
+    while true do
+        if not connectedEvent then
+            local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+            local applyBuffEvent = remotes and remotes:FindFirstChild("TowerApplyBuffData")
+            
+            if applyBuffEvent then
+                connectedEvent = applyBuffEvent
+                log("Booster Uber protection: Connected to TowerApplyBuffData")
                 
-                    t[towerHash] = tick() + 15
+                applyBuffEvent.OnClientEvent:Connect(function(...)
+                    local args = {...}
                     
-                    log(string.format("Booster Uber applied to ID %s - protected for 15s", tostring(towerHash)))
-                end
+                    for _, arg in ipairs(args) do
+                        if type(arg) == "table" then
+                            local buffs = {}
+                            if type(arg[1]) == "table" then
+                                for _, b in ipairs(arg) do table.insert(buffs, b) end
+                            else
+                                table.insert(buffs, arg)
+                            end
+                            
+                            for _, buff in ipairs(buffs) do
+                                local buffName = tostring(buff.Name)
+                                
+                                if buffName == "PVPUberFieldBuff" or buffName:find("PVPUberField") then
+                                    local tHash = tonumber(buff.TowerHash)
+                                    local cHash = tonumber(buff.Hash)
+                                    
+                                    local t = getgenv().TDX_UberedTowers
+                                    if not t then
+                                        t = {}
+                                        getgenv().TDX_UberedTowers = t
+                                    end
+                                    
+                                    local newExp = tick() + 15
+                                    
+                                    if tHash then
+                                        t[tHash] = math.max(t[tHash] or 0, newExp)
+                                        log(string.format("Booster applied to target ID %s - protected for 15s", tostring(tHash)))
+                                    end
+                                    
+                                    if cHash and cHash ~= tHash then
+                                        t[cHash] = math.max(t[cHash] or 0, newExp)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+        else
+            if not connectedEvent.Parent or not connectedEvent.Parent.Parent then
+                log("Booster Uber protection: Remote lost (trying to reconnect)")
+                connectedEvent = nil 
             end
         end
-    end)
+        
+        task.wait(2) 
+    end
 end)
 
 local function onTBVoidHit(rawHash)
